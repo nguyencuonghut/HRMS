@@ -1,0 +1,146 @@
+import { createRouter, createWebHistory } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
+
+const router = createRouter({
+  history: createWebHistory(),
+  routes: [
+    {
+      path: '/login',
+      name: 'login',
+      component: () => import('@/views/auth/LoginView.vue'),
+      meta: { public: true },
+    },
+    {
+      path: '/',
+      component: () => import('@/components/layout/AppLayout.vue'),
+      meta: { requiresAuth: true },
+      children: [
+        {
+          path: '',
+          redirect: '/dashboard',
+        },
+        {
+          path: 'dashboard',
+          name: 'dashboard',
+          component: () => import('@/views/dashboard/DashboardView.vue'),
+          meta: { title: 'Dashboard', icon: 'pi-home' },
+        },
+        // Cơ cấu tổ chức
+        {
+          path: 'org/branches',
+          name: 'org-branches',
+          component: () => import('@/views/org/BranchListView.vue'),
+          meta: { title: 'Công ty / Chi nhánh' },
+        },
+        {
+          path: 'org/departments',
+          name: 'org-departments',
+          component: () => import('@/views/org/DepartmentListView.vue'),
+          meta: { title: 'Phòng / Ban' },
+        },
+        {
+          path: 'org/positions',
+          name: 'org-positions',
+          component: () => import('@/views/org/PositionListView.vue'),
+          meta: { title: 'Vị trí công việc' },
+        },
+        // Nhân sự
+        {
+          path: 'employees',
+          name: 'employees',
+          component: () => import('@/views/employees/EmployeeListView.vue'),
+          meta: { title: 'Danh sách nhân viên' },
+        },
+        {
+          path: 'employees/:id',
+          name: 'employee-detail',
+          component: () => import('@/views/employees/EmployeeDetailView.vue'),
+          meta: { title: 'Hồ sơ nhân viên' },
+        },
+        // Hợp đồng
+        {
+          path: 'contracts',
+          name: 'contracts',
+          component: () => import('@/views/contracts/ContractListView.vue'),
+          meta: { title: 'Hợp đồng lao động' },
+        },
+        // Nghỉ phép
+        {
+          path: 'leaves',
+          name: 'leaves',
+          component: () => import('@/views/leaves/LeaveListView.vue'),
+          meta: { title: 'Nghỉ phép' },
+        },
+        // Bảo hiểm
+        {
+          path: 'insurance',
+          name: 'insurance',
+          component: () => import('@/views/insurance/InsuranceView.vue'),
+          meta: { title: 'Bảo hiểm BHXH' },
+        },
+        // Lương BHXH
+        {
+          path: 'salary',
+          name: 'salary',
+          component: () => import('@/views/salary/SalaryView.vue'),
+          meta: { title: 'Lương BHXH' },
+        },
+        // Khen thưởng & Kỷ luật
+        {
+          path: 'rewards',
+          name: 'rewards',
+          component: () => import('@/views/rewards/RewardListView.vue'),
+          meta: { title: 'Khen thưởng & Kỷ luật' },
+        },
+        // Đào tạo
+        {
+          path: 'training',
+          name: 'training',
+          component: () => import('@/views/training/TrainingView.vue'),
+          meta: { title: 'Đào tạo' },
+        },
+        // KPI
+        {
+          path: 'performance',
+          name: 'performance',
+          component: () => import('@/views/performance/PerformanceView.vue'),
+          meta: { title: 'Đánh giá KPI' },
+        },
+        // Báo cáo
+        {
+          path: 'reports',
+          name: 'reports',
+          component: () => import('@/views/reports/ReportView.vue'),
+          meta: { title: 'Báo cáo' },
+        },
+        // Danh mục
+        {
+          path: 'catalog',
+          name: 'catalog',
+          component: () => import('@/views/catalog/CatalogView.vue'),
+          meta: { title: 'Danh mục' },
+        },
+        // Cài đặt
+        {
+          path: 'settings',
+          name: 'settings',
+          component: () => import('@/views/settings/SettingsView.vue'),
+          meta: { title: 'Cài đặt' },
+        },
+      ],
+    },
+    { path: '/:pathMatch(.*)*', redirect: '/' },
+  ],
+})
+
+router.beforeEach((to) => {
+  const auth = useAuthStore()
+  if (!to.meta.public && !auth.isAuthenticated) {
+    return { name: 'login', query: { redirect: to.fullPath } }
+  }
+  if (to.name === 'login' && auth.isAuthenticated) {
+    return { name: 'dashboard' }
+  }
+})
+
+export default router
