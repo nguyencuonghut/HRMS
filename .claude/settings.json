@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git config *)",
+      "Read(//run/media/cuong/DATA/02_Project/166_HonghaHRM/**)"
+    ]
+  }
+}
