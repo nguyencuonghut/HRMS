@@ -70,6 +70,7 @@ const menu: MenuItem[] = [
       { to: '/org/departments', label: 'Phòng / Ban' },
       { to: '/org/job-titles',  label: 'Chức danh' },
       { to: '/org/positions',   label: 'Vị trí công việc' },
+      { to: '/org/history',     label: 'Lịch sử thay đổi', icon: 'pi-history' },
     ],
   },
   { to: '/employees', label: 'Nhân sự', icon: 'pi-users' },

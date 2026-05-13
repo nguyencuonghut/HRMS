@@ -44,6 +44,12 @@ const router = createRouter({
           component: () => import('@/views/org/PositionListView.vue'),
           meta: { title: 'Vị trí công việc' },
         },
+        {
+          path: 'org/history',
+          name: 'org-history',
+          component: () => import('@/views/org/OrgHistoryView.vue'),
+          meta: { title: 'Lịch sử thay đổi' },
+        },
         // Nhân sự
         {
           path: 'employees',
