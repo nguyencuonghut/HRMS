@@ -52,12 +52,14 @@
         responsive-layout="scroll"
         :paginator="true"
         :rows="pageRows"
-        :rows-per-page-options="[25, 50, 100]"
+        :rows-per-page-options="[10, 25, 50]"
+        :first="first"
         paginator-template="RowsPerPageDropdown FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink"
         sort-mode="single"
+        @page="handlePage"
       >
         <template #paginatorstart>
-          <span class="paginator-info" v-if="list.length">Tổng {{ list.length }} bản ghi</span>
+          <span class="paginator-info" v-if="paginatorInfo">{{ paginatorInfo }}</span>
         </template>
         <template #empty>
           <div class="empty-state">
@@ -166,7 +168,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useToast } from 'primevue/usetoast'
 import Button from 'primevue/button'
 import Column from 'primevue/column'
@@ -183,13 +185,22 @@ import orgHistoryService, { type OrgHistoryItem } from '@/services/orgHistorySer
 const toast       = useToast()
 const loading     = ref(false)
 const list        = ref<OrgHistoryItem[]>([])
-const pageRows    = ref(25)
+const pageRows    = ref(10)
+const first       = ref(0)
 
 const filterType     = ref<string | null>(null)
 const filterDateFrom = ref<Date | null>(null)
 const filterDateTo   = ref<Date | null>(null)
 
 const detailVisible = ref(false)
+
+const paginatorInfo = computed(() => {
+  const total = list.value.length
+  if (total === 0) return ''
+  const from = first.value + 1
+  const to   = Math.min(first.value + pageRows.value, total)
+  return `Hiển thị ${from}–${to} trên tổng số ${total} dòng`
+})
 const detailItem    = ref<OrgHistoryItem | null>(null)
 
 // ── Options ────────────────────────────────────────────────────────────────────
@@ -202,7 +213,13 @@ const typeOptions = [
 
 // ── Data ───────────────────────────────────────────────────────────────────────
 
+function handlePage(e: { first: number; rows: number }) {
+  first.value    = e.first
+  pageRows.value = e.rows
+}
+
 async function loadData() {
+  first.value = 0
   loading.value = true
   try {
     const { data } = await orgHistoryService.getList({

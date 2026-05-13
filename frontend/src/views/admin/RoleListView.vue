@@ -17,7 +17,16 @@
         responsive-layout="scroll"
         sort-field="id"
         :sort-order="1"
+        :paginator="true"
+        :rows="pageRows"
+        :rows-per-page-options="[10, 25, 50]"
+        :first="first"
+        paginator-template="RowsPerPageDropdown FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink"
+        @page="handlePage"
       >
+        <template #paginatorstart>
+          <span class="paginator-info" v-if="paginatorInfo">{{ paginatorInfo }}</span>
+        </template>
         <template #empty>
           <div class="empty-state">
             <i class="pi pi-shield" />
@@ -103,7 +112,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useToast } from 'primevue/usetoast'
 import { useConfirm } from 'primevue/useconfirm'
 import Badge from 'primevue/badge'
@@ -121,10 +130,25 @@ const confirm = useConfirm()
 
 const loading      = ref(false)
 const roles        = ref<RoleListItem[]>([])
+const pageRows     = ref(10)
+const first        = ref(0)
+
+const paginatorInfo = computed(() => {
+  const total = roles.value.length
+  if (total === 0) return ''
+  const from = first.value + 1
+  const to   = Math.min(first.value + pageRows.value, total)
+  return `Hiển thị ${from}–${to} trên tổng số ${total} dòng`
+})
 const formVisible  = ref(false)
 const editingRole  = ref<RoleListItem | null>(null)
 const matrixVisible = ref(false)
 const matrixRole    = ref<RoleListItem | null>(null)
+
+function handlePage(e: { first: number; rows: number }) {
+  first.value    = e.first
+  pageRows.value = e.rows
+}
 
 function apiError(e: unknown): string {
   const err = e as { response?: { data?: { detail?: unknown } } }

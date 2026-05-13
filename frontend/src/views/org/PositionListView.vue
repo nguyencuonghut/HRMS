@@ -52,8 +52,10 @@
         :paginator="true"
         :rows="pageRows"
         :rows-per-page-options="[10, 25, 50]"
+        :first="first"
         paginator-template="RowsPerPageDropdown FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink"
         sort-mode="single"
+        @page="handlePage"
       >
         <template #paginatorstart>
           <span class="paginator-info" v-if="paginatorInfo">{{ paginatorInfo }}</span>
@@ -274,6 +276,7 @@ const filterDeptId = ref<number | null>(null)
 const filterActive = ref<boolean | null>(null)
 const searchQuery  = ref('')
 const pageRows     = ref(10)
+const first        = ref(0)
 
 const dialogVisible = ref(false)
 const submitting    = ref(false)
@@ -317,7 +320,10 @@ const filteredList = computed(() => {
 
 const paginatorInfo = computed(() => {
   const total = filteredList.value.length
-  return total > 0 ? `Tổng số ${total} vị trí` : ''
+  if (total === 0) return ''
+  const from = first.value + 1
+  const to   = Math.min(first.value + pageRows.value, total)
+  return `Hiển thị ${from}–${to} trên tổng số ${total} dòng`
 })
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -335,6 +341,11 @@ function apiError(e: unknown): string {
 }
 
 // ── Data loading ───────────────────────────────────────────────────────────────
+
+function handlePage(e: { first: number; rows: number }) {
+  first.value    = e.first
+  pageRows.value = e.rows
+}
 
 async function loadData() {
   loading.value = true

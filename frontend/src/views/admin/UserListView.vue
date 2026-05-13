@@ -49,7 +49,9 @@
         @update:rows="onRowsChange"
       >
         <template #paginatorstart>
-          <span class="paginator-info">Tổng số {{ total }} tài khoản</span>
+          <span class="paginator-info" v-if="total > 0">
+            Hiển thị {{ skip + 1 }}–{{ Math.min(skip + items.length, total) }} trên tổng số {{ total }} dòng
+          </span>
         </template>
         <template #empty>
           <div class="empty-state">
