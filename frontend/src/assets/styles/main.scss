@@ -18,10 +18,10 @@
   --m-text:           #374151;
   --m-text-dim:       #9ca3af;   // section labels
   --m-icon:           #9ca3af;
-  --m-active-text:    #4f46e5;   // indigo-600
-  --m-active-icon:    #4f46e5;
-  --m-active-bg:      #eef2ff;   // indigo-50
-  --m-hover-bg:       #f5f3ff;   // indigo-50 lighter
+  --m-active-text:    #0d9488;   // teal-600
+  --m-active-icon:    #0d9488;
+  --m-active-bg:      #f0fdfa;   // teal-50
+  --m-hover-bg:       #f0fdfa;   // teal-50
 }
 
 html.dark-mode {
@@ -37,9 +37,9 @@ html.dark-mode {
   --m-text:           #a1a1aa;   // zinc-400
   --m-text-dim:       #52525b;   // zinc-600
   --m-icon:           #52525b;
-  --m-active-text:    #a5b4fc;   // indigo-300
-  --m-active-icon:    #818cf8;   // indigo-400
-  --m-active-bg:      rgba(99,102,241,.15);
+  --m-active-text:    #5eead4;   // teal-300
+  --m-active-icon:    #2dd4bf;   // teal-400
+  --m-active-bg:      rgba(20,184,166,.15);
   --m-hover-bg:       rgba(255,255,255,.05);
 }
 

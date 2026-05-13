@@ -85,7 +85,7 @@ async function onSubmit() {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4338ca 100%);
+  background: linear-gradient(135deg, #042f2e 0%, #115e59 50%, #0f766e 100%);
   padding: 1rem;
 }
 
@@ -112,7 +112,7 @@ async function onSubmit() {
     margin: 0 0 0.25rem;
     font-size: 1.5rem;
     font-weight: 800;
-    color: #4338ca;
+    color: #0f766e;
   }
 
   p {

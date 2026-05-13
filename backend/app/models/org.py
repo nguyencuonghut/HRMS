@@ -9,7 +9,8 @@ from sqlmodel import Field, SQLModel, Column
 
 
 def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    # Trả về naive UTC — SQLModel map datetime → TIMESTAMP WITHOUT TIME ZONE
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 class Department(SQLModel, table=True):

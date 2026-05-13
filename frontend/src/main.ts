@@ -20,24 +20,30 @@ import App from './App.vue'
 import router from './router'
 import '@/assets/styles/main.scss'
 
-// ─── Hồng Hà theme preset (Indigo primary — elegant enterprise) ────────────
+// ─── Hồng Hà theme preset (Teal primary) ──────────────────────────────────
 const HongHaPreset = definePreset(Aura, {
   semantic: {
     primary: {
-      50:  '#eef2ff',
-      100: '#e0e7ff',
-      200: '#c7d2fe',
-      300: '#a5b4fc',
-      400: '#818cf8',
-      500: '#6366f1',
-      600: '#4f46e5',
-      700: '#4338ca',
-      800: '#3730a3',
-      900: '#312e81',
-      950: '#1e1b4b',
+      50:  '#f0fdfa',
+      100: '#ccfbf1',
+      200: '#99f6e4',
+      300: '#5eead4',
+      400: '#2dd4bf',
+      500: '#14b8a6',
+      600: '#0d9488',
+      700: '#0f766e',
+      800: '#115e59',
+      900: '#134e4a',
+      950: '#042f2e',
     },
     colorScheme: {
       light: {
+        primary: {
+          color:         '{primary.600}',  // #0d9488 — contrast 4.6:1 với white ✓
+          contrastColor: '#ffffff',
+          hoverColor:    '{primary.700}',
+          activeColor:   '{primary.800}',
+        },
         surface: {
           0:   '#ffffff',
           50:  '{slate.50}',
@@ -54,19 +60,25 @@ const HongHaPreset = definePreset(Aura, {
         },
       },
       dark: {
+        primary: {
+          color:         '{primary.500}',  // #14b8a6 — đủ tối để dùng white text ✓
+          contrastColor: '#ffffff',
+          hoverColor:    '{primary.400}',
+          activeColor:   '{primary.300}',
+        },
         surface: {
           0:   '#ffffff',
-          50:  '{zinc.950}',   // #09090b
-          100: '{zinc.900}',   // #18181b
-          200: '{zinc.800}',   // #27272a
-          300: '{zinc.700}',   // #3f3f46
-          400: '{zinc.600}',   // #52525b
-          500: '{zinc.500}',   // #71717a
-          600: '{zinc.400}',   // #a1a1aa
-          700: '{zinc.300}',   // #d4d4d8
-          800: '{zinc.200}',   // #e4e4e7
-          900: '{zinc.100}',   // #f4f4f5
-          950: '{zinc.50}',    // #fafafa
+          50:  '{zinc.50}',
+          100: '{zinc.100}',
+          200: '{zinc.200}',
+          300: '{zinc.300}',
+          400: '{zinc.400}',
+          500: '{zinc.500}',
+          600: '{zinc.600}',
+          700: '{zinc.700}',
+          800: '{zinc.800}',
+          900: '{zinc.900}',   // #18181b  ← content.background
+          950: '{zinc.950}',   // #09090b  ← formField.background
         },
       },
     },
