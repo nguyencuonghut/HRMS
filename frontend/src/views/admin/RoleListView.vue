@@ -9,11 +9,21 @@
       <Button label="Thêm vai trò" icon="pi pi-plus" @click="openCreate" />
     </div>
 
+    <!-- Toolbar -->
+    <div class="toolbar">
+      <IconField class="toolbar-search">
+        <InputIcon class="pi pi-search" />
+        <InputText v-model="filters.global.value" placeholder="Tìm theo mã, tên, mô tả..." class="w-full" @input="first = 0" />
+      </IconField>
+    </div>
+
     <!-- DataTable -->
     <div class="card">
       <DataTable
         :value="roles"
         :loading="loading"
+        v-model:filters="filters"
+        :global-filter-fields="['code', 'name', 'description']"
         responsive-layout="scroll"
         sort-field="id"
         :sort-order="1"
@@ -25,7 +35,9 @@
         @page="handlePage"
       >
         <template #paginatorstart>
-          <span class="paginator-info" v-if="paginatorInfo">{{ paginatorInfo }}</span>
+          <span class="paginator-info" v-if="displayedTotal > 0">
+            Hiển thị {{ first + 1 }}–{{ Math.min(first + pageRows, displayedTotal) }} trên tổng số {{ displayedTotal }} dòng
+          </span>
         </template>
         <template #empty>
           <div class="empty-state">
@@ -112,13 +124,17 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
+import { FilterMatchMode } from '@primevue/core/api'
 import { useToast } from 'primevue/usetoast'
 import { useConfirm } from 'primevue/useconfirm'
 import Badge from 'primevue/badge'
 import Button from 'primevue/button'
 import Column from 'primevue/column'
 import DataTable from 'primevue/datatable'
+import IconField from 'primevue/iconfield'
+import InputIcon from 'primevue/inputicon'
+import InputText from 'primevue/inputtext'
 import Tag from 'primevue/tag'
 
 import RoleFormDialog from './RoleFormDialog.vue'
@@ -128,18 +144,22 @@ import roleService, { type RoleListItem } from '@/services/roleService'
 const toast   = useToast()
 const confirm = useConfirm()
 
-const loading      = ref(false)
-const roles        = ref<RoleListItem[]>([])
-const pageRows     = ref(10)
-const first        = ref(0)
+const loading  = ref(false)
+const roles    = ref<RoleListItem[]>([])
+const pageRows = ref(10)
+const first    = ref(0)
 
-const paginatorInfo = computed(() => {
-  const total = roles.value.length
-  if (total === 0) return ''
-  const from = first.value + 1
-  const to   = Math.min(first.value + pageRows.value, total)
-  return `Hiển thị ${from}–${to} trên tổng số ${total} dòng`
+const filters = ref({ global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS } })
+
+const displayedTotal = computed(() => {
+  const q = filters.value.global.value?.trim().toLowerCase()
+  if (!q) return roles.value.length
+  return roles.value.filter((r: RoleListItem) =>
+    [r.code, r.name, r.description ?? ''].some((f: string) => f.toLowerCase().includes(q))
+  ).length
 })
+
+watch(() => filters.value.global.value, () => { first.value = 0 })
 const formVisible  = ref(false)
 const editingRole  = ref<RoleListItem | null>(null)
 const matrixVisible = ref(false)
