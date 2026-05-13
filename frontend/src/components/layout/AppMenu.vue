@@ -42,6 +42,14 @@ import { ref } from 'vue'
 
 defineProps<{ collapsed: boolean }>()
 
+interface MenuItem {
+  to?: string
+  label: string
+  icon?: string
+  section?: boolean
+  items?: { to: string; label: string; icon?: string }[]
+}
+
 const openGroups = ref<Set<string>>(new Set(['Cơ cấu tổ chức']))
 
 function toggleGroup(label: string) {
@@ -52,7 +60,7 @@ function toggleGroup(label: string) {
   }
 }
 
-const menu = [
+const menu: MenuItem[] = [
   { to: '/dashboard', label: 'Dashboard', icon: 'pi-home' },
   { section: true, label: 'Quản lý' },
   {

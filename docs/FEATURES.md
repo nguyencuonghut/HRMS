@@ -424,9 +424,16 @@
 - Thông báo realtime (Toast notification)
 - Hiển thị trực quan với biểu đồ, dashboard
 
-### 15.4. Vận hành
+### 15.4. Lưu trữ file
+
+- Toàn bộ file đính kèm (hồ sơ nhân sự, hợp đồng, tài liệu vị trí...) lưu trên **MinIO** (S3-compatible object storage, tự host)
+- Download file proxy qua FastAPI — không expose trực tiếp URL MinIO ra ngoài
+- Bucket tách biệt theo môi trường (`hrms-attachments-dev`, `hrms-attachments-prod`)
+- Sao lưu bucket MinIO định kỳ (tương tự DB backup)
+
+### 15.5. Vận hành
 - Môi trường: DEV / STAGING / PRODUCTION
-- Sao lưu dữ liệu hàng ngày, lưu trữ tối thiểu 90 ngày
+- Sao lưu dữ liệu hàng ngày (PostgreSQL + MinIO), lưu trữ tối thiểu 90 ngày
 - CI/CD pipeline
 - Giám sát lỗi (Error monitoring)
 - SLA: khả dụng 99.5%

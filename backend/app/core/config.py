@@ -20,6 +20,13 @@ class Settings(BaseSettings):
     # Redis / Celery
     REDIS_URL: str = "redis://localhost:6379/0"
 
+    # MinIO object storage
+    MINIO_ENDPOINT:   str  = "minio:9000"
+    MINIO_ACCESS_KEY: str  = "minioadmin"
+    MINIO_SECRET_KEY: str  = "minioadmin"
+    MINIO_BUCKET:     str  = "hrms-attachments"
+    MINIO_SECURE:     bool = False
+
     # CORS
     CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://localhost:3000"]
 

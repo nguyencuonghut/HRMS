@@ -69,7 +69,7 @@ import Menu from 'primevue/menu'
 import { useLayout } from '@/composables/useLayout'
 import { useAuthStore } from '@/stores/auth'
 
-const { sidebarCollapsed, darkMode, mobileOpen, toggleSidebar, toggleMobile, toggleDarkMode } = useLayout()
+const { sidebarCollapsed, darkMode, toggleSidebar, toggleMobile, toggleDarkMode } = useLayout()
 const auth = useAuthStore()
 const router = useRouter()
 const userMenu = ref()

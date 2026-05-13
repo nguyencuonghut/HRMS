@@ -61,6 +61,7 @@ frontend  | VITE v6.x  ready in xxx ms  ➜  Local: http://localhost:5173/
 | **Backend API Docs (Swagger)** | http://localhost:8000/api/docs |
 | **Backend API Docs (ReDoc)** | http://localhost:8000/api/redoc |
 | **Health check** | http://localhost:8000/health |
+| **MinIO Web Console** | http://localhost:9001 |
 
 **Kết nối DB từ DBeaver / TablePlus (máy host):**
 
@@ -71,6 +72,14 @@ frontend  | VITE v6.x  ready in xxx ms  ➜  Local: http://localhost:5173/
 | Database | `hrms` |
 | Username | `postgres` |
 | Password | `postgres` (theo `.env`) |
+
+**MinIO** (Object Storage cho file đính kèm):
+
+| Trường | Giá trị |
+|---|---|
+| S3 API | `localhost:9000` |
+| Web Console | http://localhost:9001 (user: `minioadmin` / pass: `minioadmin`) |
+| Bucket mặc định | `hrms-attachments` |
 
 **Redis** expose tại `localhost:6380` (local Redis mặc định vẫn ở 6379).
 
@@ -180,6 +189,10 @@ docker compose exec db psql -U postgres -d hrms
 
 # Shell Redis
 docker compose exec redis redis-cli
+
+# MinIO — kiểm tra bucket và object
+docker compose exec minio mc alias set local http://localhost:9000 minioadmin minioadmin
+docker compose exec minio mc ls local/hrms-attachments
 ```
 
 ### Cài thêm package
@@ -212,7 +225,7 @@ Không cần restart container sau khi sửa code.
 
 ```bash
 # Kiểm tra process đang dùng port
-sudo ss -tlnp | grep -E '5173|8000|5432|6379'
+sudo ss -tlnp | grep -E '5173|8000|5432|5433|6379|6380|9000|9001'
 
 # Đổi port trong docker-compose.yml nếu cần, ví dụ:
 # ports: - "8001:8000"
@@ -237,6 +250,20 @@ docker compose logs db
 docker compose ps db
 ```
 
+### MinIO lỗi kết nối / không upload được
+
+```bash
+# Kiểm tra MinIO đang chạy và healthy
+docker compose ps minio
+docker compose logs minio
+
+# Kiểm tra bucket đã được tạo chưa (backend tự tạo khi khởi động)
+docker compose exec backend python -c "from app.core.storage import ensure_bucket; ensure_bucket(); print('OK')"
+
+# Nếu backend khởi động trước khi MinIO healthy, restart backend
+docker compose restart backend
+```
+
 ### Reset hoàn toàn để bắt đầu lại
 
 ```bash
@@ -254,7 +281,7 @@ HRMS/
 ├── frontend/           Vue 3 + PrimeVue v4 + TypeScript
 ├── nginx/              Cấu hình reverse proxy (production)
 ├── docs/               Tài liệu dự án
-├── docker-compose.yml          Dev
+├── docker-compose.yml          Dev (PostgreSQL · Redis · MinIO · Backend · Frontend)
 ├── docker-compose.prod.yml     Production
 └── .env.example
 ```

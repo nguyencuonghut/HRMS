@@ -5,11 +5,13 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.core.database import ping_db
+from app.core.storage import ensure_bucket
 from app.api.v1.router import router as api_v1_router
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    ensure_bucket()
     await ping_db()
     yield
 
