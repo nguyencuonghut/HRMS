@@ -63,26 +63,26 @@
           </div>
         </template>
 
-        <Column field="name" header="Tên phòng/ban" expander style="min-width: 280px">
+        <Column field="name" header="Tên phòng/ban" expander sortable style="min-width: 280px">
           <template #body="{ node }">
             <span class="dept-name">{{ node.data.name }}</span>
             <span v-if="node.data.short_name" class="short-name"> ({{ node.data.short_name }})</span>
           </template>
         </Column>
 
-        <Column field="code" header="Mã" style="width: 120px" />
+        <Column field="code" header="Mã" sortable style="width: 120px" />
 
-        <Column header="Loại" style="width: 120px">
+        <Column field="dept_type_label" header="Loại" sortable style="width: 120px">
           <template #body="{ node }">{{ node.data.dept_type_label }}</template>
         </Column>
 
-        <Column header="Thứ tự" style="width: 90px">
+        <Column field="order_no" header="Thứ tự" sortable style="width: 90px">
           <template #body="{ node }">
             <span class="center-text">{{ node.data.order_no }}</span>
           </template>
         </Column>
 
-        <Column header="Trạng thái" style="width: 130px">
+        <Column field="is_active" header="Trạng thái" sortable style="width: 130px">
           <template #body="{ node }">
             <Tag
               :value="node.data.is_active ? 'Hoạt động' : 'Đã khóa'"
