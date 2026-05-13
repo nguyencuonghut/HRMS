@@ -244,12 +244,110 @@ $topbar-height: 4rem;
   }
 }
 
-// ── Dashboard page header ──────────────────────────────────────────
+// ── Page header (list views) ───────────────────────────────────────
 .page-header {
-  margin-bottom: 1.5rem;
-  h2   { margin: 0 0 0.2rem; font-size: 1.4rem; font-weight: 700; color: var(--l-text); }
-  span { color: var(--m-text-dim); font-size: 0.875rem; }
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1.25rem;
+  h2       { margin: 0 0 0.2rem; font-size: 1.5rem; font-weight: 700; }
+  .subtitle { color: var(--p-text-muted-color); font-size: 0.875rem; }
 }
+
+// ── Toolbar (list views) ───────────────────────────────────────────
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.toolbar-filter    { min-width: 180px; }
+.toolbar-filter-sm { min-width: 160px; }
+.toolbar-search    { min-width: 260px; }
+.toolbar-date      { min-width: 150px; }
+
+@media (max-width: 640px) {
+  .toolbar-search { flex: 1 1 100%; min-width: 0; order: 1; }
+  .toolbar-filter,
+  .toolbar-filter-sm { flex: 1; min-width: 0; order: 2; }
+}
+
+// ── DataTable card wrapper ─────────────────────────────────────────
+.card {
+  background: var(--p-content-background);
+  border: 1px solid var(--p-content-border-color);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+// ── DataTable empty state ──────────────────────────────────────────
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 3rem;
+  color: var(--p-text-muted-color);
+  i { font-size: 2rem; opacity: 0.3; }
+}
+
+// ── DataTable misc ─────────────────────────────────────────────────
+.paginator-info { font-size: 0.875rem; color: var(--p-text-muted-color); white-space: nowrap; }
+.action-cell    { display: flex; gap: 0.2rem; justify-content: flex-end; }
+.muted-text     { color: var(--p-text-muted-color); font-size: 0.875rem; }
+.center-text    { display: block; text-align: center; }
+.right-text     { display: block; text-align: right; font-variant-numeric: tabular-nums; }
+
+// ── Dialog / Form utilities ────────────────────────────────────────
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-bottom: 1rem;
+  label { font-weight: 500; font-size: 0.875rem; }
+}
+
+.field-hint { color: var(--p-text-muted-color); font-size: 0.78rem; margin-top: -0.15rem; }
+
+.field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  .field { margin-bottom: 0; }
+}
+
+.field-row-3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  .field { margin-bottom: 0; }
+}
+
+@media (max-width: 560px) {
+  .field-row, .field-row-3 { grid-template-columns: 1fr; }
+}
+
+.field-switch {
+  label { font-weight: 500; font-size: 0.875rem; }
+}
+
+.switch-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.active-label   { color: var(--p-green-600); font-size: 0.875rem; font-weight: 500; }
+.inactive-label { color: var(--p-red-500);   font-size: 0.875rem; font-weight: 500; }
+
+.req       { color: var(--p-red-500); margin-left: 2px; }
+.error-msg { color: var(--p-red-500); font-size: 0.8rem; margin-top: -0.2rem; }
+.w-full    { width: 100%; }
 
 // ── Footer ────────────────────────────────────────────────────────
 .layout-footer {

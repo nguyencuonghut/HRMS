@@ -55,6 +55,7 @@ const stats = [
 
 <style scoped>
 .page-header {
+  display: block;
   margin-bottom: 1.5rem;
   h2 { margin: 0 0 0.25rem; font-size: 1.5rem; font-weight: 700; }
   .text-muted { color: var(--p-text-muted-color); font-size: 0.875rem; }

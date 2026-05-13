@@ -307,47 +307,12 @@ onMounted(loadData)
 </script>
 
 <style scoped>
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 1.25rem;
-  h2 { margin: 0 0 0.2rem; font-size: 1.5rem; font-weight: 700; }
-  .subtitle { color: var(--p-text-muted-color); font-size: 0.875rem; }
-}
+.text-muted { color: var(--p-text-muted-color); }
+.ml-2       { margin-left: 0.5rem; }
 
-.toolbar {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
-}
-
-.toolbar-filter { min-width: 180px; }
-.toolbar-date   { min-width: 150px; }
-
-.card {
-  background: var(--p-content-background);
-  border: 1px solid var(--p-content-border-color);
-  border-radius: 10px;
-  overflow: hidden;
-}
-
-.empty-state {
-  display: flex; flex-direction: column; align-items: center;
-  gap: 0.5rem; padding: 3rem; color: var(--p-text-muted-color);
-  i { font-size: 2rem; opacity: 0.3; }
-}
-
-.paginator-info { font-size: 0.875rem; color: var(--p-text-muted-color); }
-.text-muted     { color: var(--p-text-muted-color); }
-.ml-2           { margin-left: 0.5rem; }
-
-/* Detail dialog */
-.detail-wrap    { display: flex; flex-direction: column; gap: 1rem; }
-.detail-meta    { display: flex; gap: 1.5rem; flex-wrap: wrap; font-size: 0.9rem; }
-.diff-subtitle  { margin: 0; font-size: 0.875rem; color: var(--p-text-muted-color); font-weight: 500; }
+.detail-wrap   { display: flex; flex-direction: column; gap: 1rem; }
+.detail-meta   { display: flex; gap: 1.5rem; flex-wrap: wrap; font-size: 0.9rem; }
+.diff-subtitle { margin: 0; font-size: 0.875rem; color: var(--p-text-muted-color); font-weight: 500; }
 
 .val-old { color: var(--p-red-500);   text-decoration: line-through; font-size: 0.875rem; }
 .val-new { color: var(--p-green-600); font-weight: 600; font-size: 0.875rem; }

@@ -208,25 +208,6 @@ onMounted(loadData)
 </script>
 
 <style scoped>
-.page-header {
-  display: flex; justify-content: space-between; align-items: flex-start;
-  margin-bottom: 1.25rem;
-  h2 { margin: 0 0 0.2rem; font-size: 1.5rem; font-weight: 700; }
-  .subtitle { color: var(--p-text-muted-color); font-size: 0.875rem; }
-}
-
-.card {
-  background: var(--p-content-background);
-  border: 1px solid var(--p-content-border-color);
-  border-radius: 10px; overflow: hidden;
-}
-
-.empty-state {
-  display: flex; flex-direction: column; align-items: center;
-  gap: 0.5rem; padding: 3rem; color: var(--p-text-muted-color);
-  i { font-size: 2rem; opacity: 0.3; }
-}
-
 .role-code {
   font-family: monospace; font-size: 0.85rem;
   color: var(--p-primary-color);
@@ -235,7 +216,4 @@ onMounted(loadData)
   padding: 0.15rem 0.45rem; border-radius: 4px;
   white-space: nowrap;
 }
-
-.muted-text  { color: var(--p-text-muted-color); font-size: 0.875rem; }
-.action-cell { display: flex; gap: 0.1rem; justify-content: flex-end; }
 </style>

@@ -133,17 +133,3 @@ async function submit() {
   }
 }
 </script>
-
-<style scoped>
-.form { display: flex; flex-direction: column; gap: 0.1rem; }
-
-.field {
-  display: flex; flex-direction: column; gap: 0.4rem; margin-bottom: 1rem;
-  label { font-weight: 500; font-size: 0.875rem; }
-}
-
-.field-hint { color: var(--p-text-muted-color); font-size: 0.78rem; margin-top: -0.15rem; }
-.req       { color: var(--p-red-500); margin-left: 2px; }
-.error-msg { color: var(--p-red-500); font-size: 0.8rem; margin-top: -0.2rem; }
-.w-full    { width: 100%; }
-</style>

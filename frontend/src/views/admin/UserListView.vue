@@ -341,53 +341,7 @@ onMounted(loadData)
 </script>
 
 <style scoped>
-.page-header {
-  display: flex; justify-content: space-between; align-items: flex-start;
-  margin-bottom: 1.25rem;
-  h2 { margin: 0 0 0.2rem; font-size: 1.5rem; font-weight: 700; }
-  .subtitle { color: var(--p-text-muted-color); font-size: 0.875rem; }
-}
-
-.toolbar {
-  display: flex; align-items: center; justify-content: flex-end;
-  flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem;
-}
-
-.toolbar-filter { min-width: 180px; }
-.toolbar-search { min-width: 260px; }
-
-@media (max-width: 640px) {
-  .toolbar-search { flex: 1 1 100%; min-width: 0; order: 1; }
-  .toolbar-filter { flex: 1; min-width: 0; order: 2; }
-}
-
-.card {
-  background: var(--p-content-background);
-  border: 1px solid var(--p-content-border-color);
-  border-radius: 10px; overflow: hidden;
-}
-
-.empty-state {
-  display: flex; flex-direction: column; align-items: center;
-  gap: 0.5rem; padding: 3rem; color: var(--p-text-muted-color);
-  i { font-size: 2rem; opacity: 0.3; }
-}
-
-.paginator-info { font-size: 0.875rem; color: var(--p-text-muted-color); }
-.muted-text     { color: var(--p-text-muted-color); font-size: 0.875rem; }
-
 .role-tags { display: flex; flex-wrap: wrap; gap: 0.3rem; }
 .role-tag  { font-size: 0.75rem !important; }
 .no-role   { color: var(--p-text-muted-color); }
-
-.action-cell { display: flex; gap: 0.1rem; justify-content: flex-end; }
-
-.field {
-  display: flex; flex-direction: column; gap: 0.4rem; margin-bottom: 1rem;
-  label { font-weight: 500; font-size: 0.875rem; }
-}
-
-.req { color: var(--p-red-500); margin-left: 2px; }
-.error-msg { color: var(--p-red-500); font-size: 0.8rem; margin-top: -0.2rem; }
-.w-full { width: 100%; }
 </style>

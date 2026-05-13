@@ -172,21 +172,3 @@ async function submit() {
   }
 }
 </script>
-
-<style scoped>
-.form { display: flex; flex-direction: column; gap: 0.1rem; }
-
-.field {
-  display: flex; flex-direction: column; gap: 0.4rem; margin-bottom: 1rem;
-  label { font-weight: 500; font-size: 0.875rem; }
-}
-
-.field-switch label { font-weight: 500; font-size: 0.875rem; }
-.switch-row { display: flex; align-items: center; gap: 0.75rem; }
-.active-label   { color: var(--p-green-600); font-size: 0.875rem; font-weight: 500; }
-.inactive-label { color: var(--p-red-500);   font-size: 0.875rem; font-weight: 500; }
-
-.req { color: var(--p-red-500); margin-left: 2px; }
-.error-msg { color: var(--p-red-500); font-size: 0.8rem; margin-top: -0.2rem; }
-.w-full { width: 100%; }
-</style>
