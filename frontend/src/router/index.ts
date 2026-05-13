@@ -133,6 +133,13 @@ const router = createRouter({
           component: () => import('@/views/settings/SettingsView.vue'),
           meta: { title: 'Cài đặt' },
         },
+        // Quản trị hệ thống
+        {
+          path: 'admin/users',
+          name: 'admin-users',
+          component: () => import('@/views/admin/UserListView.vue'),
+          meta: { title: 'Tài khoản người dùng' },
+        },
       ],
     },
     { path: '/:pathMatch(.*)*', redirect: '/' },

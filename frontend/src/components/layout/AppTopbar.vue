@@ -50,7 +50,7 @@
 
     <!-- User menu -->
     <Button
-      :label="user?.fullName ?? 'Admin'"
+      :label="user?.full_name ?? 'Admin'"
       icon="pi pi-user"
       text
       severity="secondary"

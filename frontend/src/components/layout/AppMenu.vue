@@ -86,6 +86,8 @@ const menu: MenuItem[] = [
   { section: true, label: 'Hệ thống' },
   { to: '/catalog', label: 'Danh mục', icon: 'pi-list' },
   { to: '/settings', label: 'Cài đặt', icon: 'pi-cog' },
+  { section: true, label: 'Quản trị' },
+  { to: '/admin/users', label: 'Tài khoản người dùng', icon: 'pi-user-edit' },
 ]
 </script>
 
