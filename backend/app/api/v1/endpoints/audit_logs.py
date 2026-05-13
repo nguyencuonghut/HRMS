@@ -5,7 +5,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import outerjoin, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import require_permission
@@ -18,6 +18,8 @@ router = APIRouter()
 class AuditLogRead(BaseModel):
     id:          int
     user_id:     Optional[int]
+    user_email:  Optional[str]
+    user_name:   Optional[str]
     action:      str
     entity_type: Optional[str]
     entity_id:   Optional[int]
@@ -31,19 +33,21 @@ class AuditLogRead(BaseModel):
     model_config = {"from_attributes": True}
 
     @classmethod
-    def from_row(cls, row: AuditLog) -> "AuditLogRead":
+    def from_row(cls, log: AuditLog, user: Optional[User] = None) -> "AuditLogRead":
         return cls(
-            id=row.id,
-            user_id=row.user_id,
-            action=row.action,
-            entity_type=row.entity_type,
-            entity_id=row.entity_id,
-            entity_name=row.entity_name,
-            old_data=row.old_data,
-            new_data=row.new_data,
-            ip_address=row.ip_address,
-            user_agent=row.user_agent,
-            created_at=row.created_at.isoformat(),
+            id=log.id,
+            user_id=log.user_id,
+            user_email=user.email if user else None,
+            user_name=user.full_name if user else None,
+            action=log.action,
+            entity_type=log.entity_type,
+            entity_id=log.entity_id,
+            entity_name=log.entity_name,
+            old_data=log.old_data,
+            new_data=log.new_data,
+            ip_address=log.ip_address,
+            user_agent=log.user_agent,
+            created_at=log.created_at.isoformat(),
         )
 
 
@@ -59,7 +63,13 @@ async def list_audit_logs(
     _:           User           = require_permission("audit_logs:view"),
     session:     AsyncSession   = Depends(get_session),
 ):
-    q = select(AuditLog).order_by(AuditLog.created_at.desc()).limit(limit)
+    j = outerjoin(AuditLog, User, AuditLog.user_id == User.id)
+    q = (
+        select(AuditLog, User)
+        .select_from(j)
+        .order_by(AuditLog.created_at.desc())
+        .limit(limit)
+    )
 
     if user_id is not None:
         q = q.where(AuditLog.user_id == user_id)
@@ -74,5 +84,5 @@ async def list_audit_logs(
     if date_to:
         q = q.where(AuditLog.created_at < date_to + timedelta(days=1))
 
-    rows = (await session.execute(q)).scalars().all()
-    return [AuditLogRead.from_row(r) for r in rows]
+    rows = (await session.execute(q)).all()
+    return [AuditLogRead.from_row(log, user) for log, user in rows]

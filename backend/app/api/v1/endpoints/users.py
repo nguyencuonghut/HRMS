@@ -195,7 +195,7 @@ async def assign_role(
     current_user: User         = require_permission("users:edit"),
     session:      AsyncSession = Depends(get_session),
 ):
-    await _get_or_404(session, user_id)
+    user = await _get_or_404(session, user_id)
 
     role = await session.get(Role, payload.role_id)
     if not role:
@@ -210,7 +210,7 @@ async def assign_role(
         session, current_user.id, "UPDATE",
         entity_type="user_role",
         entity_id=user_id,
-        entity_name=f"user:{user_id} role:{role.code}",
+        entity_name=f"{user.full_name} ({user.email}) + {role.name}",
     )
     await session.commit()
     return RoleRef.model_validate(role)
@@ -223,14 +223,16 @@ async def remove_role(
     current_user: User         = require_permission("users:edit"),
     session:      AsyncSession = Depends(get_session),
 ):
-    await _get_or_404(session, user_id)
+    user = await _get_or_404(session, user_id)
     removed = await user_service.remove_role(session, user_id, role_id)
     if not removed:
         raise HTTPException(status_code=404, detail="User không có role này")
+    role = await session.get(Role, role_id)
+    role_label = role.name if role else f"role_id:{role_id}"
     await auth_service.log_audit(
         session, current_user.id, "UPDATE",
         entity_type="user_role",
         entity_id=user_id,
-        entity_name=f"user:{user_id} remove_role:{role_id}",
+        entity_name=f"{user.full_name} ({user.email}) - {role_label}",
     )
     await session.commit()

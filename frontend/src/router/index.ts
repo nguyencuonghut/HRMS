@@ -146,6 +146,12 @@ const router = createRouter({
           component: () => import('@/views/admin/RoleListView.vue'),
           meta: { title: 'Vai trò & Quyền' },
         },
+        {
+          path: 'admin/audit-logs',
+          name: 'admin-audit-logs',
+          component: () => import('@/views/admin/AuditLogView.vue'),
+          meta: { title: 'Nhật ký hệ thống' },
+        },
       ],
     },
     { path: '/:pathMatch(.*)*', redirect: '/' },
