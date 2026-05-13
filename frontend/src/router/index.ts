@@ -27,10 +27,10 @@ const router = createRouter({
         },
         // Cơ cấu tổ chức
         {
-          path: 'org/branches',
-          name: 'org-branches',
-          component: () => import('@/views/org/BranchListView.vue'),
-          meta: { title: 'Công ty / Chi nhánh' },
+          path: 'org/job-titles',
+          name: 'org-job-titles',
+          component: () => import('@/views/org/JobTitleListView.vue'),
+          meta: { title: 'Chức danh' },
         },
         {
           path: 'org/departments',

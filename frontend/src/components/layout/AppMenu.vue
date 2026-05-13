@@ -59,9 +59,9 @@ const menu = [
     label: 'Cơ cấu tổ chức',
     icon: 'pi-sitemap',
     items: [
-      { to: '/org/branches', label: 'Công ty / Chi nhánh' },
       { to: '/org/departments', label: 'Phòng / Ban' },
-      { to: '/org/positions', label: 'Vị trí công việc' },
+      { to: '/org/job-titles',  label: 'Chức danh' },
+      { to: '/org/positions',   label: 'Vị trí công việc' },
     ],
   },
   { to: '/employees', label: 'Nhân sự', icon: 'pi-users' },
