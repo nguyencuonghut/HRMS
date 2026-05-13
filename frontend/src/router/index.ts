@@ -140,6 +140,12 @@ const router = createRouter({
           component: () => import('@/views/admin/UserListView.vue'),
           meta: { title: 'Tài khoản người dùng' },
         },
+        {
+          path: 'admin/roles',
+          name: 'admin-roles',
+          component: () => import('@/views/admin/RoleListView.vue'),
+          meta: { title: 'Vai trò & Quyền' },
+        },
       ],
     },
     { path: '/:pathMatch(.*)*', redirect: '/' },

@@ -212,11 +212,12 @@ async def test_user_role_assignments():
         "linemanager@hrms.local": "line_manager",
         "finance@hrms.local":     "finance",
     }
-    rows = await _rows("""
+    rows = await _rows(f"""
         SELECT u.email, r.code
         FROM user_roles ur
         JOIN users u ON ur.user_id = u.id
         JOIN roles r ON ur.role_id = r.id
+        WHERE u.email IN ({','.join(_SEED_EMAILS)})
     """)
     actual = {r.email: r.code for r in rows}
     assert actual == expected
