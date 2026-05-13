@@ -15,7 +15,7 @@ import asyncio
 import sys
 
 from app.core.database import AsyncSessionLocal
-from app.seeds import required, sample
+from app.seeds import required, rbac, sample
 
 
 async def main(with_sample: bool) -> None:
@@ -26,6 +26,9 @@ async def main(with_sample: bool) -> None:
     async with AsyncSessionLocal() as session:
         print("\n▶ Required data (mọi môi trường):")
         await required.run(session)
+
+        print("\n▶ RBAC data (roles, permissions, seed users):")
+        await rbac.run(session)
 
         if with_sample:
             print("\n▶ Sample data (chỉ dùng cho dev/test):")

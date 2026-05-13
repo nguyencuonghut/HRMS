@@ -4,15 +4,22 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
-from app.core.database import ping_db
+from app.core.database import AsyncSessionLocal, ping_db
 from app.core.storage import ensure_bucket
 from app.api.v1.router import router as api_v1_router
+from app.seeds import rbac as rbac_seed
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     ensure_bucket()
     await ping_db()
+    # Auto-seed RBAC nếu chưa có user nào (first boot)
+    async with AsyncSessionLocal() as session:
+        from sqlalchemy import text
+        count = (await session.execute(text("SELECT COUNT(*) FROM users"))).scalar()
+        if count == 0:
+            await rbac_seed.run(session)
     yield
 
 
