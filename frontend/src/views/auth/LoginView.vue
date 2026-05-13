@@ -9,12 +9,13 @@
 
       <form @submit.prevent="onSubmit" class="login-form">
         <div class="field">
-          <label for="username">Tên đăng nhập</label>
+          <label for="email">Email</label>
           <InputText
-            id="username"
-            v-model="username"
-            placeholder="Nhập tên đăng nhập"
-            autocomplete="username"
+            id="email"
+            v-model="email"
+            type="email"
+            placeholder="Nhập email đăng nhập"
+            autocomplete="email"
             fluid
           />
         </div>
@@ -58,21 +59,21 @@ const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
 
-const username = ref('')
+const email = ref('')
 const password = ref('')
 const loading = ref(false)
 const error = ref('')
 
 async function onSubmit() {
-  if (!username.value || !password.value) return
+  if (!email.value || !password.value) return
   loading.value = true
   error.value = ''
   try {
-    await auth.login(username.value, password.value)
+    await auth.login(email.value, password.value)
     const redirect = (route.query.redirect as string) ?? '/dashboard'
     router.push(redirect)
   } catch {
-    error.value = 'Sai tên đăng nhập hoặc mật khẩu.'
+    error.value = 'Sai email hoặc mật khẩu.'
   } finally {
     loading.value = false
   }

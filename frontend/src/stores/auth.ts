@@ -4,10 +4,12 @@ import api from '@/services/api'
 
 interface User {
   id: number
-  username: string
-  fullName: string
-  role: string
-  avatarUrl?: string
+  email: string
+  full_name: string
+  is_active: boolean
+  is_superuser: boolean
+  roles: string[]
+  permissions: string[]
 }
 
 export const useAuthStore = defineStore('auth', () => {
@@ -16,19 +18,33 @@ export const useAuthStore = defineStore('auth', () => {
 
   const isAuthenticated = computed(() => !!accessToken.value)
 
-  async function login(username: string, password: string) {
-    const { data } = await api.post('/auth/login', { username, password })
+  async function login(email: string, password: string) {
+    const { data } = await api.post('/auth/login', { email, password })
     accessToken.value = data.access_token
     localStorage.setItem('access_token', data.access_token)
-    // TODO: fetch user profile after login
-    user.value = { id: 1, username, fullName: 'Administrator', role: 'admin' }
+    if (data.refresh_token) {
+      localStorage.setItem('refresh_token', data.refresh_token)
+    }
+    await fetchMe()
+  }
+
+  async function fetchMe() {
+    const { data } = await api.get('/auth/me')
+    user.value = data
   }
 
   function logout() {
     user.value = null
     accessToken.value = null
     localStorage.removeItem('access_token')
+    localStorage.removeItem('refresh_token')
   }
 
-  return { user, accessToken, isAuthenticated, login, logout }
+  function hasPermission(perm: string): boolean {
+    if (!user.value) return false
+    if (user.value.is_superuser || user.value.permissions.includes('*')) return true
+    return user.value.permissions.includes(perm)
+  }
+
+  return { user, accessToken, isAuthenticated, login, fetchMe, logout, hasPermission }
 })
