@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from sqlmodel import SQLModel
 
 from app.core.config import settings
+import app.models  # noqa: F401 — đảm bảo SQLModel.metadata nhận diện đủ bảng
 
 config = context.config
 if config.config_file_name is not None:

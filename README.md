@@ -70,7 +70,7 @@ frontend  | VITE v6.x  ready in xxx ms  ➜  Local: http://localhost:5173/
 | Port | `5433` ← dùng 5433 để tránh xung đột Postgres local (5432) |
 | Database | `hrms` |
 | Username | `postgres` |
-| Password | `password` (hoặc theo `.env`) |
+| Password | `postgres` (theo `.env`) |
 
 **Redis** expose tại `localhost:6380` (local Redis mặc định vẫn ở 6379).
 
@@ -83,19 +83,63 @@ frontend  | VITE v6.x  ready in xxx ms  ➜  Local: http://localhost:5173/
 
 ---
 
-## Chạy Migration Database
+## Chạy Migration và Seed
 
-Sau khi stack đã chạy, mở terminal khác và chạy:
+Sau khi stack đã chạy, dùng lệnh `make` (xem đầy đủ với `make help`):
 
 ```bash
-# Tạo migration mới (khi thêm model mới)
-docker compose exec backend alembic revision --autogenerate -m "tên migration"
+make migrate          # Áp dụng tất cả migration còn pending
+make seed             # Seed dữ liệu bắt buộc (lương tối thiểu vùng, vùng BHXH)
+make seed-sample      # Seed bắt buộc + dữ liệu mẫu (phòng ban, chức danh, hệ số lương)
 
-# Áp dụng migration
-docker compose exec backend alembic upgrade head
+make migrate-status   # Xem migration hiện tại đang ở revision nào
+make migrate-down     # Rollback 1 migration gần nhất
+make migrate-new m=tên_migration   # Tạo file migration mới
+```
 
-# Xem lịch sử migration
-docker compose exec backend alembic history
+---
+
+## Build lại từ đầu khi thay đổi `.env`
+
+> **Lưu ý quan trọng:** PostgreSQL ghi password vào **data volume** ngay lần khởi động đầu tiên.
+> Nếu sau đó bạn đổi `POSTGRES_PASSWORD` trong `.env` rồi chỉ restart container thì password
+> trong DB **không thay đổi** — phải xóa volume và khởi tạo lại.
+
+### Khi nào cần làm theo hướng dẫn này?
+
+- Đổi `POSTGRES_PASSWORD`, `POSTGRES_USER`, hoặc `POSTGRES_DB` trong `.env`
+- Muốn reset DB sạch hoàn toàn (xóa toàn bộ data)
+- Lỗi kết nối DB do password không khớp
+
+### Các bước
+
+```bash
+# 1. Dừng tất cả container VÀ xóa volume data (mất toàn bộ data DB)
+docker compose down -v
+
+# 2. Chỉnh .env theo ý muốn (nếu chưa chỉnh)
+#    Ví dụ: POSTGRES_PASSWORD=postgres
+
+# 3. Build lại image và khởi động
+docker compose up --build -d
+
+# 4. Chờ DB healthy rồi chạy migration
+make migrate
+
+# 5. Seed dữ liệu
+make seed-sample
+```
+
+> Nếu chỉ đổi biến không liên quan đến DB (như `SECRET_KEY`, `DEBUG`):
+> chỉ cần `docker compose restart backend` — **không cần** `down -v`.
+
+### Sửa nhanh nếu không muốn mất data
+
+Trường hợp volume đã có data và chỉ muốn đồng bộ lại password (không xóa data):
+
+```bash
+# Thay 'matkhaumoi' bằng POSTGRES_PASSWORD trong .env của bạn
+docker compose exec db psql -U postgres -c "ALTER USER postgres WITH PASSWORD 'matkhaumoi';"
 ```
 
 ---
