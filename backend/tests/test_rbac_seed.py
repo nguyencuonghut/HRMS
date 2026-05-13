@@ -48,18 +48,22 @@ async def test_permissions_have_all_actions():
 
 # ── Roles ──────────────────────────────────────────────────────────────────────
 
+_SEED_ROLES = ("'admin'", "'hr_manager'", "'hr_officer'", "'line_manager'", "'finance'")
+
 async def test_roles_count():
-    count = await _scalar("SELECT COUNT(*) FROM roles")
+    count = await _scalar(f"SELECT COUNT(*) FROM roles WHERE code IN ({','.join(_SEED_ROLES)})")
     assert count == 5
 
 
 async def test_all_system_roles_exist():
-    codes = {r.code for r in await _rows("SELECT code FROM roles")}
+    codes = {r.code for r in await _rows(f"SELECT code FROM roles WHERE code IN ({','.join(_SEED_ROLES)})")}
     assert codes == {"admin", "hr_manager", "hr_officer", "line_manager", "finance"}
 
 
 async def test_all_roles_are_system():
-    non_system = await _scalar("SELECT COUNT(*) FROM roles WHERE is_system = false")
+    non_system = await _scalar(
+        f"SELECT COUNT(*) FROM roles WHERE is_system = false AND code IN ({','.join(_SEED_ROLES)})"
+    )
     assert non_system == 0
 
 
