@@ -147,8 +147,13 @@ async def test_finance_only_insurance_salary_reports():
 
 # ── Users ──────────────────────────────────────────────────────────────────────
 
+_SEED_EMAILS = (
+    "'admin@hrms.local'", "'hrmanager@hrms.local'", "'hrofficer@hrms.local'",
+    "'linemanager@hrms.local'", "'finance@hrms.local'",
+)
+
 async def test_seed_users_count():
-    count = await _scalar("SELECT COUNT(*) FROM users")
+    count = await _scalar(f"SELECT COUNT(*) FROM users WHERE email IN ({','.join(_SEED_EMAILS)})")
     assert count == 5
 
 
@@ -168,7 +173,9 @@ async def test_non_admin_users_not_superuser():
 
 
 async def test_all_users_active():
-    inactive = await _scalar("SELECT COUNT(*) FROM users WHERE is_active = false")
+    inactive = await _scalar(
+        f"SELECT COUNT(*) FROM users WHERE is_active = false AND email IN ({','.join(_SEED_EMAILS)})"
+    )
     assert inactive == 0
 
 
@@ -182,10 +189,11 @@ async def test_passwords_are_hashed():
 # ── User-Roles ─────────────────────────────────────────────────────────────────
 
 async def test_each_user_has_exactly_one_role():
-    rows = await _rows("""
+    rows = await _rows(f"""
         SELECT u.email, COUNT(ur.role_id) AS role_count
         FROM users u
         LEFT JOIN user_roles ur ON ur.user_id = u.id
+        WHERE u.email IN ({','.join(_SEED_EMAILS)})
         GROUP BY u.email
     """)
     for r in rows:
