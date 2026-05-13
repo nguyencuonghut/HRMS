@@ -61,6 +61,21 @@ html, body {
   --p-font-family: 'Be Vietnam Pro', sans-serif;
 }
 
+/* Keep all default primary buttons on the same text/icon color as the theme
+   across light and dark modes. */
+:root {
+  --hh-button-primary-contrast: var(--p-primary-contrast-color);
+}
+
+.p-button.p-component:not(.p-button-secondary):not(.p-button-success):not(.p-button-info):not(.p-button-warn):not(.p-button-help):not(.p-button-danger):not(.p-button-contrast):not(.p-button-text):not(.p-button-outlined):not(.p-button-link) {
+  color: var(--hh-button-primary-contrast) !important;
+}
+
+.p-button.p-component:not(.p-button-secondary):not(.p-button-success):not(.p-button-info):not(.p-button-warn):not(.p-button-help):not(.p-button-danger):not(.p-button-contrast):not(.p-button-text):not(.p-button-outlined):not(.p-button-link) .p-button-label,
+.p-button.p-component:not(.p-button-secondary):not(.p-button-success):not(.p-button-info):not(.p-button-warn):not(.p-button-help):not(.p-button-danger):not(.p-button-contrast):not(.p-button-text):not(.p-button-outlined):not(.p-button-link) .p-button-icon {
+  color: inherit !important;
+}
+
 #app { height: 100%; }
 
 ::-webkit-scrollbar { width: 5px; height: 5px; }

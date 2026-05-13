@@ -2,7 +2,7 @@
   <header class="layout-topbar">
     <!-- Logo -->
     <RouterLink to="/" class="layout-topbar-logo">
-      <img src="/logo.svg" alt="Hồng Hà HRMS" />
+      <img src="/favico.png" alt="Hồng Hà HRMS" />
       <span class="logo-text" v-if="!sidebarCollapsed">Hồng Hà HRMS</span>
     </RouterLink>
 

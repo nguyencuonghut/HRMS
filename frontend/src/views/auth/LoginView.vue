@@ -2,7 +2,7 @@
   <div class="login-wrapper">
     <div class="login-card">
       <div class="login-header">
-        <img src="/logo.svg" alt="Logo" class="login-logo" />
+        <img src="/favico.png" alt="Logo" class="login-logo" />
         <h1>Hồng Hà HRMS</h1>
         <p>Hệ thống Quản lý Nhân sự</p>
       </div>

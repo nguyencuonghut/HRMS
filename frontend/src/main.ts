@@ -39,10 +39,10 @@ const HongHaPreset = definePreset(Aura, {
     colorScheme: {
       light: {
         primary: {
-          color:         '{primary.600}',  // #0d9488 — contrast 4.6:1 với white ✓
-          contrastColor: '#ffffff',
-          hoverColor:    '{primary.700}',
-          activeColor:   '{primary.800}',
+          color:         '{primary.500}',   // #14b8a6 — vivid teal, matches modal button
+          contrastColor: '#ffffff',          // white text
+          hoverColor:    '{primary.600}',
+          activeColor:   '{primary.700}',
         },
         surface: {
           0:   '#ffffff',
@@ -61,10 +61,10 @@ const HongHaPreset = definePreset(Aura, {
       },
       dark: {
         primary: {
-          color:         '{primary.500}',  // #14b8a6 — đủ tối để dùng white text ✓
-          contrastColor: '#ffffff',
-          hoverColor:    '{primary.400}',
-          activeColor:   '{primary.300}',
+          color:         '{primary.400}',   // #2dd4bf — bright teal fill (same as Aura default)
+          contrastColor: '{surface.900}',   // #18181b — dark text, high contrast
+          hoverColor:    '{primary.300}',
+          activeColor:   '{primary.200}',
         },
         surface: {
           0:   '#ffffff',
