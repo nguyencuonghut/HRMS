@@ -14,6 +14,12 @@ from app.models.org import (  # noqa: F401
     JobPositionAttachment,
     OrgChangeLog,
 )
+from app.models.catalog import (  # noqa: F401
+    AdministrativeUnit,
+    AdministrativeHierarchy,
+    AdministrativeImportBatch,
+    AdministrativeImportError,
+)
 from app.models.salary import (  # noqa: F401
     RegionalMinimumWage,
     CompanyBhxhRegion,

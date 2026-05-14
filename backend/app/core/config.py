@@ -1,4 +1,8 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pathlib import Path
+
+
+_BASE_DIR = Path(__file__).resolve().parents[2]
 
 
 class Settings(BaseSettings):
@@ -29,6 +33,11 @@ class Settings(BaseSettings):
 
     # CORS
     CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://localhost:3000"]
+
+    # Administrative catalog seed source
+    ADMINISTRATIVE_WARDS_JSON_PATH: str = str(
+        _BASE_DIR / "app" / "seeds" / "data" / "wards_all_qd19_2025.json"
+    )
 
 
 settings = Settings()

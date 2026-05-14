@@ -38,3 +38,6 @@ Thumbs.db
 
 # SSL certs
 nginx/ssl/
+
+# agents and skills
+.agents
