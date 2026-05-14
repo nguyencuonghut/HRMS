@@ -32,6 +32,12 @@ def test_list_provinces_new_system(client: TestClient):
     assert any(item["code"] == "25" for item in data)
 
 
+def test_list_provinces_old_system_is_empty_when_not_seeded(client: TestClient):
+    resp = client.get("/api/v1/locations/provinces", params={"system_type": "old"})
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
 def test_list_children_new_system(client: TestClient):
     provinces = client.get("/api/v1/locations/provinces", params={"system_type": "new"}).json()
     hanoi = next(item for item in provinces if item["code"] == "25")

@@ -31,7 +31,6 @@
         option-label="label"
         option-value="value"
         class="toolbar-filter"
-        @change="handleSystemOrStateChange"
       />
       <Select
         v-model="filterActive"
@@ -39,7 +38,6 @@
         option-label="label"
         option-value="value"
         class="toolbar-filter"
-        @change="handleSystemOrStateChange"
       />
       <Select
         v-model="filterUnitType"
@@ -498,6 +496,7 @@ async function loadList() {
   loadingList.value = true
   try {
     const res = await administrativeUnitService.getList({
+      system_type: systemType.value,
       is_active: filterActive.value,
       unit_type: filterUnitType.value,
       province_code: filterProvinceCode.value,
@@ -711,6 +710,10 @@ async function submitImport() {
 watch([filterUnitType, filterProvinceCode], () => {
   resetListPaging()
   void loadList()
+})
+
+watch([systemType, filterActive], () => {
+  void handleSystemOrStateChange()
 })
 
 onMounted(refreshView)

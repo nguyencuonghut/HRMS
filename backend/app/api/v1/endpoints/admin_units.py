@@ -25,6 +25,7 @@ lookup_router = APIRouter()
 
 @router.get("", response_model=AdministrativeUnitListPage, summary="Danh sách đơn vị hành chính")
 async def list_admin_units(
+    system_type: Optional[str] = Query(None),
     is_active: Optional[bool] = Query(None),
     unit_type: Optional[str] = Query(None),
     province_code: Optional[str] = Query(None),
@@ -35,6 +36,7 @@ async def list_admin_units(
 ):
     return await administrative_unit_service.list_units_page(
         session,
+        system_type=system_type,
         is_active=is_active,
         unit_type=unit_type,
         province_code=province_code,
@@ -115,8 +117,11 @@ async def list_provinces(
     is_active: Optional[bool] = Query(True),
     session: AsyncSession = Depends(get_session),
 ):
-    _ = system_type
-    return await administrative_unit_service.list_provinces(session, is_active=is_active)
+    return await administrative_unit_service.list_provinces(
+        session,
+        system_type=system_type,
+        is_active=is_active,
+    )
 
 
 @lookup_router.get("/locations/children", response_model=list[AdministrativeUnitRead], summary="Danh sách cấp con")

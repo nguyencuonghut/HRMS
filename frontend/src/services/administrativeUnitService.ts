@@ -102,6 +102,7 @@ export interface ValidateLocationPathResult {
 
 export default {
   getList: (params?: {
+    system_type?: 'old' | 'new' | null
     is_active?: boolean | null
     unit_type?: string | null
     province_code?: string | null

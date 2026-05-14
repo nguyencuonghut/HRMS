@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import HTTPException, status
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -21,6 +21,24 @@ def _normalize(value: str) -> str:
     return administrative_import_service.normalize_text(value)
 
 
+def _system_membership_clause(system_type: str, is_active: Optional[bool] = None):
+    hierarchy_filters = [AdministrativeHierarchy.system_type == system_type]
+    if is_active is not None:
+        hierarchy_filters.append(AdministrativeHierarchy.is_active == is_active)
+
+    return exists(
+        select(1)
+        .select_from(AdministrativeHierarchy)
+        .where(
+            *hierarchy_filters,
+            or_(
+                AdministrativeHierarchy.parent_unit_id == AdministrativeUnit.id,
+                AdministrativeHierarchy.child_unit_id == AdministrativeUnit.id,
+            ),
+        )
+    )
+
+
 async def get_by_id(session: AsyncSession, unit_id: int) -> AdministrativeUnit:
     unit = await session.get(AdministrativeUnit, unit_id)
     if not unit:
@@ -35,10 +53,13 @@ async def list_units(
     unit_type: Optional[str] = None,
     province_code: Optional[str] = None,
     keyword: Optional[str] = None,
+    system_type: Optional[str] = None,
 ) -> list[AdministrativeUnit]:
     q = select(AdministrativeUnit)
     if is_active is not None:
         q = q.where(AdministrativeUnit.is_active == is_active)
+    if system_type:
+        q = q.where(_system_membership_clause(system_type, is_active))
     if unit_type:
         q = q.where(AdministrativeUnit.unit_type == unit_type)
     if province_code:
@@ -65,6 +86,7 @@ async def list_units_page(
     keyword: Optional[str] = None,
     page: int = 1,
     page_size: int = 20,
+    system_type: Optional[str] = None,
 ) -> dict:
     page = max(page, 1)
     page_size = max(1, min(page_size, 200))
@@ -72,6 +94,8 @@ async def list_units_page(
     filters = []
     if is_active is not None:
         filters.append(AdministrativeUnit.is_active == is_active)
+    if system_type:
+        filters.append(_system_membership_clause(system_type, is_active))
     if unit_type:
         filters.append(AdministrativeUnit.unit_type == unit_type)
     if province_code:
@@ -232,7 +256,7 @@ async def get_tree(
     system_type: str,
     is_active: Optional[bool] = True,
 ) -> list[AdministrativeTreeNode]:
-    unit_query = select(AdministrativeUnit)
+    unit_query = select(AdministrativeUnit).where(_system_membership_clause(system_type, is_active))
     if is_active is not None:
         unit_query = unit_query.where(AdministrativeUnit.is_active == is_active)
     units = list((await session.execute(unit_query)).scalars().all())
@@ -273,8 +297,13 @@ async def get_tree(
     return roots
 
 
-async def list_provinces(session: AsyncSession, *, is_active: Optional[bool] = True) -> list[AdministrativeUnit]:
-    return await list_units(session, is_active=is_active, unit_type="province")
+async def list_provinces(
+    session: AsyncSession,
+    *,
+    system_type: str,
+    is_active: Optional[bool] = True,
+) -> list[AdministrativeUnit]:
+    return await list_units(session, is_active=is_active, unit_type="province", system_type=system_type)
 
 
 async def list_children(
@@ -313,6 +342,7 @@ async def search_locations(
     q = select(AdministrativeUnit)
     if is_active is not None:
         q = q.where(AdministrativeUnit.is_active == is_active)
+    q = q.where(_system_membership_clause(system_type, is_active))
     if unit_type:
         q = q.where(AdministrativeUnit.unit_type == unit_type)
     if province_code:

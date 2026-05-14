@@ -89,6 +89,14 @@ def test_list_admin_units_supports_server_side_pagination(client: TestClient):
     assert data["total"] >= 34
 
 
+def test_list_admin_units_old_system_is_empty_when_old_hierarchy_not_seeded(client: TestClient):
+    resp = client.get(BASE, params={"system_type": "old"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["items"] == []
+    assert data["total"] == 0
+
+
 def test_create_admin_unit_success(client: TestClient):
     resp = client.post(BASE, json=_payload("TEST_ADMIN_101"))
     assert resp.status_code == 201, resp.text
@@ -142,6 +150,12 @@ def test_get_hierarchy_tree_new_system(client: TestClient):
     if data:
         assert data[0]["unit_type"] == "province"
         assert "children" in data[0]
+
+
+def test_get_hierarchy_tree_old_system_is_empty_when_not_seeded(client: TestClient):
+    resp = client.get(TREE_BASE, params={"system_type": "old"})
+    assert resp.status_code == 200
+    assert resp.json() == []
 
 
 def test_import_endpoint_works(client: TestClient):
