@@ -14,6 +14,7 @@ import datetime
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.seeds import education_catalog
 
 # ─── Chức danh ───────────────────────────────────────────────────────────────
 
@@ -264,8 +265,11 @@ async def run(session: AsyncSession) -> None:
     await session.flush()
 
     depts = await seed_departments(session)
+    institutions_added, majors_added = await education_catalog.seed_sample_education_catalog(session)
     await session.commit()
 
     print(f"  [sample] Chức danh:        +{titles} dòng")
     print(f"  [sample] Hệ số bậc lương:  +{scale_entries} dòng")
     print(f"  [sample] Phòng/ban:         +{depts} dòng")
+    print(f"  [sample] Trường học:        +{institutions_added} upsert")
+    print(f"  [sample] Chuyên ngành:      +{majors_added} upsert")
