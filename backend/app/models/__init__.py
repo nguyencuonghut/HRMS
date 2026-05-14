@@ -19,6 +19,9 @@ from app.models.catalog import (  # noqa: F401
     AdministrativeHierarchy,
     AdministrativeImportBatch,
     AdministrativeImportError,
+    EducationLevel,
+    EducationalInstitution,
+    EducationMajor,
 )
 from app.models.salary import (  # noqa: F401
     RegionalMinimumWage,

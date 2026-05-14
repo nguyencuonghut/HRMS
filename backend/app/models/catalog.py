@@ -88,3 +88,57 @@ class AdministrativeImportError(SQLModel, table=True):
     error_message: Optional[str] = Field(
         default=None, sa_column=Column(sa.Text(), nullable=True)
     )
+
+
+class EducationLevel(SQLModel, table=True):
+    """Danh mục trình độ học vấn chuẩn hóa."""
+
+    __tablename__ = "education_levels"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    code: str = Field(max_length=50, unique=True, index=True)
+    name: str = Field(max_length=255)
+    normalized_name: str = Field(max_length=255, index=True)
+    rank_no: int = Field(sa_column=Column(sa.Integer(), nullable=False, unique=True, index=True))
+    is_active: bool = Field(default=True)
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: Optional[datetime] = Field(default=None)
+
+
+class EducationalInstitution(SQLModel, table=True):
+    """Danh mục trường học / cơ sở đào tạo."""
+
+    __tablename__ = "educational_institutions"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    code: Optional[str] = Field(default=None, max_length=50, unique=True, index=True)
+    name: str = Field(max_length=255)
+    normalized_name: str = Field(max_length=255, index=True)
+    short_name: Optional[str] = Field(default=None, max_length=100)
+    institution_type: Optional[str] = Field(
+        default=None,
+        sa_column=Column(sa.String(50), nullable=True, index=True),
+    )
+    country_code: Optional[str] = Field(default=None, max_length=10)
+    province_code: Optional[str] = Field(default=None, max_length=20)
+    is_active: bool = Field(default=True)
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: Optional[datetime] = Field(default=None)
+
+
+class EducationMajor(SQLModel, table=True):
+    """Danh mục chuyên ngành học vấn."""
+
+    __tablename__ = "education_majors"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    code: Optional[str] = Field(default=None, max_length=50, unique=True, index=True)
+    name: str = Field(max_length=255)
+    normalized_name: str = Field(max_length=255, index=True)
+    major_group: Optional[str] = Field(
+        default=None,
+        sa_column=Column(sa.String(100), nullable=True, index=True),
+    )
+    is_active: bool = Field(default=True)
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: Optional[datetime] = Field(default=None)
