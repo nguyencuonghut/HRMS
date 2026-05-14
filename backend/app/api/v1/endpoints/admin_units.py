@@ -8,6 +8,7 @@ from app.schemas.catalog import (
     AddressSystemRead,
     AdministrativeImportBatchRead,
     AdministrativeImportRequest,
+    AdministrativeUnitListPage,
     AdministrativeUnitCreate,
     AdministrativeUnitRead,
     AdministrativeUnitUpdate,
@@ -22,20 +23,24 @@ hierarchy_router = APIRouter()
 lookup_router = APIRouter()
 
 
-@router.get("", response_model=list[AdministrativeUnitRead], summary="Danh sách đơn vị hành chính")
+@router.get("", response_model=AdministrativeUnitListPage, summary="Danh sách đơn vị hành chính")
 async def list_admin_units(
     is_active: Optional[bool] = Query(None),
     unit_type: Optional[str] = Query(None),
     province_code: Optional[str] = Query(None),
     keyword: Optional[str] = Query(None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=200),
     session: AsyncSession = Depends(get_session),
 ):
-    return await administrative_unit_service.list_units(
+    return await administrative_unit_service.list_units_page(
         session,
         is_active=is_active,
         unit_type=unit_type,
         province_code=province_code,
         keyword=keyword,
+        page=page,
+        page_size=page_size,
     )
 
 

@@ -31,7 +31,7 @@
         option-label="label"
         option-value="value"
         class="toolbar-filter"
-        @change="loadAll"
+        @change="handleSystemOrStateChange"
       />
       <Select
         v-model="filterActive"
@@ -39,7 +39,7 @@
         option-label="label"
         option-value="value"
         class="toolbar-filter"
-        @change="loadAll"
+        @change="handleSystemOrStateChange"
       />
       <Select
         v-model="filterUnitType"
@@ -47,7 +47,6 @@
         option-label="label"
         option-value="value"
         class="toolbar-filter"
-        @change="loadList"
       />
       <Select
         v-model="filterProvinceCode"
@@ -58,15 +57,15 @@
         placeholder="Lọc theo tỉnh"
         show-clear
         filter
-        @change="loadList"
       />
       <IconField class="toolbar-search">
         <InputIcon class="pi pi-search" />
         <InputText
-          v-model="searchQuery"
+          v-model="listSearchQuery"
           class="w-full"
           placeholder="Tìm theo tên hoặc mã..."
-          @keydown.enter="loadList"
+          @input="onListSearch"
+          @keydown.enter="triggerListSearch"
         />
       </IconField>
       <Button
@@ -76,7 +75,7 @@
         rounded
         :loading="loadingList || loadingTree"
         v-tooltip.top="'Làm mới'"
-        @click="loadAll"
+        @click="refreshView"
       />
     </div>
 
@@ -90,10 +89,11 @@
         </div>
 
         <TreeTable
-          :value="filteredTree"
+          :value="treeData"
           :loading="loadingTree"
           v-model:expandedKeys="expandedKeys"
           responsive-layout="scroll"
+          @node-expand="handleNodeExpand"
         >
           <template #empty>
             <div class="empty-state">
@@ -131,7 +131,26 @@
           </div>
         </div>
 
-        <DataTable :value="units" :loading="loadingList" stripedRows paginator :rows="10" responsive-layout="scroll">
+        <DataTable
+          :value="units"
+          :loading="loadingList"
+          stripedRows
+          paginator
+          lazy
+          responsive-layout="scroll"
+          :rows="listPageSize"
+          :first="(listPage - 1) * listPageSize"
+          :total-records="totalUnits"
+          :rows-per-page-options="[10, 25, 50]"
+          paginator-template="RowsPerPageDropdown FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink"
+          @page="onListPage"
+        >
+          <template #paginatorstart>
+            <span class="paginator-info" v-if="totalUnits > 0">
+              Hiển thị {{ (listPage - 1) * listPageSize + 1 }}–{{ Math.min((listPage - 1) * listPageSize + units.length, totalUnits) }}
+              trên tổng số {{ totalUnits }} dòng
+            </span>
+          </template>
           <template #empty>
             <div class="empty-state">
               <i class="pi pi-inbox" />
@@ -333,10 +352,7 @@ import Tag from 'primevue/tag'
 import ToggleSwitch from 'primevue/toggleswitch'
 import TreeTable from 'primevue/treetable'
 
-import administrativeUnitService, {
-  type AdministrativeTreeNode,
-  type AdministrativeUnitRead,
-} from '@/services/administrativeUnitService'
+import administrativeUnitService, { type AdministrativeUnitRead } from '@/services/administrativeUnitService'
 
 interface PvTreeNode {
   key: string
@@ -364,15 +380,20 @@ const importing = ref(false)
 const submitting = ref(false)
 
 const units = ref<AdministrativeUnitRead[]>([])
+const totalUnits = ref(0)
 const provinces = ref<AdministrativeUnitRead[]>([])
 const treeData = ref<PvTreeNode[]>([])
 const expandedKeys = ref<Record<string, boolean>>({})
+const provinceCache = new Map<string, AdministrativeUnitRead[]>()
 
 const systemType = ref<'old' | 'new'>('new')
 const filterActive = ref<boolean | null>(true)
 const filterUnitType = ref<string | null>(null)
 const filterProvinceCode = ref<string | null>(null)
-const searchQuery = ref('')
+const listSearchQuery = ref('')
+const listPage = ref(1)
+const listPageSize = ref(10)
+let listSearchTimer: ReturnType<typeof setTimeout> | undefined
 
 const dialogVisible = ref(false)
 const importDialogVisible = ref(false)
@@ -431,16 +452,6 @@ const provinceOptions = computed(() =>
   })),
 )
 
-const filteredTree = computed(() => {
-  const q = searchQuery.value.trim().toLowerCase()
-  if (!q) return treeData.value
-  return filterNodes(treeData.value, q)
-})
-
-watch(searchQuery, () => {
-  expandedKeys.value = collectExpandedKeys(filteredTree.value)
-})
-
 function typeLabel(type: string) {
   if (type === 'province') return 'Tỉnh/Thành'
   if (type === 'district') return 'Quận/Huyện'
@@ -454,45 +465,33 @@ function apiError(e: unknown): string {
   return typeof detail === 'string' ? detail : 'Đã xảy ra lỗi, vui lòng thử lại'
 }
 
-function toTreeNodes(nodes: AdministrativeTreeNode[]): PvTreeNode[] {
-  return nodes.map(node => ({
-    key: String(node.id),
-    data: node,
-    children: node.children?.length ? toTreeNodes(node.children) : undefined,
-    leaf: !node.children?.length,
-  }))
+function treeNodeFor(unit: AdministrativeUnitRead): PvTreeNode {
+  return {
+    key: String(unit.id),
+    data: unit,
+    children: unit.unit_type === 'province' || unit.unit_type === 'district' ? [] : undefined,
+    leaf: unit.unit_type === 'ward',
+  }
 }
 
-function collectExpandedKeys(nodes: PvTreeNode[]): Record<string, boolean> {
-  const keys: Record<string, boolean> = {}
-  const walk = (items: PvTreeNode[]) => {
-    for (const item of items) {
-      if (item.children?.length) {
-        keys[item.key] = true
-        walk(item.children)
-      }
-    }
-  }
-  walk(nodes)
-  return keys
-}
-
-function filterNodes(nodes: PvTreeNode[], q: string): PvTreeNode[] {
-  const result: PvTreeNode[] = []
-  for (const node of nodes) {
-    const hit = node.data.name.toLowerCase().includes(q) || node.data.code.toLowerCase().includes(q)
-    const children = filterNodes(node.children ?? [], q)
-    if (hit || children.length) result.push({ ...node, children })
-  }
-  return result
+function cacheKeyForProvinces() {
+  return `${systemType.value}:${String(filterActive.value)}`
 }
 
 async function loadProvinces() {
+  const cacheKey = cacheKeyForProvinces()
+  const cached = provinceCache.get(cacheKey)
+  if (cached) {
+    provinces.value = cached
+    return
+  }
+
   const res = await administrativeUnitService.listProvinces({
     system_type: systemType.value,
     is_active: filterActive.value,
   })
   provinces.value = res.data
+  provinceCache.set(cacheKey, res.data)
 }
 
 async function loadList() {
@@ -502,9 +501,12 @@ async function loadList() {
       is_active: filterActive.value,
       unit_type: filterUnitType.value,
       province_code: filterProvinceCode.value,
-      keyword: searchQuery.value.trim() || null,
+      keyword: listSearchQuery.value.trim() || null,
+      page: listPage.value,
+      page_size: listPageSize.value,
     })
-    units.value = res.data
+    units.value = res.data.items
+    totalUnits.value = res.data.total
   } catch (e) {
     toast.add({ severity: 'error', summary: 'Lỗi', detail: apiError(e), life: 4000 })
   } finally {
@@ -512,15 +514,24 @@ async function loadList() {
   }
 }
 
-async function loadTree() {
+function loadTreeRoots() {
+  treeData.value = provinces.value.map(treeNodeFor)
+  expandedKeys.value = {}
+}
+
+async function expandTreeNode(node: PvTreeNode) {
+  if (node.leaf || node.children === undefined || node.children.length > 0) return
+
   loadingTree.value = true
   try {
-    const res = await administrativeUnitService.getTree({
+    const res = await administrativeUnitService.listChildren({
       system_type: systemType.value,
+      parent_id: Number(node.key),
       is_active: filterActive.value,
     })
-    treeData.value = toTreeNodes(res.data)
-    expandedKeys.value = collectExpandedKeys(treeData.value)
+    node.children = res.data.map(treeNodeFor)
+    node.leaf = node.children.length === 0
+    treeData.value = [...treeData.value]
   } catch (e) {
     toast.add({ severity: 'error', summary: 'Lỗi', detail: apiError(e), life: 4000 })
   } finally {
@@ -528,8 +539,55 @@ async function loadTree() {
   }
 }
 
-async function loadAll() {
-  await Promise.all([loadProvinces(), loadList(), loadTree()])
+function handleNodeExpand(node: unknown) {
+  void expandTreeNode(node as PvTreeNode)
+}
+
+async function refreshTree() {
+  loadingTree.value = true
+  try {
+    await loadProvinces()
+    loadTreeRoots()
+  } catch (e) {
+    toast.add({ severity: 'error', summary: 'Lỗi', detail: apiError(e), life: 4000 })
+  } finally {
+    loadingTree.value = false
+  }
+}
+
+async function refreshView() {
+  await Promise.all([refreshTree(), loadList()])
+}
+
+function resetListPaging() {
+  listPage.value = 1
+}
+
+function triggerListSearch() {
+  if (listSearchTimer) clearTimeout(listSearchTimer)
+  resetListPaging()
+  void loadList()
+}
+
+function onListSearch() {
+  if (listSearchTimer) clearTimeout(listSearchTimer)
+  listSearchTimer = setTimeout(() => {
+    resetListPaging()
+    void loadList()
+  }, 300)
+}
+
+function onListPage(event: { page?: number; rows?: number }) {
+  listPage.value = (event.page ?? 0) + 1
+  listPageSize.value = event.rows ?? listPageSize.value
+  void loadList()
+}
+
+async function handleSystemOrStateChange() {
+  provinceCache.clear()
+  filterProvinceCode.value = null
+  resetListPaging()
+  await refreshView()
 }
 
 function openCreate() {
@@ -593,7 +651,8 @@ async function submitForm() {
       toast.add({ severity: 'success', summary: 'Thành công', detail: 'Đã tạo đơn vị hành chính mới', life: 3000 })
     }
     dialogVisible.value = false
-    await loadAll()
+    provinceCache.clear()
+    await refreshView()
   } catch (e) {
     toast.add({ severity: 'error', summary: 'Lỗi', detail: apiError(e), life: 5000 })
   } finally {
@@ -613,7 +672,8 @@ function confirmDelete(unit: AdministrativeUnitRead) {
       try {
         const res = await administrativeUnitService.delete(unit.id)
         toast.add({ severity: 'success', summary: 'Thành công', detail: res.data.message, life: 3000 })
-        await loadAll()
+        provinceCache.clear()
+        await refreshView()
       } catch (e) {
         toast.add({ severity: 'error', summary: 'Lỗi', detail: apiError(e), life: 5000 })
       }
@@ -637,7 +697,10 @@ async function submitImport() {
       detail: `Tổng ${res.data.total_rows}, OK ${res.data.success_rows}, lỗi ${res.data.failed_rows}`,
       life: 4500,
     })
-    await loadAll()
+    provinceCache.clear()
+    filterProvinceCode.value = null
+    resetListPaging()
+    await refreshView()
   } catch (e) {
     toast.add({ severity: 'error', summary: 'Lỗi', detail: apiError(e), life: 5000 })
   } finally {
@@ -645,7 +708,12 @@ async function submitImport() {
   }
 }
 
-onMounted(loadAll)
+watch([filterUnitType, filterProvinceCode], () => {
+  resetListPaging()
+  void loadList()
+})
+
+onMounted(refreshView)
 </script>
 
 <style scoped>
@@ -676,6 +744,7 @@ onMounted(loadAll)
   display: flex;
   justify-content: space-between;
   align-items: center;
+  padding: 1rem 1rem 0;
   margin-bottom: 1rem;
 }
 .card-header h3 { margin: 0; font-size: 1.05rem; font-weight: 700; }

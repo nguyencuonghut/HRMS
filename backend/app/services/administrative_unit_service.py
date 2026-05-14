@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import HTTPException, status
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -54,6 +54,58 @@ async def list_units(
     q = q.order_by(AdministrativeUnit.unit_type, AdministrativeUnit.name)
     result = await session.execute(q)
     return list(result.scalars().all())
+
+
+async def list_units_page(
+    session: AsyncSession,
+    *,
+    is_active: Optional[bool] = None,
+    unit_type: Optional[str] = None,
+    province_code: Optional[str] = None,
+    keyword: Optional[str] = None,
+    page: int = 1,
+    page_size: int = 20,
+) -> dict:
+    page = max(page, 1)
+    page_size = max(1, min(page_size, 200))
+
+    filters = []
+    if is_active is not None:
+        filters.append(AdministrativeUnit.is_active == is_active)
+    if unit_type:
+        filters.append(AdministrativeUnit.unit_type == unit_type)
+    if province_code:
+        filters.append(AdministrativeUnit.province_code == province_code)
+    if keyword:
+        normalized = _normalize(keyword)
+        filters.append(
+            or_(
+                AdministrativeUnit.normalized_name.contains(normalized),
+                AdministrativeUnit.code.ilike(f"%{keyword.strip()}%"),
+            )
+        )
+
+    count_query = select(func.count()).select_from(AdministrativeUnit)
+    item_query = select(AdministrativeUnit)
+    if filters:
+        count_query = count_query.where(*filters)
+        item_query = item_query.where(*filters)
+
+    item_query = (
+        item_query
+        .order_by(AdministrativeUnit.unit_type, AdministrativeUnit.name, AdministrativeUnit.id)
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    )
+
+    total = (await session.execute(count_query)).scalar_one()
+    items = list((await session.execute(item_query)).scalars().all())
+    return {
+        "items": items,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }
 
 
 async def create_unit(session: AsyncSession, data) -> AdministrativeUnit:

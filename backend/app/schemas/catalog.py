@@ -71,6 +71,13 @@ class AdministrativeTreeNode(AdministrativeUnitRead):
     children: list["AdministrativeTreeNode"] = []
 
 
+class AdministrativeUnitListPage(BaseModel):
+    items: list[AdministrativeUnitRead]
+    total: int
+    page: int
+    page_size: int
+
+
 class AdministrativeImportRequest(BaseModel):
     system_type: SystemType = "new"
     json_path: Optional[str] = None

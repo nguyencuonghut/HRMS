@@ -72,7 +72,21 @@ async def session_cleanup(client: TestClient):
 def test_list_admin_units_returns_200(client: TestClient):
     resp = client.get(BASE, params={"unit_type": "province"})
     assert resp.status_code == 200
-    assert isinstance(resp.json(), list)
+    data = resp.json()
+    assert isinstance(data["items"], list)
+    assert data["page"] == 1
+    assert data["page_size"] == 20
+    assert data["total"] >= len(data["items"])
+
+
+def test_list_admin_units_supports_server_side_pagination(client: TestClient):
+    resp = client.get(BASE, params={"unit_type": "province", "page": 2, "page_size": 5})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data["items"]) == 5
+    assert data["page"] == 2
+    assert data["page_size"] == 5
+    assert data["total"] >= 34
 
 
 def test_create_admin_unit_success(client: TestClient):

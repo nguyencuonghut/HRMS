@@ -21,6 +21,13 @@ export interface AdministrativeTreeNode extends AdministrativeUnitRead {
   children: AdministrativeTreeNode[]
 }
 
+export interface AdministrativeUnitListPage {
+  items: AdministrativeUnitRead[]
+  total: number
+  page: number
+  page_size: number
+}
+
 export interface AdministrativeUnitCreate {
   code: string
   name: string
@@ -99,7 +106,9 @@ export default {
     unit_type?: string | null
     province_code?: string | null
     keyword?: string | null
-  }) => api.get<AdministrativeUnitRead[]>('/admin-units', { params }),
+    page?: number
+    page_size?: number
+  }) => api.get<AdministrativeUnitListPage>('/admin-units', { params }),
 
   getById: (id: number) =>
     api.get<AdministrativeUnitRead>(`/admin-units/${id}`),

@@ -37,8 +37,13 @@ async def cleanup_import_data():
         """
         DELETE FROM administrative_hierarchies
         WHERE system_type = 'new'
-          AND child_unit_id IN (
-            SELECT id FROM administrative_units WHERE source_name = 'test_import'
+          AND (
+            child_unit_id IN (
+              SELECT id FROM administrative_units WHERE source_name = 'test_import'
+            )
+            OR parent_unit_id IN (
+              SELECT id FROM administrative_units WHERE source_name = 'test_import'
+            )
           )
         """
     )
@@ -50,8 +55,13 @@ async def cleanup_import_data():
         """
         DELETE FROM administrative_hierarchies
         WHERE system_type = 'new'
-          AND child_unit_id IN (
-            SELECT id FROM administrative_units WHERE source_name = 'test_import'
+          AND (
+            child_unit_id IN (
+              SELECT id FROM administrative_units WHERE source_name = 'test_import'
+            )
+            OR parent_unit_id IN (
+              SELECT id FROM administrative_units WHERE source_name = 'test_import'
+            )
           )
         """
     )
