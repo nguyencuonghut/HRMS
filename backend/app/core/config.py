@@ -38,6 +38,15 @@ class Settings(BaseSettings):
     ADMINISTRATIVE_WARDS_JSON_PATH: str = str(
         _BASE_DIR / "app" / "seeds" / "data" / "wards_all_qd19_2025.json"
     )
+    ADMINISTRATIVE_OLD_UNITS_XLSX_PATH: str = str(
+        _BASE_DIR / "app" / "seeds" / "data" / "old_administrative_unit.xlsx"
+    )
+    ADMINISTRATIVE_OLD_UNITS_JSON_PATH: str = str(
+        _BASE_DIR / "app" / "seeds" / "data" / "old_administrative_units_3_level.json"
+    )
+    ADMINISTRATIVE_OLD_UNITS_CONFLICTS_JSON_PATH: str = str(
+        _BASE_DIR / "app" / "seeds" / "data" / "old_administrative_units_conflicts.json"
+    )
 
 
 settings = Settings()

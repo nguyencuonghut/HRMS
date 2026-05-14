@@ -3,6 +3,7 @@ import api from './api'
 export interface AdministrativeUnitRead {
   id: number
   code: string
+  source_code: string | null
   name: string
   normalized_name: string
   unit_type: string

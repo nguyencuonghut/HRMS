@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+from sqlalchemy import text
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,16 +11,25 @@ from app.api.v1.router import router as api_v1_router
 from app.seeds import rbac as rbac_seed
 
 
+async def seed_rbac_if_possible() -> None:
+    """Auto-seed RBAC only after auth tables exist."""
+    async with AsyncSessionLocal() as session:
+        users_table_exists = (await session.execute(
+            text("SELECT to_regclass('users') IS NOT NULL")
+        )).scalar()
+        if not users_table_exists:
+            return
+
+        user_count = (await session.execute(text("SELECT COUNT(*) FROM users"))).scalar()
+        if user_count == 0:
+            await rbac_seed.run(session)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     ensure_bucket()
     await ping_db()
-    # Auto-seed RBAC nếu chưa có user nào (first boot)
-    async with AsyncSessionLocal() as session:
-        from sqlalchemy import text
-        count = (await session.execute(text("SELECT COUNT(*) FROM users"))).scalar()
-        if count == 0:
-            await rbac_seed.run(session)
+    await seed_rbac_if_possible()
     yield
 
 

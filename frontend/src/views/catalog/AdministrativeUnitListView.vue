@@ -96,7 +96,7 @@
           <template #empty>
             <div class="empty-state">
               <i class="pi pi-inbox" />
-              <span>{{ systemType === 'old' ? 'Hệ cũ chưa được triển khai dữ liệu' : 'Không có dữ liệu cây' }}</span>
+              <span>Không có dữ liệu cây</span>
             </div>
           </template>
 
@@ -108,8 +108,12 @@
               </div>
             </template>
           </Column>
-          <Column field="code" header="Mã" style="width: 130px" />
-          <Column field="province_code" header="Tỉnh" style="width: 150px" />
+          <Column field="code" header="Mã" style="width: 130px">
+            <template #body="{ node }">{{ displayCode(node.data) }}</template>
+          </Column>
+          <Column field="province_code" header="Tỉnh" style="width: 150px">
+            <template #body="{ node }">{{ displayProvinceCode(node.data) }}</template>
+          </Column>
           <Column field="is_active" header="Trạng thái" style="width: 120px">
             <template #body="{ node }">
               <Tag
@@ -157,12 +161,14 @@
           </template>
 
           <Column field="name" header="Tên" style="min-width: 220px" />
-          <Column field="code" header="Mã" style="width: 120px" />
+          <Column field="code" header="Mã" style="width: 120px">
+            <template #body="{ data }">{{ displayCode(data) }}</template>
+          </Column>
           <Column field="unit_type" header="Loại" style="width: 110px">
             <template #body="{ data }">{{ typeLabel(data.unit_type) }}</template>
           </Column>
           <Column field="province_code" header="Mã tỉnh" style="width: 130px">
-            <template #body="{ data }">{{ data.province_code || '—' }}</template>
+            <template #body="{ data }">{{ displayProvinceCode(data) }}</template>
           </Column>
           <Column field="source_name" header="Nguồn" style="width: 130px">
             <template #body="{ data }">{{ data.source_name || 'manual' }}</template>
@@ -454,6 +460,16 @@ function typeLabel(type: string) {
   if (type === 'province') return 'Tỉnh/Thành'
   if (type === 'district') return 'Quận/Huyện'
   return 'Xã/Phường'
+}
+
+function displayCode(unit: AdministrativeUnitRead) {
+  return unit.source_code || unit.code
+}
+
+function displayProvinceCode(unit: AdministrativeUnitRead) {
+  if (!unit.province_code) return '—'
+  const province = provinces.value.find(item => item.code === unit.province_code)
+  return province?.source_code || province?.code || unit.province_code
 }
 
 function apiError(e: unknown): string {

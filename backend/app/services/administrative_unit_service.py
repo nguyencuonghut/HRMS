@@ -70,6 +70,7 @@ async def list_units(
             or_(
                 AdministrativeUnit.normalized_name.contains(normalized),
                 AdministrativeUnit.code.ilike(f"%{keyword.strip()}%"),
+                AdministrativeUnit.source_code.ilike(f"%{keyword.strip()}%"),
             )
         )
     q = q.order_by(AdministrativeUnit.unit_type, AdministrativeUnit.name)
@@ -106,6 +107,7 @@ async def list_units_page(
             or_(
                 AdministrativeUnit.normalized_name.contains(normalized),
                 AdministrativeUnit.code.ilike(f"%{keyword.strip()}%"),
+                AdministrativeUnit.source_code.ilike(f"%{keyword.strip()}%"),
             )
         )
 
@@ -139,6 +141,7 @@ async def create_unit(session: AsyncSession, data) -> AdministrativeUnit:
 
     unit = AdministrativeUnit(
         code=data.code,
+        source_code=data.source_code or data.code,
         name=data.name,
         normalized_name=_normalize(data.name),
         unit_type=data.unit_type,
@@ -238,7 +241,15 @@ async def _sync_new_system_hierarchy_for_unit(session: AsyncSession, unit: Admin
 
 async def run_import(session: AsyncSession, data: AdministrativeImportRequest):
     if data.system_type != "new":
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Hiện chỉ hỗ trợ import hệ hành chính mới")
+        return await administrative_import_service.import_old_system_from_json(
+            session,
+            json_path=data.json_path or settings.ADMINISTRATIVE_OLD_UNITS_JSON_PATH,
+            source_name=data.source_name,
+            source_version=data.source_version,
+            file_name=data.file_name,
+            imported_by=data.imported_by,
+            mode=data.mode,
+        )
     return await administrative_import_service.import_new_system_from_json(
         session,
         json_path=data.json_path or settings.ADMINISTRATIVE_WARDS_JSON_PATH,
@@ -353,6 +364,7 @@ async def search_locations(
         or_(
             AdministrativeUnit.normalized_name.contains(normalized),
             AdministrativeUnit.code.ilike(f"%{keyword.strip()}%"),
+            AdministrativeUnit.source_code.ilike(f"%{keyword.strip()}%"),
         )
     )
     if system_type == "new":

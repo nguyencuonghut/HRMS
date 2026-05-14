@@ -1,0 +1,65 @@
+[
+  {
+    "ward_code": "00553",
+    "variants": [
+      {
+        "province_name": "Thành phố Hà Nội",
+        "province_code": "01",
+        "district_name": "Huyện Gia Lâm",
+        "district_code": "018",
+        "ward_name": "Xã Cổ Bi",
+        "ward_code": "00553"
+      },
+      {
+        "province_name": "Thành phố Hà Nội",
+        "province_code": "01",
+        "district_name": "Huyện Gia Lâm",
+        "district_code": "018",
+        "ward_name": "Xã Đặng Xá",
+        "ward_code": "00553"
+      }
+    ]
+  },
+  {
+    "ward_code": "01615",
+    "variants": [
+      {
+        "province_name": "Tỉnh Cao Bằng",
+        "province_code": "04",
+        "district_name": "Huyện Quảng Hòa",
+        "district_code": "049",
+        "ward_name": "Xã Hồng Quang",
+        "ward_code": "01615"
+      },
+      {
+        "province_name": "Tỉnh Cao Bằng",
+        "province_code": "04",
+        "district_name": "Huyện Quảng Hòa",
+        "district_code": "049",
+        "ward_name": "Xã Mỹ Hưng",
+        "ward_code": "01615"
+      }
+    ]
+  },
+  {
+    "ward_code": "02485",
+    "variants": [
+      {
+        "province_name": "Tỉnh Tuyên Quang",
+        "province_code": "08",
+        "district_name": "Huyện Yên Sơn",
+        "district_code": "075",
+        "ward_name": "Xã Công Đa",
+        "ward_code": "02485"
+      },
+      {
+        "province_name": "Tỉnh Tuyên Quang",
+        "province_code": "08",
+        "district_name": "Huyện Yên Sơn",
+        "district_code": "075",
+        "ward_name": "Xã Phú Thịnh",
+        "ward_code": "02485"
+      }
+    ]
+  }
+]

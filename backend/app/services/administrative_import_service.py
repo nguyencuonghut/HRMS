@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import date
 import json
 from pathlib import Path
+import re
 import unicodedata
 
 from sqlalchemy import text
@@ -75,6 +76,26 @@ def make_province_code(name: str) -> str:
     return code
 
 
+def normalize_display_text(value: str) -> str:
+    normalized = unicodedata.normalize("NFC", value.strip())
+    return " ".join(normalized.split())
+
+
+def make_internal_code(system_type: str, unit_type: str, source_code: str) -> str:
+    source_code = normalize_display_text(source_code)
+    if system_type == "new":
+        return source_code
+    return f"{system_type}:{unit_type}:{source_code}"
+
+
+def parse_name_and_code(raw_value: str, *, label: str) -> tuple[str, str]:
+    normalized = normalize_display_text(raw_value)
+    match = re.match(r"^(?P<name>.+?)\s*\((?P<code>[^()]+)\)$", normalized)
+    if not match:
+        raise ValueError(f"Không tách được tên và mã cho {label}: {raw_value}")
+    return normalize_display_text(match.group("name")), normalize_display_text(match.group("code"))
+
+
 def map_ward_type(raw_type: str) -> str:
     normalized = normalize_text(raw_type)
     if normalized in {"xa", "phuong", "dac khu"}:
@@ -88,12 +109,15 @@ def build_province_rows(
     source_name: str,
     source_version: str,
     effective_from: date,
+    system_type: str = "new",
 ) -> list[dict]:
     rows: list[dict] = []
     for name in province_names:
-        code = make_province_code(name)
+        source_code = make_province_code(name)
+        code = make_internal_code(system_type, "province", source_code)
         rows.append({
             "code": code,
+            "source_code": source_code,
             "name": name,
             "normalized_name": normalize_text(name),
             "unit_type": "province",
@@ -125,8 +149,10 @@ def build_new_system_ward_row(
     effective_from: date,
 ) -> dict:
     name = unicodedata.normalize("NFC", str(item["name"]).strip())
+    source_code = str(item["code"]).strip()
     return {
-        "code": str(item["code"]).strip(),
+        "code": make_internal_code("new", "ward", source_code),
+        "source_code": source_code,
         "name": name,
         "normalized_name": normalize_text(name),
         "unit_type": map_ward_type(str(item["type"])),
@@ -138,6 +164,69 @@ def build_new_system_ward_row(
         "source_name": source_name,
         "source_version": source_version,
     }
+
+
+def build_old_system_row_set(
+    item: dict,
+    *,
+    source_name: str,
+    source_version: str,
+    effective_from: date,
+) -> tuple[dict, dict, dict]:
+    province_name = normalize_display_text(str(item["province_name"]))
+    province_source_code = normalize_display_text(str(item["province_code"]))
+    district_name = normalize_display_text(str(item["district_name"]))
+    district_source_code = normalize_display_text(str(item["district_code"]))
+    ward_name = normalize_display_text(str(item["ward_name"]))
+    ward_source_code = normalize_display_text(str(item["ward_code"]))
+
+    province_code = make_internal_code("old", "province", province_source_code)
+    district_code = make_internal_code("old", "district", district_source_code)
+    ward_code = make_internal_code("old", "ward", ward_source_code)
+
+    province_row = {
+        "code": province_code,
+        "source_code": province_source_code,
+        "name": province_name,
+        "normalized_name": normalize_text(province_name),
+        "unit_type": "province",
+        "official_name": province_name,
+        "province_code": province_code,
+        "is_active": True,
+        "effective_from": effective_from,
+        "effective_to": None,
+        "source_name": source_name,
+        "source_version": source_version,
+    }
+    district_row = {
+        "code": district_code,
+        "source_code": district_source_code,
+        "name": district_name,
+        "normalized_name": normalize_text(district_name),
+        "unit_type": "district",
+        "official_name": district_name,
+        "province_code": province_code,
+        "is_active": True,
+        "effective_from": effective_from,
+        "effective_to": None,
+        "source_name": source_name,
+        "source_version": source_version,
+    }
+    ward_row = {
+        "code": ward_code,
+        "source_code": ward_source_code,
+        "name": ward_name,
+        "normalized_name": normalize_text(ward_name),
+        "unit_type": "ward",
+        "official_name": ward_name,
+        "province_code": province_code,
+        "is_active": True,
+        "effective_from": effective_from,
+        "effective_to": None,
+        "source_name": source_name,
+        "source_version": source_version,
+    }
+    return province_row, district_row, ward_row
 
 
 async def _create_batch(
@@ -224,13 +313,14 @@ async def _upsert_unit(session: AsyncSession, row: dict) -> int:
     result = await session.execute(
         text("""
             INSERT INTO administrative_units (
-                code, name, normalized_name, unit_type, official_name, province_code,
+                code, source_code, name, normalized_name, unit_type, official_name, province_code,
                 is_active, effective_from, effective_to, source_name, source_version
             ) VALUES (
-                :code, :name, :normalized_name, :unit_type, :official_name, :province_code,
+                :code, :source_code, :name, :normalized_name, :unit_type, :official_name, :province_code,
                 :is_active, :effective_from, :effective_to, :source_name, :source_version
             )
             ON CONFLICT (code) DO UPDATE SET
+                source_code = EXCLUDED.source_code,
                 name = EXCLUDED.name,
                 normalized_name = EXCLUDED.normalized_name,
                 unit_type = EXCLUDED.unit_type,
@@ -260,11 +350,17 @@ async def _delete_existing_hierarchies_for_source(
         text("""
             DELETE FROM administrative_hierarchies
             WHERE system_type = :system_type
-              AND child_unit_id IN (
-                SELECT id FROM administrative_units
-                WHERE source_name = :source_name
-                  AND source_version = :source_version
-                  AND unit_type = 'ward'
+              AND (
+                child_unit_id IN (
+                  SELECT id FROM administrative_units
+                  WHERE source_name = :source_name
+                    AND source_version = :source_version
+                )
+                OR parent_unit_id IN (
+                  SELECT id FROM administrative_units
+                  WHERE source_name = :source_name
+                    AND source_version = :source_version
+                )
               )
         """),
         {
@@ -281,12 +377,18 @@ async def _deactivate_missing_units_safe(
     source_name: str,
     source_version: str,
     keep_codes: set[str],
+    unit_types: tuple[str, ...],
 ) -> None:
+    unit_type_predicate = " OR ".join(
+        f"unit_type = :unit_type_{index}" for index, _ in enumerate(unit_types)
+    )
+    unit_type_params = {f"unit_type_{index}": unit_type for index, unit_type in enumerate(unit_types)}
     if keep_codes:
         placeholders = ", ".join(f":code_{i}" for i, _ in enumerate(sorted(keep_codes)))
         params = {
             "source_name": source_name,
             "source_version": source_version,
+            **unit_type_params,
             **{f"code_{i}": code for i, code in enumerate(sorted(keep_codes))},
         }
         await session.execute(
@@ -295,23 +397,24 @@ async def _deactivate_missing_units_safe(
                 SET is_active = false, updated_at = now()
                 WHERE source_name = :source_name
                   AND source_version = :source_version
-                  AND unit_type = 'ward'
+                  AND ({unit_type_predicate})
                   AND code NOT IN ({placeholders})
             """),
             params,
         )
     else:
         await session.execute(
-            text("""
+            text(f"""
                 UPDATE administrative_units
                 SET is_active = false, updated_at = now()
                 WHERE source_name = :source_name
                   AND source_version = :source_version
-                  AND unit_type = 'ward'
+                  AND ({unit_type_predicate})
             """),
             {
                 "source_name": source_name,
                 "source_version": source_version,
+                **unit_type_params,
             },
         )
 
@@ -375,8 +478,9 @@ async def import_new_system_from_json(
         source_name=source_name,
         source_version=source_version,
         effective_from=effective_from,
+        system_type="new",
     )
-    province_map = {name: make_province_code(name) for name in province_names}
+    province_map = {name: make_internal_code("new", "province", make_province_code(name)) for name in province_names}
     province_ids: dict[str, int] = {}
 
     for row in province_rows:
@@ -433,6 +537,7 @@ async def import_new_system_from_json(
             source_name=source_name,
             source_version=source_version,
             keep_codes=success_codes,
+            unit_types=("ward",),
         )
 
     for parent_id, child_id in hierarchy_records:
@@ -442,6 +547,122 @@ async def import_new_system_from_json(
             parent_unit_id=parent_id,
             child_unit_id=child_id,
             level_depth=2,
+            effective_from=effective_from,
+        )
+
+    status = "failed" if failed_rows > 0 else "success"
+    summary = "; ".join(error_messages[:5]) if error_messages else None
+    await _update_batch(
+        session,
+        batch_id=batch_id,
+        status=status,
+        total_rows=total_rows,
+        success_rows=success_rows,
+        failed_rows=failed_rows,
+        error_summary=summary,
+    )
+    await session.commit()
+
+    return AdministrativeImportResult(
+        batch_id=batch_id,
+        batch_status=status,
+        total_rows=total_rows,
+        success_rows=success_rows,
+        failed_rows=failed_rows,
+    )
+
+
+async def import_old_system_from_json(
+    session: AsyncSession,
+    *,
+    json_path: str | Path,
+    source_name: str,
+    source_version: str,
+    effective_from: date = DEFAULT_EFFECTIVE_FROM,
+    file_name: str | None = None,
+    imported_by: int | None = None,
+    mode: str = "merge",
+) -> AdministrativeImportResult:
+    if mode not in {"merge", "replace"}:
+        raise ValueError("mode phải là 'merge' hoặc 'replace'")
+
+    batch_id = await _create_batch(
+        session,
+        source_name=source_name,
+        source_version=source_version,
+        file_name=file_name,
+        imported_by=imported_by,
+    )
+
+    raw_rows = load_json_rows(json_path)
+    total_rows = len(raw_rows)
+    success_rows = 0
+    failed_rows = 0
+    success_codes: set[str] = set()
+    hierarchy_records: list[tuple[str, int, int, int]] = []
+    error_messages: list[str] = []
+
+    province_ids: dict[str, int] = {}
+    district_ids: dict[str, int] = {}
+
+    for index, item in enumerate(raw_rows, start=1):
+        try:
+            province_row, district_row, ward_row = build_old_system_row_set(
+                item,
+                source_name=source_name,
+                source_version=source_version,
+                effective_from=effective_from,
+            )
+            province_id = province_ids.get(province_row["code"])
+            if province_id is None:
+                province_id = await _upsert_unit(session, province_row)
+                province_ids[province_row["code"]] = province_id
+
+            district_id = district_ids.get(district_row["code"])
+            if district_id is None:
+                district_id = await _upsert_unit(session, district_row)
+                district_ids[district_row["code"]] = district_id
+
+            ward_id = await _upsert_unit(session, ward_row)
+
+            hierarchy_records.append(("old", province_id, district_id, 2))
+            hierarchy_records.append(("old", district_id, ward_id, 3))
+            success_codes.update({province_row["code"], district_row["code"], ward_row["code"]})
+            success_rows += 1
+        except Exception as exc:
+            failed_rows += 1
+            message = str(exc)
+            error_messages.append(message)
+            await _log_import_error(
+                session,
+                batch_id=batch_id,
+                row_no=index,
+                raw_payload=item,
+                error_message=message,
+            )
+
+    if mode == "replace":
+        await _delete_existing_hierarchies_for_source(
+            session,
+            system_type="old",
+            source_name=source_name,
+            source_version=source_version,
+        )
+        await _deactivate_missing_units_safe(
+            session,
+            source_name=source_name,
+            source_version=source_version,
+            keep_codes=success_codes,
+            unit_types=("province", "district", "ward"),
+        )
+
+    for system_type, parent_id, child_id, level_depth in hierarchy_records:
+        await _insert_hierarchy(
+            session,
+            system_type=system_type,
+            parent_unit_id=parent_id,
+            child_unit_id=child_id,
+            level_depth=level_depth,
             effective_from=effective_from,
         )
 

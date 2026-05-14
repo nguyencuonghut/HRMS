@@ -13,6 +13,13 @@ def seed_official_locations(client: TestClient):
         "mode": "merge",
     })
     assert resp.status_code == 200, resp.text
+    resp_old = client.post("/api/v1/admin-units/import", json={
+        "system_type": "old",
+        "source_name": "official_import_old",
+        "source_version": "legacy_3_level",
+        "mode": "merge",
+    })
+    assert resp_old.status_code == 200, resp_old.text
     yield
 
 
@@ -32,10 +39,12 @@ def test_list_provinces_new_system(client: TestClient):
     assert any(item["code"] == "25" for item in data)
 
 
-def test_list_provinces_old_system_is_empty_when_not_seeded(client: TestClient):
+def test_list_provinces_old_system(client: TestClient):
     resp = client.get("/api/v1/locations/provinces", params={"system_type": "old"})
     assert resp.status_code == 200
-    assert resp.json() == []
+    data = resp.json()
+    assert isinstance(data, list)
+    assert any(item["source_code"] == "01" for item in data)
 
 
 def test_list_children_new_system(client: TestClient):
@@ -98,3 +107,28 @@ def test_validate_location_path_failure(client: TestClient):
     assert resp.status_code == 200
     body = resp.json()
     assert body["valid"] is False
+
+
+def test_validate_location_path_old_system_success(client: TestClient):
+    provinces = client.get("/api/v1/locations/provinces", params={"system_type": "old"}).json()
+    hanoi = next(item for item in provinces if item["source_code"] == "01")
+    districts = client.get("/api/v1/locations/children", params={
+        "system_type": "old",
+        "parent_id": hanoi["id"],
+    }).json()
+    ba_dinh = next(item for item in districts if item["source_code"] == "001")
+    wards = client.get("/api/v1/locations/children", params={
+        "system_type": "old",
+        "parent_id": ba_dinh["id"],
+    }).json()
+    truc_bach = next(item for item in wards if item["source_code"] == "00004")
+
+    resp = client.post("/api/v1/locations/validate-path", json={
+        "system_type": "old",
+        "province_unit_id": hanoi["id"],
+        "district_unit_id": ba_dinh["id"],
+        "ward_unit_id": truc_bach["id"],
+    })
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["valid"] is True

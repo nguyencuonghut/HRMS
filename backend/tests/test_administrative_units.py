@@ -59,6 +59,13 @@ def seed_official_import(client: TestClient):
         "mode": "merge",
     })
     assert seed_resp.status_code == 200, seed_resp.text
+    seed_old_resp = client.post(f"{BASE}/import", json={
+        "system_type": "old",
+        "source_name": "official_import_old",
+        "source_version": "legacy_3_level",
+        "mode": "merge",
+    })
+    assert seed_old_resp.status_code == 200, seed_old_resp.text
     yield
 
 
@@ -89,12 +96,13 @@ def test_list_admin_units_supports_server_side_pagination(client: TestClient):
     assert data["total"] >= 34
 
 
-def test_list_admin_units_old_system_is_empty_when_old_hierarchy_not_seeded(client: TestClient):
-    resp = client.get(BASE, params={"system_type": "old"})
+def test_list_admin_units_old_system_returns_seeded_rows(client: TestClient):
+    resp = client.get(BASE, params={"system_type": "old", "unit_type": "province"})
     assert resp.status_code == 200
     data = resp.json()
-    assert data["items"] == []
-    assert data["total"] == 0
+    assert len(data["items"]) >= 1
+    assert data["total"] >= len(data["items"])
+    assert any(item["source_code"] == "01" for item in data["items"])
 
 
 def test_create_admin_unit_success(client: TestClient):
@@ -152,10 +160,13 @@ def test_get_hierarchy_tree_new_system(client: TestClient):
         assert "children" in data[0]
 
 
-def test_get_hierarchy_tree_old_system_is_empty_when_not_seeded(client: TestClient):
+def test_get_hierarchy_tree_old_system(client: TestClient):
     resp = client.get(TREE_BASE, params={"system_type": "old"})
     assert resp.status_code == 200
-    assert resp.json() == []
+    data = resp.json()
+    assert isinstance(data, list)
+    assert len(data) >= 1
+    assert any(node["source_code"] == "01" for node in data)
 
 
 def test_import_endpoint_works(client: TestClient):

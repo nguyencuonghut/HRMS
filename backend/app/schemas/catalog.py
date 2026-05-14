@@ -13,6 +13,7 @@ ImportMode = Literal["merge", "replace"]
 
 class AdministrativeUnitCreate(BaseModel):
     code: str = Field(..., max_length=20)
+    source_code: Optional[str] = Field(None, max_length=20)
     name: str = Field(..., max_length=255)
     unit_type: UnitType
     official_name: Optional[str] = Field(None, max_length=255)
@@ -28,7 +29,7 @@ class AdministrativeUnitCreate(BaseModel):
     def _strip_code(cls, v: str) -> str:
         return v.strip().upper()
 
-    @field_validator("name", "official_name", "province_code", "source_name", "source_version")
+    @field_validator("name", "official_name", "province_code", "source_name", "source_version", "source_code")
     @classmethod
     def _strip_str(cls, v: Optional[str]) -> Optional[str]:
         return v.strip() if v else v
@@ -51,6 +52,7 @@ class AdministrativeUnitUpdate(BaseModel):
 class AdministrativeUnitRead(BaseModel):
     id: int
     code: str
+    source_code: Optional[str]
     name: str
     normalized_name: str
     unit_type: str

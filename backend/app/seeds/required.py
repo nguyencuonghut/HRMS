@@ -4,6 +4,7 @@ Dữ liệu bắt buộc — chạy trên mọi môi trường (dev/staging/prod
 Nội dung:
   - Mức lương tối thiểu vùng theo Nghị định 293/2025/NĐ-CP (hiệu lực 01/01/2026)
   - Vùng BHXH mặc định của công ty (Vùng III — có thể sửa trong DB sau)
+  - Danh mục hành chính hệ cũ: tỉnh/thành + quận/huyện + xã/phường từ JSON chuyển đổi từ Excel
   - Danh mục hành chính hệ mới: 34 tỉnh/thành + xã/phường từ JSON chính thức
 
 Seeder này idempotent: chạy nhiều lần không sinh dữ liệu trùng.
@@ -14,7 +15,7 @@ import datetime
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.seeds import administrative_units
+from app.seeds import administrative_units, old_administrative_units
 
 
 async def seed_minimum_wages(session: AsyncSession) -> int:
@@ -103,10 +104,13 @@ async def seed_company_region(session: AsyncSession, region: int = 3) -> int:
 async def run(session: AsyncSession) -> None:
     wages_added = await seed_minimum_wages(session)
     region_added = await seed_company_region(session)
+    old_admin_units_upserted, old_admin_hierarchies_added = await old_administrative_units.seed_old_administrative_system(session)
     admin_units_upserted, admin_hierarchies_added = await administrative_units.seed_new_administrative_system(session)
     await session.commit()
 
     print(f"  [required] Mức lương tối thiểu vùng: +{wages_added} dòng")
     print(f"  [required] Vùng BHXH công ty:         +{region_added} dòng")
+    print(f"  [required] Đơn vị hành chính cũ:      +{old_admin_units_upserted} upsert")
+    print(f"  [required] Quan hệ cũ tỉnh→huyện→xã:  +{old_admin_hierarchies_added} dòng")
     print(f"  [required] Đơn vị hành chính mới:     +{admin_units_upserted} upsert")
     print(f"  [required] Quan hệ tỉnh → xã/phường:  +{admin_hierarchies_added} dòng")
