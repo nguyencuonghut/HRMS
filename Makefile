@@ -4,7 +4,7 @@
 
 .PHONY: help \
         migrate migrate-down migrate-history migrate-status migrate-new \
-        seed seed-sample \
+        seed \
         db-reset db-shell \
         logs logs-be logs-fe shell-be restart-be
 
@@ -22,8 +22,7 @@ help:
 	@echo "    make migrate-new m=tên Tạo file migration mới (VD: make migrate-new m=add_users)"
 	@echo ""
 	@echo "  Seeder:"
-	@echo "    make seed              Seed dữ liệu bắt buộc (lương tối thiểu vùng, vùng BHXH)"
-	@echo "    make seed-sample       Seed bắt buộc + dữ liệu mẫu (phòng ban, chức danh, hệ số lương)"
+	@echo "    make seed              Seed toàn bộ dữ liệu (required + RBAC + sample)"
 	@echo ""
 	@echo "  Dev:"
 	@echo "    make logs              Theo dõi log tất cả service"
@@ -34,7 +33,7 @@ help:
 	@echo "    make restart-be        Restart backend service"
 	@echo ""
 	@echo "  ⚠  Nguy hiểm:"
-	@echo "    make db-reset          Rollback toàn bộ + migrate lại + seed mẫu (chỉ dùng dev)"
+	@echo "    make db-reset          Rollback toàn bộ + migrate lại + seed toàn bộ (chỉ dùng dev)"
 	@echo ""
 
 
@@ -61,9 +60,6 @@ migrate-new:
 # ─── Seeder ──────────────────────────────────────────────────────────────────
 
 seed:
-	docker compose exec backend python -m app.seeds
-
-seed-sample:
 	docker compose exec backend python -m app.seeds --sample
 
 

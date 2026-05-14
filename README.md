@@ -98,8 +98,7 @@ Sau khi stack đã chạy, dùng lệnh `make` (xem đầy đủ với `make hel
 
 ```bash
 make migrate          # Áp dụng tất cả migration còn pending
-make seed             # Seed dữ liệu bắt buộc (lương tối thiểu vùng, vùng BHXH)
-make seed-sample      # Seed bắt buộc + dữ liệu mẫu (phòng ban, chức danh, hệ số lương)
+make seed             # Seed toàn bộ dữ liệu (required + RBAC + sample)
 
 make migrate-status   # Xem migration hiện tại đang ở revision nào
 make migrate-down     # Rollback 1 migration gần nhất
@@ -136,7 +135,7 @@ docker compose up --build -d
 make migrate
 
 # 5. Seed dữ liệu
-make seed-sample
+make seed
 ```
 
 > Nếu chỉ đổi biến không liên quan đến DB (như `SECRET_KEY`, `DEBUG`):
