@@ -126,6 +126,18 @@ const router = createRouter({
           component: () => import('@/views/catalog/CatalogView.vue'),
           meta: { title: 'Danh mục' },
         },
+        {
+          path: 'catalog/administrative-units',
+          name: 'catalog-administrative-units',
+          component: () => import('@/views/catalog/AdministrativeUnitListView.vue'),
+          meta: { title: 'Danh mục hành chính' },
+        },
+        {
+          path: 'catalog/administrative-imports',
+          name: 'catalog-administrative-imports',
+          component: () => import('@/views/catalog/AdministrativeImportHistoryView.vue'),
+          meta: { title: 'Lịch sử import địa chỉ' },
+        },
         // Cài đặt
         {
           path: 'settings',

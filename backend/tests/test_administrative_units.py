@@ -22,7 +22,7 @@ def _payload(code: str) -> dict:
         "code": code,
         "name": f"Phường Test {code}",
         "unit_type": "ward",
-        "province_code": "PRV_HA_NOI",
+        "province_code": "25",
         "official_name": f"Phường Test {code}",
     }
 
@@ -81,7 +81,7 @@ def test_create_admin_unit_success(client: TestClient):
     data = resp.json()
     assert data["code"] == "TEST_ADMIN_101"
     assert data["unit_type"] == "ward"
-    assert data["province_code"] == "PRV_HA_NOI"
+    assert data["province_code"] == "25"
 
 
 def test_create_duplicate_admin_unit_409(client: TestClient):

@@ -50,7 +50,7 @@ interface MenuItem {
   items?: { to: string; label: string; icon?: string }[]
 }
 
-const openGroups = ref<Set<string>>(new Set(['Cơ cấu tổ chức']))
+const openGroups = ref<Set<string>>(new Set(['Cơ cấu tổ chức', 'Danh mục']))
 
 function toggleGroup(label: string) {
   if (openGroups.value.has(label)) {
@@ -84,7 +84,15 @@ const menu: MenuItem[] = [
   { section: true, label: 'Phân tích' },
   { to: '/reports', label: 'Báo cáo', icon: 'pi-chart-pie' },
   { section: true, label: 'Hệ thống' },
-  { to: '/catalog', label: 'Danh mục', icon: 'pi-list' },
+  {
+    label: 'Danh mục',
+    icon: 'pi-list',
+    items: [
+      { to: '/catalog', label: 'Tổng quan danh mục', icon: 'pi-th-large' },
+      { to: '/catalog/administrative-units', label: 'Danh mục hành chính', icon: 'pi-map' },
+      { to: '/catalog/administrative-imports', label: 'Lịch sử import', icon: 'pi-download' },
+    ],
+  },
   { to: '/settings', label: 'Cài đặt', icon: 'pi-cog' },
   { section: true, label: 'Quản trị' },
   { to: '/admin/users',      label: 'Tài khoản người dùng', icon: 'pi-user-edit' },
@@ -92,4 +100,3 @@ const menu: MenuItem[] = [
   { to: '/admin/audit-logs', label: 'Nhật ký hệ thống',     icon: 'pi-list' },
 ]
 </script>
-

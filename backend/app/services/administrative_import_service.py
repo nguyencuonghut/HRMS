@@ -10,42 +10,44 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 DEFAULT_EFFECTIVE_FROM = date(2025, 1, 1)
-DEFAULT_PROVINCE_NAMES = [
-    "Tỉnh An Giang",
-    "Tỉnh Bắc Ninh",
-    "Tỉnh Cà Mau",
-    "Tỉnh Cao Bằng",
-    "Thành phố Cần Thơ",
-    "Thành phố Đà Nẵng",
-    "Tỉnh Đắk Lắk",
-    "Tỉnh Điện Biên",
-    "Tỉnh Đồng Nai",
-    "Tỉnh Đồng Tháp",
-    "Tỉnh Gia Lai",
-    "Thành phố Hà Nội",
-    "Tỉnh Hà Tĩnh",
-    "Thành phố Hải Phòng",
-    "Thành phố Huế",
-    "Tỉnh Hưng Yên",
-    "Tỉnh Khánh Hòa",
-    "Tỉnh Lai Châu",
-    "Tỉnh Lạng Sơn",
-    "Tỉnh Lào Cai",
-    "Tỉnh Lâm Đồng",
-    "Tỉnh Nghệ An",
-    "Tỉnh Ninh Bình",
-    "Tỉnh Phú Thọ",
-    "Tỉnh Quảng Ngãi",
-    "Tỉnh Quảng Ninh",
-    "Tỉnh Quảng Trị",
-    "Tỉnh Sơn La",
-    "Tỉnh Tây Ninh",
-    "Tỉnh Thái Nguyên",
-    "Tỉnh Thanh Hóa",
-    "Thành phố Hồ Chí Minh",
-    "Tỉnh Tuyên Quang",
-    "Tỉnh Vĩnh Long",
+DEFAULT_PROVINCE_PAIRS = [
+    ("01", "Tỉnh An Giang"),
+    ("04", "Tỉnh Bắc Ninh"),
+    ("08", "Tỉnh Cà Mau"),
+    ("11", "Tỉnh Cao Bằng"),
+    ("12", "Thành phố Cần Thơ"),
+    ("14", "Thành phố Đà Nẵng"),
+    ("15", "Tỉnh Đắk Lắk"),
+    ("19", "Tỉnh Điện Biên"),
+    ("20", "Tỉnh Đồng Nai"),
+    ("22", "Tỉnh Đồng Tháp"),
+    ("24", "Tỉnh Gia Lai"),
+    ("25", "Thành phố Hà Nội"),
+    ("31", "Tỉnh Hà Tĩnh"),
+    ("33", "Thành phố Hải Phòng"),
+    ("37", "Thành phố Huế"),
+    ("38", "Tỉnh Hưng Yên"),
+    ("40", "Tỉnh Khánh Hòa"),
+    ("42", "Tỉnh Lai Châu"),
+    ("44", "Tỉnh Lạng Sơn"),
+    ("46", "Tỉnh Lào Cai"),
+    ("48", "Tỉnh Lâm Đồng"),
+    ("51", "Tỉnh Nghệ An"),
+    ("52", "Tỉnh Ninh Bình"),
+    ("56", "Tỉnh Phú Thọ"),
+    ("66", "Tỉnh Quảng Ngãi"),
+    ("68", "Tỉnh Quảng Ninh"),
+    ("75", "Tỉnh Quảng Trị"),
+    ("79", "Tỉnh Sơn La"),
+    ("80", "Tỉnh Tây Ninh"),
+    ("82", "Tỉnh Thái Nguyên"),
+    ("86", "Tỉnh Thanh Hóa"),
+    ("91", "Thành phố Hồ Chí Minh"),
+    ("92", "Tỉnh Tuyên Quang"),
+    ("96", "Tỉnh Vĩnh Long"),
 ]
+DEFAULT_PROVINCE_NAMES = [name for _, name in DEFAULT_PROVINCE_PAIRS]
+PROVINCE_CODE_BY_NAME = {name: code for code, name in DEFAULT_PROVINCE_PAIRS}
 
 
 @dataclass
@@ -66,9 +68,11 @@ def normalize_text(value: str) -> str:
 
 
 def make_province_code(name: str) -> str:
-    base = name.removeprefix("Tỉnh ").removeprefix("Thành phố ")
-    normalized = normalize_text(base).replace(" ", "_")
-    return f"PRV_{normalized.upper()}"
+    normalized_name = unicodedata.normalize("NFC", name.strip())
+    code = PROVINCE_CODE_BY_NAME.get(normalized_name)
+    if code is None:
+        raise ValueError(f"Không tìm thấy mã tỉnh/thành cho '{name}'")
+    return code
 
 
 def map_ward_type(raw_type: str) -> str:

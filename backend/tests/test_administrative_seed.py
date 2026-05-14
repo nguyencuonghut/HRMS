@@ -5,9 +5,9 @@ def test_build_province_rows_has_expected_count_and_codes():
     rows = seed.build_province_rows()
     assert len(rows) == 34
     assert rows[0]["name"] == "Tỉnh An Giang"
-    assert rows[0]["code"] == "PRV_AN_GIANG"
+    assert rows[0]["code"] == "01"
     assert rows[-1]["name"] == "Tỉnh Vĩnh Long"
-    assert rows[-1]["code"] == "PRV_VINH_LONG"
+    assert rows[-1]["code"] == "96"
 
 
 def test_normalize_and_type_mapping_handles_combining_unicode():
@@ -23,5 +23,5 @@ def test_load_ward_rows_from_official_json_path():
     assert len(rows) == 3321
     assert rows[0]["code"] == "00004"
     assert rows[0]["unit_type"] == "ward"
-    assert rows[0]["province_code"] == "PRV_HA_NOI"
+    assert rows[0]["province_code"] == "25"
     assert rows[0]["source_version"] == seed.SOURCE_VERSION

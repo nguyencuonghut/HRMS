@@ -29,12 +29,12 @@ def test_list_provinces_new_system(client: TestClient):
     assert resp.status_code == 200
     data = resp.json()
     assert isinstance(data, list)
-    assert any(item["code"] == "PRV_HA_NOI" for item in data)
+    assert any(item["code"] == "25" for item in data)
 
 
 def test_list_children_new_system(client: TestClient):
     provinces = client.get("/api/v1/locations/provinces", params={"system_type": "new"}).json()
-    hanoi = next(item for item in provinces if item["code"] == "PRV_HA_NOI")
+    hanoi = next(item for item in provinces if item["code"] == "25")
 
     resp = client.get("/api/v1/locations/children", params={
         "system_type": "new",
@@ -43,7 +43,7 @@ def test_list_children_new_system(client: TestClient):
     assert resp.status_code == 200
     data = resp.json()
     assert isinstance(data, list)
-    assert any(item["province_code"] == "PRV_HA_NOI" for item in data)
+    assert any(item["province_code"] == "25" for item in data)
 
 
 def test_search_locations(client: TestClient):
@@ -57,7 +57,7 @@ def test_search_locations(client: TestClient):
 
 def test_validate_location_path_success(client: TestClient):
     provinces = client.get("/api/v1/locations/provinces", params={"system_type": "new"}).json()
-    hanoi = next(item for item in provinces if item["code"] == "PRV_HA_NOI")
+    hanoi = next(item for item in provinces if item["code"] == "25")
     children = client.get("/api/v1/locations/children", params={
         "system_type": "new",
         "parent_id": hanoi["id"],
@@ -76,8 +76,8 @@ def test_validate_location_path_success(client: TestClient):
 
 def test_validate_location_path_failure(client: TestClient):
     provinces = client.get("/api/v1/locations/provinces", params={"system_type": "new"}).json()
-    hanoi = next(item for item in provinces if item["code"] == "PRV_HA_NOI")
-    an_giang = next(item for item in provinces if item["code"] == "PRV_AN_GIANG")
+    hanoi = next(item for item in provinces if item["code"] == "25")
+    an_giang = next(item for item in provinces if item["code"] == "01")
     children = client.get("/api/v1/locations/children", params={
         "system_type": "new",
         "parent_id": hanoi["id"],

@@ -75,6 +75,8 @@ async def create_unit(session: AsyncSession, data) -> AdministrativeUnit:
         is_active=data.is_active,
     )
     session.add(unit)
+    await session.flush()
+    await _sync_new_system_hierarchy_for_unit(session, unit)
     await session.commit()
     await session.refresh(unit)
     return unit
@@ -99,6 +101,7 @@ async def update_unit(session: AsyncSession, unit_id: int, data) -> Administrati
         unit.is_active = data.is_active
 
     unit.updated_at = _utcnow()
+    await _sync_new_system_hierarchy_for_unit(session, unit)
     await session.commit()
     await session.refresh(unit)
     return unit
@@ -117,6 +120,44 @@ async def list_import_batches(session: AsyncSession) -> list[AdministrativeImpor
         select(AdministrativeImportBatch).order_by(AdministrativeImportBatch.imported_at.desc())
     )
     return list(result.scalars().all())
+
+
+async def _sync_new_system_hierarchy_for_unit(session: AsyncSession, unit: AdministrativeUnit) -> None:
+    if unit.unit_type != "ward" or not unit.province_code:
+        return
+
+    province_result = await session.execute(
+        select(AdministrativeUnit).where(
+            AdministrativeUnit.code == unit.province_code,
+            AdministrativeUnit.unit_type == "province",
+        )
+    )
+    province = province_result.scalar_one_or_none()
+    if not province:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND,
+            detail=f"Không tìm thấy tỉnh/thành với mã '{unit.province_code}'",
+        )
+
+    existing_result = await session.execute(
+        select(AdministrativeHierarchy).where(
+            AdministrativeHierarchy.child_unit_id == unit.id,
+            AdministrativeHierarchy.system_type == "new",
+        )
+    )
+    existing = existing_result.scalars().all()
+    for row in existing:
+        await session.delete(row)
+
+    session.add(AdministrativeHierarchy(
+        system_type="new",
+        parent_unit_id=province.id,
+        child_unit_id=unit.id,
+        level_depth=2,
+        effective_from=unit.effective_from,
+        effective_to=unit.effective_to,
+        is_active=unit.is_active,
+    ))
 
 
 async def run_import(session: AsyncSession, data: AdministrativeImportRequest):
