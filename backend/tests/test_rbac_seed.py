@@ -4,6 +4,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.core.config import settings
+from app.seeds import rbac
 
 
 # ── Helpers — tạo fresh engine để tránh event loop conflict với TestClient ─────
@@ -23,12 +24,19 @@ async def _rows(sql: str, **params) -> list:
         return (await s.execute(text(sql), params)).fetchall()
 
 
+@pytest.fixture(scope="module", autouse=True)
+async def ensure_latest_rbac_seed():
+    async with _make_session()() as s:
+        await rbac.run(s)
+    yield
+
+
 # ── Permissions ────────────────────────────────────────────────────────────────
 
 async def test_permissions_count():
-    """13 modules × 5 actions = 65 permissions."""
+    """14 modules × 5 actions = 70 permissions."""
     count = await _scalar("SELECT COUNT(*) FROM permissions")
-    assert count == 65
+    assert count == 70
 
 
 async def test_permission_code_format():
@@ -75,7 +83,7 @@ async def test_admin_has_all_permissions():
         JOIN roles r ON rp.role_id = r.id
         WHERE r.code = 'admin'
     """)
-    assert admin_count == 65
+    assert admin_count == 70
 
 
 async def test_hr_manager_has_org_full_except_export():
@@ -97,6 +105,26 @@ async def test_hr_manager_can_view_audit_logs():
         WHERE r.code = 'hr_manager' AND p.code = 'audit_logs:view'
     """)
     assert count == 1
+
+
+async def test_hr_manager_has_catalog_full():
+    perms = {r.action for r in await _rows("""
+        SELECT p.action FROM role_permissions rp
+        JOIN roles r ON rp.role_id = r.id
+        JOIN permissions p ON rp.permission_id = p.id
+        WHERE r.code = 'hr_manager' AND p.module = 'catalog'
+    """)}
+    assert perms == {"view", "create", "edit", "delete", "export"}
+
+
+async def test_hr_officer_catalog_has_no_delete():
+    perms = {r.action for r in await _rows("""
+        SELECT p.action FROM role_permissions rp
+        JOIN roles r ON rp.role_id = r.id
+        JOIN permissions p ON rp.permission_id = p.id
+        WHERE r.code = 'hr_officer' AND p.module = 'catalog'
+    """)}
+    assert perms == {"view", "create", "edit", "export"}
 
 
 async def test_hr_manager_cannot_manage_users():

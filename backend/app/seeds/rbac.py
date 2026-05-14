@@ -15,6 +15,7 @@ from app.core.security import hash_password
 
 _MODULES = [
     ("org",         "Cơ cấu tổ chức"),
+    ("catalog",     "Danh mục"),
     ("employees",   "Nhân sự"),
     ("contracts",   "Hợp đồng"),
     ("leaves",      "Nghỉ phép"),
@@ -59,6 +60,7 @@ _ROLE_PERMS: dict[str, dict[str, set[str]]] = {
 
     "hr_manager": {
         "org":         {"view", "create", "edit", "delete"},
+        "catalog":     _FULL,
         "employees":   _FULL,
         "contracts":   _FULL,
         "leaves":      _FULL,
@@ -73,6 +75,7 @@ _ROLE_PERMS: dict[str, dict[str, set[str]]] = {
 
     "hr_officer": {
         "org":         _VCE,
+        "catalog":     {"view", "create", "edit", "export"},
         "employees":   {"view", "create", "edit", "export"},
         "contracts":   {"view", "create", "edit", "export"},
         "leaves":      _VCE,
