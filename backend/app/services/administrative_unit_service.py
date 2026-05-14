@@ -9,7 +9,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.models.catalog import AdministrativeHierarchy, AdministrativeImportBatch, AdministrativeUnit
-from app.schemas.catalog import AdministrativeImportRequest, AdministrativeTreeNode, ValidateLocationPathRequest
+from app.schemas.catalog import (
+    AdministrativeImportRequest,
+    AdministrativeTreeNode,
+    ValidateDualLocationPathsRequest,
+    ValidateLocationPathRequest,
+)
 from app.services import administrative_import_service
 
 
@@ -415,3 +420,44 @@ async def validate_location_path(
     if province_district and district_ward:
         return {"valid": True, "message": "Đường dẫn địa chỉ hợp lệ"}
     return {"valid": False, "message": "Đường dẫn địa chỉ không hợp lệ"}
+
+
+async def validate_dual_location_paths(
+    session: AsyncSession,
+    data: ValidateDualLocationPathsRequest,
+) -> dict:
+    old_result = await validate_location_path(
+        session,
+        ValidateLocationPathRequest(
+            system_type=data.old_address.system_type,
+            province_unit_id=data.old_address.province_unit_id,
+            district_unit_id=data.old_address.district_unit_id,
+            ward_unit_id=data.old_address.ward_unit_id,
+        ),
+    )
+    new_result = await validate_location_path(
+        session,
+        ValidateLocationPathRequest(
+            system_type=data.new_address.system_type,
+            province_unit_id=data.new_address.province_unit_id,
+            district_unit_id=data.new_address.district_unit_id,
+            ward_unit_id=data.new_address.ward_unit_id,
+        ),
+    )
+
+    overall_valid = old_result["valid"] and new_result["valid"]
+    if overall_valid:
+        message = "Cả địa chỉ hệ cũ và hệ mới đều hợp lệ"
+    elif old_result["valid"]:
+        message = "Địa chỉ hệ mới chưa hợp lệ"
+    elif new_result["valid"]:
+        message = "Địa chỉ hệ cũ chưa hợp lệ"
+    else:
+        message = "Cả địa chỉ hệ cũ và hệ mới đều chưa hợp lệ"
+
+    return {
+        "valid": overall_valid,
+        "message": message,
+        "old_address": old_result,
+        "new_address": new_result,
+    }

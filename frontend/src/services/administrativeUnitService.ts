@@ -101,6 +101,26 @@ export interface ValidateLocationPathResult {
   message: string
 }
 
+export interface AdministrativeAddressSelectionDraft {
+  system_type: 'old' | 'new'
+  province_unit_id: number | null
+  district_unit_id?: number | null
+  ward_unit_id: number | null
+  address_line?: string | null
+}
+
+export interface ValidateDualLocationPathsRequest {
+  old_address: AdministrativeAddressSelectionDraft
+  new_address: AdministrativeAddressSelectionDraft
+}
+
+export interface ValidateDualLocationPathsResult {
+  valid: boolean
+  message: string
+  old_address: ValidateLocationPathResult
+  new_address: ValidateLocationPathResult
+}
+
 export default {
   getList: (params?: {
     system_type?: 'old' | 'new' | null
@@ -152,4 +172,7 @@ export default {
 
   validateLocationPath: (data: ValidateLocationPathRequest) =>
     api.post<ValidateLocationPathResult>('/locations/validate-path', data),
+
+  validateDualLocationPaths: (data: ValidateDualLocationPathsRequest) =>
+    api.post<ValidateDualLocationPathsResult>('/locations/validate-dual-paths', data),
 }

@@ -122,3 +122,37 @@ class ValidateLocationPathRequest(BaseModel):
 class ValidateLocationPathResult(BaseModel):
     valid: bool
     message: str
+
+
+class AdministrativeAddressSelection(BaseModel):
+    system_type: SystemType
+    province_unit_id: int
+    district_unit_id: Optional[int] = None
+    ward_unit_id: int
+    address_line: Optional[str] = Field(None, max_length=255)
+
+
+class ValidateDualLocationPathsRequest(BaseModel):
+    old_address: AdministrativeAddressSelection
+    new_address: AdministrativeAddressSelection
+
+    @field_validator("old_address")
+    @classmethod
+    def _old_address_must_use_old_system(cls, value: AdministrativeAddressSelection) -> AdministrativeAddressSelection:
+        if value.system_type != "old":
+            raise ValueError("old_address phải dùng system_type='old'")
+        return value
+
+    @field_validator("new_address")
+    @classmethod
+    def _new_address_must_use_new_system(cls, value: AdministrativeAddressSelection) -> AdministrativeAddressSelection:
+        if value.system_type != "new":
+            raise ValueError("new_address phải dùng system_type='new'")
+        return value
+
+
+class ValidateDualLocationPathsResult(BaseModel):
+    valid: bool
+    message: str
+    old_address: ValidateLocationPathResult
+    new_address: ValidateLocationPathResult

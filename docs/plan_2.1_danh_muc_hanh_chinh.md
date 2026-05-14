@@ -31,7 +31,7 @@
    `Tỉnh/Thành phố → Quận/Huyện → Xã/Phường`
 2. Quản lý dữ liệu theo **hệ mới**:
    `Tỉnh/Thành phố → Xã/Phường`
-3. Cho phép hồ sơ nhân sự chọn địa chỉ theo một trong hai hệ, nhưng lưu trữ đủ dữ liệu để truy vết về sau.
+3. Cho phép hồ sơ nhân sự lưu **đồng thời** địa chỉ theo hệ cũ và hệ mới cho cùng một loại địa chỉ, nhưng vẫn truy vết được độc lập từng hệ về sau.
 4. Có cơ chế import/cập nhật từ dữ liệu chính thức, tránh nhập tay số lượng lớn.
 5. Có khả năng đánh dấu hiệu lực dữ liệu theo thời gian để không mất lịch sử khi thay đổi địa giới hành chính.
 
@@ -103,6 +103,7 @@ administrative_import_errors
 ```sql
 employee_addresses
   ...
+  address_kind          varchar(20)   -- 'permanent' | 'contact' | ...
   address_system_type   varchar(20)   -- 'old' | 'new'
   province_unit_id      int FK → administrative_units.id
   district_unit_id      int FK → administrative_units.id nullable
@@ -111,7 +112,10 @@ employee_addresses
   ...
 ```
 
-> `district_unit_id` được phép `NULL` khi dùng hệ mới. Cách lưu này giữ được đúng dữ liệu người dùng đã chọn, không ép quy đổi giả.
+> `district_unit_id` được phép `NULL` khi dùng hệ mới.  
+> Để lưu đồng thời cả hai hệ cho một nhân sự, cần ràng buộc dạng:
+> `UNIQUE(employee_id, address_kind, address_system_type)`.
+> Cách lưu này giữ được đúng dữ liệu người dùng đã chọn, không ép quy đổi giả.
 
 ---
 
@@ -291,31 +295,33 @@ employee_addresses
 
 ## Bước 5 — Chuẩn bị tích hợp Hồ sơ nhân sự
 
-**Mục tiêu:** Chốt contract để module `3.1 Thông tin cá nhân` dùng lại ngay khi triển khai.
+**Mục tiêu:** Chốt contract để module `3.1 Thông tin cá nhân` dùng lại ngay khi triển khai, với yêu cầu lưu đồng thời cả `hệ cũ` và `hệ mới`.
 
 ### Yêu cầu tích hợp
 
-- Component chọn địa chỉ phải hỗ trợ 2 mode:
-  `Hệ cũ` và `Hệ mới`
-- Khi chọn `Hệ cũ`: hiện 3 dropdown
+- Form hồ sơ nhân sự phải hiển thị **đồng thời 2 cụm địa chỉ**:
+  `Địa chỉ hệ cũ` và `Địa chỉ hệ mới`
+- Cụm `Hệ cũ`: hiện 3 dropdown
   `Tỉnh/Thành` → `Quận/Huyện` → `Xã/Phường`
-- Khi chọn `Hệ mới`: hiện 2 dropdown
+- Cụm `Hệ mới`: hiện 2 dropdown
   `Tỉnh/Thành` → `Xã/Phường`
-- Khi mở hồ sơ cũ, hệ thống phải render lại đúng hệ đã lưu, không tự chuyển đổi.
+- Khi mở hồ sơ đã lưu, hệ thống phải hydrate lại đúng cả hai hệ đã lưu, không tự chuyển đổi.
+- Hai cụm địa chỉ được validate độc lập và có thể kiểm tra chung trước khi submit.
 
 ### Frontend dùng lại sau này
 
 | File | Nội dung |
 |---|---|
-| `frontend/src/components/catalog/AdministrativeAddressSelector.vue` | Component chọn địa chỉ dùng chung |
+| `frontend/src/components/catalog/AdministrativeAddressPairSelector.vue` | Component chọn đồng thời địa chỉ hệ cũ + hệ mới |
 
 ### Backend dùng lại sau này
 
 - `GET /locations/children`
 - `GET /locations/search`
 - `POST /locations/validate-path`
+- `POST /locations/validate-dual-paths`
 
-**Verify:** Có thể mock tích hợp vào form nhân sự mà không cần viết lại logic chọn địa chỉ.
+**Verify:** Có thể mock tích hợp vào form nhân sự mà không cần viết lại logic chọn địa chỉ; payload preview thể hiện đồng thời `old_address` và `new_address`.
 
 ---
 
@@ -358,7 +364,7 @@ employee_addresses
 3. Làm import service + seed file mẫu
 4. Mở API tree/search/validate-path
 5. Xây màn quản trị FE trong `Danh mục`
-6. Tạo component selector để tái sử dụng cho hồ sơ nhân sự
+6. Tạo component selector kép để tái sử dụng cho hồ sơ nhân sự
 7. Bật RBAC + audit cho toàn bộ flow
 
 ---
@@ -368,7 +374,8 @@ employee_addresses
 1. Nếu gộp luôn “đơn vị” và “quan hệ cha-con” vào một bảng duy nhất với `parent_id`, hệ mới và hệ cũ sẽ xung đột dữ liệu.
 2. Import từ nguồn chính thức cần chuẩn hóa encoding, tên đơn vị, và mã đơn vị trước khi upsert.
 3. Hồ sơ nhân sự không nên chỉ lưu text tên tỉnh/huyện/xã; phải lưu FK về danh mục để giữ tính nhất quán.
-4. Nếu cần hỗ trợ lịch sử địa giới theo thời gian, `effective_from/effective_to` phải được đưa vào ngay từ migration đầu tiên.
+4. Nếu lưu đồng thời hệ cũ và hệ mới, không nên cố suy luận tự động từ hệ này sang hệ kia; hai cụm địa chỉ phải được nhập/lưu độc lập.
+5. Nếu cần hỗ trợ lịch sử địa giới theo thời gian, `effective_from/effective_to` phải được đưa vào ngay từ migration đầu tiên.
 
 ---
 

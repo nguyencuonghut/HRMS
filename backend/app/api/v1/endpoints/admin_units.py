@@ -13,6 +13,8 @@ from app.schemas.catalog import (
     AdministrativeUnitRead,
     AdministrativeUnitUpdate,
     AdministrativeTreeNode,
+    ValidateDualLocationPathsRequest,
+    ValidateDualLocationPathsResult,
     ValidateLocationPathRequest,
     ValidateLocationPathResult,
 )
@@ -164,3 +166,15 @@ async def validate_location_path(
     session: AsyncSession = Depends(get_session),
 ):
     return await administrative_unit_service.validate_location_path(session, body)
+
+
+@lookup_router.post(
+    "/locations/validate-dual-paths",
+    response_model=ValidateDualLocationPathsResult,
+    summary="Kiểm tra đồng thời địa chỉ hệ cũ và hệ mới",
+)
+async def validate_dual_location_paths(
+    body: ValidateDualLocationPathsRequest,
+    session: AsyncSession = Depends(get_session),
+):
+    return await administrative_unit_service.validate_dual_location_paths(session, body)
