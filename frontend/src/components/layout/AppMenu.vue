@@ -91,6 +91,7 @@ const menu: MenuItem[] = [
       { to: '/catalog', label: 'Tổng quan danh mục', icon: 'pi-th-large' },
       { to: '/catalog/administrative-units', label: 'Danh mục hành chính', icon: 'pi-map' },
       { to: '/catalog/education', label: 'Danh mục học vấn', icon: 'pi-graduation-cap' },
+      { to: '/catalog/other-business', label: 'Danh mục nghiệp vụ khác', icon: 'pi-briefcase' },
       { to: '/catalog/administrative-imports', label: 'Lịch sử import', icon: 'pi-download' },
     ],
   },

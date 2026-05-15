@@ -21,6 +21,12 @@
             @click="router.push('/catalog/education')"
           />
           <Button
+            label="Mở danh mục nghiệp vụ khác"
+            icon="pi pi-briefcase"
+            severity="secondary"
+            @click="router.push('/catalog/other-business')"
+          />
+          <Button
             label="Xem lịch sử import"
             icon="pi pi-history"
             severity="secondary"
@@ -48,6 +54,7 @@
             <li>Danh mục hành chính hệ mới 2 cấp</li>
             <li>Danh mục hành chính hệ cũ 3 cấp</li>
             <li>Danh mục học vấn cho hồ sơ nhân sự</li>
+            <li>Danh mục nghiệp vụ khác cho hợp đồng và nghỉ phép</li>
             <li>Lịch sử import và rà soát batch lỗi</li>
           </ul>
         </div>
@@ -145,6 +152,25 @@
                 <strong>{{ formatNumber(statsSnapshot.educationLevels + statsSnapshot.educationInstitutions + statsSnapshot.educationMajors) }}</strong>
               </div>
               <span class="module-link">Mở workspace học vấn</span>
+            </div>
+          </RouterLink>
+
+          <RouterLink to="/catalog/other-business" class="module-card quaternary">
+            <div class="module-meta">
+              <div class="module-icon quaternary">
+                <i class="pi pi-briefcase" />
+              </div>
+              <div>
+                <h3>Danh mục nghiệp vụ khác</h3>
+                <p>Quản trị loại hợp đồng, nhân thân, ngân hàng, nghỉ phép, kỹ năng và mẫu hợp đồng.</p>
+              </div>
+            </div>
+            <div class="module-tail">
+              <div class="module-stat">
+                <span>Nhóm dữ liệu</span>
+                <strong>2.3</strong>
+              </div>
+              <span class="module-link">Mở workspace nghiệp vụ</span>
             </div>
           </RouterLink>
         </div>

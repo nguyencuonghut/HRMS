@@ -144,6 +144,12 @@ const router = createRouter({
           component: () => import('@/views/catalog/EducationCatalogView.vue'),
           meta: { title: 'Danh mục học vấn' },
         },
+        {
+          path: 'catalog/other-business',
+          name: 'catalog-other-business',
+          component: () => import('@/views/catalog/OtherBusinessCatalogView.vue'),
+          meta: { title: 'Danh mục nghiệp vụ khác' },
+        },
         // Cài đặt
         {
           path: 'settings',
