@@ -44,7 +44,7 @@
     </div>
 
     <!-- Error -->
-    <div v-else-if="fetchError" class="error-banner">
+    <div v-else-if="fetchError" class="error-state">
       <i class="pi pi-exclamation-circle" />
       <span>{{ fetchError }}</span>
     </div>
@@ -144,7 +144,6 @@
               </div>
             </div>
 
-            <!-- Save button at bottom of tab for create mode -->
             <div class="tab-actions" v-if="isNew">
               <Button label="Tạo nhân viên" icon="pi pi-check" :loading="submitting" @click="save" />
             </div>
@@ -289,7 +288,7 @@
                 <Button label="Thêm tài khoản" icon="pi pi-plus" size="small" @click="openBankDialog(null)" />
               </div>
 
-              <div v-if="bankAccounts.length === 0" class="empty-bank">
+              <div v-if="bankAccounts.length === 0" class="empty-state">
                 <i class="pi pi-credit-card" />
                 <span>Chưa có tài khoản ngân hàng nào</span>
               </div>
@@ -327,7 +326,7 @@
       modal
       :closable="!bankSubmitting"
     >
-      <div class="form-grid" style="margin-top: 0.5rem">
+      <div class="form-grid">
         <div class="field col-full">
           <label>Ngân hàng <span class="req">*</span></label>
           <BankSelect v-model="bankForm.bank_id" />
@@ -420,7 +419,7 @@ const errors     = ref<Record<string, string>>({})
 
 const viewOnly = computed(() => !isNew.value && !editing.value)
 
-// ── Form model (using Date objects for DatePicker) ────────────────────────────
+// ── Form model ────────────────────────────────────────────────────────────────
 const form = ref({
   full_name: '',
   last_name: '',
@@ -433,7 +432,6 @@ const form = ref({
   status: 'probation' as StatusType,
   start_date_date: null as Date | null,
   resigned_date_date: null as Date | null,
-  // Docs
   id_number: '',
   id_issued_on_date: null as Date | null,
   id_issued_by: '',
@@ -444,7 +442,6 @@ const form = ref({
   work_permit_number: null as string | null,
   work_permit_issued_on_date: null as Date | null,
   work_permit_expires_on_date: null as Date | null,
-  // Contact
   phone_number: null as string | null,
   personal_email: null as string | null,
   personal_tax_code: null as string | null,
@@ -562,9 +559,7 @@ async function loadAddresses() {
 }
 
 // ── Edit ───────────────────────────────────────────────────────────────────────
-function startEdit() {
-  editing.value = true
-}
+function startEdit() { editing.value = true }
 
 function cancelEdit() {
   editing.value = false
@@ -591,7 +586,6 @@ function validate(): boolean {
 // ── Save ───────────────────────────────────────────────────────────────────────
 async function save() {
   if (!validate()) {
-    // Navigate to first tab with error
     if (errors.value.full_name || errors.value.last_name || errors.value.first_name ||
         errors.value.date_of_birth || errors.value.gender || errors.value.nationality_id ||
         errors.value.start_date) {
@@ -746,24 +740,13 @@ watch(() => route.params.id, () => {
   gap: 1rem;
 }
 
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 1rem;
-}
-
 .header-left {
   display: flex;
   align-items: flex-start;
   gap: 0.6rem;
 }
 
-.header-left h2 {
-  margin: 0 0 0.25rem;
-  font-size: 1.5rem;
-  font-weight: 700;
-}
+.header-left h2 { margin: 0 0 0.25rem; }
 
 .header-meta {
   display: flex;
@@ -772,102 +755,11 @@ watch(() => route.params.id, () => {
   flex-wrap: wrap;
 }
 
-.emp-code {
-  padding: 0.1rem 0.5rem;
-  background: color-mix(in srgb, var(--p-primary-color) 12%, transparent);
-  color: var(--p-primary-color);
-  border-radius: 6px;
-  font-size: 0.85rem;
-  font-weight: 700;
-}
-
-.header-actions {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.loading-state,
-.error-banner {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 2rem;
-  justify-content: center;
-  color: var(--l-text-muted);
-}
-
-.error-banner { color: var(--p-red-500); }
-.loading-state i { font-size: 1.5rem; }
-
-.form-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
-  padding: 1.25rem 0;
-}
-
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-}
-
-.field label {
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: var(--l-text);
-}
-
-.col-full { grid-column: 1 / -1; }
-
-.field-sep {
-  grid-column: 1 / -1;
-  border-top: 1px solid var(--l-border);
-  padding-top: 0.75rem;
-  margin-top: 0.25rem;
-}
-
-.section-label {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.req { color: var(--p-red-500); }
-.error-msg { color: var(--p-red-500); font-size: 0.8rem; }
-
-.tab-actions {
-  display: flex;
-  justify-content: flex-end;
-  padding-top: 0.5rem;
-  border-top: 1px solid var(--l-border);
-  margin-top: 0.5rem;
-}
-
-.info-notice {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 1.25rem;
-  background: color-mix(in srgb, var(--p-blue-500) 8%, transparent);
-  border: 1px solid color-mix(in srgb, var(--p-blue-500) 20%, transparent);
-  border-radius: 10px;
-  color: var(--p-blue-500);
-  margin: 1rem 0;
-}
+.header-actions { display: flex; gap: 0.5rem; }
 
 /* Address sections */
-.address-section {
-  margin-bottom: 2rem;
-}
-
-.address-section h4 {
-  margin: 0 0 1rem;
-  font-size: 1rem;
-  font-weight: 600;
-}
+.address-section { margin-bottom: 2rem; }
+.address-section h4 { margin: 0 0 1rem; font-size: 1rem; font-weight: 600; }
 
 /* Bank cards */
 .bank-section { padding: 0.5rem 0; }
@@ -878,26 +770,9 @@ watch(() => route.params.id, () => {
   align-items: center;
   margin-bottom: 1rem;
 }
-
 .bank-header h4 { margin: 0; font-size: 1rem; font-weight: 600; }
 
-.empty-bank {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 2.5rem;
-  color: var(--l-text-muted);
-  text-align: center;
-}
-
-.empty-bank i { font-size: 2rem; opacity: 0.4; }
-
-.bank-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
+.bank-list { display: flex; flex-direction: column; gap: 0.75rem; }
 
 .bank-card {
   display: flex;
@@ -918,20 +793,6 @@ watch(() => route.params.id, () => {
 .bank-number { font-weight: 700; font-size: 1rem; }
 .bank-name { font-size: 0.875rem; color: var(--l-text-muted); }
 .bank-meta { font-size: 0.8rem; color: var(--l-text-muted); margin-top: 0.2rem; }
-
 .bank-badges { display: flex; gap: 0.4rem; }
-
 .bank-actions { display: flex; gap: 0.25rem; }
-
-.switch-row {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-@media (max-width: 768px) {
-  .page-header { flex-direction: column; }
-  .form-grid { grid-template-columns: 1fr; }
-  .col-full { grid-column: 1; }
-}
 </style>

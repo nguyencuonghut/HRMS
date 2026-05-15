@@ -266,7 +266,7 @@ $topbar-height: 4rem;
 
 .toolbar-filter    { min-width: 180px; }
 .toolbar-filter-sm { min-width: 160px; }
-.toolbar-search    { min-width: 260px; }
+.toolbar-search    { min-width: 260px; flex: 1; }
 .toolbar-date      { min-width: 150px; }
 
 @media (max-width: 640px) {
@@ -350,6 +350,127 @@ $topbar-height: 4rem;
 .req       { color: var(--p-red-500); margin-left: 2px; }
 .error-msg { color: var(--p-red-500); font-size: 0.8rem; margin-top: -0.2rem; }
 .w-full    { width: 100%; }
+
+// ── Form grid (2-col, used in tab/detail views) ───────────────────
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  padding: 1.25rem 0;
+  .field { margin-bottom: 0; }
+}
+
+.col-full { grid-column: 1 / -1; }
+
+.field-sep {
+  grid-column: 1 / -1;
+  border-top: 1px solid var(--l-border);
+  padding-top: 0.75rem;
+  margin-top: 0.25rem;
+}
+
+.section-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+// ── Action rows ────────────────────────────────────────────────────
+.tab-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--l-border);
+  margin-top: 0.75rem;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+// ── Info notice banner ─────────────────────────────────────────────
+.info-notice {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem 1.25rem;
+  background: color-mix(in srgb, var(--p-blue-500) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--p-blue-500) 20%, transparent);
+  border-radius: 10px;
+  color: var(--p-blue-500);
+  font-size: 0.875rem;
+}
+
+// ── Loading / error states ─────────────────────────────────────────
+.loading-state,
+.error-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 3rem;
+  color: var(--p-text-muted-color);
+  i { font-size: 1.5rem; }
+}
+
+.error-state { color: var(--p-red-500); }
+
+// ── Doc-expiry indicator ───────────────────────────────────────────
+.doc-expiry-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 50%;
+  cursor: default;
+
+  &.is-danger {
+    color: var(--p-red-500);
+    background: color-mix(in srgb, var(--p-red-500) 12%, transparent);
+  }
+
+  &.is-warn {
+    color: var(--p-orange-500);
+    background: color-mix(in srgb, var(--p-orange-500) 12%, transparent);
+  }
+}
+
+// ── Employee code badge ────────────────────────────────────────────
+.emp-code {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  background: color-mix(in srgb, var(--p-primary-color) 12%, transparent);
+  color: var(--p-primary-color);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+// ── Label chip (system type badge) ────────────────────────────────
+.label-chip {
+  display: inline-block;
+  padding: 0.05rem 0.45rem;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  background: color-mix(in srgb, var(--p-primary-color) 12%, transparent);
+  color: var(--p-primary-color);
+
+  &.is-new {
+    background: color-mix(in srgb, var(--p-blue-500) 12%, transparent);
+    color: var(--p-blue-500);
+  }
+}
+
+@media (max-width: 768px) {
+  .form-grid { grid-template-columns: 1fr; .col-full { grid-column: 1; } }
+  .page-header { flex-direction: column; }
+}
 
 // ── Footer ────────────────────────────────────────────────────────
 .layout-footer {

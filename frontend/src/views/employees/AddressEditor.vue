@@ -14,7 +14,7 @@
 
         <div class="system-block" v-if="hasNewAddress">
           <div class="system-row">
-            <span class="label-chip new">Hệ mới</span>
+            <span class="label-chip is-new">Hệ mới</span>
             <span class="unit-path">{{ newAddressPath }}</span>
           </div>
           <div class="detail-line" v-if="initial.new_address_line">{{ initial.new_address_line }}</div>
@@ -98,11 +98,7 @@
 
           <div class="field">
             <label>Địa chỉ chi tiết hệ cũ</label>
-            <InputText
-              v-model="form.old_address_line"
-              class="w-full"
-              placeholder="Số nhà, thôn/xóm, tổ dân phố..."
-            />
+            <InputText v-model="form.old_address_line" class="w-full" placeholder="Số nhà, thôn/xóm, tổ dân phố..." />
           </div>
         </section>
 
@@ -147,11 +143,7 @@
 
           <div class="field">
             <label>Địa chỉ chi tiết hệ mới</label>
-            <InputText
-              v-model="form.new_address_line"
-              class="w-full"
-              placeholder="Số nhà, thôn/xóm, tổ dân phố..."
-            />
+            <InputText v-model="form.new_address_line" class="w-full" placeholder="Số nhà, thôn/xóm, tổ dân phố..." />
           </div>
         </section>
       </div>
@@ -208,21 +200,14 @@ const hasNewAddress = computed(() =>
 
 const oldAddressPath = computed(() => {
   if (!props.initial) return ''
-  const parts = [
-    props.initial.old_province_name,
-    props.initial.old_district_name,
-    props.initial.old_ward_name,
-  ].filter(Boolean)
-  return parts.join(' › ')
+  return [props.initial.old_province_name, props.initial.old_district_name, props.initial.old_ward_name]
+    .filter(Boolean).join(' › ')
 })
 
 const newAddressPath = computed(() => {
   if (!props.initial) return ''
-  const parts = [
-    props.initial.new_province_name,
-    props.initial.new_ward_name,
-  ].filter(Boolean)
-  return parts.join(' › ')
+  return [props.initial.new_province_name, props.initial.new_ward_name]
+    .filter(Boolean).join(' › ')
 })
 
 const oldProvinces = ref<AdministrativeUnitRead[]>([])
@@ -262,57 +247,30 @@ async function hydrateFromInitial() {
   const tasks: Promise<void>[] = []
 
   if (src.old_province_unit_id) {
-    tasks.push(
-      (async () => {
-        loadingOldDistricts.value = true
-        try {
-          const res = await administrativeUnitService.listChildren({
-            system_type: 'old',
-            parent_id: src.old_province_unit_id!,
-            is_active: true,
-          })
-          oldDistricts.value = res.data
-        } finally {
-          loadingOldDistricts.value = false
-        }
-      })(),
-    )
+    tasks.push((async () => {
+      loadingOldDistricts.value = true
+      try {
+        oldDistricts.value = (await administrativeUnitService.listChildren({ system_type: 'old', parent_id: src.old_province_unit_id!, is_active: true })).data
+      } finally { loadingOldDistricts.value = false }
+    })())
   }
 
   if (src.old_district_unit_id) {
-    tasks.push(
-      (async () => {
-        loadingOldWards.value = true
-        try {
-          const res = await administrativeUnitService.listChildren({
-            system_type: 'old',
-            parent_id: src.old_district_unit_id!,
-            is_active: true,
-          })
-          oldWards.value = res.data
-        } finally {
-          loadingOldWards.value = false
-        }
-      })(),
-    )
+    tasks.push((async () => {
+      loadingOldWards.value = true
+      try {
+        oldWards.value = (await administrativeUnitService.listChildren({ system_type: 'old', parent_id: src.old_district_unit_id!, is_active: true })).data
+      } finally { loadingOldWards.value = false }
+    })())
   }
 
   if (src.new_province_unit_id) {
-    tasks.push(
-      (async () => {
-        loadingNewWards.value = true
-        try {
-          const res = await administrativeUnitService.listChildren({
-            system_type: 'new',
-            parent_id: src.new_province_unit_id!,
-            is_active: true,
-          })
-          newWards.value = res.data
-        } finally {
-          loadingNewWards.value = false
-        }
-      })(),
-    )
+    tasks.push((async () => {
+      loadingNewWards.value = true
+      try {
+        newWards.value = (await administrativeUnitService.listChildren({ system_type: 'new', parent_id: src.new_province_unit_id!, is_active: true })).data
+      } finally { loadingNewWards.value = false }
+    })())
   }
 
   await Promise.all(tasks)
@@ -330,10 +288,8 @@ async function startEdit() {
     new_address_line:     src?.new_address_line      ?? '',
     full_address_text:    src?.full_address_text      ?? '',
   }
-
   if (!oldProvinces.value.length) await loadProvinces()
   await hydrateFromInitial()
-
   editMode.value = true
 }
 
@@ -347,15 +303,8 @@ async function onOldProvinceChange() {
   if (!form.value.old_province_unit_id) return
   loadingOldDistricts.value = true
   try {
-    const res = await administrativeUnitService.listChildren({
-      system_type: 'old',
-      parent_id: form.value.old_province_unit_id,
-      is_active: true,
-    })
-    oldDistricts.value = res.data
-  } finally {
-    loadingOldDistricts.value = false
-  }
+    oldDistricts.value = (await administrativeUnitService.listChildren({ system_type: 'old', parent_id: form.value.old_province_unit_id, is_active: true })).data
+  } finally { loadingOldDistricts.value = false }
 }
 
 async function onOldDistrictChange() {
@@ -364,15 +313,8 @@ async function onOldDistrictChange() {
   if (!form.value.old_district_unit_id) return
   loadingOldWards.value = true
   try {
-    const res = await administrativeUnitService.listChildren({
-      system_type: 'old',
-      parent_id: form.value.old_district_unit_id,
-      is_active: true,
-    })
-    oldWards.value = res.data
-  } finally {
-    loadingOldWards.value = false
-  }
+    oldWards.value = (await administrativeUnitService.listChildren({ system_type: 'old', parent_id: form.value.old_district_unit_id, is_active: true })).data
+  } finally { loadingOldWards.value = false }
 }
 
 async function onNewProvinceChange() {
@@ -381,15 +323,8 @@ async function onNewProvinceChange() {
   if (!form.value.new_province_unit_id) return
   loadingNewWards.value = true
   try {
-    const res = await administrativeUnitService.listChildren({
-      system_type: 'new',
-      parent_id: form.value.new_province_unit_id,
-      is_active: true,
-    })
-    newWards.value = res.data
-  } finally {
-    loadingNewWards.value = false
-  }
+    newWards.value = (await administrativeUnitService.listChildren({ system_type: 'new', parent_id: form.value.new_province_unit_id, is_active: true })).data
+  } finally { loadingNewWards.value = false }
 }
 
 async function save() {
@@ -421,29 +356,22 @@ watch(() => props.initial, () => { editMode.value = false })
 </script>
 
 <style scoped>
+/* ── View mode ─────────────────────────────────────────────────────────────── */
 .address-editor {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
 }
 
-/* ── View mode ─────────────────────────────────────────────────────────────── */
 .address-display {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
 }
 
-.address-text {
-  font-size: 0.9rem;
-  line-height: 1.5;
-}
+.address-text { font-size: 0.9rem; line-height: 1.5; }
 
-.system-block {
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-}
+.system-block { display: flex; flex-direction: column; gap: 0.2rem; }
 
 .system-row {
   display: flex;
@@ -452,29 +380,12 @@ watch(() => props.initial, () => { editMode.value = false })
   font-size: 0.8rem;
 }
 
-.unit-path {
-  color: var(--l-text-muted);
-}
+.unit-path { color: var(--l-text-muted); }
 
 .detail-line {
   font-size: 0.8rem;
   color: var(--l-text-muted);
   padding-left: 2.2rem;
-}
-
-.label-chip {
-  display: inline-block;
-  padding: 0.05rem 0.4rem;
-  background: color-mix(in srgb, var(--p-primary-color) 12%, transparent);
-  color: var(--p-primary-color);
-  border-radius: 4px;
-  font-size: 0.72rem;
-  font-weight: 700;
-}
-
-.label-chip.new {
-  background: color-mix(in srgb, var(--p-blue-500) 12%, transparent);
-  color: var(--p-blue-500);
 }
 
 .empty-address {
@@ -521,11 +432,7 @@ watch(() => props.initial, () => { editMode.value = false })
   color: color-mix(in srgb, var(--p-primary-color) 70%, var(--l-text-muted));
 }
 
-.system-head h4 {
-  margin: 0;
-  font-size: 0.95rem;
-  font-weight: 600;
-}
+.system-head h4 { margin: 0; font-size: 0.95rem; font-weight: 600; }
 
 .field-grid {
   display: grid;
@@ -533,29 +440,14 @@ watch(() => props.initial, () => { editMode.value = false })
   gap: 0.6rem;
 }
 
-.field-grid--new {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
+.field-grid--new { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-}
-
-.field label {
-  font-size: 0.85rem;
-  font-weight: 500;
-}
-
-.form-actions {
-  display: flex;
-  gap: 0.5rem;
-  justify-content: flex-end;
-}
+/* Cancel global field margin-bottom inside grids */
+.field-grid .field,
+.field-grid--new .field { margin-bottom: 0; }
 
 @media (max-width: 1100px) {
-  .pair-grid { grid-template-columns: 1fr; }
+  .pair-grid,
   .field-grid,
   .field-grid--new { grid-template-columns: 1fr; }
 }

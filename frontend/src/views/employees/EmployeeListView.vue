@@ -1,6 +1,5 @@
 <template>
   <div class="employee-list-page">
-    <!-- Header -->
     <div class="page-header">
       <div>
         <h2>Danh sách nhân viên</h2>
@@ -9,7 +8,6 @@
       <Button label="Thêm mới" icon="pi pi-plus" @click="router.push('/employees/new')" />
     </div>
 
-    <!-- Toolbar -->
     <div class="toolbar">
       <Select
         v-model="filterStatus"
@@ -48,7 +46,6 @@
       />
     </div>
 
-    <!-- Table -->
     <div class="card">
       <DataTable
         :value="items"
@@ -97,7 +94,7 @@
 
         <Column field="phone_number" header="Số điện thoại" style="width: 145px">
           <template #body="{ data }">
-            <span class="muted">{{ data.phone_number || '—' }}</span>
+            <span class="muted-text">{{ data.phone_number || '—' }}</span>
           </template>
         </Column>
 
@@ -115,7 +112,7 @@
             <span
               v-if="docExpiryIcon(data)"
               v-tooltip.top="docExpiryTooltip(data)"
-              :class="['doc-expiry-icon', `doc-expiry-icon--${docExpirySeverity(data)}`]"
+              :class="['doc-expiry-icon', { 'is-danger': docExpirySeverity(data) === 'danger', 'is-warn': docExpirySeverity(data) === 'warn' }]"
             >
               <i :class="docExpiryIcon(data)" />
             </span>
@@ -232,8 +229,8 @@ function _checkDocs(emp: EmployeeListItem): { expired: DocCheck[]; soon: DocChec
   for (const d of docs) {
     if (!d.iso) continue
     const dt = new Date(d.iso)
-    if (dt < today)                          expired.push({ label: d.label, date: d.iso })
-    else if (dt.getTime() - today.getTime() <= warnMs) soon.push({ label: d.label, date: d.iso })
+    if (dt < today)                                              expired.push({ label: d.label, date: d.iso })
+    else if (dt.getTime() - today.getTime() <= warnMs)  soon.push({ label: d.label, date: d.iso })
   }
   return { expired, soon }
 }
@@ -338,90 +335,9 @@ onMounted(loadData)
 .employee-list-page {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
 }
-
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 1rem;
-}
-
-.page-header h2 {
-  margin: 0 0 0.2rem;
-  font-size: 1.5rem;
-  font-weight: 700;
-}
-
-.subtitle { color: var(--l-text-muted); }
-
-.toolbar {
-  display: flex;
-  gap: 0.6rem;
-  flex-wrap: wrap;
-  align-items: center;
-}
-
-.toolbar-filter { min-width: 160px; }
-.toolbar-search { flex: 1; min-width: 200px; }
-
-.card {
-  background: var(--l-surface);
-  border: 1px solid var(--l-border);
-  border-radius: 16px;
-  overflow: hidden;
-  box-shadow: var(--l-shadow);
-}
-
-.paginator-info {
-  font-size: 0.85rem;
-  color: var(--l-text-muted);
-}
-
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 3rem;
-  color: var(--l-text-muted);
-}
-
-.empty-state i { font-size: 2rem; opacity: 0.4; }
 
 .name-cell { font-weight: 500; }
-.muted { color: var(--l-text-muted); }
-
-.doc-expiry-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.6rem;
-  height: 1.6rem;
-  border-radius: 50%;
-  cursor: default;
-}
-
-.doc-expiry-icon--danger {
-  color: var(--p-red-500);
-  background: color-mix(in srgb, var(--p-red-500) 12%, transparent);
-}
-
-.doc-expiry-icon--warn {
-  color: var(--p-orange-500);
-  background: color-mix(in srgb, var(--p-orange-500) 12%, transparent);
-}
-
-.action-cell {
-  display: flex;
-  gap: 0.25rem;
-  justify-content: flex-end;
-}
 
 :deep(.p-datatable-tbody > tr) { cursor: pointer; }
-
-@media (max-width: 768px) {
-  .page-header { flex-direction: column; }
-}
 </style>
