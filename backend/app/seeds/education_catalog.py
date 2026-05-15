@@ -10,6 +10,8 @@ Phân lớp:
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.services.administrative_import_service import normalize_text
+
 
 EDUCATION_LEVELS = [
     {"code": "primary_school", "name": "Tiểu học", "rank_no": 1},
@@ -150,7 +152,7 @@ EDUCATION_MAJORS = [
 
 
 def _normalize(value: str) -> str:
-    return " ".join(value.strip().lower().split())
+    return normalize_text(value)
 
 
 async def seed_required_education_catalog(session: AsyncSession) -> int:

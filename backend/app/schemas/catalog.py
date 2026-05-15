@@ -156,3 +156,154 @@ class ValidateDualLocationPathsResult(BaseModel):
     message: str
     old_address: ValidateLocationPathResult
     new_address: ValidateLocationPathResult
+
+
+InstitutionType = Literal["university", "college", "vocational", "high_school", "other"]
+
+
+class EducationLevelCreate(BaseModel):
+    code: str = Field(..., max_length=50)
+    name: str = Field(..., max_length=255)
+    rank_no: int = Field(..., ge=1, le=999)
+    is_active: bool = True
+
+    @field_validator("code", "name")
+    @classmethod
+    def _strip_required_str(cls, v: str) -> str:
+        return v.strip()
+
+
+class EducationLevelUpdate(BaseModel):
+    name: Optional[str] = Field(None, max_length=255)
+    rank_no: Optional[int] = Field(None, ge=1, le=999)
+    is_active: Optional[bool] = None
+
+    @field_validator("name")
+    @classmethod
+    def _strip_optional_name(cls, v: Optional[str]) -> Optional[str]:
+        return v.strip() if v else v
+
+
+class EducationLevelRead(BaseModel):
+    id: int
+    code: str
+    name: str
+    normalized_name: str
+    rank_no: int
+    is_active: bool
+    created_at: datetime
+    updated_at: Optional[datetime]
+
+    model_config = {"from_attributes": True}
+
+
+class EducationLevelListPage(BaseModel):
+    items: list[EducationLevelRead]
+    total: int
+    page: int
+    page_size: int
+
+
+class EducationalInstitutionCreate(BaseModel):
+    code: Optional[str] = Field(None, max_length=50)
+    name: str = Field(..., max_length=255)
+    short_name: Optional[str] = Field(None, max_length=100)
+    institution_type: Optional[InstitutionType] = None
+    country_code: Optional[str] = Field(None, max_length=10)
+    province_code: Optional[str] = Field(None, max_length=20)
+    is_active: bool = True
+
+    @field_validator("code", "name", "short_name", "province_code")
+    @classmethod
+    def _strip_optional_text(cls, v: Optional[str]) -> Optional[str]:
+        return v.strip() if v else v
+
+    @field_validator("country_code")
+    @classmethod
+    def _normalize_country_code(cls, v: Optional[str]) -> Optional[str]:
+        return v.strip().upper() if v else v
+
+
+class EducationalInstitutionUpdate(BaseModel):
+    name: Optional[str] = Field(None, max_length=255)
+    short_name: Optional[str] = Field(None, max_length=100)
+    institution_type: Optional[InstitutionType] = None
+    country_code: Optional[str] = Field(None, max_length=10)
+    province_code: Optional[str] = Field(None, max_length=20)
+    is_active: Optional[bool] = None
+
+    @field_validator("name", "short_name", "province_code")
+    @classmethod
+    def _strip_optional_text(cls, v: Optional[str]) -> Optional[str]:
+        return v.strip() if v else v
+
+    @field_validator("country_code")
+    @classmethod
+    def _normalize_country_code(cls, v: Optional[str]) -> Optional[str]:
+        return v.strip().upper() if v else v
+
+
+class EducationalInstitutionRead(BaseModel):
+    id: int
+    code: Optional[str]
+    name: str
+    normalized_name: str
+    short_name: Optional[str]
+    institution_type: Optional[str]
+    country_code: Optional[str]
+    province_code: Optional[str]
+    is_active: bool
+    created_at: datetime
+    updated_at: Optional[datetime]
+
+    model_config = {"from_attributes": True}
+
+
+class EducationalInstitutionListPage(BaseModel):
+    items: list[EducationalInstitutionRead]
+    total: int
+    page: int
+    page_size: int
+
+
+class EducationMajorCreate(BaseModel):
+    code: Optional[str] = Field(None, max_length=50)
+    name: str = Field(..., max_length=255)
+    major_group: Optional[str] = Field(None, max_length=100)
+    is_active: bool = True
+
+    @field_validator("code", "name", "major_group")
+    @classmethod
+    def _strip_optional_text(cls, v: Optional[str]) -> Optional[str]:
+        return v.strip() if v else v
+
+
+class EducationMajorUpdate(BaseModel):
+    name: Optional[str] = Field(None, max_length=255)
+    major_group: Optional[str] = Field(None, max_length=100)
+    is_active: Optional[bool] = None
+
+    @field_validator("name", "major_group")
+    @classmethod
+    def _strip_optional_text(cls, v: Optional[str]) -> Optional[str]:
+        return v.strip() if v else v
+
+
+class EducationMajorRead(BaseModel):
+    id: int
+    code: Optional[str]
+    name: str
+    normalized_name: str
+    major_group: Optional[str]
+    is_active: bool
+    created_at: datetime
+    updated_at: Optional[datetime]
+
+    model_config = {"from_attributes": True}
+
+
+class EducationMajorListPage(BaseModel):
+    items: list[EducationMajorRead]
+    total: int
+    page: int
+    page_size: int
