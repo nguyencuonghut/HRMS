@@ -1,4 +1,4 @@
-"""Quản lý nhân viên — CRUD hồ sơ cá nhân (3.1) + thông tin công việc (3.2) + người thân (3.3)."""
+"""Quản lý nhân viên — CRUD hồ sơ cá nhân (3.1) + thông tin công việc (3.2) + người thân (3.3) + học vấn (3.4)."""
 
 from typing import Optional
 
@@ -25,8 +25,23 @@ from app.schemas.employee import (
     EmployeeRelativeRead,
     RelativeCreate,
     RelativeUpdate,
+    EducationHistoryRead,
+    EducationHistoryCreate,
+    EducationHistoryUpdate,
+    WorkExperienceRead,
+    WorkExperienceCreate,
+    WorkExperienceUpdate,
+    EmployeeSkillRead,
+    EmployeeSkillCreate,
+    EmployeeSkillUpdate,
+    EmployeeCertificateRead,
+    EmployeeCertificateCreate,
+    EmployeeCertificateUpdate,
+    EmployeeLanguageRead,
+    EmployeeLanguageCreate,
+    EmployeeLanguageUpdate,
 )
-from app.services import auth_service, employee_job_service, employee_relative_service, employee_service
+from app.services import auth_service, employee_job_service, employee_relative_service, employee_service, employee_education_service
 
 router = APIRouter()
 
@@ -487,5 +502,426 @@ async def delete_relative(
         session, current_user.id, "DELETE_RELATIVE",
         entity_type="employee_relative", entity_id=employee_id,
         new_data={"relative_id": relative_id},
+    )
+    await session.commit()
+
+
+# ── Education Histories (3.4) ─────────────────────────────────────────────────
+
+@router.get(
+    "/{employee_id}/education-histories",
+    response_model=list[EducationHistoryRead],
+    summary="Danh sách học vấn",
+)
+async def list_education_histories(
+    employee_id: int,
+    _: User = require_permission("employees:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    await employee_service._get_or_404(session, employee_id)
+    return await employee_education_service.get_education_histories(session, employee_id)
+
+
+@router.post(
+    "/{employee_id}/education-histories",
+    response_model=EducationHistoryRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Thêm học vấn",
+)
+async def create_education_history(
+    employee_id: int,
+    payload: EducationHistoryCreate,
+    current_user: User = require_permission("employees:edit"),
+    session: AsyncSession = Depends(get_session),
+):
+    await employee_service._get_or_404(session, employee_id)
+    edu = await employee_education_service.create_education_history(session, employee_id, payload)
+    await auth_service.log_audit(
+        session, current_user.id, "CREATE_EDUCATION_HISTORY",
+        entity_type="employee_education", entity_id=employee_id,
+        new_data={"edu_id": edu.id, "institution_name": edu.institution_name or edu.institution_id},
+    )
+    await session.commit()
+    return edu
+
+
+@router.put(
+    "/{employee_id}/education-histories/{edu_id}",
+    response_model=EducationHistoryRead,
+    summary="Cập nhật học vấn",
+)
+async def update_education_history(
+    employee_id: int,
+    edu_id: int,
+    payload: EducationHistoryUpdate,
+    current_user: User = require_permission("employees:edit"),
+    session: AsyncSession = Depends(get_session),
+):
+    await employee_service._get_or_404(session, employee_id)
+    edu = await employee_education_service.update_education_history(session, employee_id, edu_id, payload)
+    await auth_service.log_audit(
+        session, current_user.id, "UPDATE_EDUCATION_HISTORY",
+        entity_type="employee_education", entity_id=employee_id,
+        new_data={"edu_id": edu_id, **payload.model_dump(exclude_unset=True)},
+    )
+    await session.commit()
+    return edu
+
+
+@router.delete(
+    "/{employee_id}/education-histories/{edu_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Xóa học vấn",
+)
+async def delete_education_history(
+    employee_id: int,
+    edu_id: int,
+    current_user: User = require_permission("employees:edit"),
+    session: AsyncSession = Depends(get_session),
+):
+    await employee_service._get_or_404(session, employee_id)
+    await employee_education_service.delete_education_history(session, employee_id, edu_id)
+    await auth_service.log_audit(
+        session, current_user.id, "DELETE_EDUCATION_HISTORY",
+        entity_type="employee_education", entity_id=employee_id,
+        new_data={"edu_id": edu_id},
+    )
+    await session.commit()
+
+
+# ── Work Experiences (3.4) ────────────────────────────────────────────────────
+
+@router.get(
+    "/{employee_id}/work-experiences",
+    response_model=list[WorkExperienceRead],
+    summary="Danh sách kinh nghiệm làm việc",
+)
+async def list_work_experiences(
+    employee_id: int,
+    _: User = require_permission("employees:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    await employee_service._get_or_404(session, employee_id)
+    return await employee_education_service.get_work_experiences(session, employee_id)
+
+
+@router.post(
+    "/{employee_id}/work-experiences",
+    response_model=WorkExperienceRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Thêm kinh nghiệm làm việc",
+)
+async def create_work_experience(
+    employee_id: int,
+    payload: WorkExperienceCreate,
+    current_user: User = require_permission("employees:edit"),
+    session: AsyncSession = Depends(get_session),
+):
+    await employee_service._get_or_404(session, employee_id)
+    exp = await employee_education_service.create_work_experience(session, employee_id, payload)
+    await session.flush()
+    await auth_service.log_audit(
+        session, current_user.id, "CREATE_WORK_EXPERIENCE",
+        entity_type="employee_work_experience", entity_id=employee_id,
+        new_data={"exp_id": exp.id, "company_name": exp.company_name},
+    )
+    await session.commit()
+    await session.refresh(exp)
+    return exp
+
+
+@router.put(
+    "/{employee_id}/work-experiences/{exp_id}",
+    response_model=WorkExperienceRead,
+    summary="Cập nhật kinh nghiệm làm việc",
+)
+async def update_work_experience(
+    employee_id: int,
+    exp_id: int,
+    payload: WorkExperienceUpdate,
+    current_user: User = require_permission("employees:edit"),
+    session: AsyncSession = Depends(get_session),
+):
+    await employee_service._get_or_404(session, employee_id)
+    exp = await employee_education_service.update_work_experience(session, employee_id, exp_id, payload)
+    await auth_service.log_audit(
+        session, current_user.id, "UPDATE_WORK_EXPERIENCE",
+        entity_type="employee_work_experience", entity_id=employee_id,
+        new_data={"exp_id": exp_id, **payload.model_dump(exclude_unset=True)},
+    )
+    await session.commit()
+    await session.refresh(exp)
+    return exp
+
+
+@router.delete(
+    "/{employee_id}/work-experiences/{exp_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Xóa kinh nghiệm làm việc",
+)
+async def delete_work_experience(
+    employee_id: int,
+    exp_id: int,
+    current_user: User = require_permission("employees:edit"),
+    session: AsyncSession = Depends(get_session),
+):
+    await employee_service._get_or_404(session, employee_id)
+    await employee_education_service.delete_work_experience(session, employee_id, exp_id)
+    await auth_service.log_audit(
+        session, current_user.id, "DELETE_WORK_EXPERIENCE",
+        entity_type="employee_work_experience", entity_id=employee_id,
+        new_data={"exp_id": exp_id},
+    )
+    await session.commit()
+
+
+# ── Skills (3.4) ──────────────────────────────────────────────────────────────
+
+@router.get(
+    "/{employee_id}/skills",
+    response_model=list[EmployeeSkillRead],
+    summary="Danh sách kỹ năng",
+)
+async def list_employee_skills(
+    employee_id: int,
+    _: User = require_permission("employees:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    await employee_service._get_or_404(session, employee_id)
+    return await employee_education_service.get_employee_skills(session, employee_id)
+
+
+@router.post(
+    "/{employee_id}/skills",
+    response_model=EmployeeSkillRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Thêm kỹ năng",
+)
+async def create_employee_skill(
+    employee_id: int,
+    payload: EmployeeSkillCreate,
+    current_user: User = require_permission("employees:edit"),
+    session: AsyncSession = Depends(get_session),
+):
+    await employee_service._get_or_404(session, employee_id)
+    sk = await employee_education_service.create_employee_skill(session, employee_id, payload)
+    await auth_service.log_audit(
+        session, current_user.id, "CREATE_SKILL",
+        entity_type="employee_skill", entity_id=employee_id,
+        new_data={"skill_id": payload.skill_id, "proficiency_level": payload.proficiency_level},
+    )
+    await session.commit()
+    return sk
+
+
+@router.put(
+    "/{employee_id}/skills/{skill_record_id}",
+    response_model=EmployeeSkillRead,
+    summary="Cập nhật kỹ năng",
+)
+async def update_employee_skill(
+    employee_id: int,
+    skill_record_id: int,
+    payload: EmployeeSkillUpdate,
+    current_user: User = require_permission("employees:edit"),
+    session: AsyncSession = Depends(get_session),
+):
+    await employee_service._get_or_404(session, employee_id)
+    sk = await employee_education_service.update_employee_skill(session, employee_id, skill_record_id, payload)
+    await auth_service.log_audit(
+        session, current_user.id, "UPDATE_SKILL",
+        entity_type="employee_skill", entity_id=employee_id,
+        new_data={"skill_record_id": skill_record_id, **payload.model_dump(exclude_unset=True)},
+    )
+    await session.commit()
+    return sk
+
+
+@router.delete(
+    "/{employee_id}/skills/{skill_record_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Xóa kỹ năng",
+)
+async def delete_employee_skill(
+    employee_id: int,
+    skill_record_id: int,
+    current_user: User = require_permission("employees:edit"),
+    session: AsyncSession = Depends(get_session),
+):
+    await employee_service._get_or_404(session, employee_id)
+    await employee_education_service.delete_employee_skill(session, employee_id, skill_record_id)
+    await auth_service.log_audit(
+        session, current_user.id, "DELETE_SKILL",
+        entity_type="employee_skill", entity_id=employee_id,
+        new_data={"skill_record_id": skill_record_id},
+    )
+    await session.commit()
+
+
+# ── Certificates (3.4) ────────────────────────────────────────────────────────
+
+@router.get(
+    "/{employee_id}/certificates",
+    response_model=list[EmployeeCertificateRead],
+    summary="Danh sách chứng chỉ",
+)
+async def list_employee_certificates(
+    employee_id: int,
+    _: User = require_permission("employees:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    await employee_service._get_or_404(session, employee_id)
+    return await employee_education_service.get_employee_certificates(session, employee_id)
+
+
+@router.post(
+    "/{employee_id}/certificates",
+    response_model=EmployeeCertificateRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Thêm chứng chỉ",
+)
+async def create_employee_certificate(
+    employee_id: int,
+    payload: EmployeeCertificateCreate,
+    current_user: User = require_permission("employees:edit"),
+    session: AsyncSession = Depends(get_session),
+):
+    await employee_service._get_or_404(session, employee_id)
+    cert = await employee_education_service.create_employee_certificate(session, employee_id, payload)
+    await auth_service.log_audit(
+        session, current_user.id, "CREATE_CERTIFICATE",
+        entity_type="employee_certificate", entity_id=employee_id,
+        new_data={"certificate_id": payload.certificate_id},
+    )
+    await session.commit()
+    return cert
+
+
+@router.put(
+    "/{employee_id}/certificates/{cert_id}",
+    response_model=EmployeeCertificateRead,
+    summary="Cập nhật chứng chỉ",
+)
+async def update_employee_certificate(
+    employee_id: int,
+    cert_id: int,
+    payload: EmployeeCertificateUpdate,
+    current_user: User = require_permission("employees:edit"),
+    session: AsyncSession = Depends(get_session),
+):
+    await employee_service._get_or_404(session, employee_id)
+    cert = await employee_education_service.update_employee_certificate(session, employee_id, cert_id, payload)
+    await auth_service.log_audit(
+        session, current_user.id, "UPDATE_CERTIFICATE",
+        entity_type="employee_certificate", entity_id=employee_id,
+        new_data={"cert_id": cert_id, **payload.model_dump(exclude_unset=True)},
+    )
+    await session.commit()
+    return cert
+
+
+@router.delete(
+    "/{employee_id}/certificates/{cert_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Xóa chứng chỉ",
+)
+async def delete_employee_certificate(
+    employee_id: int,
+    cert_id: int,
+    current_user: User = require_permission("employees:edit"),
+    session: AsyncSession = Depends(get_session),
+):
+    await employee_service._get_or_404(session, employee_id)
+    await employee_education_service.delete_employee_certificate(session, employee_id, cert_id)
+    await auth_service.log_audit(
+        session, current_user.id, "DELETE_CERTIFICATE",
+        entity_type="employee_certificate", entity_id=employee_id,
+        new_data={"cert_id": cert_id},
+    )
+    await session.commit()
+
+
+# ── Languages (3.4) ───────────────────────────────────────────────────────────
+
+@router.get(
+    "/{employee_id}/languages",
+    response_model=list[EmployeeLanguageRead],
+    summary="Danh sách ngoại ngữ",
+)
+async def list_employee_languages(
+    employee_id: int,
+    _: User = require_permission("employees:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    await employee_service._get_or_404(session, employee_id)
+    return await employee_education_service.get_employee_languages(session, employee_id)
+
+
+@router.post(
+    "/{employee_id}/languages",
+    response_model=EmployeeLanguageRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Thêm ngoại ngữ",
+)
+async def create_employee_language(
+    employee_id: int,
+    payload: EmployeeLanguageCreate,
+    current_user: User = require_permission("employees:edit"),
+    session: AsyncSession = Depends(get_session),
+):
+    await employee_service._get_or_404(session, employee_id)
+    lang = await employee_education_service.create_employee_language(session, employee_id, payload)
+    await session.flush()
+    await auth_service.log_audit(
+        session, current_user.id, "CREATE_LANGUAGE",
+        entity_type="employee_language", entity_id=employee_id,
+        new_data={"language_name": payload.language_name, "proficiency_level": payload.proficiency_level},
+    )
+    await session.commit()
+    await session.refresh(lang)
+    return lang
+
+
+@router.put(
+    "/{employee_id}/languages/{lang_id}",
+    response_model=EmployeeLanguageRead,
+    summary="Cập nhật ngoại ngữ",
+)
+async def update_employee_language(
+    employee_id: int,
+    lang_id: int,
+    payload: EmployeeLanguageUpdate,
+    current_user: User = require_permission("employees:edit"),
+    session: AsyncSession = Depends(get_session),
+):
+    await employee_service._get_or_404(session, employee_id)
+    lang = await employee_education_service.update_employee_language(session, employee_id, lang_id, payload)
+    await auth_service.log_audit(
+        session, current_user.id, "UPDATE_LANGUAGE",
+        entity_type="employee_language", entity_id=employee_id,
+        new_data={"lang_id": lang_id, **payload.model_dump(exclude_unset=True)},
+    )
+    await session.commit()
+    await session.refresh(lang)
+    return lang
+
+
+@router.delete(
+    "/{employee_id}/languages/{lang_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Xóa ngoại ngữ",
+)
+async def delete_employee_language(
+    employee_id: int,
+    lang_id: int,
+    current_user: User = require_permission("employees:edit"),
+    session: AsyncSession = Depends(get_session),
+):
+    await employee_service._get_or_404(session, employee_id)
+    await employee_education_service.delete_employee_language(session, employee_id, lang_id)
+    await auth_service.log_audit(
+        session, current_user.id, "DELETE_LANGUAGE",
+        entity_type="employee_language", entity_id=employee_id,
+        new_data={"lang_id": lang_id},
     )
     await session.commit()

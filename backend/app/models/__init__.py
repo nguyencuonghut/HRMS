@@ -50,3 +50,10 @@ from app.models.employee_job import (  # noqa: F401
 from app.models.employee_relative import (  # noqa: F401
     EmployeeRelative,
 )
+from app.models.employee_education import (  # noqa: F401
+    EmployeeEducationHistory,
+    EmployeeWorkExperience,
+    EmployeeSkill,
+    EmployeeCertificate,
+    EmployeeLanguage,
+)

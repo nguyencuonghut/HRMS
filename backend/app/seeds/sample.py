@@ -14,7 +14,7 @@ import datetime
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.seeds import education_catalog, other_business_catalog, employees as employees_seed, employee_job_records as job_records_seed, employee_relatives as relatives_seed
+from app.seeds import education_catalog, other_business_catalog, employees as employees_seed, employee_job_records as job_records_seed, employee_relatives as relatives_seed, employee_education as education_seed
 
 # ─── Chức danh ───────────────────────────────────────────────────────────────
 
@@ -278,6 +278,7 @@ async def run(session: AsyncSession) -> None:
     await session.flush()
     relatives_added = await relatives_seed.seed_sample_relatives(session)
     print(f"  [sample] Người thân mẫu:    +{relatives_added} dòng")
+    edu_counts = await education_seed.seed_sample_education(session)
     await session.commit()
 
     print(f"  [sample] Chức danh:        +{titles} dòng")
@@ -291,3 +292,8 @@ async def run(session: AsyncSession) -> None:
     print(f"  [sample] Placeholder mẫu:   +{placeholders_added} upsert")
     print(f"  [sample] Nhân viên mẫu:     +{emps_added} dòng")
     print(f"  [sample] Bản ghi công việc: +{job_records_added} dòng")
+    print(f"  [sample] Học vấn:           +{edu_counts['education_histories']} dòng")
+    print(f"  [sample] Kinh nghiệm:       +{edu_counts['work_experiences']} dòng")
+    print(f"  [sample] Kỹ năng NV:        +{edu_counts['skills']} dòng")
+    print(f"  [sample] Chứng chỉ NV:      +{edu_counts['certificates']} dòng")
+    print(f"  [sample] Ngoại ngữ:         +{edu_counts['languages']} dòng")

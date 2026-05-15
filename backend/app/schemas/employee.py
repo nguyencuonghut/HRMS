@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.services.administrative_import_service import normalize_text
 
@@ -249,6 +249,11 @@ class EmployeeRead(BaseModel):
     bank_accounts: list[EmployeeBankAccountRead] = []
     current_job: Optional["JobRecordRead"] = None
     relatives: list["EmployeeRelativeRead"] = []
+    education_histories: list["EducationHistoryRead"] = []
+    work_experiences: list["WorkExperienceRead"] = []
+    skills: list["EmployeeSkillRead"] = []
+    certificates: list["EmployeeCertificateRead"] = []
+    languages: list["EmployeeLanguageRead"] = []
 
     model_config = {"from_attributes": True}
 
@@ -384,6 +389,172 @@ class RelativeUpdate(BaseModel):
     phone_number: Optional[str] = None
     is_emergency_contact: Optional[bool] = None
     note: Optional[str] = None
+
+
+# ── Education & Experience (3.4) ─────────────────────────────────────────────
+
+SkillProficiencyLevel = Literal["beginner", "intermediate", "advanced", "expert"]
+LanguageProficiencyLevel = Literal["native", "A1", "A2", "B1", "B2", "C1", "C2"]
+
+
+class EducationHistoryCreate(BaseModel):
+    institution_id: Optional[int] = None
+    institution_name: Optional[str] = Field(None, max_length=255)
+    major_id: Optional[int] = None
+    major_name: Optional[str] = Field(None, max_length=255)
+    education_level_id: int
+    graduation_year: Optional[int] = None
+    diploma_type: Optional[str] = Field(None, max_length=100)
+    is_main_education: bool = False
+    note: Optional[str] = None
+
+    @model_validator(mode="after")
+    def require_institution(self) -> "EducationHistoryCreate":
+        if not self.institution_id and not self.institution_name:
+            raise ValueError("Cần nhập tên trường hoặc chọn từ danh mục")
+        return self
+
+
+class EducationHistoryUpdate(BaseModel):
+    institution_id: Optional[int] = None
+    institution_name: Optional[str] = Field(None, max_length=255)
+    major_id: Optional[int] = None
+    major_name: Optional[str] = Field(None, max_length=255)
+    education_level_id: Optional[int] = None
+    graduation_year: Optional[int] = None
+    diploma_type: Optional[str] = Field(None, max_length=100)
+    is_main_education: Optional[bool] = None
+    note: Optional[str] = None
+
+
+class EducationHistoryRead(BaseModel):
+    id: int
+    employee_id: int
+    institution_id: Optional[int]
+    institution_name: Optional[str]
+    major_id: Optional[int]
+    major_name: Optional[str]
+    education_level_id: int
+    education_level_name: str
+    graduation_year: Optional[int]
+    diploma_type: Optional[str]
+    is_main_education: bool
+    note: Optional[str]
+    created_at: datetime
+    updated_at: Optional[datetime]
+
+    model_config = {"from_attributes": True}
+
+
+class WorkExperienceCreate(BaseModel):
+    company_name: str = Field(..., max_length=255)
+    position_name: Optional[str] = Field(None, max_length=255)
+    start_date: date
+    end_date: Optional[date] = None
+    description: Optional[str] = None
+
+
+class WorkExperienceUpdate(BaseModel):
+    company_name: Optional[str] = Field(None, max_length=255)
+    position_name: Optional[str] = Field(None, max_length=255)
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+    description: Optional[str] = None
+
+
+class WorkExperienceRead(BaseModel):
+    id: int
+    employee_id: int
+    company_name: str
+    position_name: Optional[str]
+    start_date: date
+    end_date: Optional[date]
+    description: Optional[str]
+    created_at: datetime
+    updated_at: Optional[datetime]
+
+    model_config = {"from_attributes": True}
+
+
+class EmployeeSkillCreate(BaseModel):
+    skill_id: int
+    proficiency_level: SkillProficiencyLevel
+    note: Optional[str] = None
+
+
+class EmployeeSkillUpdate(BaseModel):
+    proficiency_level: Optional[SkillProficiencyLevel] = None
+    note: Optional[str] = None
+
+
+class EmployeeSkillRead(BaseModel):
+    id: int
+    employee_id: int
+    skill_id: int
+    skill_name: str
+    skill_group: Optional[str]
+    proficiency_level: str
+    note: Optional[str]
+    created_at: datetime
+    updated_at: Optional[datetime]
+
+    model_config = {"from_attributes": True}
+
+
+class EmployeeCertificateCreate(BaseModel):
+    certificate_id: int
+    certificate_number: Optional[str] = Field(None, max_length=100)
+    issued_date: Optional[date] = None
+    expires_on: Optional[date] = None
+    issued_by: Optional[str] = Field(None, max_length=255)
+    note: Optional[str] = None
+
+
+class EmployeeCertificateUpdate(BaseModel):
+    certificate_number: Optional[str] = Field(None, max_length=100)
+    issued_date: Optional[date] = None
+    expires_on: Optional[date] = None
+    issued_by: Optional[str] = Field(None, max_length=255)
+    note: Optional[str] = None
+
+
+class EmployeeCertificateRead(BaseModel):
+    id: int
+    employee_id: int
+    certificate_id: int
+    certificate_name: str
+    certificate_number: Optional[str]
+    issued_date: Optional[date]
+    expires_on: Optional[date]
+    issued_by: Optional[str]
+    note: Optional[str]
+    created_at: datetime
+    updated_at: Optional[datetime]
+
+    model_config = {"from_attributes": True}
+
+
+class EmployeeLanguageCreate(BaseModel):
+    language_name: str = Field(..., max_length=100)
+    proficiency_level: LanguageProficiencyLevel
+    note: Optional[str] = None
+
+
+class EmployeeLanguageUpdate(BaseModel):
+    proficiency_level: Optional[LanguageProficiencyLevel] = None
+    note: Optional[str] = None
+
+
+class EmployeeLanguageRead(BaseModel):
+    id: int
+    employee_id: int
+    language_name: str
+    proficiency_level: str
+    note: Optional[str]
+    created_at: datetime
+    updated_at: Optional[datetime]
+
+    model_config = {"from_attributes": True}
 
 
 # Giải quyết forward references

@@ -15,7 +15,7 @@ from app.schemas.employee import (
     EmployeeCreate,
     EmployeeUpdate,
 )
-from app.services import employee_job_service, employee_relative_service
+from app.services import employee_job_service, employee_relative_service, employee_education_service
 from app.services.administrative_import_service import normalize_text
 
 
@@ -359,10 +359,20 @@ async def build_employee_read_data(
     current_record = await employee_job_service.get_current_job_record(session, emp.id)
     current_job = await employee_job_service.build_job_record_read(session, current_record) if current_record else None
     relatives = await employee_relative_service.get_relatives(session, emp.id)
+    education_histories = await employee_education_service.get_education_histories(session, emp.id)
+    work_experiences = await employee_education_service.get_work_experiences(session, emp.id)
+    skills = await employee_education_service.get_employee_skills(session, emp.id)
+    certificates = await employee_education_service.get_employee_certificates(session, emp.id)
+    languages = await employee_education_service.get_employee_languages(session, emp.id)
     return {
         "addresses": await enrich_addresses(session, addresses),
         "bank_accounts": bank_accounts,
         "display_code": compute_display_code(emp.employee_seq, prefix),
         "current_job": current_job,
         "relatives": relatives,
+        "education_histories": education_histories,
+        "work_experiences": work_experiences,
+        "skills": skills,
+        "certificates": certificates,
+        "languages": languages,
     }
