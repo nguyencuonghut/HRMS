@@ -221,3 +221,77 @@ def test_officer_cannot_delete_leave_type(client: TestClient):
 def test_other_business_catalog_endpoints_require_token(client: TestClient):
     resp = client.get(BANK_BASE)
     assert resp.status_code == 401
+
+
+# ── Bước 6: Audit log coverage ──────────────────────────────────────────────────
+
+def test_catalog_create_writes_audit_log(client: TestClient):
+    """Tạo catalog item phải sinh audit log entity_type tương ứng."""
+    created = client.post(
+        BANK_BASE,
+        json={"code": "TEST_BANK_AUDIT_01", "name": "Ngân hàng audit test"},
+        headers=_admin(client),
+    )
+    assert created.status_code == 201, created.text
+    bank_id = created.json()["id"]
+
+    logs = client.get(
+        "/api/v1/audit-logs",
+        params={"entity_type": "bank", "action": "CREATE", "limit": 5},
+        headers=_admin(client),
+    )
+    assert logs.status_code == 200, logs.text
+    items = logs.json()
+    assert any(item["entity_id"] == bank_id for item in items)
+
+
+def test_contract_template_operations_write_audit_log(client: TestClient):
+    """Tạo template + thay đổi placeholder phải sinh audit log."""
+    category_resp = client.get(CONTRACT_CATEGORY_BASE, params={"keyword": "HĐLĐ xác định"}, headers=_admin(client))
+    assert category_resp.status_code == 200, category_resp.text
+    category_id = category_resp.json()["items"][0]["id"]
+
+    created = client.post(
+        TEMPLATE_BASE,
+        json={
+            "code": "test_template_audit_01",
+            "name": "Template audit test",
+            "contract_category_id": category_id,
+            "document_kind": "labor_contract",
+            "template_engine": "docx_placeholders",
+            "file_name": "audit_test.docx",
+            "mime_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        },
+        headers=_admin(client),
+    )
+    assert created.status_code == 201, created.text
+    tmpl_id = created.json()["id"]
+
+    # Replace placeholders → should log
+    client.put(
+        f"{TEMPLATE_BASE}/{tmpl_id}/placeholders",
+        json=[{
+            "placeholder_key": "employee_full_name",
+            "label": "Họ và tên",
+            "source_scope": "employee",
+            "source_path": "employee.full_name",
+            "data_type": "text",
+            "is_required": True,
+            "sort_order": 10,
+        }],
+        headers=_admin(client),
+    )
+
+    logs = client.get(
+        "/api/v1/audit-logs",
+        params={"entity_type": "contract_template", "limit": 10},
+        headers=_admin(client),
+    )
+    assert logs.status_code == 200, logs.text
+    items = logs.json()
+    entity_ids = [item["entity_id"] for item in items]
+    assert tmpl_id in entity_ids
+
+    actions = {item["action"] for item in items if item["entity_id"] == tmpl_id}
+    assert "CREATE" in actions
+    assert "UPDATE" in actions  # placeholder replace dùng action UPDATE

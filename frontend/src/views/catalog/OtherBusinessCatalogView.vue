@@ -272,6 +272,21 @@
               <Button icon="pi pi-plus" severity="secondary" text rounded @click="openCreateTemplate" />
               <Button icon="pi pi-refresh" severity="secondary" text rounded :loading="templateState.loading" @click="loadTemplates" />
             </div>
+            <div v-if="templateHealthItems.length" class="health-panel">
+              <div class="health-panel-header">
+                <i class="pi pi-exclamation-triangle" />
+                <strong>Cảnh báo sức khoẻ mẫu hợp đồng ({{ templateHealthItems.length }} mẫu cần kiểm tra)</strong>
+                <Button label="Xem audit log" icon="pi pi-list" text size="small" class="ml-auto" @click="router.push({ path: '/admin/audit-logs', query: { entity_type: 'contract_template' } })" />
+              </div>
+              <ul class="health-list">
+                <li v-for="item in templateHealthItems" :key="item.id" class="health-item">
+                  <span class="health-name">{{ item.name }} <code>{{ item.code }}</code></span>
+                  <ul class="health-warnings">
+                    <li v-for="(w, i) in item.health_warnings" :key="i">{{ w }}</li>
+                  </ul>
+                </li>
+              </ul>
+            </div>
             <DataTable :value="templateState.items" :loading="templateState.loading" stripedRows paginator lazy responsive-layout="scroll"
               :rows="templateState.pageSize" :first="(templateState.page - 1) * templateState.pageSize" :total-records="templateState.total" :rows-per-page-options="[10,20,50]"
               paginator-template="RowsPerPageDropdown FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink"
@@ -489,6 +504,7 @@ import otherBusinessCatalogService, {
   type CertificateRead,
   type ContractCategoryRead,
   type ContractTemplateDocxInspectionRead,
+  type ContractTemplateHealthRead,
   type ContractTemplatePlaceholderWrite,
   type ContractTemplateRead,
   type EthnicityRead,
@@ -537,6 +553,7 @@ const certificateState = ref(makeListState<CertificateRead>())
 const leaveTypeState = ref(makeListState<LeaveTypeRead>())
 const templateState = ref(makeListState<ContractTemplateRead>() as ListState<ContractTemplateRead> & { documentKind: string | null })
 templateState.value.documentKind = null
+const templateHealthItems = ref<ContractTemplateHealthRead[]>([])
 
 const activeFilterOptions = [
   { label: 'Tất cả trạng thái', value: null },
@@ -778,8 +795,12 @@ async function loadLeaveTypes() {
 async function loadTemplates() {
   templateState.value.loading = true
   try {
-    const res = await otherBusinessCatalogService.getContractTemplates({ keyword: templateState.value.keyword || null, is_active: templateState.value.isActive, document_kind: templateState.value.documentKind, page: templateState.value.page, page_size: templateState.value.pageSize })
-    Object.assign(templateState.value, { items: res.data.items, total: res.data.total, page: res.data.page, pageSize: res.data.page_size })
+    const [listRes, healthRes] = await Promise.all([
+      otherBusinessCatalogService.getContractTemplates({ keyword: templateState.value.keyword || null, is_active: templateState.value.isActive, document_kind: templateState.value.documentKind, page: templateState.value.page, page_size: templateState.value.pageSize }),
+      otherBusinessCatalogService.getContractTemplateHealthSummary(),
+    ])
+    Object.assign(templateState.value, { items: listRes.data.items, total: listRes.data.total, page: listRes.data.page, pageSize: listRes.data.page_size })
+    templateHealthItems.value = healthRes.data
   } catch (e) { errorBanner.value = apiError(e) } finally { templateState.value.loading = false }
 }
 
@@ -1131,6 +1152,26 @@ onMounted(async () => {
 .toolbar.compact { margin-bottom: 0.75rem; }
 .toolbar-filter { min-width: 200px; }
 .toolbar-search { flex: 1; min-width: 220px; }
+
+.health-panel {
+  border: 1px solid var(--p-yellow-300, #fbbf24);
+  background: var(--p-yellow-50, #fefce8);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+}
+.health-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--p-yellow-800, #92400e);
+  margin-bottom: 0.5rem;
+}
+.health-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+.health-item { background: #fff; border-radius: 6px; padding: 0.5rem 0.75rem; }
+.health-name { font-weight: 600; font-size: 0.9rem; }
+.health-name code { font-weight: normal; font-size: 0.8rem; color: var(--l-text-muted); margin-left: 0.4rem; }
+.health-warnings { list-style: disc; margin: 0.25rem 0 0 1.2rem; padding: 0; font-size: 0.85rem; color: #b45309; }
 
 .triple-grid {
   display: grid;

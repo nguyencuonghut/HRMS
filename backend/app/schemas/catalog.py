@@ -949,3 +949,14 @@ class ContractPreviewResponse(BaseModel):
     missing_required_fields: list[str]
     has_legacy_syntax: bool
     warnings: list[str]
+
+
+class ContractTemplateHealthRead(BaseModel):
+    id: int
+    code: str
+    name: str
+    is_active: bool
+    effective_to: Optional[date]
+    storage_path: Optional[str]
+    placeholder_count: int
+    health_warnings: list[str]

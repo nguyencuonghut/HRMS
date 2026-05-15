@@ -212,9 +212,10 @@ def test_admin_units_requires_token(client: TestClient):
     assert resp.status_code == 401
 
 
-def test_officer_cannot_view_admin_units(client: TestClient):
+def test_officer_can_view_admin_units(client: TestClient):
+    # hr_officer has catalog:view → có thể xem danh mục hành chính
     resp = client.get(BASE, headers=_officer(client))
-    assert resp.status_code == 403
+    assert resp.status_code == 200
 
 
 def test_create_admin_unit_writes_audit_log(client: TestClient):

@@ -22,6 +22,7 @@ from app.schemas.catalog import (
     ContractTemplateCreate,
     ContractTemplateDocxInspectionRead,
     ContractTemplateFieldRegistryRead,
+    ContractTemplateHealthRead,
     ContractTemplateListPage,
     ContractTemplatePlaceholderRead,
     ContractTemplatePlaceholderWrite,
@@ -479,6 +480,11 @@ async def create_contract_template(body: ContractTemplateCreate, request: Reques
     await session.commit()
     await session.refresh(row)
     return row
+
+
+@contract_template_router.get("/health-summary", response_model=list[ContractTemplateHealthRead])
+async def get_contract_template_health_summary(_: User = require_permission("catalog:view"), session: AsyncSession = Depends(get_session)):
+    return await other_business_catalog_service.get_contract_template_health_summary(session)
 
 
 @contract_template_router.get("/{row_id}", response_model=ContractTemplateRead)

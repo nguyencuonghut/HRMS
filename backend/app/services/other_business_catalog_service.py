@@ -654,6 +654,45 @@ async def get_contract_template_field_registry() -> list[dict]:
     ]
 
 
+async def get_contract_template_health_summary(session: AsyncSession) -> list[dict]:
+    from datetime import date as date_type
+    today = date_type.today()
+    ph_count_sq = (
+        select(ContractTemplatePlaceholder.template_id, func.count().label("cnt"))
+        .group_by(ContractTemplatePlaceholder.template_id)
+        .subquery()
+    )
+    q = (
+        select(ContractTemplate, func.coalesce(ph_count_sq.c.cnt, 0).label("ph_cnt"))
+        .outerjoin(ph_count_sq, ph_count_sq.c.template_id == ContractTemplate.id)
+        .order_by(ContractTemplate.code)
+    )
+    rows = (await session.execute(q)).all()
+    result = []
+    for template, ph_cnt in rows:
+        warnings: list[str] = []
+        if not template.is_active:
+            warnings.append("Mẫu đang bị vô hiệu hoá (is_active=False)")
+        if template.effective_to and template.effective_to < today:
+            warnings.append(f"Mẫu đã hết hiệu lực từ {template.effective_to}")
+        if not template.storage_path:
+            warnings.append("Mẫu chưa có file đính kèm (storage_path trống)")
+        if ph_cnt == 0:
+            warnings.append("Mẫu chưa có placeholder nào được khai báo")
+        if warnings:
+            result.append({
+                "id": template.id,
+                "code": template.code,
+                "name": template.name,
+                "is_active": template.is_active,
+                "effective_to": template.effective_to,
+                "storage_path": template.storage_path,
+                "placeholder_count": ph_cnt,
+                "health_warnings": warnings,
+            })
+    return result
+
+
 async def inspect_contract_template_docx(session: AsyncSession, template_id: int) -> dict:
     template = await get_contract_template_by_id(session, template_id)
     if not template.storage_path:

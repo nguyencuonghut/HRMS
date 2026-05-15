@@ -349,6 +349,17 @@ export interface ContractTemplateDocxInspectionItemRead {
   is_required: boolean
 }
 
+export interface ContractTemplateHealthRead {
+  id: number
+  code: string
+  name: string
+  is_active: boolean
+  effective_to: string | null
+  storage_path: string | null
+  placeholder_count: number
+  health_warnings: string[]
+}
+
 export interface ContractTemplateDocxInspectionRead {
   template_id: number
   template_code: string
@@ -425,4 +436,5 @@ export default {
   replaceContractTemplatePlaceholders: (id: number, data: ContractTemplatePlaceholderWrite[]) => api.put<ContractTemplatePlaceholderRead[]>(`/contract-templates/${id}/placeholders`, data),
   inspectContractTemplateDocx: (id: number) => api.post<ContractTemplateDocxInspectionRead>(`/contract-templates/${id}/inspect-docx`),
   lookupContractTemplateFields: () => api.get<ContractTemplateFieldRegistryRead[]>('/lookups/contract-template-fields'),
+  getContractTemplateHealthSummary: () => api.get<ContractTemplateHealthRead[]>('/contract-templates/health-summary'),
 }

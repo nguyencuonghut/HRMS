@@ -708,7 +708,7 @@ Tạo contract dữ liệu preview:
 
 ---
 
-## Bước 6 — Phân quyền, audit log, dữ liệu vận hành
+## Bước 6 — Phân quyền, audit log, dữ liệu vận hành ✅
 
 **Mục tiêu:** Mọi thay đổi trong `2.3` đều kiểm soát được và đủ log để vận hành.
 
@@ -722,19 +722,28 @@ Riêng phase tạo hợp đồng thực tế về sau nên dùng `contracts:*`, 
 
 ### Audit log bắt buộc
 
-- create / update / inactive mọi catalog nền
-- upload / replace file mẫu hợp đồng
-- thay đổi placeholder của template
-- activate / deactivate version mẫu
+- create / update / inactive mọi catalog nền ✅
+- upload / replace file mẫu hợp đồng ✅
+- thay đổi placeholder của template ✅ (action = `UPDATE`)
+- activate / deactivate version mẫu ✅
 
 ### Dữ liệu vận hành nên có
 
-- màn lịch sử thay đổi mẫu hợp đồng
-- cảnh báo mẫu nào:
-  - đang inactive
-  - hết hiệu lực
-  - thiếu placeholder bắt buộc
-  - chưa có version thay thế
+- cảnh báo mẫu hợp đồng có vấn đề: ✅
+  - đang inactive → `is_active=False`
+  - hết hiệu lực → `effective_to < today`
+  - chưa có file → `storage_path` trống
+  - chưa có placeholder nào khai báo
+- Endpoint: `GET /api/v1/contract-templates/health-summary` trả `ContractTemplateHealthRead[]`
+- Frontend: panel cảnh báo hiển thị trong tab Templates của `OtherBusinessCatalogView.vue`
+- Nút "Xem nhật ký hệ thống" trong hero panel → `/admin/audit-logs` ✅
+- Nút "Xem audit log" trong health panel → `/admin/audit-logs?entity_type=contract_template` ✅
+
+### Tests
+
+- `test_catalog_create_writes_audit_log` ✅
+- `test_contract_template_operations_write_audit_log` ✅ (CREATE + UPDATE trong audit)
+- 228/228 tests pass ✅
 
 **Verify:** test RBAC + audit log; frontend có đường đi tới nhật ký hệ thống.
 
