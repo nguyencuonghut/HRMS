@@ -247,6 +247,7 @@ class EmployeeRead(BaseModel):
 
     addresses: list[EmployeeAddressRead] = []
     bank_accounts: list[EmployeeBankAccountRead] = []
+    current_job: Optional["JobRecordRead"] = None
 
     model_config = {"from_attributes": True}
 
@@ -268,3 +269,78 @@ class EmployeeLookupItem(BaseModel):
     status: str
 
     model_config = {"from_attributes": True}
+
+
+# ── Job Records (3.2) ─────────────────────────────────────────────────────────
+
+class DepartmentBrief(BaseModel):
+    id: int
+    code: str
+    name: str
+    display_prefix: Optional[str]
+
+
+class JobTitleBrief(BaseModel):
+    id: int
+    code: str
+    name: str
+
+
+class JobPositionBrief(BaseModel):
+    id: int
+    code: str
+    name: str
+
+
+class JobRecordCreate(BaseModel):
+    department_id: int
+    job_title_id: Optional[int] = None
+    job_position_id: Optional[int] = None
+    probation_start_date: Optional[date] = None
+    probation_end_date: Optional[date] = None
+    official_date: Optional[date] = None
+    effective_from: date
+    notes: Optional[str] = None
+
+
+class JobRecordUpdate(BaseModel):
+    department_id: Optional[int] = None
+    job_title_id: Optional[int] = None
+    job_position_id: Optional[int] = None
+    probation_start_date: Optional[date] = None
+    probation_end_date: Optional[date] = None
+    official_date: Optional[date] = None
+    notes: Optional[str] = None
+
+
+class JobRecordTransfer(BaseModel):
+    department_id: int
+    job_title_id: Optional[int] = None
+    job_position_id: Optional[int] = None
+    effective_from: date
+    notes: Optional[str] = None
+
+
+class JobRecordRead(BaseModel):
+    id: int
+    employee_id: int
+    department_id: int
+    department: DepartmentBrief
+    job_title_id: Optional[int]
+    job_title: Optional[JobTitleBrief]
+    job_position_id: Optional[int]
+    job_position: Optional[JobPositionBrief]
+    probation_start_date: Optional[date]
+    probation_end_date: Optional[date]
+    official_date: Optional[date]
+    effective_from: date
+    effective_to: Optional[date]
+    is_current: bool
+    notes: Optional[str]
+    changed_by: Optional[int]
+    created_at: datetime
+    updated_at: Optional[datetime]
+
+
+# Giải quyết forward reference: EmployeeRead.current_job: Optional[JobRecordRead]
+EmployeeRead.model_rebuild()

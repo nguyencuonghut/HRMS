@@ -15,6 +15,7 @@ from app.schemas.employee import (
     EmployeeCreate,
     EmployeeUpdate,
 )
+from app.services import employee_job_service
 from app.services.administrative_import_service import normalize_text
 
 
@@ -351,11 +352,15 @@ async def delete_bank_account(
 async def build_employee_read_data(
     session: AsyncSession, emp: Employee
 ) -> dict:
-    """Trả về dict chứa tất cả data cần để build EmployeeRead, bao gồm addresses, bank_accounts, display_code."""
+    """Trả về dict chứa tất cả data cần để build EmployeeRead."""
     addresses = await get_employee_addresses(session, emp.id)
     bank_accounts = await get_employee_bank_accounts(session, emp.id)
+    prefix = await employee_job_service.get_display_code_prefix(session, emp.id)
+    current_record = await employee_job_service.get_current_job_record(session, emp.id)
+    current_job = await employee_job_service.build_job_record_read(session, current_record) if current_record else None
     return {
         "addresses": await enrich_addresses(session, addresses),
         "bank_accounts": bank_accounts,
-        "display_code": compute_display_code(emp.employee_seq),
+        "display_code": compute_display_code(emp.employee_seq, prefix),
+        "current_job": current_job,
     }

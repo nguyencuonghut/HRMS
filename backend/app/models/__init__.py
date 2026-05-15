@@ -44,3 +44,6 @@ from app.models.employee import (  # noqa: F401
     EmployeeAddress,
     EmployeeBankAccount,
 )
+from app.models.employee_job import (  # noqa: F401
+    EmployeeJobRecord,
+)

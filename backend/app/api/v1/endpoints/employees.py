@@ -1,4 +1,4 @@
-"""Quản lý nhân viên — CRUD hồ sơ cá nhân (3.1)."""
+"""Quản lý nhân viên — CRUD hồ sơ cá nhân (3.1) + thông tin công việc (3.2)."""
 
 from typing import Optional
 
@@ -18,8 +18,12 @@ from app.schemas.employee import (
     EmployeeRead,
     EmployeeUpdate,
     EmployeeLookupItem,
+    JobRecordCreate,
+    JobRecordRead,
+    JobRecordTransfer,
+    JobRecordUpdate,
 )
-from app.services import auth_service, employee_service
+from app.services import auth_service, employee_job_service, employee_service
 
 router = APIRouter()
 
@@ -96,9 +100,12 @@ async def list_employees(
         page_size=page_size,
     )
     from app.schemas.employee import EmployeeListItem
+    emp_ids = [emp.id for emp in result["items"]]
+    prefixes = await employee_job_service.batch_get_display_code_prefixes(session, emp_ids)
     items = [
         EmployeeListItem(**_build_list_item_data(
-            emp, employee_service.compute_display_code(emp.employee_seq)
+            emp,
+            employee_service.compute_display_code(emp.employee_seq, prefixes.get(emp.id)),
         ))
         for emp in result["items"]
     ]
@@ -309,3 +316,88 @@ async def delete_bank_account(
         new_data={"account_id": account_id},
     )
     await session.commit()
+
+
+# ── Job Records (3.2) ──────────────────────────────────────────────────────────
+
+@router.get(
+    "/{employee_id}/job-records",
+    response_model=list[JobRecordRead],
+    summary="Lịch sử công việc (mới nhất trước)",
+)
+async def get_job_records(
+    employee_id: int,
+    _: User = require_permission("employees:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    await employee_service._get_or_404(session, employee_id)
+    records = await employee_job_service.get_job_records(session, employee_id)
+    return [await employee_job_service.build_job_record_read(session, r) for r in records]
+
+
+@router.post(
+    "/{employee_id}/job-records",
+    response_model=JobRecordRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Gán phòng ban lần đầu",
+)
+async def create_job_record(
+    employee_id: int,
+    payload: JobRecordCreate,
+    current_user: User = require_permission("employees:edit"),
+    session: AsyncSession = Depends(get_session),
+):
+    await employee_service._get_or_404(session, employee_id)
+    result = await employee_job_service.create_job_record(session, employee_id, payload, current_user.id)
+    await auth_service.log_audit(
+        session, current_user.id, "CREATE",
+        entity_type="employee_job_record", entity_id=employee_id,
+        new_data={"department_id": payload.department_id, "effective_from": str(payload.effective_from)},
+    )
+    await session.commit()
+    return result
+
+
+@router.put(
+    "/{employee_id}/job-records/current",
+    response_model=JobRecordRead,
+    summary="Sửa bản ghi công việc hiện tại (chỉnh ghi nhầm, không tạo lịch sử)",
+)
+async def update_current_job_record(
+    employee_id: int,
+    payload: JobRecordUpdate,
+    current_user: User = require_permission("employees:edit"),
+    session: AsyncSession = Depends(get_session),
+):
+    await employee_service._get_or_404(session, employee_id)
+    result = await employee_job_service.update_current_record(session, employee_id, payload, current_user.id)
+    await auth_service.log_audit(
+        session, current_user.id, "UPDATE",
+        entity_type="employee_job_record", entity_id=employee_id,
+        new_data=payload.model_dump(exclude_none=True),
+    )
+    await session.commit()
+    return result
+
+
+@router.post(
+    "/{employee_id}/job-records/transfer",
+    response_model=JobRecordRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Chuyển công tác / thăng chức (tạo bản ghi mới, giữ lịch sử)",
+)
+async def transfer_job_record(
+    employee_id: int,
+    payload: JobRecordTransfer,
+    current_user: User = require_permission("employees:edit"),
+    session: AsyncSession = Depends(get_session),
+):
+    await employee_service._get_or_404(session, employee_id)
+    result = await employee_job_service.transfer_job_record(session, employee_id, payload, current_user.id)
+    await auth_service.log_audit(
+        session, current_user.id, "TRANSFER_JOB_RECORD",
+        entity_type="employee_job_record", entity_id=employee_id,
+        new_data={"department_id": payload.department_id, "effective_from": str(payload.effective_from)},
+    )
+    await session.commit()
+    return result
