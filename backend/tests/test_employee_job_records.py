@@ -222,7 +222,7 @@ def test_create_job_record_writes_audit_log(client: TestClient):
 
     resp = client.get("/api/v1/audit-logs", headers=headers, params={"entity_type": "employee_job_record"}).json()
     logs = resp["items"] if isinstance(resp, dict) else resp
-    assert any(log["action"] == "CREATE" and log["entity_id"] == emp["id"] for log in logs)
+    assert any(log["action"] == "CREATE_JOB_RECORD" and log["entity_id"] == emp["id"] for log in logs)
 
 
 # ── Update current record ──────────────────────────────────────────────────────

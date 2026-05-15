@@ -350,7 +350,7 @@ async def create_job_record(
     await employee_service._get_or_404(session, employee_id)
     result = await employee_job_service.create_job_record(session, employee_id, payload, current_user.id)
     await auth_service.log_audit(
-        session, current_user.id, "CREATE",
+        session, current_user.id, "CREATE_JOB_RECORD",
         entity_type="employee_job_record", entity_id=employee_id,
         new_data={"department_id": payload.department_id, "effective_from": str(payload.effective_from)},
     )
@@ -372,7 +372,7 @@ async def update_current_job_record(
     await employee_service._get_or_404(session, employee_id)
     result = await employee_job_service.update_current_record(session, employee_id, payload, current_user.id)
     await auth_service.log_audit(
-        session, current_user.id, "UPDATE",
+        session, current_user.id, "UPDATE_JOB_RECORD",
         entity_type="employee_job_record", entity_id=employee_id,
         new_data=payload.model_dump(exclude_none=True),
     )
