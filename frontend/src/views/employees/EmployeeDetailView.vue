@@ -59,6 +59,7 @@
           <Tab value="address">Địa chỉ</Tab>
           <Tab value="bank" :disabled="isNew">Tài khoản ngân hàng</Tab>
           <Tab value="job" :disabled="isNew">Công việc</Tab>
+          <Tab value="relatives" :disabled="isNew">Người thân</Tab>
         </TabList>
 
         <TabPanels>
@@ -325,6 +326,15 @@
               @refresh="loadEmployee"
             />
           </TabPanel>
+
+          <!-- ── TAB: Người thân ─────────────────────────────────────────── -->
+          <TabPanel value="relatives">
+            <RelativesTab
+              v-if="!isNew && employeeId"
+              :employee-id="employeeId"
+              @refresh="loadEmployee"
+            />
+          </TabPanel>
         </TabPanels>
       </Tabs>
     </template>
@@ -395,6 +405,7 @@ import ReligionSelect from '@/components/catalog/ReligionSelect.vue'
 import BankSelect from '@/components/catalog/BankSelect.vue'
 import AddressEditor from './AddressEditor.vue'
 import JobRecordTab from './JobRecordTab.vue'
+import RelativesTab from './RelativesTab.vue'
 
 import employeeService, {
   type EmployeeRead,

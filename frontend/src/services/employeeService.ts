@@ -146,6 +146,52 @@ export interface JobRecordTransfer {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ── Relatives (3.3) ──────────────────────────────────────────────────────────
+
+export type RelationshipType =
+  'vo' | 'chong' | 'cha' | 'me' | 'con' | 'anh' | 'chi' | 'em' | 'khac'
+
+export const RELATIONSHIP_LABELS: Record<RelationshipType, string> = {
+  vo: 'Vợ', chong: 'Chồng', cha: 'Cha', me: 'Mẹ', con: 'Con',
+  anh: 'Anh', chi: 'Chị', em: 'Em', khac: 'Khác',
+}
+
+export interface EmployeeRelativeRead {
+  id: number
+  employee_id: number
+  full_name: string
+  relationship_type: RelationshipType
+  date_of_birth: string | null
+  occupation: string | null
+  phone_number: string | null
+  is_emergency_contact: boolean
+  note: string | null
+  created_at: string
+  updated_at: string | null
+}
+
+export interface RelativeCreate {
+  full_name: string
+  relationship_type: RelationshipType
+  date_of_birth?: string | null
+  occupation?: string | null
+  phone_number?: string | null
+  is_emergency_contact?: boolean
+  note?: string | null
+}
+
+export interface RelativeUpdate {
+  full_name?: string
+  relationship_type?: RelationshipType
+  date_of_birth?: string | null
+  occupation?: string | null
+  phone_number?: string | null
+  is_emergency_contact?: boolean
+  note?: string | null
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export interface EmployeeRead extends EmployeeListItem {
   last_name: string
   first_name: string
@@ -166,6 +212,7 @@ export interface EmployeeRead extends EmployeeListItem {
   addresses: EmployeeAddressRead[]
   bank_accounts: EmployeeBankAccountRead[]
   current_job: JobRecordRead | null
+  relatives: EmployeeRelativeRead[]
 }
 
 export interface EmployeeLookupItem {
@@ -311,4 +358,17 @@ export default {
 
   transferJobRecord: (id: number, data: JobRecordTransfer) =>
     api.post<JobRecordRead>(`${BASE}/${id}/job-records/transfer`, data),
+
+  // Relatives (3.3)
+  getRelatives: (id: number) =>
+    api.get<EmployeeRelativeRead[]>(`${BASE}/${id}/relatives`),
+
+  createRelative: (id: number, data: RelativeCreate) =>
+    api.post<EmployeeRelativeRead>(`${BASE}/${id}/relatives`, data),
+
+  updateRelative: (id: number, relId: number, data: RelativeUpdate) =>
+    api.put<EmployeeRelativeRead>(`${BASE}/${id}/relatives/${relId}`, data),
+
+  deleteRelative: (id: number, relId: number) =>
+    api.delete(`${BASE}/${id}/relatives/${relId}`),
 }
