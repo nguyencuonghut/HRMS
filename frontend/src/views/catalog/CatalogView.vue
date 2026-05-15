@@ -15,6 +15,12 @@
             @click="router.push('/catalog/administrative-units')"
           />
           <Button
+            label="Mở danh mục học vấn"
+            icon="pi pi-graduation-cap"
+            severity="secondary"
+            @click="router.push('/catalog/education')"
+          />
+          <Button
             label="Xem lịch sử import"
             icon="pi pi-history"
             severity="secondary"
@@ -41,6 +47,7 @@
           <ul class="scope-list">
             <li>Danh mục hành chính hệ mới 2 cấp</li>
             <li>Danh mục hành chính hệ cũ 3 cấp</li>
+            <li>Danh mục học vấn cho hồ sơ nhân sự</li>
             <li>Lịch sử import và rà soát batch lỗi</li>
           </ul>
         </div>
@@ -119,6 +126,25 @@
                 <strong>{{ formatNumber(statsSnapshot.importBatches) }}</strong>
               </div>
               <span class="module-link">Xem lịch sử</span>
+            </div>
+          </RouterLink>
+
+          <RouterLink to="/catalog/education" class="module-card tertiary">
+            <div class="module-meta">
+              <div class="module-icon tertiary">
+                <i class="pi pi-graduation-cap" />
+              </div>
+              <div>
+                <h3>Danh mục học vấn</h3>
+                <p>Quản trị trình độ, trường học và chuyên ngành cho phần học vấn nhân sự.</p>
+              </div>
+            </div>
+            <div class="module-tail">
+              <div class="module-stat">
+                <span>Bản ghi active</span>
+                <strong>{{ formatNumber(statsSnapshot.educationLevels + statsSnapshot.educationInstitutions + statsSnapshot.educationMajors) }}</strong>
+              </div>
+              <span class="module-link">Mở workspace học vấn</span>
             </div>
           </RouterLink>
         </div>
@@ -208,6 +234,7 @@ import Tag from 'primevue/tag'
 import administrativeUnitService, {
   type AdministrativeImportBatchRead,
 } from '@/services/administrativeUnitService'
+import educationCatalogService from '@/services/educationCatalogService'
 
 type Severity = 'success' | 'info' | 'warning' | 'danger' | 'contrast'
 type Tone = 'teal' | 'amber' | 'slate' | 'rose'
@@ -218,6 +245,9 @@ interface OverviewStats {
   newProvinces: number
   oldProvinces: number
   importBatches: number
+  educationLevels: number
+  educationInstitutions: number
+  educationMajors: number
 }
 
 interface StatItem {
@@ -239,6 +269,9 @@ const statsSnapshot = ref<OverviewStats>({
   newProvinces: 0,
   oldProvinces: 0,
   importBatches: 0,
+  educationLevels: 0,
+  educationInstitutions: 0,
+  educationMajors: 0,
 })
 
 function formatNumber(value: number) {
@@ -315,6 +348,9 @@ async function loadOverview() {
       newProvincesRes,
       oldProvincesRes,
       importBatchesRes,
+      educationLevelsRes,
+      educationInstitutionsRes,
+      educationMajorsRes,
     ] = await Promise.all([
       administrativeUnitService.getList({
         system_type: 'new',
@@ -337,6 +373,9 @@ async function loadOverview() {
         is_active: true,
       }),
       administrativeUnitService.listImportBatches(),
+      educationCatalogService.getEducationLevels({ is_active: true, page: 1, page_size: 1 }),
+      educationCatalogService.getEducationalInstitutions({ is_active: true, page: 1, page_size: 1 }),
+      educationCatalogService.getEducationMajors({ is_active: true, page: 1, page_size: 1 }),
     ])
 
     batches.value = importBatchesRes.data
@@ -346,6 +385,9 @@ async function loadOverview() {
       newProvinces: newProvincesRes.data.length,
       oldProvinces: oldProvincesRes.data.length,
       importBatches: importBatchesRes.data.length,
+      educationLevels: educationLevelsRes.data.total,
+      educationInstitutions: educationInstitutionsRes.data.total,
+      educationMajors: educationMajorsRes.data.total,
     }
   } catch {
     errorMessage.value = 'Không tải được dữ liệu tổng quan danh mục. Vui lòng thử lại.'
@@ -629,6 +671,11 @@ onMounted(loadOverview)
 .module-icon.secondary {
   background: color-mix(in srgb, var(--p-orange-500) 16%, var(--catalog-surface));
   color: var(--p-orange-600);
+}
+
+.module-icon.tertiary {
+  background: color-mix(in srgb, var(--p-blue-500) 14%, var(--catalog-surface));
+  color: var(--p-blue-600);
 }
 
 .module-meta h3,

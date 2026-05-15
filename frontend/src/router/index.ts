@@ -138,6 +138,12 @@ const router = createRouter({
           component: () => import('@/views/catalog/AdministrativeImportHistoryView.vue'),
           meta: { title: 'Lịch sử import địa chỉ' },
         },
+        {
+          path: 'catalog/education',
+          name: 'catalog-education',
+          component: () => import('@/views/catalog/EducationCatalogView.vue'),
+          meta: { title: 'Danh mục học vấn' },
+        },
         // Cài đặt
         {
           path: 'settings',
