@@ -452,6 +452,33 @@ $topbar-height: 4rem;
   font-weight: 700;
 }
 
+// ── Chip list (kỹ năng, ngoại ngữ) ───────────────────────────────
+.chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.25rem 0;
+}
+
+.chip-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0.6rem;
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--p-primary-color) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--p-primary-color) 20%, transparent);
+  font-size: 0.82rem;
+  font-weight: 500;
+
+  .chip-label { color: var(--l-text); }
+  .chip-level { color: var(--p-primary-color); font-weight: 600; }
+  .chip-actions { display: flex; gap: 0.1rem; margin-left: 0.1rem; }
+}
+
+// ── Expired date indicator ────────────────────────────────────────
+.cert-expired { color: var(--p-red-500); font-weight: 600; }
+
 // ── Label chip (system type badge) ────────────────────────────────
 .label-chip {
   display: inline-block;

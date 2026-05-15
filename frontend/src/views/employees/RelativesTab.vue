@@ -300,7 +300,6 @@ function confirmDelete(rel: EmployeeRelativeRead) {
     icon: 'pi pi-exclamation-triangle',
     rejectLabel: 'Hủy',
     acceptLabel: 'Xóa',
-    acceptSeverity: 'danger',
     accept: async () => {
       try {
         await employeeService.deleteRelative(props.employeeId, rel.id)

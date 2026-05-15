@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator
 
 from app.services.administrative_import_service import normalize_text
 
@@ -398,28 +398,18 @@ LanguageProficiencyLevel = Literal["native", "A1", "A2", "B1", "B2", "C1", "C2"]
 
 
 class EducationHistoryCreate(BaseModel):
-    institution_id: Optional[int] = None
-    institution_name: Optional[str] = Field(None, max_length=255)
+    institution_id: int
     major_id: Optional[int] = None
-    major_name: Optional[str] = Field(None, max_length=255)
     education_level_id: int
     graduation_year: Optional[int] = None
     diploma_type: Optional[str] = Field(None, max_length=100)
     is_main_education: bool = False
     note: Optional[str] = None
 
-    @model_validator(mode="after")
-    def require_institution(self) -> "EducationHistoryCreate":
-        if not self.institution_id and not self.institution_name:
-            raise ValueError("Cần nhập tên trường hoặc chọn từ danh mục")
-        return self
-
 
 class EducationHistoryUpdate(BaseModel):
     institution_id: Optional[int] = None
-    institution_name: Optional[str] = Field(None, max_length=255)
     major_id: Optional[int] = None
-    major_name: Optional[str] = Field(None, max_length=255)
     education_level_id: Optional[int] = None
     graduation_year: Optional[int] = None
     diploma_type: Optional[str] = Field(None, max_length=100)

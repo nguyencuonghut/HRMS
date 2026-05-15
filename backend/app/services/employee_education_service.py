@@ -7,7 +7,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.catalog import Certificate, EducationLevel, Skill
+from app.models.catalog import Certificate, EducationLevel, EducationalInstitution, EducationMajor, Skill
 from app.models.employee_education import (
     EmployeeCertificate,
     EmployeeEducationHistory,
@@ -42,13 +42,24 @@ def _utcnow() -> datetime:
 
 async def _build_edu_read(session: AsyncSession, edu: EmployeeEducationHistory) -> EducationHistoryRead:
     level = await session.get(EducationLevel, edu.education_level_id)
+
+    institution_name = edu.institution_name
+    if not institution_name and edu.institution_id:
+        inst = await session.get(EducationalInstitution, edu.institution_id)
+        institution_name = inst.name if inst else None
+
+    major_name = edu.major_name
+    if not major_name and edu.major_id:
+        major = await session.get(EducationMajor, edu.major_id)
+        major_name = major.name if major else None
+
     return EducationHistoryRead(
         id=edu.id,
         employee_id=edu.employee_id,
         institution_id=edu.institution_id,
-        institution_name=edu.institution_name,
+        institution_name=institution_name,
         major_id=edu.major_id,
-        major_name=edu.major_name,
+        major_name=major_name,
         education_level_id=edu.education_level_id,
         education_level_name=level.name if level else "",
         graduation_year=edu.graduation_year,
@@ -85,9 +96,9 @@ async def create_education_history(
     edu = EmployeeEducationHistory(
         employee_id=employee_id,
         institution_id=payload.institution_id,
-        institution_name=payload.institution_name,
+        institution_name=None,
         major_id=payload.major_id,
-        major_name=payload.major_name,
+        major_name=None,
         education_level_id=payload.education_level_id,
         graduation_year=payload.graduation_year,
         diploma_type=payload.diploma_type,

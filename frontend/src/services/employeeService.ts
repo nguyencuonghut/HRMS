@@ -303,6 +303,160 @@ export interface EmployeeBankAccountWrite {
   note?: string | null
 }
 
+// ── Education & Experience (3.4) ─────────────────────────────────────────────
+
+export type SkillProficiencyLevel = 'beginner' | 'intermediate' | 'advanced' | 'expert'
+export type LanguageProficiencyLevel = 'native' | 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2'
+
+export const SKILL_PROFICIENCY_LABELS: Record<SkillProficiencyLevel, string> = {
+  beginner: 'Cơ bản',
+  intermediate: 'Trung bình',
+  advanced: 'Khá',
+  expert: 'Thành thạo',
+}
+
+export const LANGUAGE_PROFICIENCY_LABELS: Record<LanguageProficiencyLevel, string> = {
+  native: 'Bản ngữ',
+  A1: 'A1 — Sơ cấp',
+  A2: 'A2 — Sơ cấp',
+  B1: 'B1 — Trung cấp',
+  B2: 'B2 — Trung cấp',
+  C1: 'C1 — Cao cấp',
+  C2: 'C2 — Thành thạo',
+}
+
+export const DIPLOMA_TYPE_OPTIONS = [
+  'Chính quy', 'Liên thông', 'Vừa học vừa làm', 'Từ xa', 'Văn bằng 2',
+]
+
+export interface EducationHistoryRead {
+  id: number
+  employee_id: number
+  institution_id: number | null
+  institution_name: string | null
+  major_id: number | null
+  major_name: string | null
+  education_level_id: number
+  education_level_name: string
+  graduation_year: number | null
+  diploma_type: string | null
+  is_main_education: boolean
+  note: string | null
+  created_at: string
+  updated_at: string | null
+}
+
+export interface EducationHistoryCreate {
+  institution_id: number
+  major_id?: number | null
+  education_level_id: number
+  graduation_year?: number | null
+  diploma_type?: string | null
+  is_main_education?: boolean
+  note?: string | null
+}
+
+export interface EducationHistoryUpdate {
+  institution_id?: number | null
+  major_id?: number | null
+  education_level_id?: number | null
+  graduation_year?: number | null
+  diploma_type?: string | null
+  is_main_education?: boolean | null
+  note?: string | null
+}
+
+export interface WorkExperienceRead {
+  id: number
+  employee_id: number
+  company_name: string
+  position_name: string | null
+  start_date: string
+  end_date: string | null
+  description: string | null
+  created_at: string
+  updated_at: string | null
+}
+
+export interface WorkExperienceCreate {
+  company_name: string
+  position_name?: string | null
+  start_date: string
+  end_date?: string | null
+  description?: string | null
+}
+
+export type WorkExperienceUpdate = Partial<WorkExperienceCreate>
+
+export interface EmployeeSkillRead {
+  id: number
+  employee_id: number
+  skill_id: number
+  skill_name: string
+  skill_group: string | null
+  proficiency_level: SkillProficiencyLevel
+  note: string | null
+  created_at: string
+  updated_at: string | null
+}
+
+export interface EmployeeSkillCreate {
+  skill_id: number
+  proficiency_level: SkillProficiencyLevel
+  note?: string | null
+}
+
+export interface EmployeeSkillUpdate {
+  proficiency_level?: SkillProficiencyLevel
+  note?: string | null
+}
+
+export interface EmployeeCertificateRead {
+  id: number
+  employee_id: number
+  certificate_id: number
+  certificate_name: string
+  certificate_number: string | null
+  issued_date: string | null
+  expires_on: string | null
+  issued_by: string | null
+  note: string | null
+  created_at: string
+  updated_at: string | null
+}
+
+export interface EmployeeCertificateCreate {
+  certificate_id: number
+  certificate_number?: string | null
+  issued_date?: string | null
+  expires_on?: string | null
+  issued_by?: string | null
+  note?: string | null
+}
+
+export type EmployeeCertificateUpdate = Partial<Omit<EmployeeCertificateCreate, 'certificate_id'>>
+
+export interface EmployeeLanguageRead {
+  id: number
+  employee_id: number
+  language_name: string
+  proficiency_level: LanguageProficiencyLevel
+  note: string | null
+  created_at: string
+  updated_at: string | null
+}
+
+export interface EmployeeLanguageCreate {
+  language_name: string
+  proficiency_level: LanguageProficiencyLevel
+  note?: string | null
+}
+
+export interface EmployeeLanguageUpdate {
+  proficiency_level?: LanguageProficiencyLevel
+  note?: string | null
+}
+
 // ── Service ───────────────────────────────────────────────────────────────────
 
 const BASE = '/employees'
@@ -371,4 +525,69 @@ export default {
 
   deleteRelative: (id: number, relId: number) =>
     api.delete(`${BASE}/${id}/relatives/${relId}`),
+
+  // Education histories (3.4)
+  getEducationHistories: (id: number) =>
+    api.get<EducationHistoryRead[]>(`${BASE}/${id}/education-histories`),
+
+  createEducationHistory: (id: number, data: EducationHistoryCreate) =>
+    api.post<EducationHistoryRead>(`${BASE}/${id}/education-histories`, data),
+
+  updateEducationHistory: (id: number, eduId: number, data: EducationHistoryUpdate) =>
+    api.put<EducationHistoryRead>(`${BASE}/${id}/education-histories/${eduId}`, data),
+
+  deleteEducationHistory: (id: number, eduId: number) =>
+    api.delete(`${BASE}/${id}/education-histories/${eduId}`),
+
+  // Work experiences (3.4)
+  getWorkExperiences: (id: number) =>
+    api.get<WorkExperienceRead[]>(`${BASE}/${id}/work-experiences`),
+
+  createWorkExperience: (id: number, data: WorkExperienceCreate) =>
+    api.post<WorkExperienceRead>(`${BASE}/${id}/work-experiences`, data),
+
+  updateWorkExperience: (id: number, expId: number, data: WorkExperienceUpdate) =>
+    api.put<WorkExperienceRead>(`${BASE}/${id}/work-experiences/${expId}`, data),
+
+  deleteWorkExperience: (id: number, expId: number) =>
+    api.delete(`${BASE}/${id}/work-experiences/${expId}`),
+
+  // Skills (3.4)
+  getEmployeeSkills: (id: number) =>
+    api.get<EmployeeSkillRead[]>(`${BASE}/${id}/skills`),
+
+  createEmployeeSkill: (id: number, data: EmployeeSkillCreate) =>
+    api.post<EmployeeSkillRead>(`${BASE}/${id}/skills`, data),
+
+  updateEmployeeSkill: (id: number, skillRecordId: number, data: EmployeeSkillUpdate) =>
+    api.put<EmployeeSkillRead>(`${BASE}/${id}/skills/${skillRecordId}`, data),
+
+  deleteEmployeeSkill: (id: number, skillRecordId: number) =>
+    api.delete(`${BASE}/${id}/skills/${skillRecordId}`),
+
+  // Certificates (3.4)
+  getEmployeeCertificates: (id: number) =>
+    api.get<EmployeeCertificateRead[]>(`${BASE}/${id}/certificates`),
+
+  createEmployeeCertificate: (id: number, data: EmployeeCertificateCreate) =>
+    api.post<EmployeeCertificateRead>(`${BASE}/${id}/certificates`, data),
+
+  updateEmployeeCertificate: (id: number, certId: number, data: EmployeeCertificateUpdate) =>
+    api.put<EmployeeCertificateRead>(`${BASE}/${id}/certificates/${certId}`, data),
+
+  deleteEmployeeCertificate: (id: number, certId: number) =>
+    api.delete(`${BASE}/${id}/certificates/${certId}`),
+
+  // Languages (3.4)
+  getEmployeeLanguages: (id: number) =>
+    api.get<EmployeeLanguageRead[]>(`${BASE}/${id}/languages`),
+
+  createEmployeeLanguage: (id: number, data: EmployeeLanguageCreate) =>
+    api.post<EmployeeLanguageRead>(`${BASE}/${id}/languages`, data),
+
+  updateEmployeeLanguage: (id: number, langId: number, data: EmployeeLanguageUpdate) =>
+    api.put<EmployeeLanguageRead>(`${BASE}/${id}/languages/${langId}`, data),
+
+  deleteEmployeeLanguage: (id: number, langId: number) =>
+    api.delete(`${BASE}/${id}/languages/${langId}`),
 }

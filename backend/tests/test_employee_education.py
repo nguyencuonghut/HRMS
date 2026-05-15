@@ -128,20 +128,6 @@ def test_create_education_with_institution_fk(client: TestClient):
     assert data["is_main_education"] is True
 
 
-def test_create_education_free_text_institution(client: TestClient):
-    headers = _admin(client)
-    emp = _create_employee(client, headers)
-    payload = {
-        "institution_name": "Trường Đại học Nước Ngoài XYZ",
-        "education_level_id": 6,
-    }
-    resp = client.post(f"{BASE}/{emp['id']}/education-histories", json=payload, headers=headers)
-    assert resp.status_code == 201
-    data = resp.json()
-    assert data["institution_name"] == "Trường Đại học Nước Ngoài XYZ"
-    assert data["institution_id"] is None
-
-
 def test_create_education_no_institution_422(client: TestClient):
     headers = _admin(client)
     emp = _create_employee(client, headers)
