@@ -117,6 +117,7 @@
                 :options="activeFilterOptions"
                 option-label="label"
                 option-value="value"
+                filter
                 class="toolbar-filter"
                 @change="handleLevelFilterChange"
               />
@@ -194,6 +195,7 @@
                 :options="activeFilterOptions"
                 option-label="label"
                 option-value="value"
+                filter
                 class="toolbar-filter"
                 @change="handleInstitutionFilterChange"
               />
@@ -202,6 +204,7 @@
                 :options="institutionTypeOptions"
                 option-label="label"
                 option-value="value"
+                filter
                 class="toolbar-filter"
                 @change="handleInstitutionFilterChange"
               />
@@ -302,6 +305,7 @@
                 :options="activeFilterOptions"
                 option-label="label"
                 option-value="value"
+                filter
                 class="toolbar-filter"
                 @change="handleMajorFilterChange"
               />
@@ -310,6 +314,7 @@
                 :options="majorGroupOptions"
                 option-label="label"
                 option-value="value"
+                filter
                 class="toolbar-filter"
                 @change="handleMajorFilterChange"
               />
@@ -453,6 +458,7 @@
               option-value="value"
               class="w-full"
               show-clear
+              filter
             />
           </div>
           <div class="field">
@@ -499,6 +505,7 @@
             option-value="value"
             class="w-full"
             show-clear
+            filter
           />
         </div>
 

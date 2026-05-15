@@ -16,6 +16,7 @@
         :options="activeFilterOptions"
         option-label="label"
         option-value="value"
+        filter
         class="toolbar-filter"
         @change="loadData"
       />

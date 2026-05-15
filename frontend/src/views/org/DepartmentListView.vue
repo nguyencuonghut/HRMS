@@ -16,6 +16,7 @@
         :options="activeFilterOptions"
         option-label="label"
         option-value="value"
+        filter
         class="toolbar-filter"
         @change="loadData"
       />
@@ -178,6 +179,7 @@
               :options="deptTypeOptions"
               option-label="label"
               option-value="value"
+              filter
               class="w-full"
             />
           </div>

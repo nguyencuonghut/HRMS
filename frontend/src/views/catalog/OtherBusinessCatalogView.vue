@@ -101,8 +101,8 @@
         <TabPanels>
           <TabPanel value="contracts">
             <div class="toolbar">
-              <Select v-model="contractCategoryState.isActive" :options="activeFilterOptions" option-label="label" option-value="value" class="toolbar-filter" @change="loadContractCategories" />
-              <Select v-model="contractCategoryState.documentKind" :options="documentKindOptions" option-label="label" option-value="value" class="toolbar-filter" @change="loadContractCategories" />
+              <Select v-model="contractCategoryState.isActive" :options="activeFilterOptions" option-label="label" option-value="value" filter class="toolbar-filter" @change="loadContractCategories" />
+              <Select v-model="contractCategoryState.documentKind" :options="documentKindOptions" option-label="label" option-value="value" filter class="toolbar-filter" @change="loadContractCategories" />
               <IconField class="toolbar-search">
                 <InputIcon class="pi pi-search" />
                 <InputText v-model="contractCategoryState.keyword" class="w-full" placeholder="Tìm theo mã hoặc tên loại hợp đồng..." @input="debounce(loadContractCategories)" />
@@ -179,7 +179,7 @@
 
           <TabPanel value="banks">
             <div class="toolbar">
-              <Select v-model="bankState.isActive" :options="activeFilterOptions" option-label="label" option-value="value" class="toolbar-filter" @change="loadBanks" />
+              <Select v-model="bankState.isActive" :options="activeFilterOptions" option-label="label" option-value="value" filter class="toolbar-filter" @change="loadBanks" />
               <IconField class="toolbar-search">
                 <InputIcon class="pi pi-search" />
                 <InputText v-model="bankState.keyword" class="w-full" placeholder="Tìm theo tên, mã, short name, BIN..." @input="debounce(loadBanks)" />
@@ -239,7 +239,7 @@
 
           <TabPanel value="leaves">
             <div class="toolbar">
-              <Select v-model="leaveTypeState.isActive" :options="activeFilterOptions" option-label="label" option-value="value" class="toolbar-filter" @change="loadLeaveTypes" />
+              <Select v-model="leaveTypeState.isActive" :options="activeFilterOptions" option-label="label" option-value="value" filter class="toolbar-filter" @change="loadLeaveTypes" />
               <IconField class="toolbar-search">
                 <InputIcon class="pi pi-search" />
                 <InputText v-model="leaveTypeState.keyword" class="w-full" placeholder="Tìm loại nghỉ phép..." @input="debounce(loadLeaveTypes)" />
@@ -263,8 +263,8 @@
 
           <TabPanel value="templates">
             <div class="toolbar">
-              <Select v-model="templateState.isActive" :options="activeFilterOptions" option-label="label" option-value="value" class="toolbar-filter" @change="loadTemplates" />
-              <Select v-model="templateState.documentKind" :options="documentKindOptions" option-label="label" option-value="value" class="toolbar-filter" @change="loadTemplates" />
+              <Select v-model="templateState.isActive" :options="activeFilterOptions" option-label="label" option-value="value" filter class="toolbar-filter" @change="loadTemplates" />
+              <Select v-model="templateState.documentKind" :options="documentKindOptions" option-label="label" option-value="value" filter class="toolbar-filter" @change="loadTemplates" />
               <IconField class="toolbar-search">
                 <InputIcon class="pi pi-search" />
                 <InputText v-model="templateState.keyword" class="w-full" placeholder="Tìm mẫu hợp đồng/phụ lục..." @input="debounce(loadTemplates)" />
@@ -326,8 +326,8 @@
           <div v-if="!editingContractCategory" class="field"><label>Mã <span class="req">*</span></label><InputText v-model="contractCategoryForm.code" class="w-full" /></div>
           <div class="field"><label>Tên <span class="req">*</span></label><InputText v-model="contractCategoryForm.name" class="w-full" /></div>
           <div class="field-row">
-            <div class="field"><label>Nhóm tài liệu</label><Select v-model="contractCategoryForm.document_kind" :options="documentKindOptions.slice(1)" option-label="label" option-value="value" class="w-full" /></div>
-            <div class="field"><label>Loại pháp lý</label><Select v-model="contractCategoryForm.legal_contract_type" :options="legalTypeOptions" option-label="label" option-value="value" class="w-full" show-clear /></div>
+            <div class="field"><label>Nhóm tài liệu</label><Select v-model="contractCategoryForm.document_kind" :options="documentKindOptions.slice(1)" option-label="label" option-value="value" filter class="w-full" /></div>
+            <div class="field"><label>Loại pháp lý</label><Select v-model="contractCategoryForm.legal_contract_type" :options="legalTypeOptions" option-label="label" option-value="value" filter class="w-full" show-clear /></div>
           </div>
           <div class="field-row">
             <div class="field"><label>Nhóm nghiệp vụ</label><InputText v-model="contractCategoryForm.business_group" class="w-full" /></div>
@@ -373,7 +373,7 @@
             <div class="field"><label>Đơn vị cấp</label><InputText v-model="certificateForm.issuer_name" class="w-full" /></div>
           </div>
           <div class="field-row">
-            <div class="field"><label>Chính sách hết hạn</label><Select v-model="certificateForm.expiry_policy" :options="expiryPolicyOptions" option-label="label" option-value="value" class="w-full" show-clear /></div>
+            <div class="field"><label>Chính sách hết hạn</label><Select v-model="certificateForm.expiry_policy" :options="expiryPolicyOptions" option-label="label" option-value="value" filter class="w-full" show-clear /></div>
             <div class="field"><label>Số tháng hiệu lực</label><InputNumber v-model="certificateForm.default_valid_months" :min="1" :max-fraction-digits="0" class="w-full" /></div>
           </div>
           <div v-if="editingCertificate" class="field field-switch"><label>Trạng thái</label><div class="switch-row"><ToggleSwitch v-model="certificateForm.is_active" /><span :class="certificateForm.is_active ? 'active-label' : 'inactive-label'">{{ certificateForm.is_active ? 'Hoạt động' : 'Đã khóa' }}</span></div></div>
@@ -397,8 +397,8 @@
           <div v-if="!editingTemplate" class="field"><label>Mã <span class="req">*</span></label><InputText v-model="templateForm.code" class="w-full" /></div>
           <div class="field"><label>Tên mẫu <span class="req">*</span></label><InputText v-model="templateForm.name" class="w-full" /></div>
           <div class="field-row">
-            <div class="field"><label>Loại hợp đồng <span class="req">*</span></label><Select v-model="templateForm.contract_category_id" :options="contractCategoryLookup" option-label="name" option-value="id" class="w-full" /></div>
-            <div class="field"><label>Nhóm tài liệu</label><Select v-model="templateForm.document_kind" :options="documentKindOptions.slice(1)" option-label="label" option-value="value" class="w-full" /></div>
+            <div class="field"><label>Loại hợp đồng <span class="req">*</span></label><Select v-model="templateForm.contract_category_id" :options="contractCategoryLookup" option-label="name" option-value="id" filter class="w-full" /></div>
+            <div class="field"><label>Nhóm tài liệu</label><Select v-model="templateForm.document_kind" :options="documentKindOptions.slice(1)" option-label="label" option-value="value" filter class="w-full" /></div>
           </div>
           <div class="field-row">
             <div class="field"><label>Tên file <span class="req">*</span></label><InputText v-model="templateForm.file_name" class="w-full" /></div>
@@ -460,9 +460,9 @@
           <template #empty><div class="empty-state"><i class="pi pi-inbox" /><span>Chưa có placeholder nào</span></div></template>
           <Column header="Key" style="min-width: 160px"><template #body="{ index }"><InputText v-model="placeholderRows[index].placeholder_key" class="w-full" /></template></Column>
           <Column header="Label" style="min-width: 160px"><template #body="{ index }"><InputText v-model="placeholderRows[index].label" class="w-full" /></template></Column>
-          <Column header="Scope" style="width: 160px"><template #body="{ index }"><Select v-model="placeholderRows[index].source_scope" :options="placeholderScopeOptions" option-label="label" option-value="value" class="w-full" /></template></Column>
+          <Column header="Scope" style="width: 160px"><template #body="{ index }"><Select v-model="placeholderRows[index].source_scope" :options="placeholderScopeOptions" option-label="label" option-value="value" filter class="w-full" /></template></Column>
           <Column header="Path" style="min-width: 180px"><template #body="{ index }"><InputText v-model="placeholderRows[index].source_path" class="w-full" /></template></Column>
-          <Column header="Kiểu" style="width: 150px"><template #body="{ index }"><Select v-model="placeholderRows[index].data_type" :options="placeholderTypeOptions" option-label="label" option-value="value" class="w-full" /></template></Column>
+          <Column header="Kiểu" style="width: 150px"><template #body="{ index }"><Select v-model="placeholderRows[index].data_type" :options="placeholderTypeOptions" option-label="label" option-value="value" filter class="w-full" /></template></Column>
           <Column header="Bắt buộc" style="width: 110px"><template #body="{ index }"><Checkbox v-model="placeholderRows[index].is_required" binary /></template></Column>
           <Column header="" style="width: 70px"><template #body="{ index }"><Button icon="pi pi-times" severity="danger" text rounded @click="removePlaceholderRow(index)" /></template></Column>
         </DataTable>

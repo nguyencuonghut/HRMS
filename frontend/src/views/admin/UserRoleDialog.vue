@@ -39,6 +39,7 @@
           option-label="name"
           option-value="id"
           placeholder="Chọn vai trò"
+          filter
           class="role-select"
           :loading="rolesLoading"
         />

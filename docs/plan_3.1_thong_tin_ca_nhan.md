@@ -587,11 +587,12 @@ test_expiry_alert_in_response             → work_permit_expires_on < 30 ngày 
 1. Tạo `backend/tests/test_employees.py`
 2. Chạy `docker exec hrms-backend-1 python -m pytest tests/ -v` → toàn bộ pass
 
-### Bước 5 — Frontend
+### Bước 5 — Frontend ✅
 1. Tạo `frontend/src/services/employeeService.ts`
-2. Xây dựng `EmployeeListView.vue` thay thế placeholder
-3. Xây dựng `EmployeeDetailView.vue` / `EmployeeFormDialog.vue` với 5 sections
-4. Cập nhật router để navigate đúng route `/employees/:id`
+2. Xây dựng `EmployeeListView.vue` thay thế placeholder — DataTable lazy pagination, filter status/keyword/is_active
+3. Xây dựng `EmployeeDetailView.vue` với 5 tab: Thông tin cơ bản | Giấy tờ | Liên lạc | Địa chỉ | Tài khoản ngân hàng
+4. Xây dựng `AddressEditor.vue` sub-component cho tab địa chỉ
+5. Route `/employees/new` → create mode; `/employees/:id` → view/edit mode (toggle)
 
 ### Bước 6 — Phân quyền, audit log, cảnh báo hết hạn
 1. Verify quyền `employees:*` đã đúng theo RBAC

@@ -37,6 +37,7 @@
               :options="systemOptions"
               option-label="label"
               option-value="value"
+              filter
               class="toolbar-filter"
             />
             <Select
@@ -44,6 +45,7 @@
               :options="activeOptions"
               option-label="label"
               option-value="value"
+              filter
               class="toolbar-filter"
             />
             <IconField class="toolbar-search">
@@ -119,6 +121,7 @@
               :options="systemOptions"
               option-label="label"
               option-value="value"
+              filter
               class="toolbar-filter"
             />
             <Select
@@ -126,6 +129,7 @@
               :options="activeOptions"
               option-label="label"
               option-value="value"
+              filter
               class="toolbar-filter"
             />
             <Select
@@ -133,6 +137,7 @@
               :options="unitTypeOptions"
               option-label="label"
               option-value="value"
+              filter
               class="toolbar-filter"
             />
             <Select
@@ -273,6 +278,7 @@
               :options="creatableUnitTypeOptions"
               option-label="label"
               option-value="value"
+              filter
               class="w-full"
               :disabled="!!editingUnit"
             />
@@ -334,6 +340,7 @@
               :options="systemOptions"
               option-label="label"
               option-value="value"
+              filter
               class="w-full"
             />
           </div>
@@ -345,6 +352,7 @@
               :options="importModeOptions"
               option-label="label"
               option-value="value"
+              filter
               class="w-full"
             />
           </div>

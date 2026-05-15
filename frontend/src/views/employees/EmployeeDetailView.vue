@@ -1,134 +1,742 @@
 <template>
   <div class="employee-detail-page">
+    <!-- Header -->
     <div class="page-header">
-      <div>
-        <h2>Hồ sơ nhân viên</h2>
-        <span class="subtitle">Mock integration cho bước chuẩn bị tích hợp địa chỉ hành chính song song</span>
+      <div class="header-left">
+        <Button
+          icon="pi pi-arrow-left"
+          severity="secondary"
+          text rounded
+          v-tooltip.bottom="'Quay lại danh sách'"
+          @click="router.push('/employees')"
+        />
+        <div>
+          <h2 v-if="isNew">Thêm nhân viên mới</h2>
+          <template v-else>
+            <h2>{{ employee?.full_name }}</h2>
+            <div class="header-meta">
+              <code class="emp-code">{{ employee?.display_code }}</code>
+              <Tag :value="statusLabel(employee?.status)" :severity="statusSeverity(employee?.status)" />
+              <Tag v-if="!employee?.is_active" value="Đã vô hiệu hóa" severity="danger" />
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <div class="header-actions" v-if="!isNew">
+        <Button
+          v-if="!editing"
+          label="Chỉnh sửa"
+          icon="pi pi-pencil"
+          @click="startEdit"
+        />
+        <template v-else>
+          <Button label="Hủy" severity="secondary" outlined :disabled="submitting" @click="cancelEdit" />
+          <Button label="Lưu" icon="pi pi-check" :loading="submitting" @click="save" />
+        </template>
       </div>
     </div>
 
-    <div class="demo-shell">
-      <div class="demo-card">
-        <div class="demo-intro">
-          <span class="eyebrow">Phase 3.1 Preview</span>
-          <h3>Thông tin cư trú chuẩn hóa</h3>
-          <p>
-            Form dưới đây chứng minh contract hiện tại đã đủ để nhập đồng thời địa chỉ hệ cũ
-            và hệ mới cho cùng một hồ sơ nhân sự. Chưa có persistence cho employee trong
-            phase này.
-          </p>
-        </div>
-
-        <AdministrativeAddressPairSelector v-model="addressDraft" />
-      </div>
-
-      <div class="demo-card">
-        <div class="demo-intro">
-          <span class="eyebrow">Phase 3.4 Preview</span>
-          <h3>Học vấn chuẩn hóa</h3>
-          <p>
-            Cụm nhập liệu dưới đây chứng minh hồ sơ nhân sự có thể tái sử dụng trực tiếp
-            catalog học vấn hiện tại: trình độ, trường học và chuyên ngành. Dữ liệu vẫn là
-            draft preview, chưa persistence trong phase này.
-          </p>
-        </div>
-
-        <div class="education-stack">
-          <EmployeeEducationEditor
-            v-for="(item, index) in educationDraft"
-            :key="item.local_id"
-            v-model="educationDraft[index]"
-            :index="index"
-            @remove="removeEducation(index)"
-          />
-
-          <Button
-            label="Thêm dòng học vấn"
-            icon="pi pi-plus"
-            severity="secondary"
-            outlined
-            @click="addEducation"
-          />
-        </div>
-      </div>
-
-      <div class="preview-card">
-        <span class="eyebrow">Payload Preview</span>
-        <h3>Dữ liệu sẽ gửi về phase nhân sự</h3>
-        <pre>{{ serializedDraft }}</pre>
-      </div>
+    <!-- Loading -->
+    <div v-if="fetchLoading" class="loading-state">
+      <i class="pi pi-spin pi-spinner" />
+      <span>Đang tải hồ sơ...</span>
     </div>
+
+    <!-- Error -->
+    <div v-else-if="fetchError" class="error-banner">
+      <i class="pi pi-exclamation-circle" />
+      <span>{{ fetchError }}</span>
+    </div>
+
+    <!-- Form / Detail -->
+    <template v-else>
+      <Tabs v-model:value="activeTab">
+        <TabList>
+          <Tab value="basic">Thông tin cơ bản</Tab>
+          <Tab value="docs">Giấy tờ nhận dạng</Tab>
+          <Tab value="contact">Liên lạc & Thuế</Tab>
+          <Tab value="address">Địa chỉ</Tab>
+          <Tab value="bank" :disabled="isNew">Tài khoản ngân hàng</Tab>
+        </TabList>
+
+        <TabPanels>
+          <!-- ── TAB 1: Thông tin cơ bản ──────────────────────────────────── -->
+          <TabPanel value="basic">
+            <div class="form-grid">
+              <div class="field col-full">
+                <label>Họ và tên <span class="req">*</span></label>
+                <InputText v-model="form.full_name" class="w-full" :disabled="viewOnly" :invalid="!!errors.full_name" />
+                <small v-if="errors.full_name" class="error-msg">{{ errors.full_name }}</small>
+              </div>
+
+              <div class="field">
+                <label>Họ (last name) <span class="req">*</span></label>
+                <InputText v-model="form.last_name" class="w-full" :disabled="viewOnly" :invalid="!!errors.last_name" />
+                <small v-if="errors.last_name" class="error-msg">{{ errors.last_name }}</small>
+              </div>
+
+              <div class="field">
+                <label>Tên (first name) <span class="req">*</span></label>
+                <InputText v-model="form.first_name" class="w-full" :disabled="viewOnly" :invalid="!!errors.first_name" />
+                <small v-if="errors.first_name" class="error-msg">{{ errors.first_name }}</small>
+              </div>
+
+              <div class="field">
+                <label>Ngày sinh <span class="req">*</span></label>
+                <DatePicker v-model="form.date_of_birth_date" class="w-full" dateFormat="dd/mm/yy" :disabled="viewOnly" :invalid="!!errors.date_of_birth" />
+                <small v-if="errors.date_of_birth" class="error-msg">{{ errors.date_of_birth }}</small>
+              </div>
+
+              <div class="field">
+                <label>Giới tính <span class="req">*</span></label>
+                <Select
+                  v-model="form.gender"
+                  :options="genderOptions"
+                  option-label="label"
+                  option-value="value"
+                  filter
+                  class="w-full"
+                  :disabled="viewOnly"
+                  :invalid="!!errors.gender"
+                />
+                <small v-if="errors.gender" class="error-msg">{{ errors.gender }}</small>
+              </div>
+
+              <div class="field">
+                <label>Quốc tịch <span class="req">*</span></label>
+                <NationalitySelect v-model="form.nationality_id" :disabled="viewOnly" />
+                <small v-if="errors.nationality_id" class="error-msg">{{ errors.nationality_id }}</small>
+              </div>
+
+              <div class="field">
+                <label>Dân tộc</label>
+                <EthnicitySelect v-model="form.ethnicity_id" :disabled="viewOnly" />
+              </div>
+
+              <div class="field">
+                <label>Tôn giáo</label>
+                <ReligionSelect v-model="form.religion_id" :disabled="viewOnly" />
+              </div>
+
+              <div class="field">
+                <label>Trạng thái nhân sự <span class="req">*</span></label>
+                <Select
+                  v-model="form.status"
+                  :options="statusOptions"
+                  option-label="label"
+                  option-value="value"
+                  filter
+                  class="w-full"
+                  :disabled="viewOnly"
+                />
+              </div>
+
+              <div class="field">
+                <label>Ngày vào làm <span class="req">*</span></label>
+                <DatePicker v-model="form.start_date_date" class="w-full" dateFormat="dd/mm/yy" :disabled="viewOnly" :invalid="!!errors.start_date" />
+                <small v-if="errors.start_date" class="error-msg">{{ errors.start_date }}</small>
+              </div>
+
+              <div class="field" v-if="form.status === 'resigned'">
+                <label>Ngày nghỉ việc</label>
+                <DatePicker v-model="form.resigned_date_date" class="w-full" dateFormat="dd/mm/yy" :disabled="viewOnly" />
+              </div>
+            </div>
+
+            <!-- Save button at bottom of tab for create mode -->
+            <div class="tab-actions" v-if="isNew">
+              <Button label="Tạo nhân viên" icon="pi pi-check" :loading="submitting" @click="save" />
+            </div>
+          </TabPanel>
+
+          <!-- ── TAB 2: Giấy tờ ───────────────────────────────────────────── -->
+          <TabPanel value="docs">
+            <div class="form-grid">
+              <div class="field">
+                <label>Số CCCD / CMND <span class="req">*</span></label>
+                <InputText v-model="form.id_number" class="w-full" :disabled="viewOnly" :invalid="!!errors.id_number" />
+                <small v-if="errors.id_number" class="error-msg">{{ errors.id_number }}</small>
+              </div>
+
+              <div class="field">
+                <label>Ngày cấp <span class="req">*</span></label>
+                <DatePicker v-model="form.id_issued_on_date" class="w-full" dateFormat="dd/mm/yy" :disabled="viewOnly" :invalid="!!errors.id_issued_on" />
+                <small v-if="errors.id_issued_on" class="error-msg">{{ errors.id_issued_on }}</small>
+              </div>
+
+              <div class="field col-full">
+                <label>Nơi cấp <span class="req">*</span></label>
+                <InputText v-model="form.id_issued_by" class="w-full" :disabled="viewOnly" :invalid="!!errors.id_issued_by" />
+                <small v-if="errors.id_issued_by" class="error-msg">{{ errors.id_issued_by }}</small>
+              </div>
+
+              <div class="field">
+                <label>Ngày hết hạn CCCD</label>
+                <DatePicker v-model="form.id_expires_on_date" class="w-full" dateFormat="dd/mm/yy" :disabled="viewOnly" />
+              </div>
+
+              <div class="field-sep col-full">
+                <label class="section-label">
+                  <ToggleSwitch v-model="hasPassport" :disabled="viewOnly" />
+                  Có hộ chiếu
+                </label>
+              </div>
+
+              <template v-if="hasPassport">
+                <div class="field">
+                  <label>Số hộ chiếu</label>
+                  <InputText v-model="form.passport_number" class="w-full" :disabled="viewOnly" />
+                </div>
+                <div class="field">
+                  <label>Ngày cấp HC</label>
+                  <DatePicker v-model="form.passport_issued_on_date" class="w-full" dateFormat="dd/mm/yy" :disabled="viewOnly" />
+                </div>
+                <div class="field">
+                  <label>Ngày hết hạn HC</label>
+                  <DatePicker v-model="form.passport_expires_on_date" class="w-full" dateFormat="dd/mm/yy" :disabled="viewOnly" />
+                </div>
+              </template>
+
+              <div class="field-sep col-full">
+                <label class="section-label">
+                  <ToggleSwitch v-model="hasWorkPermit" :disabled="viewOnly" />
+                  Có giấy phép lao động (người nước ngoài)
+                </label>
+              </div>
+
+              <template v-if="hasWorkPermit">
+                <div class="field">
+                  <label>Số GPLĐ</label>
+                  <InputText v-model="form.work_permit_number" class="w-full" :disabled="viewOnly" />
+                </div>
+                <div class="field">
+                  <label>Ngày cấp GPLĐ</label>
+                  <DatePicker v-model="form.work_permit_issued_on_date" class="w-full" dateFormat="dd/mm/yy" :disabled="viewOnly" />
+                </div>
+                <div class="field">
+                  <label>Ngày hết hạn GPLĐ</label>
+                  <DatePicker v-model="form.work_permit_expires_on_date" class="w-full" dateFormat="dd/mm/yy" :disabled="viewOnly" />
+                </div>
+              </template>
+            </div>
+
+            <div class="tab-actions" v-if="isNew">
+              <Button label="Tạo nhân viên" icon="pi pi-check" :loading="submitting" @click="save" />
+            </div>
+          </TabPanel>
+
+          <!-- ── TAB 3: Liên lạc & Thuế ───────────────────────────────────── -->
+          <TabPanel value="contact">
+            <div class="form-grid">
+              <div class="field">
+                <label>Số điện thoại</label>
+                <InputText v-model="form.phone_number" class="w-full" :disabled="viewOnly" />
+              </div>
+              <div class="field">
+                <label>Email cá nhân</label>
+                <InputText v-model="form.personal_email" class="w-full" :disabled="viewOnly" />
+              </div>
+              <div class="field">
+                <label>Mã số thuế cá nhân</label>
+                <InputText v-model="form.personal_tax_code" class="w-full" :disabled="viewOnly" />
+              </div>
+              <div class="field">
+                <label>Mã số BHXH</label>
+                <InputText v-model="form.bhxh_code" class="w-full" :disabled="viewOnly" />
+              </div>
+            </div>
+            <div class="tab-actions" v-if="isNew">
+              <Button label="Tạo nhân viên" icon="pi pi-check" :loading="submitting" @click="save" />
+            </div>
+          </TabPanel>
+
+          <!-- ── TAB 4: Địa chỉ ───────────────────────────────────────────── -->
+          <TabPanel value="address">
+            <div v-if="isNew" class="info-notice">
+              <i class="pi pi-info-circle" />
+              Tạo nhân viên trước, sau đó quay lại tab này để nhập địa chỉ.
+            </div>
+            <template v-else>
+              <div class="address-section">
+                <h4>Hộ khẩu thường trú</h4>
+                <AddressEditor
+                  :employee-id="employeeId!"
+                  address-type="permanent"
+                  :initial="permanentAddress"
+                  :disabled="viewOnly"
+                  @saved="loadAddresses"
+                />
+              </div>
+              <div class="address-section">
+                <h4>Địa chỉ liên lạc</h4>
+                <AddressEditor
+                  :employee-id="employeeId!"
+                  address-type="contact"
+                  :initial="contactAddress"
+                  :disabled="viewOnly"
+                  @saved="loadAddresses"
+                />
+              </div>
+            </template>
+          </TabPanel>
+
+          <!-- ── TAB 5: Tài khoản ngân hàng ──────────────────────────────── -->
+          <TabPanel value="bank">
+            <div class="bank-section">
+              <div class="bank-header">
+                <h4>Tài khoản ngân hàng</h4>
+                <Button label="Thêm tài khoản" icon="pi pi-plus" size="small" @click="openBankDialog(null)" />
+              </div>
+
+              <div v-if="bankAccounts.length === 0" class="empty-bank">
+                <i class="pi pi-credit-card" />
+                <span>Chưa có tài khoản ngân hàng nào</span>
+              </div>
+
+              <div v-else class="bank-list">
+                <div v-for="acc in bankAccounts" :key="acc.id" class="bank-card" :class="{ primary: acc.is_primary }">
+                  <div class="bank-info">
+                    <div class="bank-number">{{ acc.account_number }}</div>
+                    <div class="bank-name">{{ acc.account_name }}</div>
+                    <div class="bank-meta">
+                      <span>Bank ID: {{ acc.bank_id }}</span>
+                      <span v-if="acc.branch_name"> · {{ acc.branch_name }}</span>
+                    </div>
+                  </div>
+                  <div class="bank-badges">
+                    <Tag v-if="acc.is_primary" value="Nhận lương" severity="success" />
+                  </div>
+                  <div class="bank-actions">
+                    <Button icon="pi pi-pencil" severity="secondary" text rounded size="small" v-tooltip.top="'Sửa'" @click="openBankDialog(acc)" />
+                    <Button icon="pi pi-trash" severity="danger" text rounded size="small" v-tooltip.top="'Xóa'" @click="confirmDeleteBank(acc)" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </TabPanel>
+        </TabPanels>
+      </Tabs>
+    </template>
+
+    <!-- Bank account dialog -->
+    <Dialog
+      v-model:visible="bankDialogVisible"
+      :header="editingBank ? 'Cập nhật tài khoản ngân hàng' : 'Thêm tài khoản ngân hàng'"
+      :style="{ width: '480px' }"
+      modal
+      :closable="!bankSubmitting"
+    >
+      <div class="form-grid" style="margin-top: 0.5rem">
+        <div class="field col-full">
+          <label>Ngân hàng <span class="req">*</span></label>
+          <BankSelect v-model="bankForm.bank_id" />
+        </div>
+        <div class="field">
+          <label>Số tài khoản <span class="req">*</span></label>
+          <InputText v-model="bankForm.account_number" class="w-full" :invalid="!!bankErrors.account_number" />
+          <small v-if="bankErrors.account_number" class="error-msg">{{ bankErrors.account_number }}</small>
+        </div>
+        <div class="field">
+          <label>Tên chủ tài khoản <span class="req">*</span></label>
+          <InputText v-model="bankForm.account_name" class="w-full" :invalid="!!bankErrors.account_name" />
+          <small v-if="bankErrors.account_name" class="error-msg">{{ bankErrors.account_name }}</small>
+        </div>
+        <div class="field col-full">
+          <label>Chi nhánh</label>
+          <InputText v-model="bankForm.branch_name" class="w-full" />
+        </div>
+        <div class="field col-full">
+          <div class="switch-row">
+            <ToggleSwitch v-model="bankForm.is_primary" />
+            <label>Tài khoản nhận lương mặc định</label>
+          </div>
+        </div>
+      </div>
+      <template #footer>
+        <Button label="Hủy" severity="secondary" outlined :disabled="bankSubmitting" @click="bankDialogVisible = false" />
+        <Button :label="editingBank ? 'Lưu thay đổi' : 'Thêm'" icon="pi pi-check" :loading="bankSubmitting" @click="submitBank" />
+      </template>
+    </Dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { useToast } from 'primevue/usetoast'
+import { useConfirm } from 'primevue/useconfirm'
 import Button from 'primevue/button'
+import DatePicker from 'primevue/datepicker'
+import Dialog from 'primevue/dialog'
+import InputText from 'primevue/inputtext'
+import Select from 'primevue/select'
+import Tab from 'primevue/tab'
+import TabList from 'primevue/tablist'
+import TabPanel from 'primevue/tabpanel'
+import TabPanels from 'primevue/tabpanels'
+import Tabs from 'primevue/tabs'
+import Tag from 'primevue/tag'
+import ToggleSwitch from 'primevue/toggleswitch'
 
-import AdministrativeAddressPairSelector from '@/components/catalog/AdministrativeAddressPairSelector.vue'
-import EmployeeEducationEditor, { type EmployeeEducationDraft } from '@/components/catalog/EmployeeEducationEditor.vue'
-import type { AdministrativeAddressSelectionDraft } from '@/services/administrativeUnitService'
+import NationalitySelect from '@/components/catalog/NationalitySelect.vue'
+import EthnicitySelect from '@/components/catalog/EthnicitySelect.vue'
+import ReligionSelect from '@/components/catalog/ReligionSelect.vue'
+import BankSelect from '@/components/catalog/BankSelect.vue'
+import AddressEditor from './AddressEditor.vue'
 
-interface AddressPairDraft {
-  old_address: AdministrativeAddressSelectionDraft
-  new_address: AdministrativeAddressSelectionDraft
-}
+import employeeService, {
+  type EmployeeRead,
+  type EmployeeAddressRead,
+  type EmployeeBankAccountRead,
+  type GenderType,
+  type StatusType,
+} from '@/services/employeeService'
 
-interface EmployeeEducationDraftRow extends EmployeeEducationDraft {
-  local_id: string
-}
+const route   = useRoute()
+const router  = useRouter()
+const toast   = useToast()
+const confirm = useConfirm()
 
-const addressDraft = ref<AddressPairDraft>({
-  old_address: {
-    system_type: 'old',
-    province_unit_id: null,
-    district_unit_id: null,
-    ward_unit_id: null,
-    address_line: '',
-  },
-  new_address: {
-    system_type: 'new',
-    province_unit_id: null,
-    ward_unit_id: null,
-    address_line: '',
-  },
+// ── Route resolution ───────────────────────────────────────────────────────────
+const isNew       = computed(() => route.params.id === 'new')
+const employeeId  = computed(() => isNew.value ? null : parseInt(route.params.id as string))
+
+// ── Fetch state ────────────────────────────────────────────────────────────────
+const fetchLoading = ref(false)
+const fetchError   = ref('')
+const employee     = ref<EmployeeRead | null>(null)
+const addresses    = ref<EmployeeAddressRead[]>([])
+const bankAccounts = ref<EmployeeBankAccountRead[]>([])
+
+const permanentAddress = computed(() => addresses.value.find(a => a.address_type === 'permanent') ?? null)
+const contactAddress   = computed(() => addresses.value.find(a => a.address_type === 'contact') ?? null)
+
+// ── Edit state ─────────────────────────────────────────────────────────────────
+const editing   = ref(false)
+const submitting = ref(false)
+const activeTab  = ref('basic')
+const errors     = ref<Record<string, string>>({})
+
+const viewOnly = computed(() => !isNew.value && !editing.value)
+
+// ── Form model (using Date objects for DatePicker) ────────────────────────────
+const form = ref({
+  full_name: '',
+  last_name: '',
+  first_name: '',
+  date_of_birth_date: null as Date | null,
+  gender: 'male' as GenderType,
+  nationality_id: null as number | null,
+  ethnicity_id: null as number | null,
+  religion_id: null as number | null,
+  status: 'probation' as StatusType,
+  start_date_date: null as Date | null,
+  resigned_date_date: null as Date | null,
+  // Docs
+  id_number: '',
+  id_issued_on_date: null as Date | null,
+  id_issued_by: '',
+  id_expires_on_date: null as Date | null,
+  passport_number: null as string | null,
+  passport_issued_on_date: null as Date | null,
+  passport_expires_on_date: null as Date | null,
+  work_permit_number: null as string | null,
+  work_permit_issued_on_date: null as Date | null,
+  work_permit_expires_on_date: null as Date | null,
+  // Contact
+  phone_number: null as string | null,
+  personal_email: null as string | null,
+  personal_tax_code: null as string | null,
+  bhxh_code: null as string | null,
 })
 
-function makeEducationRow(): EmployeeEducationDraftRow {
-  return {
-    local_id: crypto.randomUUID(),
-    education_level_id: null,
-    institution_id: null,
-    institution_fallback_text: '',
-    major_id: null,
-    major_fallback_text: '',
-    degree_name: '',
-    from_year: null,
-    graduation_year: null,
-    is_graduated: true,
-    note: '',
+const hasPassport   = ref(false)
+const hasWorkPermit = ref(false)
+
+// ── Options ────────────────────────────────────────────────────────────────────
+const genderOptions = [
+  { label: 'Nam', value: 'male' },
+  { label: 'Nữ', value: 'female' },
+  { label: 'Khác', value: 'other' },
+]
+
+const statusOptions = [
+  { label: 'Thử việc',    value: 'probation' },
+  { label: 'Chính thức',  value: 'official' },
+  { label: 'Nghỉ dài hạn', value: 'long_leave' },
+  { label: 'Đã nghỉ việc', value: 'resigned' },
+]
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+function statusLabel(s?: string): string {
+  const map: Record<string, string> = {
+    probation: 'Thử việc', official: 'Chính thức',
+    long_leave: 'Nghỉ dài hạn', resigned: 'Đã nghỉ',
+  }
+  return s ? (map[s] ?? s) : ''
+}
+
+function statusSeverity(s?: string): 'warn' | 'success' | 'secondary' | 'danger' {
+  const map: Record<string, 'warn' | 'success' | 'secondary' | 'danger'> = {
+    probation: 'warn', official: 'success',
+    long_leave: 'secondary', resigned: 'danger',
+  }
+  return s ? (map[s] ?? 'secondary') : 'secondary'
+}
+
+function toDate(iso: string | null | undefined): Date | null {
+  return iso ? new Date(iso) : null
+}
+
+function toIso(d: Date | null): string | null {
+  if (!d) return null
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+function apiError(e: unknown): string {
+  const err = e as { response?: { data?: { detail?: unknown } } }
+  const detail = err.response?.data?.detail
+  if (Array.isArray(detail)) return detail.map((d: { msg: string }) => d.msg).join('; ')
+  return typeof detail === 'string' ? detail : 'Đã xảy ra lỗi'
+}
+
+// ── Fill form from employee ────────────────────────────────────────────────────
+function fillForm(emp: EmployeeRead) {
+  form.value = {
+    full_name: emp.full_name,
+    last_name: emp.last_name,
+    first_name: emp.first_name,
+    date_of_birth_date: toDate(emp.date_of_birth),
+    gender: emp.gender as GenderType,
+    nationality_id: emp.nationality_id,
+    ethnicity_id: emp.ethnicity_id,
+    religion_id: emp.religion_id,
+    status: emp.status as StatusType,
+    start_date_date: toDate(emp.start_date),
+    resigned_date_date: toDate(emp.resigned_date),
+    id_number: emp.id_number,
+    id_issued_on_date: toDate(emp.id_issued_on),
+    id_issued_by: emp.id_issued_by,
+    id_expires_on_date: toDate(emp.id_expires_on),
+    passport_number: emp.passport_number,
+    passport_issued_on_date: toDate(emp.passport_issued_on),
+    passport_expires_on_date: toDate(emp.passport_expires_on),
+    work_permit_number: emp.work_permit_number,
+    work_permit_issued_on_date: toDate(emp.work_permit_issued_on),
+    work_permit_expires_on_date: toDate(emp.work_permit_expires_on),
+    phone_number: emp.phone_number,
+    personal_email: emp.personal_email,
+    personal_tax_code: emp.personal_tax_code,
+    bhxh_code: emp.bhxh_code,
+  }
+  hasPassport.value   = !!emp.passport_number
+  hasWorkPermit.value = !!emp.work_permit_number
+}
+
+// ── Load data ──────────────────────────────────────────────────────────────────
+async function loadEmployee() {
+  if (isNew.value || !employeeId.value) return
+  fetchLoading.value = true
+  fetchError.value = ''
+  try {
+    const resp = await employeeService.get(employeeId.value)
+    employee.value = resp.data
+    addresses.value = resp.data.addresses
+    bankAccounts.value = resp.data.bank_accounts
+    fillForm(resp.data)
+  } catch {
+    fetchError.value = 'Không tìm thấy hoặc không thể tải hồ sơ nhân viên'
+  } finally {
+    fetchLoading.value = false
   }
 }
 
-const educationDraft = ref<EmployeeEducationDraftRow[]>([
-  makeEducationRow(),
-])
-
-function addEducation() {
-  educationDraft.value.push(makeEducationRow())
+async function loadAddresses() {
+  if (!employeeId.value) return
+  const resp = await employeeService.getAddresses(employeeId.value)
+  addresses.value = resp.data
 }
 
-function removeEducation(index: number) {
-  educationDraft.value.splice(index, 1)
-  if (educationDraft.value.length === 0) {
-    educationDraft.value.push(makeEducationRow())
+// ── Edit ───────────────────────────────────────────────────────────────────────
+function startEdit() {
+  editing.value = true
+}
+
+function cancelEdit() {
+  editing.value = false
+  errors.value = {}
+  if (employee.value) fillForm(employee.value)
+}
+
+// ── Validate ───────────────────────────────────────────────────────────────────
+function validate(): boolean {
+  errors.value = {}
+  if (!form.value.full_name.trim()) errors.value.full_name = 'Họ tên không được để trống'
+  if (!form.value.last_name.trim()) errors.value.last_name = 'Không được để trống'
+  if (!form.value.first_name.trim()) errors.value.first_name = 'Không được để trống'
+  if (!form.value.date_of_birth_date) errors.value.date_of_birth = 'Ngày sinh không được để trống'
+  if (!form.value.gender) errors.value.gender = 'Chọn giới tính'
+  if (!form.value.nationality_id) errors.value.nationality_id = 'Chọn quốc tịch'
+  if (!form.value.id_number.trim()) errors.value.id_number = 'Số CCCD không được để trống'
+  if (!form.value.id_issued_on_date) errors.value.id_issued_on = 'Ngày cấp không được để trống'
+  if (!form.value.id_issued_by.trim()) errors.value.id_issued_by = 'Nơi cấp không được để trống'
+  if (!form.value.start_date_date) errors.value.start_date = 'Ngày vào làm không được để trống'
+  return Object.keys(errors.value).length === 0
+}
+
+// ── Save ───────────────────────────────────────────────────────────────────────
+async function save() {
+  if (!validate()) {
+    // Navigate to first tab with error
+    if (errors.value.full_name || errors.value.last_name || errors.value.first_name ||
+        errors.value.date_of_birth || errors.value.gender || errors.value.nationality_id ||
+        errors.value.start_date) {
+      activeTab.value = 'basic'
+    } else if (errors.value.id_number || errors.value.id_issued_on || errors.value.id_issued_by) {
+      activeTab.value = 'docs'
+    }
+    return
+  }
+
+  submitting.value = true
+  try {
+    const payload = {
+      full_name: form.value.full_name.trim(),
+      last_name: form.value.last_name.trim(),
+      first_name: form.value.first_name.trim(),
+      date_of_birth: toIso(form.value.date_of_birth_date)!,
+      gender: form.value.gender,
+      nationality_id: form.value.nationality_id!,
+      ethnicity_id: form.value.ethnicity_id,
+      religion_id: form.value.religion_id,
+      status: form.value.status,
+      start_date: toIso(form.value.start_date_date)!,
+      resigned_date: form.value.status === 'resigned' ? toIso(form.value.resigned_date_date) : null,
+      id_number: form.value.id_number.trim(),
+      id_issued_on: toIso(form.value.id_issued_on_date)!,
+      id_issued_by: form.value.id_issued_by.trim(),
+      id_expires_on: toIso(form.value.id_expires_on_date),
+      passport_number: hasPassport.value ? form.value.passport_number : null,
+      passport_issued_on: hasPassport.value ? toIso(form.value.passport_issued_on_date) : null,
+      passport_expires_on: hasPassport.value ? toIso(form.value.passport_expires_on_date) : null,
+      work_permit_number: hasWorkPermit.value ? form.value.work_permit_number : null,
+      work_permit_issued_on: hasWorkPermit.value ? toIso(form.value.work_permit_issued_on_date) : null,
+      work_permit_expires_on: hasWorkPermit.value ? toIso(form.value.work_permit_expires_on_date) : null,
+      phone_number: form.value.phone_number || null,
+      personal_email: form.value.personal_email || null,
+      personal_tax_code: form.value.personal_tax_code || null,
+      bhxh_code: form.value.bhxh_code || null,
+    }
+
+    if (isNew.value) {
+      const resp = await employeeService.create(payload)
+      toast.add({ severity: 'success', summary: 'Thành công', detail: 'Đã tạo nhân viên mới', life: 3000 })
+      router.replace(`/employees/${resp.data.id}`)
+    } else {
+      const resp = await employeeService.update(employeeId.value!, payload)
+      employee.value = resp.data
+      fillForm(resp.data)
+      editing.value = false
+      toast.add({ severity: 'success', summary: 'Thành công', detail: 'Đã lưu thay đổi', life: 3000 })
+    }
+    errors.value = {}
+  } catch (e) {
+    toast.add({ severity: 'error', summary: 'Lỗi', detail: apiError(e), life: 5000 })
+  } finally {
+    submitting.value = false
   }
 }
 
-const serializedDraft = computed(() => JSON.stringify({
-  address: addressDraft.value,
-  educations: educationDraft.value.map(({ local_id, ...item }) => item),
-}, null, 2))
+// ── Bank accounts ──────────────────────────────────────────────────────────────
+const bankDialogVisible = ref(false)
+const bankSubmitting    = ref(false)
+const editingBank       = ref<EmployeeBankAccountRead | null>(null)
+const bankErrors        = ref<Record<string, string>>({})
+const bankForm          = ref({ bank_id: null as number | null, account_number: '', account_name: '', branch_name: '', is_primary: false })
+
+function openBankDialog(acc: EmployeeBankAccountRead | null) {
+  editingBank.value = acc
+  bankErrors.value = {}
+  if (acc) {
+    bankForm.value = {
+      bank_id: acc.bank_id,
+      account_number: acc.account_number,
+      account_name: acc.account_name,
+      branch_name: acc.branch_name ?? '',
+      is_primary: acc.is_primary,
+    }
+  } else {
+    bankForm.value = { bank_id: null, account_number: '', account_name: '', branch_name: '', is_primary: false }
+  }
+  bankDialogVisible.value = true
+}
+
+function validateBank(): boolean {
+  bankErrors.value = {}
+  if (!bankForm.value.bank_id) bankErrors.value.bank_id = 'Chọn ngân hàng'
+  if (!bankForm.value.account_number.trim()) bankErrors.value.account_number = 'Không được để trống'
+  if (!bankForm.value.account_name.trim()) bankErrors.value.account_name = 'Không được để trống'
+  return Object.keys(bankErrors.value).length === 0
+}
+
+async function submitBank() {
+  if (!validateBank() || !employeeId.value) return
+  bankSubmitting.value = true
+  try {
+    const payload = {
+      bank_id: bankForm.value.bank_id!,
+      account_number: bankForm.value.account_number.trim(),
+      account_name: bankForm.value.account_name.trim(),
+      branch_name: bankForm.value.branch_name.trim() || null,
+      is_primary: bankForm.value.is_primary,
+    }
+    if (editingBank.value) {
+      await employeeService.updateBankAccount(employeeId.value, editingBank.value.id, payload)
+      toast.add({ severity: 'success', summary: 'Thành công', detail: 'Đã cập nhật tài khoản', life: 3000 })
+    } else {
+      await employeeService.createBankAccount(employeeId.value, payload)
+      toast.add({ severity: 'success', summary: 'Thành công', detail: 'Đã thêm tài khoản ngân hàng', life: 3000 })
+    }
+    bankDialogVisible.value = false
+    const resp = await employeeService.getBankAccounts(employeeId.value)
+    bankAccounts.value = resp.data
+  } catch (e) {
+    toast.add({ severity: 'error', summary: 'Lỗi', detail: apiError(e), life: 5000 })
+  } finally {
+    bankSubmitting.value = false
+  }
+}
+
+function confirmDeleteBank(acc: EmployeeBankAccountRead) {
+  confirm.require({
+    message: `Xóa tài khoản "${acc.account_number}"?`,
+    header: 'Xác nhận',
+    icon: 'pi pi-exclamation-triangle',
+    rejectProps: { label: 'Hủy', severity: 'secondary', outlined: true },
+    acceptProps: { label: 'Xóa', severity: 'danger' },
+    accept: async () => {
+      if (!employeeId.value) return
+      try {
+        await employeeService.deleteBankAccount(employeeId.value, acc.id)
+        const resp = await employeeService.getBankAccounts(employeeId.value)
+        bankAccounts.value = resp.data
+        toast.add({ severity: 'success', summary: 'Đã xóa', detail: 'Tài khoản ngân hàng đã được xóa', life: 3000 })
+      } catch (e) {
+        toast.add({ severity: 'error', summary: 'Lỗi', detail: apiError(e), life: 4000 })
+      }
+    },
+  })
+}
+
+onMounted(loadEmployee)
+
+watch(() => route.params.id, () => {
+  if (!isNew.value) loadEmployee()
+})
 </script>
 
 <style scoped>
@@ -139,78 +747,191 @@ const serializedDraft = computed(() => JSON.stringify({
 }
 
 .page-header {
-  margin-bottom: 0.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
 }
 
-.page-header h2 {
-  margin: 0 0 0.2rem;
+.header-left {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+}
+
+.header-left h2 {
+  margin: 0 0 0.25rem;
   font-size: 1.5rem;
   font-weight: 700;
 }
 
-.subtitle,
-.demo-intro p {
+.header-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.emp-code {
+  padding: 0.1rem 0.5rem;
+  background: color-mix(in srgb, var(--p-primary-color) 12%, transparent);
+  color: var(--p-primary-color);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.header-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.loading-state,
+.error-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 2rem;
+  justify-content: center;
   color: var(--l-text-muted);
 }
 
-.demo-shell {
+.error-banner { color: var(--p-red-500); }
+.loading-state i { font-size: 1.5rem; }
+
+.form-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.6fr) minmax(320px, 0.9fr);
+  grid-template-columns: 1fr 1fr;
   gap: 1rem;
+  padding: 1.25rem 0;
 }
 
-.demo-card,
-.preview-card {
-  padding: 1.25rem;
-  border-radius: 22px;
-  border: 1px solid var(--l-border);
-  background: var(--l-surface);
-  box-shadow: var(--l-shadow);
-}
-
-.eyebrow {
-  display: inline-block;
-  margin-bottom: 0.35rem;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: color-mix(in srgb, var(--p-primary-color) 70%, var(--l-text-muted));
-}
-
-.demo-intro h3,
-.preview-card h3 {
-  margin: 0;
-  font-size: 1.15rem;
-}
-
-.demo-intro p {
-  margin: 0.5rem 0 0;
-  line-height: 1.6;
-}
-
-.education-stack {
+.field {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
-  margin-top: 1rem;
+  gap: 0.35rem;
 }
 
-.preview-card pre {
-  margin: 1rem 0 0;
-  padding: 1rem;
-  min-height: 340px;
-  overflow: auto;
-  border-radius: 16px;
-  background: color-mix(in srgb, var(--l-bg) 70%, var(--l-surface));
+.field label {
+  font-size: 0.875rem;
+  font-weight: 500;
   color: var(--l-text);
-  font-size: 0.85rem;
-  line-height: 1.55;
 }
 
-@media (max-width: 1200px) {
-  .demo-shell {
-    grid-template-columns: 1fr;
-  }
+.col-full { grid-column: 1 / -1; }
+
+.field-sep {
+  grid-column: 1 / -1;
+  border-top: 1px solid var(--l-border);
+  padding-top: 0.75rem;
+  margin-top: 0.25rem;
+}
+
+.section-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.req { color: var(--p-red-500); }
+.error-msg { color: var(--p-red-500); font-size: 0.8rem; }
+
+.tab-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--l-border);
+  margin-top: 0.5rem;
+}
+
+.info-notice {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1.25rem;
+  background: color-mix(in srgb, var(--p-blue-500) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--p-blue-500) 20%, transparent);
+  border-radius: 10px;
+  color: var(--p-blue-500);
+  margin: 1rem 0;
+}
+
+/* Address sections */
+.address-section {
+  margin-bottom: 2rem;
+}
+
+.address-section h4 {
+  margin: 0 0 1rem;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+/* Bank cards */
+.bank-section { padding: 0.5rem 0; }
+
+.bank-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.bank-header h4 { margin: 0; font-size: 1rem; font-weight: 600; }
+
+.empty-bank {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 2.5rem;
+  color: var(--l-text-muted);
+  text-align: center;
+}
+
+.empty-bank i { font-size: 2rem; opacity: 0.4; }
+
+.bank-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.bank-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  background: var(--l-surface);
+  border: 1px solid var(--l-border);
+  border-radius: 12px;
+}
+
+.bank-card.primary {
+  border-color: color-mix(in srgb, var(--p-green-500) 40%, transparent);
+  background: color-mix(in srgb, var(--p-green-500) 4%, var(--l-surface));
+}
+
+.bank-info { flex: 1; }
+.bank-number { font-weight: 700; font-size: 1rem; }
+.bank-name { font-size: 0.875rem; color: var(--l-text-muted); }
+.bank-meta { font-size: 0.8rem; color: var(--l-text-muted); margin-top: 0.2rem; }
+
+.bank-badges { display: flex; gap: 0.4rem; }
+
+.bank-actions { display: flex; gap: 0.25rem; }
+
+.switch-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+@media (max-width: 768px) {
+  .page-header { flex-direction: column; }
+  .form-grid { grid-template-columns: 1fr; }
+  .col-full { grid-column: 1; }
 }
 </style>

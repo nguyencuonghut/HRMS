@@ -17,6 +17,7 @@
         option-value="value"
         placeholder="Tất cả hành động"
         show-clear
+        filter
         class="toolbar-filter"
       />
       <Select
@@ -26,6 +27,7 @@
         option-value="value"
         placeholder="Tất cả đối tượng"
         show-clear
+        filter
         class="toolbar-filter"
       />
       <DatePicker

@@ -18,6 +18,7 @@
         option-value="value"
         placeholder="Tất cả phòng/ban"
         show-clear
+        filter
         class="toolbar-filter"
         @change="loadData"
       />
@@ -26,6 +27,7 @@
         :options="activeFilterOptions"
         option-label="label"
         option-value="value"
+        filter
         class="toolbar-filter-sm"
         @change="loadData"
       />
