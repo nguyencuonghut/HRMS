@@ -286,6 +286,7 @@
                 <template #body="{ data }">
                   <div class="action-cell">
                     <Button icon="pi pi-list" severity="secondary" text rounded size="small" @click="openTemplatePlaceholders(data)" />
+                    <Button icon="pi pi-search" severity="secondary" text rounded size="small" @click="openTemplatePlaceholders(data, true)" />
                     <Button icon="pi pi-pencil" text rounded size="small" @click="openEditTemplate(data)" />
                     <Button icon="pi pi-trash" severity="danger" text rounded size="small" @click="confirmDelete('template', data)" />
                   </div>
@@ -416,7 +417,28 @@
             <strong>{{ editingPlaceholderTemplate?.name }}</strong>
             <p class="placeholder-note">Quản trị bộ biến metadata dùng cho phase auto-fill hợp đồng/phụ lục.</p>
           </div>
-          <Button label="Thêm placeholder" icon="pi pi-plus" @click="addPlaceholderRow" />
+          <div class="placeholder-actions">
+            <Button
+              v-if="editingPlaceholderTemplate?.storage_path"
+              label="Quét từ DOCX"
+              icon="pi pi-search"
+              severity="secondary"
+              outlined
+              :loading="inspectingTemplateDocx"
+              @click="inspectTemplateDocx"
+            />
+            <Button label="Thêm placeholder" icon="pi pi-plus" @click="addPlaceholderRow" />
+          </div>
+        </div>
+
+        <div v-if="templateDocxSummary" class="docx-summary">
+          <div class="docx-summary-head">
+            <strong>Phân tích file mẫu</strong>
+            <span>{{ templateDocxSummary.supported_count }}/{{ templateDocxSummary.supported_count + templateDocxSummary.unsupported_count }} token có thể map tự động</span>
+          </div>
+          <ul v-if="templateDocxSummary.warnings.length" class="docx-warning-list">
+            <li v-for="warning in templateDocxSummary.warnings" :key="warning">{{ warning }}</li>
+          </ul>
         </div>
 
         <DataTable :value="placeholderRows" responsive-layout="scroll" stripedRows>
@@ -466,6 +488,7 @@ import otherBusinessCatalogService, {
   type BankRead,
   type CertificateRead,
   type ContractCategoryRead,
+  type ContractTemplateDocxInspectionRead,
   type ContractTemplatePlaceholderWrite,
   type ContractTemplateRead,
   type EthnicityRead,
@@ -597,8 +620,10 @@ const templateForm = ref({
 
 const placeholderDialogVisible = ref(false)
 const submittingPlaceholders = ref(false)
+const inspectingTemplateDocx = ref(false)
 const editingPlaceholderTemplate = ref<ContractTemplateRead | null>(null)
 const placeholderRows = ref<ContractTemplatePlaceholderWrite[]>([])
+const templateDocxSummary = ref<ContractTemplateDocxInspectionRead | null>(null)
 
 let debounceTimer: ReturnType<typeof setTimeout> | undefined
 function debounce(fn: () => void) {
@@ -850,8 +875,9 @@ async function submitActiveDialog() {
   }
 }
 
-async function openTemplatePlaceholders(row: ContractTemplateRead) {
+async function openTemplatePlaceholders(row: ContractTemplateRead, inspectAfterOpen = false) {
   editingPlaceholderTemplate.value = row
+  templateDocxSummary.value = null
   const res = await otherBusinessCatalogService.getContractTemplatePlaceholders(row.id)
   placeholderRows.value = res.data.map((item) => ({
     placeholder_key: item.placeholder_key,
@@ -865,6 +891,9 @@ async function openTemplatePlaceholders(row: ContractTemplateRead) {
     sort_order: item.sort_order,
   }))
   placeholderDialogVisible.value = true
+  if (inspectAfterOpen) {
+    await inspectTemplateDocx()
+  }
 }
 function addPlaceholderRow() {
   placeholderRows.value.push({ placeholder_key: '', label: '', source_scope: 'employee', source_path: '', data_type: 'text', formatter: null, is_required: false, default_value: null, sort_order: placeholderRows.value.length * 10 + 10 })
@@ -883,6 +912,26 @@ async function savePlaceholders() {
     toast.add({ severity: 'error', summary: 'Không thể lưu placeholder', detail: apiError(e), life: 4000 })
   } finally {
     submittingPlaceholders.value = false
+  }
+}
+
+async function inspectTemplateDocx() {
+  if (!editingPlaceholderTemplate.value) return
+  inspectingTemplateDocx.value = true
+  try {
+    const res = await otherBusinessCatalogService.inspectContractTemplateDocx(editingPlaceholderTemplate.value.id)
+    templateDocxSummary.value = res.data
+    placeholderRows.value = res.data.suggested_rows.map((item) => ({ ...item }))
+    toast.add({
+      severity: 'success',
+      summary: 'Đã quét DOCX',
+      detail: `${res.data.supported_count} token có thể map tự động${res.data.unsupported_count ? `, ${res.data.unsupported_count} token cần xử lý tay` : ''}`,
+      life: 3500,
+    })
+  } catch (e) {
+    toast.add({ severity: 'error', summary: 'Không thể quét DOCX', detail: apiError(e), life: 4000 })
+  } finally {
+    inspectingTemplateDocx.value = false
   }
 }
 
@@ -1150,6 +1199,32 @@ onMounted(async () => {
 
 .placeholder-shell { display: grid; gap: 1rem; }
 .placeholder-toolbar { justify-content: space-between; }
+.placeholder-actions { display: flex; gap: 0.75rem; align-items: center; }
+.docx-summary {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.85rem 1rem;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, #35bcb2 25%, var(--l-border));
+  background: color-mix(in srgb, #35bcb2 10%, var(--l-surface));
+}
+.docx-summary-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: center;
+}
+.docx-summary-head span {
+  color: var(--l-text-muted);
+  font-size: 0.92rem;
+}
+.docx-warning-list {
+  margin: 0;
+  padding-left: 1rem;
+  color: var(--l-text-muted);
+  display: grid;
+  gap: 0.25rem;
+}
 
 @media (max-width: 1200px) {
   .hero-panel,
@@ -1196,7 +1271,9 @@ onMounted(async () => {
   .hero-actions,
   .toolbar,
   .field-row,
-  .placeholder-toolbar {
+  .placeholder-toolbar,
+  .docx-summary-head,
+  .placeholder-actions {
     flex-direction: column;
     align-items: stretch;
   }

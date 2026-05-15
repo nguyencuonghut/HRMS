@@ -325,6 +325,44 @@ export interface ContractTemplatePlaceholderWrite {
   sort_order?: number
 }
 
+export interface ContractTemplateFieldRegistryRead {
+  token: string
+  label: string
+  source_scope: 'employee' | 'organization' | 'contract_draft' | 'signer' | 'system'
+  source_path: string
+  data_type: 'text' | 'date' | 'number' | 'currency' | 'boolean'
+  formatter: string | null
+  is_required: boolean
+  recommended_token: string | null
+}
+
+export interface ContractTemplateDocxInspectionItemRead {
+  placeholder_key: string
+  syntax: string
+  is_supported: boolean
+  recommended_token: string | null
+  label: string | null
+  source_scope: 'employee' | 'organization' | 'contract_draft' | 'signer' | 'system' | null
+  source_path: string | null
+  data_type: 'text' | 'date' | 'number' | 'currency' | 'boolean' | null
+  formatter: string | null
+  is_required: boolean
+}
+
+export interface ContractTemplateDocxInspectionRead {
+  template_id: number
+  template_code: string
+  template_name: string
+  storage_path: string
+  file_name: string
+  styles: string[]
+  warnings: string[]
+  supported_count: number
+  unsupported_count: number
+  detected_placeholders: ContractTemplateDocxInspectionItemRead[]
+  suggested_rows: ContractTemplatePlaceholderWrite[]
+}
+
 export default {
   getContractCategories: (params?: Record<string, unknown>) => api.get<Page<ContractCategoryRead>>('/contract-categories', { params }),
   createContractCategory: (data: ContractCategoryCreate) => api.post<ContractCategoryRead>('/contract-categories', data),
@@ -333,30 +371,35 @@ export default {
   lookupContractCategories: (params?: Record<string, unknown>) => api.get<ContractCategoryRead[]>('/lookups/contract-categories', { params }),
 
   getNationalities: (params?: Record<string, unknown>) => api.get<Page<NationalityRead>>('/nationalities', { params }),
+  getNationalityById: (id: number) => api.get<NationalityRead>(`/nationalities/${id}`),
   createNationality: (data: NationalityCreate) => api.post<NationalityRead>('/nationalities', data),
   updateNationality: (id: number, data: NationalityUpdate) => api.put<NationalityRead>(`/nationalities/${id}`, data),
   deleteNationality: (id: number) => api.delete<{ message: string }>(`/nationalities/${id}`),
   lookupNationalities: (params?: Record<string, unknown>) => api.get<NationalityRead[]>('/lookups/nationalities', { params }),
 
   getEthnicities: (params?: Record<string, unknown>) => api.get<Page<EthnicityRead>>('/ethnicities', { params }),
+  getEthnicityById: (id: number) => api.get<EthnicityRead>(`/ethnicities/${id}`),
   createEthnicity: (data: EthnicityCreate) => api.post<EthnicityRead>('/ethnicities', data),
   updateEthnicity: (id: number, data: EthnicityUpdate) => api.put<EthnicityRead>(`/ethnicities/${id}`, data),
   deleteEthnicity: (id: number) => api.delete<{ message: string }>(`/ethnicities/${id}`),
   lookupEthnicities: (params?: Record<string, unknown>) => api.get<EthnicityRead[]>('/lookups/ethnicities', { params }),
 
   getReligions: (params?: Record<string, unknown>) => api.get<Page<ReligionRead>>('/religions', { params }),
+  getReligionById: (id: number) => api.get<ReligionRead>(`/religions/${id}`),
   createReligion: (data: ReligionCreate) => api.post<ReligionRead>('/religions', data),
   updateReligion: (id: number, data: ReligionUpdate) => api.put<ReligionRead>(`/religions/${id}`, data),
   deleteReligion: (id: number) => api.delete<{ message: string }>(`/religions/${id}`),
   lookupReligions: (params?: Record<string, unknown>) => api.get<ReligionRead[]>('/lookups/religions', { params }),
 
   getBanks: (params?: Record<string, unknown>) => api.get<Page<BankRead>>('/banks', { params }),
+  getBankById: (id: number) => api.get<BankRead>(`/banks/${id}`),
   createBank: (data: BankCreate) => api.post<BankRead>('/banks', data),
   updateBank: (id: number, data: BankUpdate) => api.put<BankRead>(`/banks/${id}`, data),
   deleteBank: (id: number) => api.delete<{ message: string }>(`/banks/${id}`),
   lookupBanks: (params?: Record<string, unknown>) => api.get<BankRead[]>('/lookups/banks', { params }),
 
   getSkills: (params?: Record<string, unknown>) => api.get<Page<SkillRead>>('/skills', { params }),
+  getSkillById: (id: number) => api.get<SkillRead>(`/skills/${id}`),
   createSkill: (data: SkillCreate) => api.post<SkillRead>('/skills', data),
   updateSkill: (id: number, data: SkillUpdate) => api.put<SkillRead>(`/skills/${id}`, data),
   deleteSkill: (id: number) => api.delete<{ message: string }>(`/skills/${id}`),
@@ -380,4 +423,6 @@ export default {
   deleteContractTemplate: (id: number) => api.delete<{ message: string }>(`/contract-templates/${id}`),
   getContractTemplatePlaceholders: (id: number) => api.get<ContractTemplatePlaceholderRead[]>(`/contract-templates/${id}/placeholders`),
   replaceContractTemplatePlaceholders: (id: number, data: ContractTemplatePlaceholderWrite[]) => api.put<ContractTemplatePlaceholderRead[]>(`/contract-templates/${id}/placeholders`, data),
+  inspectContractTemplateDocx: (id: number) => api.post<ContractTemplateDocxInspectionRead>(`/contract-templates/${id}/inspect-docx`),
+  lookupContractTemplateFields: () => api.get<ContractTemplateFieldRegistryRead[]>('/lookups/contract-template-fields'),
 }

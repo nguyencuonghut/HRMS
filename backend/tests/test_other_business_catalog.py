@@ -180,6 +180,32 @@ def test_contract_template_create_and_replace_placeholders(client: TestClient):
     assert rows[0]["placeholder_key"] == "employee.full_name"
 
 
+def test_inspect_contract_template_docx_reads_real_sample_placeholders(client: TestClient):
+    templates = client.get(TEMPLATE_BASE, params={"keyword": "xac dinh thoi han 12 thang"}, headers=_admin(client))
+    assert templates.status_code == 200, templates.text
+    template_id = templates.json()["items"][0]["id"]
+
+    inspected = client.post(f"{TEMPLATE_BASE}/{template_id}/inspect-docx", headers=_admin(client))
+    assert inspected.status_code == 200, inspected.text
+    body = inspected.json()
+
+    keys = {item["placeholder_key"] for item in body["detected_placeholders"]}
+    assert "employee_full_name" in keys
+    assert "employee_cccd_issued_on" in keys
+    assert "Ngày" in keys
+    assert "SĐT" in keys
+    assert body["supported_count"] >= 1
+    assert any("MERGEFIELD" in warning for warning in body["warnings"])
+
+
+def test_lookup_contract_template_fields_returns_registry(client: TestClient):
+    resp = client.get("/api/v1/lookups/contract-template-fields", headers=_admin(client))
+    assert resp.status_code == 200, resp.text
+    rows = resp.json()
+    assert any(item["token"] == "employee_full_name" and item["source_path"] == "employee.full_name" for item in rows)
+    assert any(item["token"] == "Ngày" and item["recommended_token"] == "contract_signing_day" for item in rows)
+
+
 def test_officer_cannot_delete_leave_type(client: TestClient):
     created = client.post(
         LEAVE_TYPE_BASE,

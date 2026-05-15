@@ -19,6 +19,12 @@ from app.models.catalog import (
     Religion,
     Skill,
 )
+from app.services.contract_template_docx import (
+    DOCX_MIME,
+    SUPPORTED_TEMPLATE_FIELDS,
+    extract_docx_placeholder_summary,
+    resolve_template_storage_path,
+)
 from app.services.administrative_import_service import normalize_text
 
 
@@ -630,3 +636,39 @@ async def replace_template_placeholders(session: AsyncSession, template_id: int,
         )
     await session.flush()
     return await list_template_placeholders(session, template_id)
+
+
+async def get_contract_template_field_registry() -> list[dict]:
+    return [
+        {
+            "token": item.token,
+            "label": item.label,
+            "source_scope": item.source_scope,
+            "source_path": item.source_path,
+            "data_type": item.data_type,
+            "formatter": item.formatter,
+            "is_required": item.is_required,
+            "recommended_token": item.recommended_token,
+        }
+        for item in sorted(SUPPORTED_TEMPLATE_FIELDS.values(), key=lambda row: row.token.lower())
+    ]
+
+
+async def inspect_contract_template_docx(session: AsyncSession, template_id: int) -> dict:
+    template = await get_contract_template_by_id(session, template_id)
+    if not template.storage_path:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Mẫu chưa có storage_path để quét DOCX")
+    if template.mime_type != DOCX_MIME:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Chỉ hỗ trợ quét file .docx trong bước này")
+    docx_path = resolve_template_storage_path(template.storage_path)
+    if not docx_path.exists():
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail=f"Không tìm thấy file mẫu tại '{template.storage_path}'")
+    summary = extract_docx_placeholder_summary(docx_path)
+    return {
+        "template_id": template.id,
+        "template_code": template.code,
+        "template_name": template.name,
+        "storage_path": template.storage_path,
+        "file_name": template.file_name,
+        **summary,
+    }

@@ -574,6 +574,79 @@ Phải có:
 
 **Mục tiêu:** Chốt contract để `3.1`, `3.4`, `4.1`, `4.2` dùng lại ngay.
 
+**Trạng thái:** ✅ Hoàn thành — 2026-05-15
+
+### Kiểm chứng từ 2 file mẫu tham khảo
+
+Ngày **2026-05-15**, đã kiểm tra trực tiếp bằng ElementTree scan:
+
+- `templates/fixed_term.docx`
+- `templates/probation.docx`
+
+Kết quả thực tế:
+
+- `probation.docx`: 15 token `${...}`, không có `{{}}`, không có MERGEFIELD
+- `fixed_term.docx`: 16 token `${...}` (2 token có typo khoảng trắng: `${employee _cccd _issued_by}`, `${employee _cccd _issued_on}`), 6 MERGEFIELD tiếng Việt (`Ngày`, `Tháng`, `Năm`, `SĐT`, `Loại_HĐLĐ__`, `Thời_hạn_trả_lương`)
+- **Tất cả token `${...}` đều nằm trong single XML run** — không có token bị tách qua nhiều run (đã verify trực tiếp qua ElementTree)
+
+> Kết luận đã điều chỉnh: token không bị tách run, nhưng không được parse bằng regex thô trên text thuần vì MERGEFIELD nằm trong `<w:instrText>`, không phải `<w:t>`.
+
+### Quyết định chốt cho template Word — 2026-05-15
+
+**Đã thảo luận và chốt** sau khi đánh giá đề xuất của user và Codex agent:
+
+#### Quyết định 1: Cú pháp `{{}}` là chuẩn authoring mới
+
+- **Chuẩn mới:** Template Word mới **chỉ dùng `{{snake_case}}`**
+- **Tương thích ngược:** Scanner vẫn đọc được `${...}` và `MERGEFIELD` cho các file cũ
+- **Warning:** Hệ thống cảnh báo khi phát hiện `${}` hoặc MERGEFIELD, khuyến nghị migrate về `{{}}`
+- **2 file mẫu hiện tại** (`probation.docx`, `fixed_term.docx`) đã được convert sang `{{}}` trong bước này
+
+**Lý do chọn `{{}}` thay vì `${}`:**
+- `{{}}` là cú pháp phổ biến hơn trong template engines (Jinja2, Handlebars, Mustache)
+- Dễ gõ hơn trong Word (không cần Shift+4)
+- Ít bị Word autocorrect can thiệp hơn `$`
+
+#### Quyết định 2: Token ASCII, label tiếng Việt ở UI
+
+- **Không dùng** `{{nhân viên: họ và tên}}` — quá dễ typo, khó parse, Unicode fragile trong Word XML
+- **Không dùng** `{{nhan_vien_ho_va_ten}}` — chi phí migrate cao, lợi ích thấp so với token English đã có
+- **Giữ token ASCII** (`{{employee_full_name}}`) — industry standard, ổn định, dễ validate
+- **Label tiếng Việt** hiển thị trong UI/DB (`label = "Họ và tên"`) — đã có sẵn trong registry
+
+**Lý do:** Token trong file Word không phải thứ HR nhìn hàng ngày. HR nhìn `label` trong UI khi chọn placeholder. Registry đã có đủ label tiếng Việt.
+
+### Phương án thiết kế chốt cho template Word
+
+1. `placeholder_key` trong DB là **token thật xuất hiện trong file Word** (ASCII snake_case).
+2. `source_scope + source_path` là contract dữ liệu nội bộ của hệ thống.
+3. **Chuẩn authoring cho template mới: chỉ dùng `{{snake_case}}`.**
+4. `${}` và `MERGEFIELD` vẫn được đọc để tương thích ngược, nhưng scanner phải warn và đề nghị migrate về `{{}}`.
+5. Admin không nhập tay toàn bộ placeholder từ đầu. Flow đúng là:
+   - khai báo metadata template
+   - gắn `storage_path`
+   - backend quét DOCX
+   - backend trả token phát hiện được + token nào map được tự động từ registry field chuẩn
+   - admin rà lại rồi mới lưu `contract_template_placeholders`
+
+### Registry field chuẩn cho phase hợp đồng
+
+Backend cần có một field registry công khai dùng chung cho:
+- quản trị mẫu hợp đồng
+- preview sinh hợp đồng
+- render hợp đồng thật ở phase `4`
+
+Ví dụ mapping chuẩn:
+- `employee_full_name -> employee.full_name`
+- `employee_birthday -> employee.date_of_birth`
+- `employee_cccd -> employee.identity_number`
+- `employee_address -> employee.permanent_address_full`
+- `employee_temp_address -> employee.current_address_full`
+- `contract_number -> contract.contract_number`
+- `contract_start_date -> contract.start_date`
+- `contract_end_date -> contract.end_date`
+- `insurance_salary -> contract.insurance_salary`
+
 ### Với Hồ sơ nhân sự
 
 Tạo component lookup dùng lại:
@@ -611,16 +684,19 @@ Tạo contract dữ liệu preview:
     "code": "ld_definite_12m_v1"
   },
   "placeholders": {
-    "employee.full_name": "Nguyễn Văn A",
-    "employee.date_of_birth": "01/01/1995",
-    "employee.department_name": "Kinh doanh",
-    "employee.permanent_address_old": "...",
-    "employee.permanent_address_new": "...",
-    "contract.contract_number": "HDLD/2026/001"
+    "employee_full_name": "Nguyễn Văn A",
+    "employee_birthday": "01/01/1995",
+    "department_name": "Kinh doanh",
+    "employee_address": "...",
+    "employee_temp_address": "...",
+    "contract_number": "HDLD/2026/001"
   },
   "missing_fields": []
 }
 ```
+
+> `placeholders` trả theo token thật của file Word.  
+> Hệ thống dùng `source_path` nội bộ để dựng giá trị cho từng token này.
 
 ### Quy tắc render về sau
 
@@ -628,6 +704,7 @@ Tạo contract dữ liệu preview:
 - mọi lần render tạo một output mới
 - output gắn với `employee_contract` hoặc `contract_generation_draft`
 - nếu placeholder thiếu dữ liệu bắt buộc, hệ thống phải báo rõ biến nào đang thiếu
+- nếu template còn token legacy như `MERGEFIELD`, hệ thống phải cảnh báo nhưng vẫn cho preview nếu mapping đã đầy đủ
 
 ---
 

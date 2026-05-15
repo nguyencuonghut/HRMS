@@ -6,10 +6,13 @@ Phân lớp:
   - Sample: kỹ năng, chứng chỉ, metadata mẫu hợp đồng/phụ lục và placeholder mẫu
 """
 
+from hashlib import sha256
+
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.administrative_import_service import normalize_text
+from app.services.contract_template_docx import PROJECT_ROOT
 
 
 CONTRACT_CATEGORIES = [
@@ -52,6 +55,16 @@ CONTRACT_CATEGORIES = [
         "default_term_months": None,
         "sort_order": 40,
         "description": "Phụ lục thay đổi chức danh, công việc hoặc nơi làm việc.",
+    },
+    {
+        "code": "probation_agreement",
+        "name": "Hợp đồng thử việc",
+        "document_kind": "labor_contract",
+        "legal_contract_type": None,
+        "business_group": "probation",
+        "default_term_months": 2,
+        "sort_order": 25,
+        "description": "Mẫu dùng cho thỏa thuận thử việc trước khi ký HĐLĐ chính thức.",
     },
 ]
 
@@ -245,13 +258,27 @@ CONTRACT_TEMPLATES = [
         "contract_category_code": "labor_definite",
         "document_kind": "labor_contract",
         "template_engine": "docx_placeholders",
-        "file_name": "hdld_xac_dinh_thoi_han_12_thang_v1.docx",
-        "storage_path": None,
+        "file_name": "fixed_term.docx",
+        "storage_path": "app/seeds/data/fixed_term.docx",
         "mime_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         "file_size": None,
         "file_checksum": None,
         "version_no": 1,
-        "note": "Metadata seed ban đầu, chờ upload file mẫu Word thật.",
+        "note": "Mẫu DOCX tham khảo lấy từ thư mục templates, dùng để quét placeholder thật.",
+    },
+    {
+        "code": "probation_standard",
+        "name": "Mẫu hợp đồng thử việc chuẩn",
+        "contract_category_code": "probation_agreement",
+        "document_kind": "labor_contract",
+        "template_engine": "docx_placeholders",
+        "file_name": "probation.docx",
+        "storage_path": "app/seeds/data/probation.docx",
+        "mime_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "file_size": None,
+        "file_checksum": None,
+        "version_no": 1,
+        "note": "Mẫu DOCX tham khảo lấy từ thư mục templates, dùng để quét placeholder thật.",
     },
     {
         "code": "appendix_salary_change",
@@ -283,11 +310,45 @@ CONTRACT_TEMPLATE_PLACEHOLDERS = {
         ("contract.bhxh_salary", "Lương BHXH", "contract_draft", "contract.bhxh_salary", "currency", "currency_vnd", True, None, 90),
     ],
     "ld_definite_12m": [
-        ("employee.full_name", "Họ và tên", "employee", "employee.full_name", "text", None, True, None, 10),
-        ("employee.department_name", "Phòng ban", "employee", "employee.department_name", "text", None, True, None, 20),
-        ("contract.contract_number", "Số hợp đồng", "contract_draft", "contract.contract_number", "text", None, True, None, 30),
-        ("contract.effective_date", "Ngày hiệu lực", "contract_draft", "contract.effective_date", "date", "vn_date", True, None, 40),
-        ("contract.expired_at", "Ngày hết hạn", "contract_draft", "contract.expired_at", "date", "vn_date", True, None, 50),
+        ("contract_number", "Số hợp đồng", "contract_draft", "contract.contract_number", "text", None, True, None, 10),
+        ("employee_full_name", "Họ và tên", "employee", "employee.full_name", "text", None, True, None, 20),
+        ("employee_birthday", "Ngày sinh", "employee", "employee.date_of_birth", "date", "vn_date", True, None, 30),
+        ("employee_cccd", "Số CCCD", "employee", "employee.identity_number", "text", None, True, None, 40),
+        ("employee_cccd_issued_on", "Ngày cấp CCCD", "employee", "employee.identity_issued_on", "date", "vn_date", False, None, 50),
+        ("employee_cccd_issued_by", "Nơi cấp CCCD", "employee", "employee.identity_issued_by", "text", None, False, None, 60),
+        ("employee_address", "Địa chỉ thường trú", "employee", "employee.permanent_address_full", "text", None, False, None, 70),
+        ("employee_temp_address", "Địa chỉ hiện tại", "employee", "employee.current_address_full", "text", None, False, None, 80),
+        ("employee_phone", "Số điện thoại", "employee", "employee.phone_number", "text", None, False, None, 90),
+        ("employee_personal_email", "Email cá nhân", "employee", "employee.personal_email", "text", None, False, None, 100),
+        ("employee_gender", "Giới tính", "employee", "employee.gender_label", "text", None, False, None, 110),
+        ("department_name", "Phòng ban", "employee", "employee.department_name", "text", None, True, None, 120),
+        ("position_title", "Chức danh công việc", "employee", "employee.position_name", "text", None, True, None, 130),
+        ("contract_start_date", "Ngày bắt đầu hợp đồng", "contract_draft", "contract.start_date", "date", "vn_date", True, None, 140),
+        ("contract_end_date", "Ngày kết thúc hợp đồng", "contract_draft", "contract.end_date", "date", "vn_date", False, None, 150),
+        ("insurance_salary", "Lương BHXH", "contract_draft", "contract.insurance_salary", "currency", "currency_vnd", False, None, 160),
+        ("Ngày", "Ngày ký (ngày)", "system", "system.render_date.day", "number", None, False, None, 170),
+        ("Tháng", "Ngày ký (tháng)", "system", "system.render_date.month", "number", None, False, None, 180),
+        ("Năm", "Ngày ký (năm)", "system", "system.render_date.year", "number", None, False, None, 190),
+        ("SĐT", "Số điện thoại", "employee", "employee.phone_number", "text", None, False, None, 200),
+        ("Loại_HĐLĐ__", "Loại hợp đồng", "contract_draft", "contract.contract_type_label", "text", None, False, None, 210),
+        ("Thời_hạn_trả_lương", "Kỳ hạn trả lương", "contract_draft", "contract.pay_cycle_label", "text", None, False, None, 220),
+    ],
+    "probation_standard": [
+        ("contract_number", "Số hợp đồng", "contract_draft", "contract.contract_number", "text", None, True, None, 10),
+        ("employee_full_name", "Họ và tên", "employee", "employee.full_name", "text", None, True, None, 20),
+        ("employee_birthday", "Ngày sinh", "employee", "employee.date_of_birth", "date", "vn_date", True, None, 30),
+        ("employee_cccd", "Số CCCD", "employee", "employee.identity_number", "text", None, True, None, 40),
+        ("employee_cccd_issued_on", "Ngày cấp CCCD", "employee", "employee.identity_issued_on", "date", "vn_date", False, None, 50),
+        ("employee_cccd_issued_by", "Nơi cấp CCCD", "employee", "employee.identity_issued_by", "text", None, False, None, 60),
+        ("employee_address", "Địa chỉ thường trú", "employee", "employee.permanent_address_full", "text", None, False, None, 70),
+        ("employee_temp_address", "Địa chỉ hiện tại", "employee", "employee.current_address_full", "text", None, False, None, 80),
+        ("employee_phone", "Số điện thoại", "employee", "employee.phone_number", "text", None, False, None, 90),
+        ("employee_personal_email", "Email cá nhân", "employee", "employee.personal_email", "text", None, False, None, 100),
+        ("position_title", "Chức danh công việc", "employee", "employee.position_name", "text", None, True, None, 110),
+        ("contract_start_date", "Ngày bắt đầu thử việc", "contract_draft", "contract.start_date", "date", "vn_date", True, None, 120),
+        ("contract_end_date", "Ngày kết thúc thử việc", "contract_draft", "contract.end_date", "date", "vn_date", False, None, 130),
+        ("insurance_salary", "Lương thử việc/BHXH", "contract_draft", "contract.insurance_salary", "currency", "currency_vnd", False, None, 140),
+        ("insurance_salary_words", "Lương bằng chữ", "contract_draft", "contract.insurance_salary_words", "text", None, False, None, 150),
     ],
     "appendix_salary_change": [
         ("employee.full_name", "Họ và tên", "employee", "employee.full_name", "text", None, True, None, 10),
@@ -301,6 +362,16 @@ CONTRACT_TEMPLATE_PLACEHOLDERS = {
 
 def _normalize(value: str) -> str:
     return normalize_text(value)
+
+
+def _template_file_meta(storage_path: str | None) -> tuple[int | None, str | None]:
+    if not storage_path:
+        return None, None
+    file_path = PROJECT_ROOT / storage_path
+    if not file_path.exists():
+        return None, None
+    payload = file_path.read_bytes()
+    return len(payload), sha256(payload).hexdigest()
 
 
 async def seed_required_other_business_catalog(session: AsyncSession) -> tuple[int, int, int, int, int, int]:
@@ -490,6 +561,7 @@ async def seed_sample_other_business_catalog(session: AsyncSession) -> tuple[int
         certificates_added += result.rowcount
 
     for item in CONTRACT_TEMPLATES:
+        file_size, file_checksum = _template_file_meta(item["storage_path"])
         result = await session.execute(
             text(
                 """
@@ -518,7 +590,12 @@ async def seed_sample_other_business_catalog(session: AsyncSession) -> tuple[int
                     note = EXCLUDED.note
                 """
             ),
-            {**item, "normalized_name": _normalize(item["name"])},
+            {
+                **item,
+                "file_size": file_size,
+                "file_checksum": file_checksum,
+                "normalized_name": _normalize(item["name"]),
+            },
         )
         templates_added += result.rowcount
 
@@ -531,6 +608,11 @@ async def seed_sample_other_business_catalog(session: AsyncSession) -> tuple[int
         ).scalar()
         if not template_id:
             continue
+
+        await session.execute(
+            text("DELETE FROM contract_template_placeholders WHERE template_id = :template_id"),
+            {"template_id": template_id},
+        )
 
         for row in rows:
             result = await session.execute(

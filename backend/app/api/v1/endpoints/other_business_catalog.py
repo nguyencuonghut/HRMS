@@ -20,6 +20,8 @@ from app.schemas.catalog import (
     ContractCategoryRead,
     ContractCategoryUpdate,
     ContractTemplateCreate,
+    ContractTemplateDocxInspectionRead,
+    ContractTemplateFieldRegistryRead,
     ContractTemplateListPage,
     ContractTemplatePlaceholderRead,
     ContractTemplatePlaceholderWrite,
@@ -534,6 +536,15 @@ async def put_contract_template_placeholders(
     return rows
 
 
+@contract_template_router.post("/{template_id}/inspect-docx", response_model=ContractTemplateDocxInspectionRead)
+async def inspect_contract_template_docx(
+    template_id: int,
+    _: User = require_permission("catalog:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await other_business_catalog_service.inspect_contract_template_docx(session, template_id)
+
+
 @lookup_router.get("/lookups/contract-categories", response_model=list[ContractCategoryRead])
 async def lookup_contract_categories(
     keyword: Optional[str] = Query(None),
@@ -578,3 +589,10 @@ async def lookup_certificates(keyword: Optional[str] = Query(None), certificate_
 @lookup_router.get("/lookups/leave-types", response_model=list[LeaveTypeRead])
 async def lookup_leave_types(keyword: Optional[str] = Query(None), limit: int = Query(20, ge=1, le=100), _: User = require_permission("catalog:view"), session: AsyncSession = Depends(get_session)):
     return await other_business_catalog_service.lookup_leave_types(session, keyword=keyword, limit=limit)
+
+
+@lookup_router.get("/lookups/contract-template-fields", response_model=list[ContractTemplateFieldRegistryRead])
+async def lookup_contract_template_fields(
+    _: User = require_permission("catalog:view"),
+):
+    return await other_business_catalog_service.get_contract_template_field_registry()

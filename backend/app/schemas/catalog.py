@@ -866,3 +866,86 @@ class ContractTemplatePlaceholderRead(BaseModel):
     updated_at: Optional[datetime]
 
     model_config = {"from_attributes": True}
+
+
+class ContractTemplateFieldRegistryRead(BaseModel):
+    token: str
+    label: str
+    source_scope: str
+    source_path: str
+    data_type: str
+    formatter: Optional[str]
+    is_required: bool
+    recommended_token: Optional[str] = None
+
+
+class ContractTemplateDocxInspectionItemRead(BaseModel):
+    placeholder_key: str
+    syntax: str
+    is_supported: bool
+    recommended_token: Optional[str] = None
+    label: Optional[str] = None
+    source_scope: Optional[str] = None
+    source_path: Optional[str] = None
+    data_type: Optional[str] = None
+    formatter: Optional[str] = None
+    is_required: bool = False
+
+
+class ContractTemplateDocxInspectionRead(BaseModel):
+    template_id: int
+    template_code: str
+    template_name: str
+    storage_path: str
+    file_name: str
+    styles: list[str]
+    warnings: list[str]
+    supported_count: int
+    unsupported_count: int
+    detected_placeholders: list[ContractTemplateDocxInspectionItemRead]
+    suggested_rows: list[ContractTemplatePlaceholderWrite]
+
+
+# ---------------------------------------------------------------------------
+# Contract Preview Payload — Phase 4 chuẩn bị
+# Dùng cho API /contracts/template-preview và /contracts/render-preview
+# ---------------------------------------------------------------------------
+
+class ContractDraftData(BaseModel):
+    """Override data provided by HR at contract generation time.
+
+    Các trường này KHÔNG lấy từ Employee Profile mà do HR nhập khi sinh HĐ.
+    source_scope = 'contract_draft' trong field registry.
+    """
+    contract_number: Optional[str] = None
+    signed_at: Optional[date] = None
+    effective_date: Optional[date] = None
+    expired_at: Optional[date] = None
+    insurance_salary: Optional[int] = None
+
+
+class ContractPreviewRequest(BaseModel):
+    """Request body cho API preview sinh hợp đồng/phụ lục."""
+    employee_id: int
+    template_id: int
+    draft_data: ContractDraftData = ContractDraftData()
+
+
+class ContractPlaceholderValueRead(BaseModel):
+    """Giá trị đã resolved cho một placeholder, kèm nguồn gốc."""
+    placeholder_key: str
+    label: str
+    value: Optional[str]
+    source: Literal["employee", "contract_draft", "system", "missing"]
+    is_required: bool = False
+
+
+class ContractPreviewResponse(BaseModel):
+    """Response của API preview — chứa toàn bộ payload sẽ được dùng để render."""
+    template_id: int
+    template_code: str
+    employee_id: int
+    placeholders: list[ContractPlaceholderValueRead]
+    missing_required_fields: list[str]
+    has_legacy_syntax: bool
+    warnings: list[str]

@@ -24,7 +24,7 @@ async def test_required_other_business_catalog_seed_is_idempotent():
         await other_business_catalog.seed_required_other_business_catalog(session)
         await session.commit()
 
-    assert await _scalar("SELECT COUNT(*) FROM contract_categories") == 4
+    assert await _scalar("SELECT COUNT(*) FROM contract_categories") == 5
     assert await _scalar("SELECT COUNT(*) FROM nationalities") == 8
     assert await _scalar("SELECT COUNT(*) FROM ethnicities") == 8
     assert await _scalar("SELECT COUNT(*) FROM religions") == 6
@@ -42,8 +42,8 @@ async def test_sample_other_business_catalog_seed_is_idempotent():
 
     assert await _scalar("SELECT COUNT(*) FROM skills") == 10
     assert await _scalar("SELECT COUNT(*) FROM certificates") == 5
-    assert await _scalar("SELECT COUNT(*) FROM contract_templates") == 3
-    assert await _scalar("SELECT COUNT(*) FROM contract_template_placeholders") == 19
+    assert await _scalar("SELECT COUNT(*) FROM contract_templates") == 4
+    assert await _scalar("SELECT COUNT(*) FROM contract_template_placeholders") == 51
 
 
 async def test_domain_relevant_other_business_seed_rows_exist():
@@ -62,6 +62,26 @@ async def test_domain_relevant_other_business_seed_rows_exist():
     contract_template = await _scalar(
         "SELECT COUNT(*) FROM contract_templates WHERE code = 'ld_indefinite' AND version_no = 1"
     )
+    fixed_term_template = await _scalar(
+        """
+        SELECT COUNT(*)
+        FROM contract_templates
+        WHERE code = 'ld_definite_12m'
+          AND version_no = 1
+          AND storage_path = 'app/seeds/data/fixed_term.docx'
+          AND file_checksum IS NOT NULL
+        """
+    )
+    probation_template = await _scalar(
+        """
+        SELECT COUNT(*)
+        FROM contract_templates
+        WHERE code = 'probation_standard'
+          AND version_no = 1
+          AND storage_path = 'app/seeds/data/probation.docx'
+          AND file_checksum IS NOT NULL
+        """
+    )
     employee_full_name_placeholder = await _scalar(
         """
         SELECT COUNT(*)
@@ -78,4 +98,6 @@ async def test_domain_relevant_other_business_seed_rows_exist():
     assert qa_qc == 1
     assert customs_certificate == 1
     assert contract_template == 1
+    assert fixed_term_template == 1
+    assert probation_template == 1
     assert employee_full_name_placeholder == 1
