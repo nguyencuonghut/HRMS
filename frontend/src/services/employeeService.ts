@@ -73,6 +73,79 @@ export interface EmployeeBankAccountRead {
   updated_at: string | null
 }
 
+// ── Job Records (3.2) ─────────────────────────────────────────────────────────
+
+export interface DepartmentBrief {
+  id: number
+  code: string
+  name: string
+  display_prefix: string | null
+}
+
+export interface JobTitleBrief {
+  id: number
+  code: string
+  name: string
+}
+
+export interface JobPositionBrief {
+  id: number
+  code: string
+  name: string
+}
+
+export interface JobRecordRead {
+  id: number
+  employee_id: number
+  department_id: number
+  department: DepartmentBrief
+  job_title_id: number | null
+  job_title: JobTitleBrief | null
+  job_position_id: number | null
+  job_position: JobPositionBrief | null
+  probation_start_date: string | null
+  probation_end_date: string | null
+  official_date: string | null
+  effective_from: string
+  effective_to: string | null
+  is_current: boolean
+  notes: string | null
+  changed_by: number | null
+  created_at: string
+  updated_at: string | null
+}
+
+export interface JobRecordCreate {
+  department_id: number
+  job_title_id?: number | null
+  job_position_id?: number | null
+  probation_start_date?: string | null
+  probation_end_date?: string | null
+  official_date?: string | null
+  effective_from: string
+  notes?: string | null
+}
+
+export interface JobRecordUpdate {
+  department_id?: number | null
+  job_title_id?: number | null
+  job_position_id?: number | null
+  probation_start_date?: string | null
+  probation_end_date?: string | null
+  official_date?: string | null
+  notes?: string | null
+}
+
+export interface JobRecordTransfer {
+  department_id: number
+  job_title_id?: number | null
+  job_position_id?: number | null
+  effective_from: string
+  notes?: string | null
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export interface EmployeeRead extends EmployeeListItem {
   last_name: string
   first_name: string
@@ -92,6 +165,7 @@ export interface EmployeeRead extends EmployeeListItem {
   user_id: number | null
   addresses: EmployeeAddressRead[]
   bank_accounts: EmployeeBankAccountRead[]
+  current_job: JobRecordRead | null
 }
 
 export interface EmployeeLookupItem {
@@ -224,4 +298,17 @@ export default {
 
   deleteBankAccount: (id: number, accountId: number) =>
     api.delete(`${BASE}/${id}/bank-accounts/${accountId}`),
+
+  // Job records (3.2)
+  getJobRecords: (id: number) =>
+    api.get<JobRecordRead[]>(`${BASE}/${id}/job-records`),
+
+  createJobRecord: (id: number, data: JobRecordCreate) =>
+    api.post<JobRecordRead>(`${BASE}/${id}/job-records`, data),
+
+  updateCurrentJobRecord: (id: number, data: JobRecordUpdate) =>
+    api.put<JobRecordRead>(`${BASE}/${id}/job-records/current`, data),
+
+  transferJobRecord: (id: number, data: JobRecordTransfer) =>
+    api.post<JobRecordRead>(`${BASE}/${id}/job-records/transfer`, data),
 }

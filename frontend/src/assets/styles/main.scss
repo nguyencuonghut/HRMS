@@ -361,6 +361,7 @@ $topbar-height: 4rem;
 }
 
 .col-full { grid-column: 1 / -1; }
+.no-top-pad { padding-top: 0 !important; }
 
 .field-sep {
   grid-column: 1 / -1;
@@ -470,6 +471,64 @@ $topbar-height: 4rem;
 @media (max-width: 768px) {
   .form-grid { grid-template-columns: 1fr; .col-full { grid-column: 1; } }
   .page-header { flex-direction: column; }
+}
+
+// ── Section card (dùng trong các tab detail) ──────────────────────
+.section-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding: 0.25rem 0;
+}
+
+.section-card {
+  background: var(--l-surface);
+  border: 1px solid var(--l-border);
+  border-radius: 12px;
+  padding: 1.25rem;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.section-title { font-weight: 600; font-size: 0.95rem; }
+.section-actions { display: flex; gap: 0.5rem; }
+
+// ── Info grid (key-value pairs trong detail views) ────────────────
+.info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem 1.5rem;
+
+  @media (max-width: 600px) { grid-template-columns: 1fr; }
+}
+
+.info-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.info-label {
+  font-size: 0.78rem;
+  color: var(--l-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.info-value { font-size: 0.95rem; font-weight: 500; }
+
+// ── info-notice variants ──────────────────────────────────────────
+.info-notice {
+  &.is-primary {
+    background: color-mix(in srgb, var(--p-primary-color) 6%, transparent);
+    border-color: color-mix(in srgb, var(--p-primary-color) 20%, transparent);
+    color: inherit;
+  }
 }
 
 // ── Footer ────────────────────────────────────────────────────────
