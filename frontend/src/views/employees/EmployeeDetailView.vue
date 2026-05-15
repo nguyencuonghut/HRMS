@@ -22,6 +22,36 @@
         <AdministrativeAddressPairSelector v-model="addressDraft" />
       </div>
 
+      <div class="demo-card">
+        <div class="demo-intro">
+          <span class="eyebrow">Phase 3.4 Preview</span>
+          <h3>Học vấn chuẩn hóa</h3>
+          <p>
+            Cụm nhập liệu dưới đây chứng minh hồ sơ nhân sự có thể tái sử dụng trực tiếp
+            catalog học vấn hiện tại: trình độ, trường học và chuyên ngành. Dữ liệu vẫn là
+            draft preview, chưa persistence trong phase này.
+          </p>
+        </div>
+
+        <div class="education-stack">
+          <EmployeeEducationEditor
+            v-for="(item, index) in educationDraft"
+            :key="item.local_id"
+            v-model="educationDraft[index]"
+            :index="index"
+            @remove="removeEducation(index)"
+          />
+
+          <Button
+            label="Thêm dòng học vấn"
+            icon="pi pi-plus"
+            severity="secondary"
+            outlined
+            @click="addEducation"
+          />
+        </div>
+      </div>
+
       <div class="preview-card">
         <span class="eyebrow">Payload Preview</span>
         <h3>Dữ liệu sẽ gửi về phase nhân sự</h3>
@@ -33,13 +63,19 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import Button from 'primevue/button'
 
 import AdministrativeAddressPairSelector from '@/components/catalog/AdministrativeAddressPairSelector.vue'
+import EmployeeEducationEditor, { type EmployeeEducationDraft } from '@/components/catalog/EmployeeEducationEditor.vue'
 import type { AdministrativeAddressSelectionDraft } from '@/services/administrativeUnitService'
 
 interface AddressPairDraft {
   old_address: AdministrativeAddressSelectionDraft
   new_address: AdministrativeAddressSelectionDraft
+}
+
+interface EmployeeEducationDraftRow extends EmployeeEducationDraft {
+  local_id: string
 }
 
 const addressDraft = ref<AddressPairDraft>({
@@ -58,7 +94,41 @@ const addressDraft = ref<AddressPairDraft>({
   },
 })
 
-const serializedDraft = computed(() => JSON.stringify(addressDraft.value, null, 2))
+function makeEducationRow(): EmployeeEducationDraftRow {
+  return {
+    local_id: crypto.randomUUID(),
+    education_level_id: null,
+    institution_id: null,
+    institution_fallback_text: '',
+    major_id: null,
+    major_fallback_text: '',
+    degree_name: '',
+    from_year: null,
+    graduation_year: null,
+    is_graduated: true,
+    note: '',
+  }
+}
+
+const educationDraft = ref<EmployeeEducationDraftRow[]>([
+  makeEducationRow(),
+])
+
+function addEducation() {
+  educationDraft.value.push(makeEducationRow())
+}
+
+function removeEducation(index: number) {
+  educationDraft.value.splice(index, 1)
+  if (educationDraft.value.length === 0) {
+    educationDraft.value.push(makeEducationRow())
+  }
+}
+
+const serializedDraft = computed(() => JSON.stringify({
+  address: addressDraft.value,
+  educations: educationDraft.value.map(({ local_id, ...item }) => item),
+}, null, 2))
 </script>
 
 <style scoped>
@@ -117,6 +187,13 @@ const serializedDraft = computed(() => JSON.stringify(addressDraft.value, null, 
 .demo-intro p {
   margin: 0.5rem 0 0;
   line-height: 1.6;
+}
+
+.education-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 1rem;
 }
 
 .preview-card pre {
