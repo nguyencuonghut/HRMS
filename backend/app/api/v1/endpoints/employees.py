@@ -201,7 +201,8 @@ async def get_addresses(
     _: User = require_permission("employees:view"),
     session: AsyncSession = Depends(get_session),
 ):
-    return await employee_service.get_employee_addresses(session, employee_id)
+    addresses = await employee_service.get_employee_addresses(session, employee_id)
+    return await employee_service.enrich_addresses(session, addresses)
 
 
 @router.put(
@@ -218,7 +219,7 @@ async def upsert_address(
     addr = await employee_service.upsert_employee_address(session, employee_id, payload)
     await session.commit()
     await session.refresh(addr)
-    return addr
+    return await employee_service.build_address_read(session, addr)
 
 
 # ── Bank Accounts ──────────────────────────────────────────────────────────────

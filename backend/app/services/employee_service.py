@@ -7,6 +7,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.catalog import AdministrativeUnit
 from app.models.employee import Employee, EmployeeAddress, EmployeeBankAccount
 from app.schemas.employee import (
     EmployeeAddressWrite,
@@ -205,6 +206,41 @@ async def soft_delete_employee(session: AsyncSession, employee_id: int) -> Emplo
 
 # ── Addresses ──────────────────────────────────────────────────────────────────
 
+async def _resolve_unit_names(session: AsyncSession, unit_ids: set[int]) -> dict[int, str]:
+    if not unit_ids:
+        return {}
+    rows = (await session.execute(
+        select(AdministrativeUnit.id, AdministrativeUnit.name)
+        .where(AdministrativeUnit.id.in_(unit_ids))
+    )).all()
+    return {row.id: row.name for row in rows}
+
+
+async def enrich_addresses(session: AsyncSession, addresses: list[EmployeeAddress]) -> list[dict]:
+    ids: set[int] = set()
+    for a in addresses:
+        for v in (a.old_province_unit_id, a.old_district_unit_id, a.old_ward_unit_id,
+                  a.new_province_unit_id, a.new_ward_unit_id):
+            if v:
+                ids.add(v)
+    names = await _resolve_unit_names(session, ids)
+    result = []
+    for a in addresses:
+        d = a.model_dump()
+        d["old_province_name"] = names.get(a.old_province_unit_id) if a.old_province_unit_id else None
+        d["old_district_name"] = names.get(a.old_district_unit_id) if a.old_district_unit_id else None
+        d["old_ward_name"] = names.get(a.old_ward_unit_id) if a.old_ward_unit_id else None
+        d["new_province_name"] = names.get(a.new_province_unit_id) if a.new_province_unit_id else None
+        d["new_ward_name"] = names.get(a.new_ward_unit_id) if a.new_ward_unit_id else None
+        result.append(d)
+    return result
+
+
+async def build_address_read(session: AsyncSession, addr: EmployeeAddress) -> dict:
+    enriched = await enrich_addresses(session, [addr])
+    return enriched[0]
+
+
 async def get_employee_addresses(
     session: AsyncSession, employee_id: int
 ) -> list[EmployeeAddress]:
@@ -319,7 +355,7 @@ async def build_employee_read_data(
     addresses = await get_employee_addresses(session, emp.id)
     bank_accounts = await get_employee_bank_accounts(session, emp.id)
     return {
-        "addresses": addresses,
+        "addresses": await enrich_addresses(session, addresses),
         "bank_accounts": bank_accounts,
         "display_code": compute_display_code(emp.employee_seq),
     }

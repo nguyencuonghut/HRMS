@@ -48,6 +48,12 @@ export interface EmployeeAddressRead {
   full_address_text: string | null
   created_at: string
   updated_at: string | null
+  // Enriched unit names
+  old_province_name: string | null
+  old_district_name: string | null
+  old_ward_name: string | null
+  new_province_name: string | null
+  new_ward_name: string | null
 }
 
 export interface EmployeeBankAccountRead {

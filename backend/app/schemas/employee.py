@@ -43,6 +43,13 @@ class EmployeeAddressRead(BaseModel):
     created_at: datetime
     updated_at: Optional[datetime]
 
+    # Tên đơn vị hành chính được enrich sau khi query
+    old_province_name: Optional[str] = None
+    old_district_name: Optional[str] = None
+    old_ward_name: Optional[str] = None
+    new_province_name: Optional[str] = None
+    new_ward_name: Optional[str] = None
+
     model_config = {"from_attributes": True}
 
 
