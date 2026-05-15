@@ -248,6 +248,7 @@ class EmployeeRead(BaseModel):
     addresses: list[EmployeeAddressRead] = []
     bank_accounts: list[EmployeeBankAccountRead] = []
     current_job: Optional["JobRecordRead"] = None
+    relatives: list["EmployeeRelativeRead"] = []
 
     model_config = {"from_attributes": True}
 
@@ -342,5 +343,48 @@ class JobRecordRead(BaseModel):
     updated_at: Optional[datetime]
 
 
-# Giải quyết forward reference: EmployeeRead.current_job: Optional[JobRecordRead]
+# ── Relatives (3.3) ──────────────────────────────────────────────────────────
+
+RelationshipType = Literal[
+    "vo", "chong", "cha", "me", "con", "anh", "chi", "em", "khac"
+]
+
+
+class EmployeeRelativeRead(BaseModel):
+    id: int
+    employee_id: int
+    full_name: str
+    relationship_type: str
+    date_of_birth: Optional[date]
+    occupation: Optional[str]
+    phone_number: Optional[str]
+    is_emergency_contact: bool
+    note: Optional[str]
+    created_at: datetime
+    updated_at: Optional[datetime]
+
+    model_config = {"from_attributes": True}
+
+
+class RelativeCreate(BaseModel):
+    full_name: str
+    relationship_type: RelationshipType
+    date_of_birth: Optional[date] = None
+    occupation: Optional[str] = None
+    phone_number: Optional[str] = None
+    is_emergency_contact: bool = False
+    note: Optional[str] = None
+
+
+class RelativeUpdate(BaseModel):
+    full_name: Optional[str] = None
+    relationship_type: Optional[RelationshipType] = None
+    date_of_birth: Optional[date] = None
+    occupation: Optional[str] = None
+    phone_number: Optional[str] = None
+    is_emergency_contact: Optional[bool] = None
+    note: Optional[str] = None
+
+
+# Giải quyết forward references
 EmployeeRead.model_rebuild()

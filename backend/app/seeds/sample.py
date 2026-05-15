@@ -14,7 +14,7 @@ import datetime
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.seeds import education_catalog, other_business_catalog, employees as employees_seed, employee_job_records as job_records_seed
+from app.seeds import education_catalog, other_business_catalog, employees as employees_seed, employee_job_records as job_records_seed, employee_relatives as relatives_seed
 
 # ─── Chức danh ───────────────────────────────────────────────────────────────
 
@@ -275,6 +275,9 @@ async def run(session: AsyncSession) -> None:
     emps_added = await employees_seed.seed_sample_employees(session)
     await session.flush()
     job_records_added = await job_records_seed.seed_sample_job_records(session)
+    await session.flush()
+    relatives_added = await relatives_seed.seed_sample_relatives(session)
+    print(f"  [sample] Người thân mẫu:    +{relatives_added} dòng")
     await session.commit()
 
     print(f"  [sample] Chức danh:        +{titles} dòng")

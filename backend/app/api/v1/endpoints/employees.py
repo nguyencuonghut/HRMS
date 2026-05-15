@@ -1,4 +1,4 @@
-"""Quản lý nhân viên — CRUD hồ sơ cá nhân (3.1) + thông tin công việc (3.2)."""
+"""Quản lý nhân viên — CRUD hồ sơ cá nhân (3.1) + thông tin công việc (3.2) + người thân (3.3)."""
 
 from typing import Optional
 
@@ -22,8 +22,11 @@ from app.schemas.employee import (
     JobRecordRead,
     JobRecordTransfer,
     JobRecordUpdate,
+    EmployeeRelativeRead,
+    RelativeCreate,
+    RelativeUpdate,
 )
-from app.services import auth_service, employee_job_service, employee_service
+from app.services import auth_service, employee_job_service, employee_relative_service, employee_service
 
 router = APIRouter()
 
@@ -401,3 +404,88 @@ async def transfer_job_record(
     )
     await session.commit()
     return result
+
+
+# ── Relatives (3.3) ────────────────────────────────────────────────────────────
+
+@router.get(
+    "/{employee_id}/relatives",
+    response_model=list[EmployeeRelativeRead],
+    summary="Danh sách người thân",
+)
+async def get_relatives(
+    employee_id: int,
+    _: User = require_permission("employees:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    await employee_service._get_or_404(session, employee_id)
+    return await employee_relative_service.get_relatives(session, employee_id)
+
+
+@router.post(
+    "/{employee_id}/relatives",
+    response_model=EmployeeRelativeRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Thêm người thân",
+)
+async def create_relative(
+    employee_id: int,
+    payload: RelativeCreate,
+    current_user: User = require_permission("employees:edit"),
+    session: AsyncSession = Depends(get_session),
+):
+    await employee_service._get_or_404(session, employee_id)
+    rel = await employee_relative_service.create_relative(session, employee_id, payload)
+    await auth_service.log_audit(
+        session, current_user.id, "CREATE_RELATIVE",
+        entity_type="employee_relative", entity_id=employee_id,
+        new_data={"full_name": payload.full_name, "relationship_type": payload.relationship_type},
+    )
+    await session.commit()
+    await session.refresh(rel)
+    return rel
+
+
+@router.put(
+    "/{employee_id}/relatives/{relative_id}",
+    response_model=EmployeeRelativeRead,
+    summary="Cập nhật thông tin người thân",
+)
+async def update_relative(
+    employee_id: int,
+    relative_id: int,
+    payload: RelativeUpdate,
+    current_user: User = require_permission("employees:edit"),
+    session: AsyncSession = Depends(get_session),
+):
+    await employee_service._get_or_404(session, employee_id)
+    rel = await employee_relative_service.update_relative(session, employee_id, relative_id, payload)
+    await auth_service.log_audit(
+        session, current_user.id, "UPDATE_RELATIVE",
+        entity_type="employee_relative", entity_id=employee_id,
+        new_data={"relative_id": relative_id, **payload.model_dump(exclude_unset=True)},
+    )
+    await session.commit()
+    await session.refresh(rel)
+    return rel
+
+
+@router.delete(
+    "/{employee_id}/relatives/{relative_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Xóa người thân",
+)
+async def delete_relative(
+    employee_id: int,
+    relative_id: int,
+    current_user: User = require_permission("employees:edit"),
+    session: AsyncSession = Depends(get_session),
+):
+    await employee_service._get_or_404(session, employee_id)
+    await employee_relative_service.delete_relative(session, employee_id, relative_id)
+    await auth_service.log_audit(
+        session, current_user.id, "DELETE_RELATIVE",
+        entity_type="employee_relative", entity_id=employee_id,
+        new_data={"relative_id": relative_id},
+    )
+    await session.commit()

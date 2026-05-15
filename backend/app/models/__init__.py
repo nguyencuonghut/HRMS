@@ -47,3 +47,6 @@ from app.models.employee import (  # noqa: F401
 from app.models.employee_job import (  # noqa: F401
     EmployeeJobRecord,
 )
+from app.models.employee_relative import (  # noqa: F401
+    EmployeeRelative,
+)
