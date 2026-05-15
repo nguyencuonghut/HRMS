@@ -595,3 +595,77 @@ $topbar-height: 4rem;
     z-index: 998;
   }
 }
+
+// ── Attachment list (tab Tài liệu) ────────────────────────────────
+.attachment-group { margin-bottom: 1.5rem; }
+
+.attachment-group-title {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--l-text-muted);
+  margin-bottom: 0.5rem;
+}
+
+.attachment-list { display: flex; flex-direction: column; gap: 0.5rem; }
+
+.attachment-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: var(--l-surface);
+  border: 1px solid var(--l-border);
+  border-radius: 10px;
+  transition: border-color .15s;
+
+  &:hover { border-color: color-mix(in srgb, var(--p-primary-color) 40%, transparent); }
+
+  &.attachment-old {
+    opacity: 0.65;
+    background: color-mix(in srgb, var(--l-surface) 60%, var(--l-bg));
+  }
+}
+
+.attachment-icon {
+  font-size: 1.5rem;
+  width: 2rem;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.attachment-info { flex: 1; min-width: 0; }
+
+.attachment-name {
+  font-weight: 500;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.attachment-meta {
+  font-size: 0.78rem;
+  color: var(--l-text-muted);
+  margin-top: 0.15rem;
+}
+
+.attachment-actions { display: flex; gap: 0.25rem; flex-shrink: 0; }
+
+.attachment-upload-zone {
+  border: 2px dashed var(--l-border);
+  border-radius: 10px;
+  padding: 1.25rem;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+  color: var(--l-text-muted);
+  font-size: 0.875rem;
+
+  &:hover {
+    border-color: var(--p-primary-color);
+    background: color-mix(in srgb, var(--p-primary-color) 4%, transparent);
+    color: var(--p-primary-color);
+  }
+}

@@ -61,6 +61,7 @@
           <Tab value="job" :disabled="isNew">Công việc</Tab>
           <Tab value="relatives" :disabled="isNew">Người thân</Tab>
           <Tab value="education" :disabled="isNew">Học vấn & KN</Tab>
+          <Tab value="attachments" :disabled="isNew">Tài liệu</Tab>
         </TabList>
 
         <TabPanels>
@@ -345,6 +346,14 @@
               @refresh="loadEmployee"
             />
           </TabPanel>
+
+          <!-- ── TAB: Tài liệu đính kèm ───────────────────────────────────── -->
+          <TabPanel value="attachments">
+            <AttachmentsTab
+              v-if="!isNew && employeeId"
+              :employee-id="employeeId"
+            />
+          </TabPanel>
         </TabPanels>
       </Tabs>
     </template>
@@ -417,6 +426,7 @@ import AddressEditor from './AddressEditor.vue'
 import JobRecordTab from './JobRecordTab.vue'
 import RelativesTab from './RelativesTab.vue'
 import EducationTab from './EducationTab.vue'
+import AttachmentsTab from './AttachmentsTab.vue'
 
 import employeeService, {
   type EmployeeRead,

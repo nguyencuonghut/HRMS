@@ -457,6 +457,48 @@ export interface EmployeeLanguageUpdate {
   note?: string | null
 }
 
+// ── Attachments (3.5) ─────────────────────────────────────────────────────────
+export const DOCUMENT_TYPE_LABELS: Record<string, string> = {
+  avatar:        'Ảnh thẻ',
+  id_card_front: 'CCCD / CMND — Mặt trước',
+  id_card_back:  'CCCD / CMND — Mặt sau',
+  passport:      'Hộ chiếu',
+  work_permit:   'Giấy phép lao động',
+  degree:        'Bằng cấp / Văn bằng',
+  certificate:   'Chứng chỉ',
+  resume:        'CV / Sơ yếu lý lịch',
+  other:         'Khác',
+}
+
+export const DOCUMENT_TYPE_OPTIONS = Object.entries(DOCUMENT_TYPE_LABELS).map(
+  ([value, label]) => ({ value, label })
+)
+
+export const DOCUMENT_TYPE_GROUPS: { label: string; types: string[] }[] = [
+  { label: 'Ảnh thẻ',              types: ['avatar'] },
+  { label: 'CCCD / CMND',          types: ['id_card_front', 'id_card_back'] },
+  { label: 'Hộ chiếu',             types: ['passport'] },
+  { label: 'Giấy phép lao động',   types: ['work_permit'] },
+  { label: 'Bằng cấp / Văn bằng', types: ['degree'] },
+  { label: 'Chứng chỉ',            types: ['certificate'] },
+  { label: 'CV / Sơ yếu lý lịch', types: ['resume'] },
+  { label: 'Khác',                 types: ['other'] },
+]
+
+export interface EmployeeAttachmentRead {
+  id:                  number
+  employee_id:         number
+  document_type:       string
+  document_type_label: string
+  description:         string | null
+  file_name:           string
+  file_path:           string
+  file_size:           number | null
+  mime_type:           string | null
+  uploaded_at:         string
+  download_url:        string
+}
+
 // ── Service ───────────────────────────────────────────────────────────────────
 
 const BASE = '/employees'
@@ -590,4 +632,21 @@ export default {
 
   deleteEmployeeLanguage: (id: number, langId: number) =>
     api.delete(`${BASE}/${id}/languages/${langId}`),
+
+  // Attachments (3.5)
+  getAttachments: (id: number, documentType?: string) =>
+    api.get<EmployeeAttachmentRead[]>(`${BASE}/${id}/attachments`, {
+      params: documentType ? { document_type: documentType } : undefined,
+    }),
+
+  uploadAttachment: (id: number, formData: FormData) =>
+    api.post<EmployeeAttachmentRead>(`${BASE}/${id}/attachments`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }),
+
+  deleteAttachment: (id: number, attId: number) =>
+    api.delete(`${BASE}/${id}/attachments/${attId}`),
+
+  getAttachmentDownloadUrl: (id: number, attId: number) =>
+    `${BASE}/${id}/attachments/${attId}/download`,
 }
