@@ -29,6 +29,26 @@ def ensure_bucket() -> None:
         client.make_bucket(settings.MINIO_BUCKET)
 
 
+async def save_employee_attachment(employee_id: int, upload: UploadFile) -> tuple[str, int]:
+    """
+    Upload file hồ sơ nhân viên lên MinIO.
+    Trả về (object_name, file_size).
+    """
+    content = await upload.read()
+    safe_name = Path(upload.filename or "file").name
+    object_name = f"employees/{employee_id}/{uuid.uuid4().hex[:8]}_{safe_name}"
+    content_type = upload.content_type or "application/octet-stream"
+
+    _client().put_object(
+        bucket_name=settings.MINIO_BUCKET,
+        object_name=object_name,
+        data=BytesIO(content),
+        length=len(content),
+        content_type=content_type,
+    )
+    return object_name, len(content)
+
+
 async def save_attachment(position_id: int, upload: UploadFile) -> tuple[str, int]:
     """
     Upload file lên MinIO.

@@ -1,8 +1,9 @@
-"""Quản lý nhân viên — CRUD hồ sơ cá nhân (3.1) + thông tin công việc (3.2) + người thân (3.3) + học vấn (3.4)."""
+"""Quản lý nhân viên — CRUD hồ sơ cá nhân (3.1) + thông tin công việc (3.2) + người thân (3.3) + học vấn (3.4) + hồ sơ đính kèm (3.5)."""
 
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import require_permission
@@ -41,7 +42,13 @@ from app.schemas.employee import (
     EmployeeLanguageCreate,
     EmployeeLanguageUpdate,
 )
-from app.services import auth_service, employee_job_service, employee_relative_service, employee_service, employee_education_service
+from app.schemas.employee_attachment import (
+    EmployeeAttachmentRead,
+    MAX_FILE_SIZE,
+    VALID_DOCUMENT_TYPES,
+)
+from app.services import auth_service, employee_job_service, employee_relative_service, employee_service, employee_education_service, employee_attachment_service
+from app.core.storage import delete_attachment, get_object_stream, save_employee_attachment
 
 router = APIRouter()
 
@@ -923,5 +930,104 @@ async def delete_employee_language(
         session, current_user.id, "DELETE_LANGUAGE",
         entity_type="employee_language", entity_id=employee_id,
         new_data={"lang_id": lang_id},
+    )
+    await session.commit()
+
+
+# ── 3.5 Hồ sơ đính kèm ────────────────────────────────────────────────────────
+
+@router.get(
+    "/{employee_id}/attachments",
+    response_model=list[EmployeeAttachmentRead],
+    summary="Danh sách tài liệu đính kèm",
+)
+async def list_attachments(
+    employee_id: int,
+    document_type: Optional[str] = Query(None, description="Lọc theo loại tài liệu"),
+    _: User = require_permission("employees:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    await employee_service._get_or_404(session, employee_id)
+    return await employee_attachment_service.get_attachments(session, employee_id, document_type)
+
+
+@router.post(
+    "/{employee_id}/attachments",
+    response_model=EmployeeAttachmentRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Upload tài liệu đính kèm",
+)
+async def upload_attachment(
+    employee_id: int,
+    file: UploadFile = File(...),
+    document_type: str = Form(...),
+    description: Optional[str] = Form(None),
+    current_user: User = require_permission("employees:edit"),
+    session: AsyncSession = Depends(get_session),
+):
+    await employee_service._get_or_404(session, employee_id)
+    if document_type not in VALID_DOCUMENT_TYPES:
+        raise HTTPException(422, detail=f"document_type không hợp lệ: {document_type}")
+    content = await file.read()
+    if len(content) > MAX_FILE_SIZE:
+        raise HTTPException(413, detail="File vượt quá giới hạn 20 MB")
+    await file.seek(0)
+    object_name, file_size = await save_employee_attachment(employee_id, file)
+    att = await employee_attachment_service.create_attachment(
+        session,
+        employee_id=employee_id,
+        document_type=document_type,
+        description=description,
+        file_name=file.filename or "file",
+        file_path=object_name,
+        file_size=file_size,
+        mime_type=file.content_type,
+    )
+    await auth_service.log_audit(
+        session, current_user.id, "UPLOAD_ATTACHMENT",
+        entity_type="employee_attachment", entity_id=employee_id,
+        new_data={"document_type": document_type, "file_name": file.filename},
+    )
+    await session.commit()
+    return att
+
+
+@router.get(
+    "/{employee_id}/attachments/{att_id}/download",
+    summary="Tải tài liệu đính kèm",
+)
+async def download_attachment(
+    employee_id: int,
+    att_id: int,
+    _: User = require_permission("employees:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    att = await employee_attachment_service.get_attachment_or_404(session, employee_id, att_id)
+    filename = att.file_name.encode("utf-8").decode("latin-1", errors="replace")
+    return StreamingResponse(
+        get_object_stream(att.file_path),
+        media_type=att.mime_type or "application/octet-stream",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.delete(
+    "/{employee_id}/attachments/{att_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Xóa tài liệu đính kèm",
+)
+async def delete_attachment_endpoint(
+    employee_id: int,
+    att_id: int,
+    current_user: User = require_permission("employees:edit"),
+    session: AsyncSession = Depends(get_session),
+):
+    att = await employee_attachment_service.get_attachment_or_404(session, employee_id, att_id)
+    delete_attachment(att.file_path)
+    await session.delete(att)
+    await auth_service.log_audit(
+        session, current_user.id, "DELETE_ATTACHMENT",
+        entity_type="employee_attachment", entity_id=employee_id,
+        new_data={"att_id": att_id, "file_name": att.file_name},
     )
     await session.commit()

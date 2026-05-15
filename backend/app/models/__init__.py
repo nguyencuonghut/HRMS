@@ -57,3 +57,4 @@ from app.models.employee_education import (  # noqa: F401
     EmployeeCertificate,
     EmployeeLanguage,
 )
+from app.models.employee_attachment import EmployeeAttachment  # noqa: F401
