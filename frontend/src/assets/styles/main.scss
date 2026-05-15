@@ -669,3 +669,69 @@ $topbar-height: 4rem;
     color: var(--p-primary-color);
   }
 }
+
+// ── Reminders (3.6) ───────────────────────────────────────────────
+.reminder-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+
+  @media (max-width: 640px) { grid-template-columns: 1fr; }
+}
+
+.reminder-card {
+  background: var(--l-surface);
+  border: 1px solid var(--l-border);
+  border-radius: 12px;
+  padding: 1.25rem 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.reminder-card-icon { font-size: 2rem; line-height: 1; }
+
+.reminder-card-body { flex: 1; }
+
+.reminder-card-count {
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.reminder-card-label {
+  font-size: 0.85rem;
+  color: var(--l-text-muted);
+  margin-top: 0.2rem;
+}
+
+// Days-until badge
+.days-badge {
+  display: inline-block;
+  padding: 0.2em 0.65em;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+
+  &.today { background: color-mix(in srgb, var(--p-red-500)    12%, transparent); color: var(--p-red-600); }
+  &.soon  { background: color-mix(in srgb, var(--p-orange-500) 12%, transparent); color: var(--p-orange-600); }
+  &.later { background: color-mix(in srgb, var(--p-green-500)  12%, transparent); color: var(--p-green-600); }
+}
+
+// Sidebar badge
+.menu-badge {
+  margin-left: auto;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--p-red-500);
+  color: #fff;
+}

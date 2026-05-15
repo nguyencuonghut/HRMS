@@ -63,6 +63,13 @@ const router = createRouter({
           component: () => import('@/views/employees/EmployeeDetailView.vue'),
           meta: { title: 'Hồ sơ nhân viên' },
         },
+        // Nhắc nhở sự kiện
+        {
+          path: 'reminders',
+          name: 'reminders',
+          component: () => import('@/views/RemindersView.vue'),
+          meta: { title: 'Nhắc nhở sự kiện' },
+        },
         // Hợp đồng
         {
           path: 'contracts',

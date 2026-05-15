@@ -31,6 +31,10 @@
         <RouterLink :to="item.to!">
           <i :class="['pi menu-icon', item.icon]" />
           <span class="menu-label" v-show="!collapsed">{{ item.label }}</span>
+          <span
+            v-if="item.to === '/reminders' && reminderBadge > 0 && !collapsed"
+            class="menu-badge"
+          >{{ reminderBadge }}</span>
         </RouterLink>
       </div>
     </template>
@@ -38,7 +42,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
+import reminderService from '@/services/reminderService'
 
 defineProps<{ collapsed: boolean }>()
 
@@ -50,7 +55,15 @@ interface MenuItem {
   items?: { to: string; label: string; icon?: string }[]
 }
 
-const openGroups = ref<Set<string>>(new Set(['Cơ cấu tổ chức', 'Danh mục']))
+const openGroups    = ref<Set<string>>(new Set(['Cơ cấu tổ chức', 'Danh mục']))
+const reminderBadge = ref(0)
+
+onMounted(async () => {
+  try {
+    const res = await reminderService.getReminders(7)
+    reminderBadge.value = res.data.total
+  } catch { /* sidebar badge không block UI */ }
+})
 
 function toggleGroup(label: string) {
   if (openGroups.value.has(label)) {
@@ -73,7 +86,8 @@ const menu: MenuItem[] = [
       { to: '/org/history',     label: 'Lịch sử thay đổi', icon: 'pi-history' },
     ],
   },
-  { to: '/employees', label: 'Nhân sự', icon: 'pi-users' },
+  { to: '/employees', label: 'Nhân sự',  icon: 'pi-users' },
+  { to: '/reminders', label: 'Nhắc nhở', icon: 'pi-bell'  },
   { to: '/contracts', label: 'Hợp đồng', icon: 'pi-file-edit' },
   { to: '/leaves', label: 'Nghỉ phép', icon: 'pi-calendar' },
   { to: '/insurance', label: 'Bảo hiểm BHXH', icon: 'pi-shield' },
