@@ -27,6 +27,9 @@ class Department(SQLModel, table=True):
     # PHONG | BAN | BO_PHAN | NHOM | TO
     dept_type: str = Field(default="PHONG", max_length=20)
     order_no: int = Field(default=0)
+    # Tiền tố ngắn dùng để tạo mã hiển thị nhân viên: "HC" → "HC0011", "KH" → "KH2278".
+    # Nullable: phòng ban chưa đặt prefix thì mã nhân viên hiển thị thuần số.
+    display_prefix: Optional[str] = Field(default=None, max_length=5)
     is_active: bool = Field(default=True)
     created_at: datetime = Field(default_factory=_utcnow)
     updated_at: Optional[datetime] = Field(default=None)

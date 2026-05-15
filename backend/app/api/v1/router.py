@@ -11,6 +11,7 @@ from app.api.v1.endpoints import org_history
 from app.api.v1.endpoints import users
 from app.api.v1.endpoints import roles
 from app.api.v1.endpoints import audit_logs
+from app.api.v1.endpoints import employees
 
 router = APIRouter()
 router.include_router(auth.router,          prefix="/auth",          tags=["Xác thực"])
@@ -38,3 +39,4 @@ router.include_router(org_history.router,   prefix="/org-history",   tags=["Cơ 
 router.include_router(users.router,         prefix="/users",         tags=["Quản lý người dùng"])
 router.include_router(roles.router,         prefix="/roles",         tags=["Vai trò & Quyền"])
 router.include_router(audit_logs.router,    prefix="/audit-logs",    tags=["Nhật ký hệ thống"])
+router.include_router(employees.router,     prefix="/employees",     tags=["Nhân sự"])
