@@ -105,6 +105,14 @@ def test_create_and_update_education_level_success(client: TestClient):
     assert updated["name"] == "Chứng chỉ nghề nâng cao"
     assert updated["rank_no"] == 98
 
+    logs = client.get(
+        "/api/v1/audit-logs",
+        params={"entity_type": "education_level", "action": "UPDATE", "limit": 10},
+        headers=_admin(client),
+    )
+    assert logs.status_code == 200, logs.text
+    assert any(row["entity_name"] == "Chứng chỉ nghề nâng cao" for row in logs.json())
+
 
 def test_create_educational_institution_writes_audit_log(client: TestClient):
     resp = client.post(
@@ -147,6 +155,40 @@ def test_delete_education_major_soft_deactivate(client: TestClient):
     assert detail.status_code == 200, detail.text
     assert detail.json()["is_active"] is False
 
+    logs = client.get(
+        "/api/v1/audit-logs",
+        params={"entity_type": "education_major", "action": "DELETE", "limit": 10},
+        headers=_admin(client),
+    )
+    assert logs.status_code == 200, logs.text
+    assert any(row["entity_name"] == "Công nghệ thức ăn thủy sản" for row in logs.json())
+
+
+def test_delete_educational_institution_writes_audit_log(client: TestClient):
+    created = client.post(
+        INSTITUTION_BASE,
+        json={
+            "code": "TEST_INSTITUTION_002",
+            "name": "Trường Đại học Nông nghiệp Vận hành",
+            "short_name": "ĐHNN Vận hành",
+            "institution_type": "university",
+            "country_code": "VN",
+        },
+        headers=_admin(client),
+    )
+    assert created.status_code == 201, created.text
+
+    deleted = client.delete(f"{INSTITUTION_BASE}/{created.json()['id']}", headers=_admin(client))
+    assert deleted.status_code == 200, deleted.text
+
+    logs = client.get(
+        "/api/v1/audit-logs",
+        params={"entity_type": "educational_institution", "action": "DELETE", "limit": 10},
+        headers=_admin(client),
+    )
+    assert logs.status_code == 200, logs.text
+    assert any(row["entity_name"] == "Trường Đại học Nông nghiệp Vận hành" for row in logs.json())
+
 
 def test_lookup_education_levels_returns_active_sorted_rows(client: TestClient):
     resp = client.get(LOOKUP_LEVELS, headers=_admin(client))
@@ -180,6 +222,28 @@ def test_officer_cannot_delete_education_catalog_rows(client: TestClient):
 
     resp = client.delete(f"{MAJOR_BASE}/{created.json()['id']}", headers=_officer(client))
     assert resp.status_code == 403
+
+
+def test_officer_can_view_and_edit_but_not_delete_catalog_rows(client: TestClient):
+    created = client.post(
+        LEVEL_BASE,
+        json={"code": "test_level_api_002", "name": "Trình độ test HR Officer", "rank_no": 97},
+        headers=_admin(client),
+    )
+    assert created.status_code == 201, created.text
+
+    listed = client.get(LEVEL_BASE, headers=_officer(client))
+    assert listed.status_code == 200, listed.text
+
+    updated = client.put(
+        f"{LEVEL_BASE}/{created.json()['id']}",
+        json={"name": "Trình độ test HR Officer Updated"},
+        headers=_officer(client),
+    )
+    assert updated.status_code == 200, updated.text
+
+    deleted = client.delete(f"{LEVEL_BASE}/{created.json()['id']}", headers=_officer(client))
+    assert deleted.status_code == 403
 
 
 def test_education_catalog_admin_endpoints_require_token(client: TestClient):

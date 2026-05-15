@@ -21,6 +21,13 @@
             outlined
             @click="router.push('/catalog')"
           />
+          <Button
+            label="Xem nhật ký hệ thống"
+            icon="pi pi-list"
+            severity="contrast"
+            outlined
+            @click="router.push('/admin/audit-logs')"
+          />
         </div>
       </div>
 
@@ -42,6 +49,7 @@
             <li>Lookup cho học vấn trong hồ sơ nhân sự</li>
             <li>Chuẩn hóa tên trường và chuyên ngành nội bộ</li>
             <li>Khóa mềm thay vì xóa vật lý để giữ lịch sử tham chiếu</li>
+            <li>CRUD được ghi audit log qua nhật ký hệ thống</li>
           </ul>
         </article>
       </div>
