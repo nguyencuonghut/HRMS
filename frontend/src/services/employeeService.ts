@@ -24,6 +24,9 @@ export interface EmployeeListItem {
   is_active: boolean
   created_at: string
   updated_at: string | null
+  id_expires_on: string | null
+  passport_expires_on: string | null
+  work_permit_expires_on: string | null
 }
 
 export interface EmployeeListPage {

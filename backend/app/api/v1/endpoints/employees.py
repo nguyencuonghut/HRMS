@@ -43,6 +43,9 @@ def _build_list_item_data(emp, display_code: str) -> dict:
         "is_active": emp.is_active,
         "created_at": emp.created_at,
         "updated_at": emp.updated_at,
+        "id_expires_on": emp.id_expires_on,
+        "passport_expires_on": emp.passport_expires_on,
+        "work_permit_expires_on": emp.work_permit_expires_on,
     }
 
 
@@ -217,6 +220,11 @@ async def upsert_address(
     session: AsyncSession = Depends(get_session),
 ):
     addr = await employee_service.upsert_employee_address(session, employee_id, payload)
+    await auth_service.log_audit(
+        session, current_user.id, "UPDATE",
+        entity_type="employee_address", entity_id=employee_id,
+        new_data={"address_type": payload.address_type},
+    )
     await session.commit()
     await session.refresh(addr)
     return await employee_service.build_address_read(session, addr)
@@ -250,6 +258,11 @@ async def add_bank_account(
     session: AsyncSession = Depends(get_session),
 ):
     acc = await employee_service.create_bank_account(session, employee_id, payload)
+    await auth_service.log_audit(
+        session, current_user.id, "CREATE",
+        entity_type="employee_bank_account", entity_id=employee_id,
+        new_data={"account_number": payload.account_number, "bank_id": payload.bank_id},
+    )
     await session.commit()
     await session.refresh(acc)
     return acc
@@ -268,6 +281,11 @@ async def update_bank_account(
     session: AsyncSession = Depends(get_session),
 ):
     acc = await employee_service.update_bank_account(session, employee_id, account_id, payload)
+    await auth_service.log_audit(
+        session, current_user.id, "UPDATE",
+        entity_type="employee_bank_account", entity_id=employee_id,
+        new_data={"account_id": account_id, "account_number": payload.account_number},
+    )
     await session.commit()
     await session.refresh(acc)
     return acc
@@ -285,4 +303,9 @@ async def delete_bank_account(
     session: AsyncSession = Depends(get_session),
 ):
     await employee_service.delete_bank_account(session, employee_id, account_id)
+    await auth_service.log_audit(
+        session, current_user.id, "DELETE",
+        entity_type="employee_bank_account", entity_id=employee_id,
+        new_data={"account_id": account_id},
+    )
     await session.commit()

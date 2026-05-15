@@ -110,6 +110,18 @@
           </template>
         </Column>
 
+        <Column header="Giấy tờ" style="width: 80px">
+          <template #body="{ data }">
+            <span
+              v-if="docExpiryIcon(data)"
+              v-tooltip.top="docExpiryTooltip(data)"
+              :class="['doc-expiry-icon', `doc-expiry-icon--${docExpirySeverity(data)}`]"
+            >
+              <i :class="docExpiryIcon(data)" />
+            </span>
+          </template>
+        </Column>
+
         <Column header="" style="width: 90px">
           <template #body="{ data }">
             <div class="action-cell" @click.stop>
@@ -201,6 +213,51 @@ function statusSeverity(s: string): 'warn' | 'success' | 'secondary' | 'danger' 
 function formatDate(iso: string | null): string {
   if (!iso) return '—'
   return new Date(iso).toLocaleDateString('vi-VN')
+}
+
+const DOC_WARN_DAYS = 30
+
+interface DocCheck { label: string; date: string }
+
+function _checkDocs(emp: EmployeeListItem): { expired: DocCheck[]; soon: DocCheck[] } {
+  const today = new Date(); today.setHours(0, 0, 0, 0)
+  const warnMs = DOC_WARN_DAYS * 86_400_000
+  const docs: { label: string; iso: string | null }[] = [
+    { label: 'CCCD/CMND',    iso: emp.id_expires_on },
+    { label: 'Hộ chiếu',     iso: emp.passport_expires_on },
+    { label: 'Giấy phép LĐ', iso: emp.work_permit_expires_on },
+  ]
+  const expired: DocCheck[] = []
+  const soon: DocCheck[]    = []
+  for (const d of docs) {
+    if (!d.iso) continue
+    const dt = new Date(d.iso)
+    if (dt < today)                          expired.push({ label: d.label, date: d.iso })
+    else if (dt.getTime() - today.getTime() <= warnMs) soon.push({ label: d.label, date: d.iso })
+  }
+  return { expired, soon }
+}
+
+function docExpirySeverity(emp: EmployeeListItem): 'danger' | 'warn' | null {
+  const { expired, soon } = _checkDocs(emp)
+  if (expired.length) return 'danger'
+  if (soon.length)    return 'warn'
+  return null
+}
+
+function docExpiryIcon(emp: EmployeeListItem): string | null {
+  const s = docExpirySeverity(emp)
+  if (s === 'danger') return 'pi pi-exclamation-circle'
+  if (s === 'warn')   return 'pi pi-clock'
+  return null
+}
+
+function docExpiryTooltip(emp: EmployeeListItem): string {
+  const { expired, soon } = _checkDocs(emp)
+  const lines: string[] = []
+  for (const d of expired) lines.push(`${d.label}: hết hạn ${formatDate(d.date)}`)
+  for (const d of soon)    lines.push(`${d.label}: sắp hết hạn ${formatDate(d.date)}`)
+  return lines.join('\n')
 }
 
 function apiError(e: unknown): string {
@@ -335,6 +392,26 @@ onMounted(loadData)
 
 .name-cell { font-weight: 500; }
 .muted { color: var(--l-text-muted); }
+
+.doc-expiry-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 50%;
+  cursor: default;
+}
+
+.doc-expiry-icon--danger {
+  color: var(--p-red-500);
+  background: color-mix(in srgb, var(--p-red-500) 12%, transparent);
+}
+
+.doc-expiry-icon--warn {
+  color: var(--p-orange-500);
+  background: color-mix(in srgb, var(--p-orange-500) 12%, transparent);
+}
 
 .action-cell {
   display: flex;

@@ -201,6 +201,10 @@ class EmployeeListItem(BaseModel):
     is_active: bool
     created_at: datetime
     updated_at: Optional[datetime]
+    # Cảnh báo hết hạn giấy tờ
+    id_expires_on: Optional[date] = None
+    passport_expires_on: Optional[date] = None
+    work_permit_expires_on: Optional[date] = None
 
     model_config = {"from_attributes": True}
 
