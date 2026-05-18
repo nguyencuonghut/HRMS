@@ -93,6 +93,9 @@ class ContractRead(BaseModel):
     created_at:           datetime
     updated_at:           Optional[datetime]
     appendices:           list[ContractRead] = []
+    # Chỉ populated trong global list (list_contracts_global)
+    employee_name:        Optional[str] = None
+    employee_code:        Optional[str] = None
 
 
 class ContractListPage(BaseModel):

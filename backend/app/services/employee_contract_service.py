@@ -28,7 +28,13 @@ def _utcnow() -> datetime:
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-def _to_read(c: EmployeeContract, category_name: str, appendices: list[ContractRead] | None = None) -> ContractRead:
+def _to_read(
+    c: EmployeeContract,
+    category_name: str,
+    appendices: list[ContractRead] | None = None,
+    employee_name: str | None = None,
+    employee_code: str | None = None,
+) -> ContractRead:
     return ContractRead(
         id=c.id,
         employee_id=c.employee_id,
@@ -52,6 +58,8 @@ def _to_read(c: EmployeeContract, category_name: str, appendices: list[ContractR
         created_at=c.created_at,
         updated_at=c.updated_at,
         appendices=appendices or [],
+        employee_name=employee_name,
+        employee_code=employee_code,
     )
 
 
@@ -326,6 +334,9 @@ async def list_contracts_global(
     q = q.offset((page - 1) * page_size).limit(page_size)
 
     rows = (await session.execute(q)).fetchall()
-    items = [_to_read(c, cat.name) for c, cat, _ in rows]
+    items = [
+        _to_read(c, cat.name, employee_name=emp.full_name, employee_code=str(emp.employee_seq))
+        for c, cat, emp in rows
+    ]
 
     return ContractListPage(items=items, total=total, page=page, page_size=page_size)
