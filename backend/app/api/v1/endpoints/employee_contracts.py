@@ -1,9 +1,12 @@
 """Endpoints hợp đồng lao động per-employee (4.1)."""
 
+import io
 from pathlib import Path
+from urllib.parse import quote as _urlquote
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import require_permission
@@ -18,6 +21,12 @@ from app.schemas.employee_contract import (
     ContractUpdate,
 )
 from app.services import auth_service, employee_contract_service
+
+_DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+
+
+class GenerateContractBody(BaseModel):
+    template_id: int
 
 router = APIRouter()
 
@@ -157,6 +166,32 @@ async def download_contract_file(
         get_object_stream(c.file_path),
         media_type=c.mime_type or "application/octet-stream",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.post("/{employee_id}/contracts/{contract_id}/generate", tags=[_TAG])
+async def generate_contract(
+    employee_id: int,
+    contract_id: int,
+    payload: GenerateContractBody,
+    current_user: User = require_permission("contracts:edit"),
+    session: AsyncSession = Depends(get_session),
+):
+    from app.services.contract_generate_service import generate_contract_document
+
+    docx_bytes, filename = await generate_contract_document(
+        session, employee_id, contract_id, payload.template_id
+    )
+    await auth_service.log_audit(
+        session, current_user.id, "GENERATE_CONTRACT_DOCUMENT",
+        entity_type="employee_contract", entity_id=contract_id,
+        new_data={"template_id": payload.template_id, "filename": filename},
+    )
+    await session.commit()
+    return StreamingResponse(
+        io.BytesIO(docx_bytes),
+        media_type=_DOCX_MIME,
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{_urlquote(filename)}"},
     )
 
 
