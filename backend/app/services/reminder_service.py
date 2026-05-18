@@ -9,6 +9,7 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.employee import Employee
+from app.models.employee_contract import EmployeeContract
 from app.models.employee_job import EmployeeJobRecord
 from app.schemas.reminder import (
     ANNIVERSARY_MILESTONES,
@@ -144,25 +145,61 @@ async def _get_probation_ends(
     return sorted(items, key=lambda x: x.days_until)
 
 
+async def _get_contract_expiries(
+    session: AsyncSession,
+    dept_map: dict[int, str],
+    today: date,
+    end: date,
+) -> list[ReminderItem]:
+    """HĐ lao động (không phải phụ lục) sắp hết hạn trong khoảng [today, end]."""
+    rows = await session.execute(
+        select(Employee, EmployeeContract)
+        .join(EmployeeContract, EmployeeContract.employee_id == Employee.id)
+        .where(
+            EmployeeContract.document_kind == "labor_contract",
+            EmployeeContract.effective_to.isnot(None),
+            EmployeeContract.effective_to >= today,
+            EmployeeContract.effective_to <= end,
+            EmployeeContract.status.in_(["active", "draft"]),
+            Employee.is_active.is_(True),
+        )
+    )
+    items: list[ReminderItem] = []
+    for emp, c in rows.fetchall():
+        items.append(ReminderItem(
+            employee_id=emp.id,
+            employee_code=emp.id_number or "",
+            employee_name=emp.full_name,
+            department=dept_map.get(emp.id),
+            event_type="contract_expiry",
+            event_date=c.effective_to,
+            days_until=(c.effective_to - today).days,
+            extra={"contract_number": c.contract_number, "contract_id": c.id},
+        ))
+    return sorted(items, key=lambda x: x.days_until)
+
+
 async def get_reminders(
     session: AsyncSession,
     days: int = 30,
     types: Optional[set[str]] = None,
 ) -> RemindersResponse:
-    types = types or {"birthday", "anniversary", "probation_end"}
+    types = types or {"birthday", "anniversary", "probation_end", "contract_expiry"}
     today = date.today()
     end   = today + timedelta(days=days)
 
     employees = await _get_active_employees(session)
     dept_map  = await _get_department_map(session)
 
-    birthday      = await _get_birthdays(session, employees, dept_map, today, end)      if "birthday"      in types else []
-    anniversary   = await _get_anniversaries(session, employees, dept_map, today, end)  if "anniversary"   in types else []
-    probation_end = await _get_probation_ends(session, dept_map, today, end)            if "probation_end" in types else []
+    birthday         = await _get_birthdays(session, employees, dept_map, today, end)     if "birthday"         in types else []
+    anniversary      = await _get_anniversaries(session, employees, dept_map, today, end) if "anniversary"      in types else []
+    probation_end    = await _get_probation_ends(session, dept_map, today, end)           if "probation_end"    in types else []
+    contract_expiry  = await _get_contract_expiries(session, dept_map, today, end)        if "contract_expiry"  in types else []
 
     return RemindersResponse(
         birthday=birthday,
         anniversary=anniversary,
         probation_end=probation_end,
-        total=len(birthday) + len(anniversary) + len(probation_end),
+        contract_expiry=contract_expiry,
+        total=len(birthday) + len(anniversary) + len(probation_end) + len(contract_expiry),
     )

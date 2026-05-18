@@ -5,7 +5,7 @@ from typing import Any, Optional
 
 from pydantic import BaseModel
 
-VALID_EVENT_TYPES = {"birthday", "anniversary", "probation_end"}
+VALID_EVENT_TYPES = {"birthday", "anniversary", "probation_end", "contract_expiry"}
 
 ANNIVERSARY_MILESTONES = [1, 3, 5, 10]
 
@@ -22,7 +22,8 @@ class ReminderItem(BaseModel):
 
 
 class RemindersResponse(BaseModel):
-    birthday:      list[ReminderItem]
-    anniversary:   list[ReminderItem]
-    probation_end: list[ReminderItem]
-    total:         int
+    birthday:         list[ReminderItem]
+    anniversary:      list[ReminderItem]
+    probation_end:    list[ReminderItem]
+    contract_expiry:  list[ReminderItem] = []
+    total:            int
