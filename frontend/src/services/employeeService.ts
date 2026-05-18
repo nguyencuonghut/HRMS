@@ -457,6 +457,22 @@ export interface EmployeeLanguageUpdate {
   note?: string | null
 }
 
+// ── Import / Export (3.7) ─────────────────────────────────────────────────────
+
+export interface ImportRowError {
+  row:     number
+  column:  string
+  message: string
+}
+
+export interface ImportResult {
+  total:       number
+  success:     number
+  failed:      number
+  errors:      ImportRowError[]
+  created_ids: number[]
+}
+
 // ── Attachments (3.5) ─────────────────────────────────────────────────────────
 export const DOCUMENT_TYPE_LABELS: Record<string, string> = {
   avatar:        'Ảnh thẻ',
@@ -502,6 +518,16 @@ export interface EmployeeAttachmentRead {
 // ── Service ───────────────────────────────────────────────────────────────────
 
 const BASE = '/employees'
+
+async function downloadBlob(url: string, filename: string, params?: Record<string, unknown>) {
+  const res = await api.get(url, { responseType: 'blob', params })
+  const href = URL.createObjectURL(res.data)
+  const a = document.createElement('a')
+  a.href = href
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(href)
+}
 
 export default {
   list: (params?: {
@@ -649,4 +675,21 @@ export default {
 
   getAttachmentDownloadUrl: (id: number, attId: number) =>
     `${BASE}/${id}/attachments/${attId}/download`,
+
+  // Import / Export (3.7)
+  downloadImportTemplate: () =>
+    downloadBlob(`${BASE}/import/template`, 'mau_import_nhan_vien.xlsx'),
+
+  importEmployees: (formData: FormData) =>
+    api.post<ImportResult>(`${BASE}/import`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }),
+
+  exportEmployees: (params?: { keyword?: string; status?: string; is_active?: boolean }) => {
+    const today = new Date().toISOString().slice(0, 10).replace(/-/g, '')
+    return downloadBlob(`${BASE}/export`, `danh_sach_nhan_vien_${today}.xlsx`, params as Record<string, unknown>)
+  },
+
+  exportEmployeeProfile: (id: number) =>
+    downloadBlob(`${BASE}/${id}/export`, `ho_so_${id}.xlsx`),
 }

@@ -5,8 +5,28 @@
         <h2>Danh sách nhân viên</h2>
         <span class="subtitle">Quản lý hồ sơ nhân sự toàn công ty</span>
       </div>
-      <Button label="Thêm mới" icon="pi pi-plus" @click="router.push('/employees/new')" />
+      <div class="page-header-actions">
+        <Button
+          v-if="canEdit"
+          label="Import Excel"
+          icon="pi pi-upload"
+          severity="secondary"
+          outlined
+          @click="showImport = true"
+        />
+        <Button
+          label="Tải về Excel"
+          icon="pi pi-download"
+          severity="secondary"
+          outlined
+          :loading="exporting"
+          @click="doExport"
+        />
+        <Button label="Thêm mới" icon="pi pi-plus" @click="router.push('/employees/new')" />
+      </div>
     </div>
+
+    <ImportDialog v-model="showImport" @imported="loadData" />
 
     <div class="toolbar">
       <Select
@@ -146,7 +166,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
 import { useConfirm } from 'primevue/useconfirm'
@@ -159,11 +179,18 @@ import InputText from 'primevue/inputtext'
 import Select from 'primevue/select'
 import Tag from 'primevue/tag'
 
+import { useAuthStore } from '@/stores/auth'
 import employeeService, { type EmployeeListItem } from '@/services/employeeService'
+import ImportDialog from './ImportDialog.vue'
 
 const router  = useRouter()
 const toast   = useToast()
 const confirm = useConfirm()
+const auth    = useAuthStore()
+
+const canEdit  = computed(() => auth.hasPermission('employees:edit'))
+const showImport = ref(false)
+const exporting  = ref(false)
 
 // ── State ──────────────────────────────────────────────────────────────────────
 const loading      = ref(false)
@@ -328,16 +355,21 @@ function confirmDeactivate(emp: EmployeeListItem) {
   })
 }
 
+async function doExport() {
+  exporting.value = true
+  try {
+    await employeeService.exportEmployees({
+      keyword:   keyword.value || undefined,
+      status:    filterStatus.value ?? undefined,
+      is_active: filterActive.value ?? undefined,
+    })
+  } catch (e) {
+    toast.add({ severity: 'error', summary: 'Lỗi export', detail: apiError(e), life: 4000 })
+  } finally {
+    exporting.value = false
+  }
+}
+
 onMounted(loadData)
 </script>
 
-<style scoped>
-.employee-list-page {
-  display: flex;
-  flex-direction: column;
-}
-
-.name-cell { font-weight: 500; }
-
-:deep(.p-datatable-tbody > tr) { cursor: pointer; }
-</style>

@@ -735,3 +735,90 @@ $topbar-height: 4rem;
   background: var(--p-red-500);
   color: #fff;
 }
+
+
+// ── Import dialog (3.7) ────────────────────────────────────────────
+.import-template-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.import-template-hint { color: var(--l-text-muted); font-size: 0.875rem; }
+
+.import-file-input { display: none; }
+
+.import-upload-zone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 2.5rem 1rem;
+  border: 2px dashed var(--l-border);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+  background: var(--l-surface);
+  color: var(--l-text-muted);
+  text-align: center;
+  min-height: 120px;
+
+  &:hover, &.is-over {
+    border-color: var(--p-primary-color);
+    background: color-mix(in srgb, var(--p-primary-color) 5%, transparent);
+  }
+
+  &.has-file {
+    border-color: var(--p-green-500);
+    background: color-mix(in srgb, var(--p-green-500) 5%, transparent);
+    color: var(--p-green-600);
+  }
+}
+
+.import-zone-icon {
+  font-size: 2rem;
+  &.has-file { color: var(--p-green-500); }
+}
+
+.import-zone-text { font-size: 0.9rem; }
+.import-zone-filename { font-weight: 600; font-size: 0.9rem; }
+.import-zone-size { font-size: 0.8rem; opacity: 0.7; }
+
+.import-result { margin-top: 1.25rem; }
+
+.import-result-summary {
+  display: flex;
+  gap: 1.5rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.import-stat {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+
+  &.success { color: var(--p-green-600); }
+  &.error   { color: var(--p-red-600); }
+  &.muted   { color: var(--l-text-muted); }
+}
+
+.import-error-table { font-size: 0.85rem; }
+
+// ── Employee list page ─────────────────────────────────────────────
+.employee-list-page {
+  display: flex;
+  flex-direction: column;
+}
+
+.page-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.name-cell { font-weight: 500; }
