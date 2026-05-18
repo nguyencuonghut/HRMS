@@ -700,6 +700,12 @@ class LeaveTypeCreate(BaseModel):
     color_tag: Optional[str] = Field(None, max_length=20)
     is_active: bool = True
     description: Optional[str] = None
+    count_public_holidays:  bool          = True
+    max_days_per_year:      Optional[int] = Field(None, ge=1)
+    max_consecutive_days:   Optional[int] = Field(None, ge=1)
+    min_advance_days:       int           = Field(0, ge=0)
+    carryover_allowed:      bool          = False
+    carryover_cutoff_month: int           = Field(3, ge=1, le=12)
 
     @field_validator("code", "name", "color_tag", "description")
     @classmethod
@@ -721,6 +727,12 @@ class LeaveTypeUpdate(BaseModel):
     color_tag: Optional[str] = Field(None, max_length=20)
     is_active: Optional[bool] = None
     description: Optional[str] = None
+    count_public_holidays:  Optional[bool] = None
+    max_days_per_year:      Optional[int]  = Field(None, ge=1)
+    max_consecutive_days:   Optional[int]  = Field(None, ge=1)
+    min_advance_days:       Optional[int]  = Field(None, ge=0)
+    carryover_allowed:      Optional[bool] = None
+    carryover_cutoff_month: Optional[int]  = Field(None, ge=1, le=12)
 
     @field_validator("name", "color_tag", "description")
     @classmethod
@@ -740,6 +752,12 @@ class LeaveTypeRead(BaseModel):
     color_tag: Optional[str]
     is_active: bool
     description: Optional[str]
+    count_public_holidays:  bool
+    max_days_per_year:      Optional[int]
+    max_consecutive_days:   Optional[int]
+    min_advance_days:       int
+    carryover_allowed:      bool
+    carryover_cutoff_month: int
     created_at: datetime
     updated_at: Optional[datetime]
 

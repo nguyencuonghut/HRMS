@@ -297,6 +297,12 @@ class LeaveType(SQLModel, table=True):
         default=None,
         sa_column=Column(sa.Text(), nullable=True),
     )
+    count_public_holidays:  bool          = Field(default=True)
+    max_days_per_year:      Optional[int] = Field(default=None)
+    max_consecutive_days:   Optional[int] = Field(default=None)
+    min_advance_days:       int           = Field(default=0)
+    carryover_allowed:      bool          = Field(default=False)
+    carryover_cutoff_month: int           = Field(default=3)
     created_at: datetime = Field(default_factory=_utcnow)
     updated_at: Optional[datetime] = Field(default=None)
 
