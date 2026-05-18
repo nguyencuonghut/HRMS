@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from io import BytesIO
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
 from xml.etree import ElementTree
 from zipfile import ZipFile
 
@@ -220,9 +221,11 @@ def resolve_template_storage_path(storage_path: str) -> Path:
     return PROJECT_ROOT / raw
 
 
-def _read_docx_xml_parts(docx_path: Path) -> dict[str, str]:
+def _read_docx_xml_parts(source: Union[Path, bytes]) -> dict[str, str]:
+    """Đọc các XML part cần thiết từ DOCX (Path hoặc bytes từ MinIO)."""
     parts: dict[str, str] = {}
-    with ZipFile(docx_path) as archive:
+    zip_source: Union[Path, BytesIO] = BytesIO(source) if isinstance(source, bytes) else source
+    with ZipFile(zip_source) as archive:
         for name in archive.namelist():
             if not name.startswith("word/"):
                 continue
@@ -252,7 +255,7 @@ def _extract_text_and_mergefields(xml_text: str) -> tuple[str, list[str]]:
     return joined_text, mergefields
 
 
-def extract_docx_placeholder_summary(docx_path: Path) -> dict:
+def extract_docx_placeholder_summary(docx_path: Union[Path, bytes]) -> dict:
     xml_parts = _read_docx_xml_parts(docx_path)
     text_blob_parts: list[str] = []
     mergefields: list[str] = []

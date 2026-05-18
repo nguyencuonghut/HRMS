@@ -693,16 +693,44 @@ async def get_contract_template_health_summary(session: AsyncSession) -> list[di
     return result
 
 
+async def update_template_file_meta(
+    session: AsyncSession,
+    template_id: int,
+    *,
+    object_name: str,
+    file_name: str,
+    file_size: int,
+    file_checksum: str,
+) -> ContractTemplate:
+    """Cập nhật metadata file sau khi upload lên MinIO."""
+    template = await get_contract_template_by_id(session, template_id)
+    template.storage_path = object_name
+    template.file_name = file_name
+    template.file_size = file_size
+    template.mime_type = DOCX_MIME
+    template.file_checksum = file_checksum
+    template.updated_at = _utcnow()
+    await session.flush()
+    return template
+
+
 async def inspect_contract_template_docx(session: AsyncSession, template_id: int) -> dict:
     template = await get_contract_template_by_id(session, template_id)
     if not template.storage_path:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Mẫu chưa có storage_path để quét DOCX")
     if template.mime_type != DOCX_MIME:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Chỉ hỗ trợ quét file .docx trong bước này")
-    docx_path = resolve_template_storage_path(template.storage_path)
-    if not docx_path.exists():
-        raise HTTPException(status.HTTP_404_NOT_FOUND, detail=f"Không tìm thấy file mẫu tại '{template.storage_path}'")
-    summary = extract_docx_placeholder_summary(docx_path)
+
+    # Ưu tiên đọc từ MinIO; fallback sang local path (backward compatibility)
+    from app.core.storage import get_object_bytes
+    try:
+        docx_source = get_object_bytes(template.storage_path)
+    except Exception:
+        docx_source = resolve_template_storage_path(template.storage_path)
+        if not docx_source.exists():
+            raise HTTPException(status.HTTP_404_NOT_FOUND, detail=f"Không tìm thấy file mẫu tại '{template.storage_path}'")
+
+    summary = extract_docx_placeholder_summary(docx_source)
     return {
         "template_id": template.id,
         "template_code": template.code,

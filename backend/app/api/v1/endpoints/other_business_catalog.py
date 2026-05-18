@@ -1,6 +1,10 @@
+import hashlib
+import io
+from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Query, Request, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import require_permission
@@ -49,7 +53,11 @@ from app.schemas.catalog import (
     SkillRead,
     SkillUpdate,
 )
+from app.core.storage import delete_attachment, get_object_stream, save_template_file
 from app.services import auth_service, other_business_catalog_service
+
+_DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+_TEMPLATE_MAX_SIZE = 5 * 1024 * 1024  # 5 MB
 
 
 contract_category_router = APIRouter()
@@ -549,6 +557,74 @@ async def inspect_contract_template_docx(
     session: AsyncSession = Depends(get_session),
 ):
     return await other_business_catalog_service.inspect_contract_template_docx(session, template_id)
+
+
+@contract_template_router.post("/{template_id}/upload", response_model=ContractTemplateRead, tags=["Danh mục nghiệp vụ khác"])
+async def upload_contract_template_file(
+    template_id: int,
+    request: Request,
+    file: UploadFile = File(...),
+    current_user: User = require_permission("catalog:edit"),
+    session: AsyncSession = Depends(get_session),
+):
+    if Path(file.filename or "").suffix.lower() != ".docx":
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Chỉ chấp nhận file .docx")
+
+    content = await file.read()
+    if len(content) > _TEMPLATE_MAX_SIZE:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="File vượt quá giới hạn 5 MB")
+
+    checksum = hashlib.md5(content).hexdigest()
+
+    # Lấy template, xóa file cũ trên MinIO nếu có
+    template = await other_business_catalog_service.get_contract_template_by_id(session, template_id)
+    old_path = template.storage_path
+
+    # Reset buffer để save_template_file có thể đọc
+    file.file = io.BytesIO(content)  # type: ignore[assignment]
+    file.size = len(content)
+
+    object_name, file_size = await save_template_file(template_id, file)
+    row = await other_business_catalog_service.update_template_file_meta(
+        session, template_id,
+        object_name=object_name,
+        file_name=file.filename or "template.docx",
+        file_size=file_size,
+        file_checksum=checksum,
+    )
+
+    if old_path:
+        delete_attachment(old_path)
+
+    ip, ua = _request_meta(request)
+    await auth_service.log_audit(
+        session, current_user.id, "UPLOAD_TEMPLATE_FILE",
+        entity_type="contract_template", entity_id=template_id,
+        entity_name=row.name,
+        new_data={"file_name": row.file_name, "file_size": row.file_size},
+        ip_address=ip, user_agent=ua,
+    )
+    await session.commit()
+    await session.refresh(row)
+    return row
+
+
+@contract_template_router.get("/{template_id}/download", tags=["Danh mục nghiệp vụ khác"])
+async def download_contract_template_file(
+    template_id: int,
+    _: User = require_permission("catalog:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    template = await other_business_catalog_service.get_contract_template_by_id(session, template_id)
+    if not template.storage_path:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Mẫu hợp đồng chưa có file đính kèm")
+
+    filename = template.file_name or "template.docx"
+    return StreamingResponse(
+        get_object_stream(template.storage_path),
+        media_type=template.mime_type or _DOCX_MIME,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @lookup_router.get("/lookups/contract-categories", response_model=list[ContractCategoryRead])
