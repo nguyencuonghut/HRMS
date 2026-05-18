@@ -1013,3 +1013,32 @@ $topbar-height: 4rem;
 
   &:hover { text-decoration: underline; }
 }
+
+// ── ContractGenerateDialog ────────────────────────────────────────────────────
+.generate-contract-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: var(--p-border-radius-md, 6px);
+  background: var(--l-surface-card);
+  font-size: 0.9rem;
+  margin-bottom: 0.25rem;
+
+  .pi { color: var(--p-primary-color); }
+}
+
+.generate-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  margin-top: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--p-border-radius-md, 6px);
+  background: var(--l-surface-ground);
+  font-size: 0.82rem;
+  color: var(--l-text-secondary);
+  line-height: 1.4;
+
+  .pi { margin-top: 0.1rem; flex-shrink: 0; }
+}

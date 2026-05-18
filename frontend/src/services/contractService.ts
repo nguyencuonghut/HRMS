@@ -122,6 +122,20 @@ export default {
   deleteFile: (employeeId: number, contractId: number) =>
     api.delete<ContractRead>(`/employees/${employeeId}/contracts/${contractId}/file`),
 
+  generateContract: async (employeeId: number, contractId: number, templateId: number, filename: string) => {
+    const resp = await api.post(
+      `/employees/${employeeId}/contracts/${contractId}/generate`,
+      { template_id: templateId },
+      { responseType: 'blob' },
+    )
+    const url = URL.createObjectURL(resp.data as Blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    a.click()
+    URL.revokeObjectURL(url)
+  },
+
   listContractsGlobal: (params?: Record<string, unknown>) =>
     api.get<ContractListPage>('/contracts', { params }),
 }

@@ -48,6 +48,12 @@
               @click="openUpload(c)"
             />
             <Button
+              icon="pi pi-file-word"
+              text rounded size="small"
+              v-tooltip.top="'Sinh hợp đồng từ mẫu'"
+              @click="openGenerate(c)"
+            />
+            <Button
               icon="pi pi-ban"
               text rounded size="small"
               severity="danger"
@@ -172,6 +178,13 @@
     @saved="load"
   />
 
+  <!-- Generate dialog -->
+  <ContractGenerateDialog
+    v-model="generateVisible"
+    :employee-id="props.employeeId"
+    :contract="generateTarget"
+  />
+
   <!-- Upload dialog -->
   <Dialog v-model:visible="uploadVisible" modal header="Đính kèm file hợp đồng" style="width:420px;">
     <div class="field">
@@ -216,6 +229,7 @@ import Tag from 'primevue/tag'
 import { useAuthStore } from '@/stores/auth'
 import contractService, { type ContractRead, statusSeverity } from '@/services/contractService'
 import ContractFormDialog from './ContractFormDialog.vue'
+import ContractGenerateDialog from './ContractGenerateDialog.vue'
 
 const props   = defineProps<{ employeeId: number }>()
 const confirm = useConfirm()
@@ -230,6 +244,10 @@ const contracts = ref<ContractRead[]>([])
 // Form dialog
 const formVisible     = ref(false)
 const editingContract = ref<ContractRead | null>(null)
+
+// Generate dialog
+const generateVisible = ref(false)
+const generateTarget  = ref<ContractRead | null>(null)
 
 // Upload dialog
 const uploadVisible   = ref(false)
@@ -292,6 +310,12 @@ function openCreate() {
 function openEdit(c: ContractRead) {
   editingContract.value = c
   formVisible.value = true
+}
+
+// ── Generate ──────────────────────────────────────────────────────
+function openGenerate(c: ContractRead) {
+  generateTarget.value = c
+  generateVisible.value = true
 }
 
 // ── Terminate ─────────────────────────────────────────────────────

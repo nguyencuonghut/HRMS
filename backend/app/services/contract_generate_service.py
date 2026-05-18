@@ -20,6 +20,7 @@ from app.models.employee_job import EmployeeJobRecord
 from app.models.org import Department, JobTitle
 
 _DOUBLE_PATTERN = re.compile(r"\{\{\s*([^}]+?)\s*\}\}")
+_DOLLAR_PATTERN = re.compile(r"\$\{\s*([^}]+?)\s*\}")
 
 # ── Formatters ────────────────────────────────────────────────────────────────
 
@@ -138,16 +139,14 @@ def _iter_paragraphs(doc: Document):
 
 
 def _replace_paragraph(paragraph, context: dict[str, str]) -> None:
-    """Gộp toàn bộ runs → thay placeholder → ghi vào run[0], xóa run còn lại."""
+    """Gộp toàn bộ runs → thay placeholder ({{}} và ${}) → ghi vào run[0], xóa run còn lại."""
     if not paragraph.runs:
         return
     full_text = "".join(r.text for r in paragraph.runs)
-    if "{{" not in full_text:
+    if "{{" not in full_text and "${" not in full_text:
         return
-    replaced = _DOUBLE_PATTERN.sub(
-        lambda m: context.get(m.group(1).strip(), ""),
-        full_text,
-    )
+    replaced = _DOUBLE_PATTERN.sub(lambda m: context.get(m.group(1).strip(), ""), full_text)
+    replaced = _DOLLAR_PATTERN.sub(lambda m: context.get(m.group(1).strip(), ""), replaced)
     paragraph.runs[0].text = replaced
     for run in paragraph.runs[1:]:
         run.text = ""
@@ -279,8 +278,20 @@ async def generate_contract_document(
             detail=f"Loại mẫu '{template.document_kind}' không khớp với loại hợp đồng '{contract.document_kind}'",
         )
 
-    docx_bytes = get_object_bytes(template.storage_path)
+    # Thử MinIO trước; fallback sang đường dẫn local (seed data)
+    try:
+        docx_source: Union[Path, bytes] = get_object_bytes(template.storage_path)
+    except Exception:
+        from app.services.contract_template_docx import resolve_template_storage_path
+        local_path = resolve_template_storage_path(template.storage_path)
+        if not local_path.exists():
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND,
+                detail=f"Không tìm thấy file mẫu tại '{template.storage_path}'",
+            )
+        docx_source = local_path
+
     context = await build_contract_context(session, employee_id, contract_id)
-    rendered = render_contract_docx(docx_bytes, context)
+    rendered = render_contract_docx(docx_source, context)
     filename = f"HD_{contract.contract_number}.docx"
     return rendered, filename
