@@ -88,14 +88,16 @@
           </template>
         </Column>
 
-        <Column header="Nhân viên" style="min-width:160px;">
+        <Column header="Nhân viên" style="min-width:180px;">
           <template #body="{ data }">
             <router-link
               :to="`/employees/${data.employee_id}`"
-              class="muted-text"
               style="color:inherit; text-decoration:none;"
             >
-              #{{ data.employee_id }}
+              <div style="font-weight:500;">{{ data.employee_name ?? '—' }}</div>
+              <div class="muted-text" style="font-size:0.78rem;">
+                {{ data.employee_code ? data.employee_code : `#${data.employee_id}` }}
+              </div>
             </router-link>
           </template>
         </Column>
@@ -130,17 +132,39 @@
           </template>
         </Column>
 
+        <Column header="Còn lại" style="width:110px;">
+          <template #body="{ data }">
+            <span
+              v-if="data.days_until_expiry !== null && data.days_until_expiry !== undefined"
+              :class="['days-badge', urgencyClass(data.days_until_expiry)]"
+            >
+              {{ data.days_until_expiry <= 0 ? 'Hết hạn' : `${data.days_until_expiry} ngày` }}
+            </span>
+            <span v-else class="muted-text">—</span>
+          </template>
+        </Column>
+
         <Column header="File" style="width:60px;" class="center-text">
           <template #body="{ data }">
             <i v-if="data.has_file" class="pi pi-paperclip" v-tooltip.top="data.file_name" />
           </template>
         </Column>
 
-        <Column header="" style="width:60px;">
+        <Column header="" style="width:100px;">
           <template #body="{ data }">
-            <router-link :to="`/employees/${data.employee_id}`">
-              <Button icon="pi pi-arrow-right" text rounded size="small" v-tooltip.top="'Xem hồ sơ nhân viên'" />
-            </router-link>
+            <div style="display:flex; gap:0.25rem;">
+              <Button
+                v-if="data.days_until_expiry !== null && data.days_until_expiry !== undefined && data.days_until_expiry <= 30"
+                icon="pi pi-replay"
+                text rounded size="small"
+                severity="warning"
+                v-tooltip.top="'Tái ký — mở hồ sơ nhân viên'"
+                @click="router.push(`/employees/${data.employee_id}?tab=contracts`)"
+              />
+              <router-link :to="`/employees/${data.employee_id}`">
+                <Button icon="pi pi-arrow-right" text rounded size="small" v-tooltip.top="'Xem hồ sơ nhân viên'" />
+              </router-link>
+            </div>
           </template>
         </Column>
 
@@ -157,6 +181,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import Button from 'primevue/button'
 import Column from 'primevue/column'
 import DataTable from 'primevue/datatable'
@@ -174,6 +199,8 @@ import contractService, {
   statusSeverity,
 } from '@/services/contractService'
 
+const router   = useRouter()
+const route    = useRoute()
 const loading  = ref(false)
 const items    = ref<ContractRead[]>([])
 const total    = ref(0)
@@ -188,6 +215,14 @@ const filters = ref({
 })
 
 function tagSeverity(status: string) { return statusSeverity(status) }
+
+function urgencyClass(days: number): string {
+  if (days <= 0)  return 'expired'
+  if (days <= 7)  return 'critical'
+  if (days <= 15) return 'warning'
+  if (days <= 30) return 'soon'
+  return 'ok'
+}
 
 function formatDate(iso: string | null): string {
   if (!iso) return '—'
@@ -232,5 +267,12 @@ function onPage(e: { page: number; rows: number }) {
   load()
 }
 
-onMounted(load)
+onMounted(() => {
+  const ew = route.query.expiring_within
+  if (ew) {
+    const n = parseInt(String(ew), 10)
+    if (!isNaN(n)) filters.value.expiring_within = n
+  }
+  load()
+})
 </script>

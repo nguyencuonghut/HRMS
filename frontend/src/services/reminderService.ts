@@ -1,6 +1,6 @@
 import api from './api'
 
-export type EventType = 'birthday' | 'anniversary' | 'probation_end'
+export type EventType = 'birthday' | 'anniversary' | 'probation_end' | 'contract_expiry'
 
 export interface ReminderItem {
   employee_id:   number
@@ -14,22 +14,25 @@ export interface ReminderItem {
 }
 
 export interface RemindersResponse {
-  birthday:      ReminderItem[]
-  anniversary:   ReminderItem[]
-  probation_end: ReminderItem[]
-  total:         number
+  birthday:        ReminderItem[]
+  anniversary:     ReminderItem[]
+  probation_end:   ReminderItem[]
+  contract_expiry: ReminderItem[]
+  total:           number
 }
 
 export const EVENT_TYPE_LABELS: Record<EventType, string> = {
-  birthday:      'Sinh nhật',
-  anniversary:   'Thâm niên',
-  probation_end: 'Hết thử việc',
+  birthday:        'Sinh nhật',
+  anniversary:     'Thâm niên',
+  probation_end:   'Hết thử việc',
+  contract_expiry: 'HĐ sắp hết hạn',
 }
 
 export const EVENT_TYPE_ICONS: Record<EventType, string> = {
-  birthday:      '🎂',
-  anniversary:   '⭐',
-  probation_end: '📋',
+  birthday:        '🎂',
+  anniversary:     '⭐',
+  probation_end:   '📋',
+  contract_expiry: '📄',
 }
 
 export default {

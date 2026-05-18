@@ -54,6 +54,13 @@
           <div class="reminder-card-label">Hết thử việc</div>
         </div>
       </div>
+      <div class="reminder-card reminder-card--warning">
+        <span class="reminder-card-icon">📄</span>
+        <div class="reminder-card-body">
+          <div class="reminder-card-count">{{ data?.contract_expiry.length ?? 0 }}</div>
+          <div class="reminder-card-label">HĐ sắp hết hạn</div>
+        </div>
+      </div>
     </div>
 
     <!-- Table -->
@@ -74,12 +81,15 @@
           </div>
         </template>
 
-        <Column field="event_type" header="Loại" style="width:160px;">
+        <Column field="event_type" header="Loại" style="width:180px;">
           <template #body="{ data: row }">
             <span>{{ EVENT_TYPE_ICONS[row.event_type as EventType] }} {{ EVENT_TYPE_LABELS[row.event_type as EventType] }}</span>
             <span v-if="row.event_type === 'anniversary' && row.extra?.years" style="margin-left:0.4rem; font-size:0.8rem; color:var(--l-text-muted);">
               ({{ row.extra.years }} năm)
             </span>
+            <div v-if="row.event_type === 'contract_expiry' && row.extra?.contract_number" style="font-size:0.8rem; color:var(--l-text-muted);">
+              {{ row.extra.contract_number }}
+            </div>
           </template>
         </Column>
 
@@ -142,9 +152,10 @@ const daysOptions = [
 ]
 
 const typeOptions = [
-  { label: 'Sinh nhật',    value: 'birthday'      },
-  { label: 'Thâm niên',   value: 'anniversary'   },
-  { label: 'Hết thử việc', value: 'probation_end' },
+  { label: 'Sinh nhật',       value: 'birthday'        },
+  { label: 'Thâm niên',      value: 'anniversary'     },
+  { label: 'Hết thử việc',   value: 'probation_end'   },
+  { label: 'HĐ sắp hết hạn', value: 'contract_expiry' },
 ]
 
 const allItems = computed<ReminderItem[]>(() => {
@@ -153,6 +164,7 @@ const allItems = computed<ReminderItem[]>(() => {
     ...data.value.birthday,
     ...data.value.anniversary,
     ...data.value.probation_end,
+    ...data.value.contract_expiry,
   ].sort((a, b) => a.days_until - b.days_until)
 })
 
@@ -172,7 +184,11 @@ async function load() {
 }
 
 function goToEmployee(row: ReminderItem) {
-  router.push(`/employees/${row.employee_id}`)
+  if (row.event_type === 'contract_expiry') {
+    router.push(`/employees/${row.employee_id}?tab=contracts`)
+  } else {
+    router.push(`/employees/${row.employee_id}`)
+  }
 }
 
 function formatDate(iso: string): string {

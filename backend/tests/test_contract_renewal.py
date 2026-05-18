@@ -238,3 +238,40 @@ def test_global_list_expiring_filter_returns_employee_name(client: TestClient):
     assert our["employee_name"] == "Test Renewal NAME02"
     assert our["days_until_expiry"] is not None
     assert 0 < our["days_until_expiry"] <= 30
+
+
+# ── Tests: /reminders?types=contract_expiry ───────────────────────────────────
+
+def test_reminder_contract_expiry_in_30d(client: TestClient):
+    """GET /reminders?types=contract_expiry&days=30 trả HĐ sắp hết hạn trong 30 ngày."""
+    headers = _login(client)
+    emp_id = _create_employee(client, headers, "REM01")
+    today = date.today().isoformat()
+    future = (date.today() + timedelta(days=20)).isoformat()
+    _create_contract(client, headers, emp_id, "REM01", today, future)
+
+    resp = client.get(BASE_REMINDER, params={"days": 30, "types": "contract_expiry"}, headers=headers)
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    items = body["contract_expiry"]
+    our = next((i for i in items if i["employee_name"] == "Test Renewal REM01"), None)
+    assert our is not None
+    assert our["event_type"] == "contract_expiry"
+    assert 0 < our["days_until"] <= 30
+
+
+def test_reminder_contract_expiry_extra_fields(client: TestClient):
+    """Mỗi item trong contract_expiry có extra.contract_number và extra.contract_id."""
+    headers = _login(client)
+    emp_id = _create_employee(client, headers, "REM02")
+    today = date.today().isoformat()
+    future = (date.today() + timedelta(days=10)).isoformat()
+    con = _create_contract(client, headers, emp_id, "REM02", today, future)
+
+    resp = client.get(BASE_REMINDER, params={"days": 30, "types": "contract_expiry"}, headers=headers)
+    assert resp.status_code == 200
+    items = resp.json()["contract_expiry"]
+    our = next((i for i in items if i["employee_name"] == "Test Renewal REM02"), None)
+    assert our is not None
+    assert our["extra"]["contract_number"] == f"{_PREFIX}-REM02"
+    assert our["extra"]["contract_id"] == con["id"]

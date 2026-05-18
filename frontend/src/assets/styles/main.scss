@@ -673,11 +673,16 @@ $topbar-height: 4rem;
 // ── Reminders (3.6) ───────────────────────────────────────────────
 .reminder-cards {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 1rem;
   margin-bottom: 1.5rem;
 
-  @media (max-width: 640px) { grid-template-columns: 1fr; }
+  @media (max-width: 900px) { grid-template-columns: repeat(2, 1fr); }
+  @media (max-width: 480px) { grid-template-columns: 1fr; }
+}
+
+.reminder-card--warning {
+  border-color: color-mix(in srgb, var(--p-orange-400) 40%, transparent);
 }
 
 .reminder-card {
@@ -715,9 +720,13 @@ $topbar-height: 4rem;
   font-weight: 600;
   white-space: nowrap;
 
-  &.today { background: color-mix(in srgb, var(--p-red-500)    12%, transparent); color: var(--p-red-600); }
-  &.soon  { background: color-mix(in srgb, var(--p-orange-500) 12%, transparent); color: var(--p-orange-600); }
-  &.later { background: color-mix(in srgb, var(--p-green-500)  12%, transparent); color: var(--p-green-600); }
+  &.today    { background: color-mix(in srgb, var(--p-red-500)    12%, transparent); color: var(--p-red-600); }
+  &.soon     { background: color-mix(in srgb, var(--p-orange-500) 12%, transparent); color: var(--p-orange-600); }
+  &.later    { background: color-mix(in srgb, var(--p-green-500)  12%, transparent); color: var(--p-green-600); }
+  &.expired  { background: color-mix(in srgb, var(--p-red-500)    18%, transparent); color: var(--p-red-700);    font-weight: 700; }
+  &.critical { background: color-mix(in srgb, var(--p-red-500)    12%, transparent); color: var(--p-red-600); }
+  &.warning  { background: color-mix(in srgb, var(--p-yellow-500) 18%, transparent); color: var(--p-yellow-700); }
+  &.ok       { background: color-mix(in srgb, var(--p-green-500)  12%, transparent); color: var(--p-green-600); }
 }
 
 // Sidebar badge
