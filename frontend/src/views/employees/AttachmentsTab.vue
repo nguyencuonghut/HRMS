@@ -146,7 +146,6 @@ import Tag from 'primevue/tag'
 import { useAuthStore } from '@/stores/auth'
 import employeeService, {
   DOCUMENT_TYPE_GROUPS,
-  DOCUMENT_TYPE_LABELS,
   DOCUMENT_TYPE_OPTIONS,
   type EmployeeAttachmentRead,
 } from '@/services/employeeService'

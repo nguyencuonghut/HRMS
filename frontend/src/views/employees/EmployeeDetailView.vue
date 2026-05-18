@@ -62,6 +62,7 @@
           <Tab value="relatives" :disabled="isNew">Người thân</Tab>
           <Tab value="education" :disabled="isNew">Học vấn & KN</Tab>
           <Tab value="attachments" :disabled="isNew">Tài liệu</Tab>
+          <Tab value="contracts" :disabled="isNew">Hợp đồng</Tab>
         </TabList>
 
         <TabPanels>
@@ -354,6 +355,14 @@
               :employee-id="employeeId"
             />
           </TabPanel>
+
+          <!-- ── TAB: Hợp đồng lao động ──────────────────────────────────── -->
+          <TabPanel value="contracts">
+            <ContractTab
+              v-if="!isNew && employeeId"
+              :employee-id="employeeId"
+            />
+          </TabPanel>
         </TabPanels>
       </Tabs>
     </template>
@@ -427,6 +436,7 @@ import JobRecordTab from './JobRecordTab.vue'
 import RelativesTab from './RelativesTab.vue'
 import EducationTab from './EducationTab.vue'
 import AttachmentsTab from './AttachmentsTab.vue'
+import ContractTab from './ContractTab.vue'
 
 import employeeService, {
   type EmployeeRead,
@@ -777,66 +787,3 @@ watch(() => route.params.id, () => {
 })
 </script>
 
-<style scoped>
-.employee-detail-page {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.header-left {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.6rem;
-}
-
-.header-left h2 { margin: 0 0 0.25rem; }
-
-.header-meta {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-}
-
-.header-actions { display: flex; gap: 0.5rem; }
-
-/* Address sections */
-.address-section { margin-bottom: 2rem; }
-.address-section h4 { margin: 0 0 1rem; font-size: 1rem; font-weight: 600; }
-
-/* Bank cards */
-.bank-section { padding: 0.5rem 0; }
-
-.bank-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1rem;
-}
-.bank-header h4 { margin: 0; font-size: 1rem; font-weight: 600; }
-
-.bank-list { display: flex; flex-direction: column; gap: 0.75rem; }
-
-.bank-card {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 1rem 1.25rem;
-  background: var(--l-surface);
-  border: 1px solid var(--l-border);
-  border-radius: 12px;
-}
-
-.bank-card.primary {
-  border-color: color-mix(in srgb, var(--p-green-500) 40%, transparent);
-  background: color-mix(in srgb, var(--p-green-500) 4%, var(--l-surface));
-}
-
-.bank-info { flex: 1; }
-.bank-number { font-weight: 700; font-size: 1rem; }
-.bank-name { font-size: 0.875rem; color: var(--l-text-muted); }
-.bank-meta { font-size: 0.8rem; color: var(--l-text-muted); margin-top: 0.2rem; }
-.bank-badges { display: flex; gap: 0.4rem; }
-.bank-actions { display: flex; gap: 0.25rem; }
-</style>
