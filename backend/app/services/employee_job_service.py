@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.employee import Employee
@@ -96,9 +96,10 @@ async def get_job_records(
 async def get_display_code_prefix(
     session: AsyncSession, employee_id: int
 ) -> Optional[str]:
-    """display_prefix của phòng ban hiện tại. None nếu chưa gán hoặc phòng không có prefix."""
+    """display_prefix của phòng ban hiện tại; fallback sang department.code nếu prefix rỗng."""
+    prefix_expr = func.coalesce(func.nullif(func.btrim(Department.display_prefix), ""), Department.code)
     result = await session.execute(
-        select(Department.display_prefix)
+        select(prefix_expr)
         .join(EmployeeJobRecord, EmployeeJobRecord.department_id == Department.id)
         .where(
             EmployeeJobRecord.employee_id == employee_id,
@@ -114,8 +115,12 @@ async def batch_get_display_code_prefixes(
     """Batch lookup để tránh N+1 trong danh sách nhân viên."""
     if not employee_ids:
         return {}
+    prefix_expr = func.coalesce(func.nullif(func.btrim(Department.display_prefix), ""), Department.code)
     result = await session.execute(
-        select(EmployeeJobRecord.employee_id, Department.display_prefix)
+        select(
+            EmployeeJobRecord.employee_id,
+            prefix_expr,
+        )
         .join(Department, EmployeeJobRecord.department_id == Department.id)
         .where(
             EmployeeJobRecord.employee_id.in_(employee_ids),

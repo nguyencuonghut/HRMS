@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_session
 from app.core.storage import delete_attachment, get_object_stream, save_attachment
 from app.models.org import JobPositionAttachment
+from app.schemas.employee_code_rule import EmployeeCodeSequenceRuleRead, EmployeeCodeSequenceRuleUpsert
 from app.schemas.job_position import (
     AttachmentRead,
     JobPositionCreate,
@@ -14,7 +15,7 @@ from app.schemas.job_position import (
     JobPositionRead,
     JobPositionUpdate,
 )
-from app.services import job_position_service
+from app.services import employee_code_rule_service, job_position_service
 
 router = APIRouter()
 
@@ -65,6 +66,42 @@ async def delete_job_position(
     session: AsyncSession = Depends(get_session),
 ):
     return await job_position_service.delete(session, pos_id)
+
+
+@router.get(
+    "/{pos_id}/employee-code-rule",
+    response_model=EmployeeCodeSequenceRuleRead | None,
+    summary="Rule hệ mã của vị trí công việc",
+)
+async def get_job_position_employee_code_rule(
+    pos_id: int,
+    session: AsyncSession = Depends(get_session),
+):
+    return await employee_code_rule_service.get_job_position_rule(session, pos_id)
+
+
+@router.put(
+    "/{pos_id}/employee-code-rule",
+    response_model=EmployeeCodeSequenceRuleRead,
+    summary="Tạo/cập nhật rule hệ mã cho vị trí công việc",
+)
+async def upsert_job_position_employee_code_rule(
+    pos_id: int,
+    body: EmployeeCodeSequenceRuleUpsert,
+    session: AsyncSession = Depends(get_session),
+):
+    return await employee_code_rule_service.upsert_job_position_rule(session, pos_id, body)
+
+
+@router.delete(
+    "/{pos_id}/employee-code-rule",
+    summary="Xóa rule hệ mã của vị trí công việc",
+)
+async def delete_job_position_employee_code_rule(
+    pos_id: int,
+    session: AsyncSession = Depends(get_session),
+):
+    return await employee_code_rule_service.delete_job_position_rule(session, pos_id)
 
 
 # ── Attachments ────────────────────────────────────────────────────────────────

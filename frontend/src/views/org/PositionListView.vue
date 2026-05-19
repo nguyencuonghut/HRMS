@@ -178,6 +178,34 @@
             </span>
           </div>
         </div>
+
+        <div v-if="editingItem" class="fieldset-block">
+          <div class="fieldset-title">Hệ mã nhân viên</div>
+          <div class="field">
+            <label>Hệ áp dụng trực tiếp</label>
+            <Select
+              v-model="form.employee_code_sequence_id"
+              :options="sequenceOptions"
+              option-label="label"
+              option-value="value"
+              placeholder="— Không cấu hình trực tiếp —"
+              show-clear
+              filter
+              class="w-full"
+            />
+            <small class="help-msg">Bỏ trống để vị trí này không có rule trực tiếp.</small>
+            <small class="help-msg">Hệ 1: mặc định toàn công ty. Hệ 2: công nhân bốc xếp, ra cám, tạp vụ. Hệ 3: công nhân, bảo vệ thuộc Phòng trại.</small>
+          </div>
+          <div class="field">
+            <label>Ghi chú rule</label>
+            <InputText
+              v-model="form.employee_code_rule_note"
+              class="w-full"
+              placeholder="Ghi chú nội bộ (không bắt buộc)"
+              autocomplete="off"
+            />
+          </div>
+        </div>
       </form>
 
       <template #footer>
@@ -248,6 +276,7 @@ import Textarea from 'primevue/textarea'
 import ToggleSwitch from 'primevue/toggleswitch'
 
 import FileAttachmentList from '@/components/FileAttachmentList.vue'
+import employeeCodeRuleService, { type EmployeeCodeSequenceRead } from '@/services/employeeCodeRuleService'
 import jobPositionService, { type JobPositionListItem, type JobPositionRead } from '@/services/jobPositionService'
 import departmentService, { type DepartmentRead } from '@/services/departmentService'
 import jobTitleService, { type JobTitleRead } from '@/services/jobTitleService'
@@ -263,6 +292,8 @@ interface FormState {
   description:        string
   requirements:       string
   is_active:          boolean
+  employee_code_sequence_id: number | null
+  employee_code_rule_note: string
 }
 
 // ── State ──────────────────────────────────────────────────────────────────────
@@ -274,6 +305,7 @@ const loading      = ref(false)
 const list         = ref<JobPositionListItem[]>([])
 const flatDepts    = ref<DepartmentRead[]>([])
 const jobTitles    = ref<JobTitleRead[]>([])
+const sequences    = ref<EmployeeCodeSequenceRead[]>([])
 const filterDeptId = ref<number | null>(null)
 const filterActive = ref<boolean | null>(null)
 const searchQuery  = ref('')
@@ -291,6 +323,7 @@ const form = ref<FormState>({
   code: '', name: '', department_id: null, job_title_id: null,
   default_grade: 1, bhxh_allowance: 0, non_bhxh_allowance: 0,
   description: '', requirements: '', is_active: true,
+  employee_code_sequence_id: null, employee_code_rule_note: '',
 })
 const errors = ref<Partial<Record<keyof FormState, string>>>({})
 
@@ -310,6 +343,13 @@ const deptOptions = computed(() =>
 
 const jtOptions = computed(() =>
   jobTitles.value.map(jt => ({ label: `${jt.name} (${jt.code})`, value: jt.id }))
+)
+
+const sequenceOptions = computed(() =>
+  sequences.value.map(s => ({
+    label: s.description ? `${s.name} (${s.code}) - ${s.description}` : `${s.name} (${s.code})`,
+    value: s.id,
+  }))
 )
 
 const filteredList = computed(() => {
@@ -352,17 +392,19 @@ function handlePage(e: { first: number; rows: number }) {
 async function loadData() {
   loading.value = true
   try {
-    const [posRes, deptRes, jtRes] = await Promise.all([
+    const [posRes, deptRes, jtRes, seqRes] = await Promise.all([
       jobPositionService.getList({
         department_id: filterDeptId.value ?? undefined,
         is_active:     filterActive.value ?? undefined,
       }),
       departmentService.getList(),
       jobTitleService.getList(true),
+      employeeCodeRuleService.getSequences(),
     ])
     list.value      = posRes.data
     flatDepts.value = deptRes.data
     jobTitles.value = jtRes.data
+    sequences.value = seqRes.data
   } catch (e) {
     toast.add({ severity: 'error', summary: 'Lỗi', detail: apiError(e), life: 4000 })
   } finally {
@@ -378,12 +420,13 @@ function openCreate() {
     code: '', name: '', department_id: null, job_title_id: null,
     default_grade: 1, bhxh_allowance: 0, non_bhxh_allowance: 0,
     description: '', requirements: '', is_active: true,
+    employee_code_sequence_id: null, employee_code_rule_note: '',
   }
   errors.value = {}
   dialogVisible.value = true
 }
 
-function openEdit(item: JobPositionListItem) {
+async function openEdit(item: JobPositionListItem) {
   editingItem.value = item
   form.value = {
     code:               item.code,
@@ -396,14 +439,23 @@ function openEdit(item: JobPositionListItem) {
     description:        '',
     requirements:       '',
     is_active:          item.is_active,
+    employee_code_sequence_id: null,
+    employee_code_rule_note: '',
   }
   errors.value = {}
-  // Tải chi tiết để lấy thêm default_grade, description, requirements
-  jobPositionService.getById(item.id).then(res => {
-    form.value.default_grade  = res.data.default_grade
-    form.value.description    = res.data.description ?? ''
-    form.value.requirements   = res.data.requirements ?? ''
-  })
+  try {
+    const [detailRes, ruleRes] = await Promise.all([
+      jobPositionService.getById(item.id),
+      employeeCodeRuleService.getJobPositionRule(item.id),
+    ])
+    form.value.default_grade  = detailRes.data.default_grade
+    form.value.description    = detailRes.data.description ?? ''
+    form.value.requirements   = detailRes.data.requirements ?? ''
+    form.value.employee_code_sequence_id = ruleRes.data?.employee_code_sequence_id ?? null
+    form.value.employee_code_rule_note = ruleRes.data?.note ?? ''
+  } catch (e) {
+    toast.add({ severity: 'warn', summary: 'Cảnh báo', detail: `Không tải đủ cấu hình hệ mã: ${apiError(e)}`, life: 4000 })
+  }
   dialogVisible.value = true
 }
 
@@ -441,6 +493,18 @@ async function submitForm() {
         requirements:       form.value.requirements.trim() || null,
         is_active:          form.value.is_active,
       })
+      if (form.value.employee_code_sequence_id) {
+        await employeeCodeRuleService.upsertJobPositionRule(editingItem.value.id, {
+          employee_code_sequence_id: form.value.employee_code_sequence_id,
+          note: form.value.employee_code_rule_note.trim() || null,
+        })
+      } else {
+        try {
+          await employeeCodeRuleService.deleteJobPositionRule(editingItem.value.id)
+        } catch {
+          // no direct rule to delete
+        }
+      }
       toast.add({ severity: 'success', summary: 'Thành công', detail: 'Đã cập nhật vị trí công việc', life: 3000 })
     } else {
       await jobPositionService.create({
@@ -490,12 +554,24 @@ onMounted(loadData)
 
 <style scoped>
 .pos-form { display: flex; flex-direction: column; gap: 0.1rem; }
+.fieldset-block {
+  margin-top: 0.5rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--p-content-border-color);
+}
+.fieldset-title {
+  margin-bottom: 0.75rem;
+  font-weight: 600;
+}
+.help-msg {
+  color: var(--p-text-muted-color);
+}
 
 .detail-grid { display: flex; flex-direction: column; gap: 0.75rem; }
 .detail-row {
   display: grid; grid-template-columns: 140px 1fr; gap: 0.5rem; align-items: start;
-  &--full { grid-template-columns: 1fr; }
 }
+.detail-row--full { grid-template-columns: 1fr; }
 .detail-label { font-weight: 600; font-size: 0.875rem; color: var(--p-text-muted-color); }
 .detail-text  { white-space: pre-wrap; font-size: 0.875rem; }
 </style>

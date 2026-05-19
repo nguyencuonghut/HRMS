@@ -30,6 +30,7 @@ class DepartmentCreate(BaseModel):
     code:       str            = Field(..., max_length=20,  description="Mã phòng/ban (tự động viết hoa)")
     name:       str            = Field(..., max_length=200, description="Tên đầy đủ")
     short_name: Optional[str]  = Field(None, max_length=50, description="Tên viết tắt")
+    display_prefix: Optional[str] = Field(None, max_length=5, description="Tiền tố hiển thị mã nhân viên")
     parent_id:  Optional[int]  = Field(None,  description="ID phòng/ban cha; NULL = cấp gốc")
     dept_type:  DeptType       = Field(DeptType.PHONG, description="Loại đơn vị")
     order_no:   int            = Field(0, description="Thứ tự hiển thị trong cùng cấp")
@@ -44,11 +45,20 @@ class DepartmentCreate(BaseModel):
     def _strip_str(cls, v: Optional[str]) -> Optional[str]:
         return v.strip() if v else v
 
+    @field_validator("display_prefix")
+    @classmethod
+    def _normalize_display_prefix(cls, v: Optional[str]) -> Optional[str]:
+        if not v:
+            return None
+        normalized = v.strip().upper()
+        return normalized or None
+
 
 class DepartmentUpdate(BaseModel):
     """Tất cả trường đều optional. Chỉ trường nào được gửi mới được cập nhật."""
     name:       Optional[str]      = Field(None, max_length=200)
     short_name: Optional[str]      = Field(None, max_length=50)
+    display_prefix: Optional[str]  = Field(None, max_length=5)
     # Nếu trường parent_id có trong request body (kể cả null) thì mới cập nhật.
     # null = chuyển về cấp gốc (không có cha).
     parent_id:  Optional[int]      = Field(None)
@@ -61,6 +71,14 @@ class DepartmentUpdate(BaseModel):
     def _strip_str(cls, v: Optional[str]) -> Optional[str]:
         return v.strip() if v else v
 
+    @field_validator("display_prefix")
+    @classmethod
+    def _normalize_display_prefix(cls, v: Optional[str]) -> Optional[str]:
+        if not v:
+            return None
+        normalized = v.strip().upper()
+        return normalized or None
+
 
 # ── Response schemas ───────────────────────────────────────────────────────────
 
@@ -69,6 +87,7 @@ class DepartmentRead(BaseModel):
     code:       str
     name:       str
     short_name: Optional[str]
+    display_prefix: Optional[str]
     parent_id:  Optional[int]
     dept_type:  str
     order_no:   int

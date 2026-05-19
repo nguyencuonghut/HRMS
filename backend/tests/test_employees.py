@@ -42,10 +42,15 @@ def _make_session():
 async def _cleanup_test_employees():
     async with _make_session()() as s:
         await s.execute(text(
+            "DELETE FROM employee_job_records WHERE department_id IN "
+            "(SELECT id FROM departments WHERE code LIKE 'TESTDEPT%')"
+        ))
+        await s.execute(text(
             "DELETE FROM employee_bank_accounts WHERE employee_id IN "
             "(SELECT id FROM employees WHERE id_number LIKE 'TEST%')"
         ))
         await s.execute(text("DELETE FROM employees WHERE id_number LIKE 'TEST%'"))
+        await s.execute(text("DELETE FROM departments WHERE code LIKE 'TESTDEPT%'"))
         await s.commit()
 
 
@@ -97,6 +102,16 @@ def _get_department(client: TestClient, headers: dict, code: str = "HC") -> dict
     dept = next((x for x in items if x["code"] == code), None)
     assert dept is not None, f"Department '{code}' not found"
     return dept
+
+
+def _create_department(client: TestClient, headers: dict, code: str, name: str) -> dict:
+    resp = client.post(
+        "/api/v1/departments",
+        json={"code": code, "name": name, "dept_type": "PHONG"},
+        headers=headers,
+    )
+    assert resp.status_code == 201, resp.text
+    return resp.json()
 
 
 def _get_job_position(client: TestClient, headers: dict, department_id: int | None = None) -> dict:
@@ -367,6 +382,65 @@ async def test_lookup_uses_current_job_prefix(client: TestClient):
     assert resp.status_code == 200
     found = next(item for item in resp.json() if item["id"] == created["id"])
     assert found["display_code"].startswith("HC")
+
+
+def test_list_and_lookup_fall_back_to_department_code_when_prefix_missing(client: TestClient):
+    headers = _admin(client)
+    id_number = "TEST999LOOKUP002"
+    created = client.post(BASE, json=_valid_payload(id_number), headers=headers).json()
+    dept = _create_department(client, headers, "TESTDEPTNP1", "Test Dept No Prefix")
+
+    job_record_resp = client.post(
+        f"{BASE}/{created['id']}/job-records",
+        json={"department_id": dept["id"], "effective_from": "2026-01-01"},
+        headers=headers,
+    )
+    assert job_record_resp.status_code == 201, job_record_resp.text
+
+    list_resp = client.get(f"{BASE}?keyword={id_number}", headers=headers)
+    assert list_resp.status_code == 200
+    list_item = next(item for item in list_resp.json()["items"] if item["id"] == created["id"])
+    assert list_item["display_code"].startswith(dept["code"])
+
+    lookup_resp = client.get(f"{BASE}/lookup?keyword={id_number}", headers=headers)
+    assert lookup_resp.status_code == 200
+    lookup_item = next(item for item in lookup_resp.json() if item["id"] == created["id"])
+    assert lookup_item["display_code"].startswith(dept["code"])
+
+    detail_resp = client.get(f"{BASE}/{created['id']}", headers=headers)
+    assert detail_resp.status_code == 200
+    assert detail_resp.json()["display_code"].startswith(dept["code"])
+
+
+@pytest.mark.asyncio
+async def test_prefixed_display_code_uses_four_digits_even_if_sequence_min_digits_is_higher(client: TestClient):
+    headers = _admin(client)
+    id_number = "TEST999LOOKUP003"
+    created = client.post(BASE, json=_valid_payload(id_number), headers=headers).json()
+    hc = _get_department(client, headers, "HC")
+
+    job_record_resp = client.post(
+        f"{BASE}/{created['id']}/job-records",
+        json={"department_id": hc["id"], "effective_from": "2026-01-01"},
+        headers=headers,
+    )
+    assert job_record_resp.status_code == 201, job_record_resp.text
+
+    await _set_employee_sequence_config(id_number, sequence_code="SYS3", min_digits=7)
+
+    detail_resp = client.get(f"{BASE}/{created['id']}", headers=headers)
+    assert detail_resp.status_code == 200
+    assert detail_resp.json()["display_code"] == f"HC{created['employee_seq']:04d}"
+
+    list_resp = client.get(f"{BASE}?keyword={id_number}", headers=headers)
+    assert list_resp.status_code == 200
+    list_item = next(item for item in list_resp.json()["items"] if item["id"] == created["id"])
+    assert list_item["display_code"] == f"HC{created['employee_seq']:04d}"
+
+    lookup_resp = client.get(f"{BASE}/lookup?keyword={id_number}", headers=headers)
+    assert lookup_resp.status_code == 200
+    lookup_item = next(item for item in lookup_resp.json() if item["id"] == created["id"])
+    assert lookup_item["display_code"] == f"HC{created['employee_seq']:04d}"
 
 
 @pytest.mark.asyncio

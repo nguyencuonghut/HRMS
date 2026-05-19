@@ -39,6 +39,7 @@ def _make_session():
 async def _cleanup_test_employees():
     async with _make_session()() as s:
         await s.execute(text("DELETE FROM job_positions WHERE code LIKE 'TESTJOBPOS%'"))
+        await s.execute(text("DELETE FROM employee_job_records WHERE department_id IN (SELECT id FROM departments WHERE code LIKE 'TESTJOBDEPT%')"))
         await s.execute(text(
             "DELETE FROM employee_job_records WHERE employee_id IN "
             "(SELECT id FROM employees WHERE id_number LIKE 'TESTJOB%')"
@@ -48,6 +49,7 @@ async def _cleanup_test_employees():
             "(SELECT id FROM employees WHERE id_number LIKE 'TESTJOB%')"
         ))
         await s.execute(text("DELETE FROM employees WHERE id_number LIKE 'TESTJOB%'"))
+        await s.execute(text("DELETE FROM departments WHERE code LIKE 'TESTJOBDEPT%'"))
         await s.commit()
 
 
@@ -106,6 +108,16 @@ def _create_job_position(client: TestClient, department_id: int, suffix: str) ->
             "name": f"Test Job Position {suffix}",
             "department_id": department_id,
         },
+    )
+    assert resp.status_code == 201, resp.text
+    return resp.json()["id"]
+
+
+def _create_department(client: TestClient, headers: dict, code: str, name: str) -> int:
+    resp = client.post(
+        "/api/v1/departments",
+        json={"code": code, "name": name, "dept_type": "PHONG"},
+        headers=headers,
     )
     assert resp.status_code == 201, resp.text
     return resp.json()["id"]
@@ -174,22 +186,16 @@ def test_create_job_record_updates_display_code(client: TestClient):
     assert detail["display_code"].startswith("HC")
 
 
-def test_create_job_record_no_prefix_dept(client: TestClient):
-    """Phòng không có display_prefix → display_code chỉ là số."""
+def test_create_job_record_falls_back_to_department_code_when_prefix_missing(client: TestClient):
+    """Phòng không có display_prefix → display_code fallback sang department.code."""
     headers = _admin(client)
     emp = _create_employee(client, headers, "TESTJOB0000012")
+    dept_code = "TESTJOBDEPTNP1"
+    dept_id = _create_department(client, headers, dept_code, "Test Job Dept No Prefix")
 
-    # Tìm phòng không có prefix (ví dụ KS chưa được set)
-    r = client.get("/api/v1/departments", headers=headers)
-    data = r.json()
-    depts = data["items"] if isinstance(data, dict) else data
-    dept = next((d for d in depts if not d.get("display_prefix")), None)
-    if not dept:
-        pytest.skip("Tất cả phòng ban đều đã có display_prefix")
-
-    client.post(f"{BASE}/{emp['id']}/job-records", json=_job_record_payload(dept["id"]), headers=headers)
+    client.post(f"{BASE}/{emp['id']}/job-records", json=_job_record_payload(dept_id), headers=headers)
     detail = client.get(f"{BASE}/{emp['id']}", headers=headers).json()
-    assert detail["display_code"].isdigit()
+    assert detail["display_code"].startswith(dept_code)
 
 
 def test_create_job_record_duplicate_409(client: TestClient):

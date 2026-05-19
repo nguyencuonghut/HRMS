@@ -4,6 +4,7 @@ from app.api.v1.endpoints import auth
 from app.api.v1.endpoints import admin_units
 from app.api.v1.endpoints import education_catalog
 from app.api.v1.endpoints import other_business_catalog
+from app.api.v1.endpoints import employee_code_sequences
 from app.api.v1.endpoints import departments
 from app.api.v1.endpoints import job_titles
 from app.api.v1.endpoints import job_positions
@@ -38,6 +39,7 @@ router.include_router(other_business_catalog.skill_router, prefix="/skills", tag
 router.include_router(other_business_catalog.certificate_router, prefix="/certificates", tags=["Danh mục nghiệp vụ khác"])
 router.include_router(other_business_catalog.leave_type_router, prefix="/leave-types", tags=["Danh mục nghiệp vụ khác"])
 router.include_router(other_business_catalog.contract_template_router, prefix="/contract-templates", tags=["Danh mục nghiệp vụ khác"])
+router.include_router(employee_code_sequences.router, prefix="/employee-code-sequences", tags=["Mã nhân viên"])
 router.include_router(other_business_catalog.lookup_router, tags=["Danh mục nghiệp vụ khác"])
 router.include_router(departments.router,   prefix="/departments",   tags=["Cơ cấu tổ chức"])
 router.include_router(job_titles.router,    prefix="/job-titles",    tags=["Cơ cấu tổ chức"])

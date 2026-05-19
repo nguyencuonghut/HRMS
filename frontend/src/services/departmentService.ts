@@ -5,6 +5,7 @@ export interface DepartmentRead {
   code: string
   name: string
   short_name: string | null
+  display_prefix: string | null
   parent_id: number | null
   dept_type: string
   dept_type_label: string
@@ -22,6 +23,7 @@ export interface DepartmentCreate {
   code: string
   name: string
   short_name?: string | null
+  display_prefix?: string | null
   parent_id?: number | null
   dept_type?: string
   order_no?: number
@@ -30,6 +32,7 @@ export interface DepartmentCreate {
 export interface DepartmentUpdate {
   name?: string
   short_name?: string | null
+  display_prefix?: string | null
   parent_id?: number | null
   dept_type?: string
   order_no?: number

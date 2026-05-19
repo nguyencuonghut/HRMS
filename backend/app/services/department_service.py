@@ -19,6 +19,7 @@ def _to_dict(dept: Department) -> dict:
         "code":       dept.code,
         "name":       dept.name,
         "short_name": dept.short_name,
+        "display_prefix": dept.display_prefix,
         "parent_id":  dept.parent_id,
         "dept_type":  dept.dept_type,
         "order_no":   dept.order_no,
@@ -143,6 +144,7 @@ async def create(
         code=data.code,
         name=data.name,
         short_name=data.short_name,
+        display_prefix=data.display_prefix,
         parent_id=data.parent_id,
         dept_type=data.dept_type.value,
         order_no=data.order_no,
@@ -171,6 +173,9 @@ async def update(
 
     if "short_name" in provided:
         dept.short_name = data.short_name
+
+    if "display_prefix" in provided:
+        dept.display_prefix = data.display_prefix
 
     if "dept_type" in provided and data.dept_type is not None:
         dept.dept_type = data.dept_type.value

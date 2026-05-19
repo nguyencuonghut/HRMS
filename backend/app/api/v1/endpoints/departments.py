@@ -5,7 +5,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_session
 from app.schemas.department import DepartmentCreate, DepartmentRead, DepartmentTreeNode, DepartmentUpdate
-from app.services import department_service
+from app.schemas.employee_code_rule import EmployeeCodeSequenceRuleRead, EmployeeCodeSequenceRuleUpsert
+from app.services import department_service, employee_code_rule_service
 
 router = APIRouter()
 
@@ -57,3 +58,39 @@ async def delete_department(
     session: AsyncSession = Depends(get_session),
 ):
     return await department_service.delete(session, dept_id)
+
+
+@router.get(
+    "/{dept_id}/employee-code-rule",
+    response_model=EmployeeCodeSequenceRuleRead | None,
+    summary="Rule hệ mã của phòng/ban",
+)
+async def get_department_employee_code_rule(
+    dept_id: int,
+    session: AsyncSession = Depends(get_session),
+):
+    return await employee_code_rule_service.get_department_rule(session, dept_id)
+
+
+@router.put(
+    "/{dept_id}/employee-code-rule",
+    response_model=EmployeeCodeSequenceRuleRead,
+    summary="Tạo/cập nhật rule hệ mã cho phòng/ban",
+)
+async def upsert_department_employee_code_rule(
+    dept_id: int,
+    body: EmployeeCodeSequenceRuleUpsert,
+    session: AsyncSession = Depends(get_session),
+):
+    return await employee_code_rule_service.upsert_department_rule(session, dept_id, body)
+
+
+@router.delete(
+    "/{dept_id}/employee-code-rule",
+    summary="Xóa rule hệ mã của phòng/ban",
+)
+async def delete_department_employee_code_rule(
+    dept_id: int,
+    session: AsyncSession = Depends(get_session),
+):
+    return await employee_code_rule_service.delete_department_rule(session, dept_id)

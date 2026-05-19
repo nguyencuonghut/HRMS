@@ -73,6 +73,12 @@
 
         <Column field="code" header="Mã" sortable style="width: 120px" />
 
+        <Column field="display_prefix" header="Prefix mã NV" sortable style="width: 130px">
+          <template #body="{ node }">
+            {{ node.data.display_prefix || '—' }}
+          </template>
+        </Column>
+
         <Column field="dept_type_label" header="Loại" sortable style="width: 120px">
           <template #body="{ node }">{{ node.data.dept_type_label }}</template>
         </Column>
@@ -169,6 +175,19 @@
           />
         </div>
 
+        <div class="field">
+          <label for="f-prefix">Prefix mã NV</label>
+          <InputText
+            id="f-prefix"
+            v-model="form.display_prefix"
+            class="w-full"
+            placeholder="VD: HC, CNT"
+            maxlength="5"
+            autocomplete="off"
+          />
+          <small class="help-msg">Nếu có giá trị, hệ thống ưu tiên prefix này khi hiển thị mã NV. Nếu để trống, hệ thống fallback sang mã phòng/ban.</small>
+        </div>
+
         <!-- Loại + Thứ tự -->
         <div class="field-row">
           <div class="field">
@@ -223,6 +242,41 @@
             </span>
           </div>
         </div>
+
+        <div v-if="editingDept" class="fieldset-block">
+          <div class="fieldset-title">Hệ mã nhân viên</div>
+          <div class="field">
+            <label>Hệ áp dụng trực tiếp</label>
+            <Select
+              v-model="form.employee_code_sequence_id"
+              :options="sequenceOptions"
+              option-label="label"
+              option-value="value"
+              placeholder="— Không cấu hình trực tiếp —"
+              show-clear
+              filter
+              class="w-full"
+            />
+            <small class="help-msg">Bỏ trống để không gắn rule trực tiếp cho phòng/ban này.</small>
+            <small class="help-msg">Hệ 1: mặc định toàn công ty. Hệ 2: công nhân bốc xếp, ra cám, tạp vụ. Hệ 3: công nhân, bảo vệ thuộc Phòng trại.</small>
+          </div>
+          <div v-if="form.employee_code_sequence_id" class="field field-switch">
+            <label>Áp dụng cho đơn vị con</label>
+            <div class="switch-row">
+              <ToggleSwitch v-model="form.apply_to_descendants" />
+              <span>{{ form.apply_to_descendants ? 'Có áp dụng' : 'Chỉ áp dụng trực tiếp' }}</span>
+            </div>
+          </div>
+          <div class="field">
+            <label>Ghi chú rule</label>
+            <InputText
+              v-model="form.employee_code_rule_note"
+              class="w-full"
+              placeholder="Ghi chú nội bộ (không bắt buộc)"
+              autocomplete="off"
+            />
+          </div>
+        </div>
       </form>
 
       <template #footer>
@@ -260,6 +314,7 @@ import Select from 'primevue/select'
 import Tag from 'primevue/tag'
 import ToggleSwitch from 'primevue/toggleswitch'
 import TreeTable from 'primevue/treetable'
+import employeeCodeRuleService, { type EmployeeCodeSequenceRead } from '@/services/employeeCodeRuleService'
 
 import departmentService, {
   type DepartmentRead,
@@ -279,10 +334,14 @@ interface FormState {
   code: string
   name: string
   short_name: string
+  display_prefix: string
   parent_id: number | null
   dept_type: string
   order_no: number
   is_active: boolean
+  employee_code_sequence_id: number | null
+  apply_to_descendants: boolean
+  employee_code_rule_note: string
 }
 
 // ── State ──────────────────────────────────────────────────────────────────────
@@ -294,6 +353,7 @@ const loading      = ref(false)
 const treeData     = ref<PvTreeNode[]>([])
 const expandedKeys = ref<Record<string, boolean>>({})
 const flatDepts    = ref<DepartmentRead[]>([])
+const sequences    = ref<EmployeeCodeSequenceRead[]>([])
 const filterActive = ref<boolean | null>(null)
 
 // Pagination & search
@@ -306,8 +366,9 @@ const submitting    = ref(false)
 const editingDept   = ref<DepartmentRead | null>(null)
 
 const form = ref<FormState>({
-  code: '', name: '', short_name: '', parent_id: null,
+  code: '', name: '', short_name: '', display_prefix: '', parent_id: null,
   dept_type: 'PHONG', order_no: 0, is_active: true,
+  employee_code_sequence_id: null, apply_to_descendants: false, employee_code_rule_note: '',
 })
 
 const errors = ref<Partial<Record<keyof FormState, string>>>({})
@@ -334,6 +395,13 @@ const parentOptions = computed(() =>
   flatDepts.value
     .filter(d => d.id !== editingDept.value?.id)
     .map(d => ({ label: `${d.name} (${d.code})`, value: d.id }))
+)
+
+const sequenceOptions = computed(() =>
+  sequences.value.map(s => ({
+    label: s.description ? `${s.name} (${s.code}) - ${s.description}` : `${s.name} (${s.code})`,
+    value: s.id,
+  }))
 )
 
 const filteredTree = computed(() => {
@@ -418,13 +486,15 @@ function handlePage(e: { first: number; rows: number }) {
 async function loadData() {
   loading.value = true
   try {
-    const [treeRes, flatRes] = await Promise.all([
+    const [treeRes, flatRes, seqRes] = await Promise.all([
       departmentService.getTree(filterActive.value ?? undefined),
       departmentService.getList(),
+      employeeCodeRuleService.getSequences(),
     ])
     treeData.value     = toTreeNodes(treeRes.data)
     expandedKeys.value = collectExpandedKeys(treeData.value)
     flatDepts.value    = flatRes.data
+    sequences.value    = seqRes.data
     first.value        = 0
   } catch (e) {
     toast.add({ severity: 'error', summary: 'Lỗi', detail: apiError(e), life: 4000 })
@@ -437,23 +507,40 @@ async function loadData() {
 
 function openCreate() {
   editingDept.value = null
-  form.value = { code: '', name: '', short_name: '', parent_id: null, dept_type: 'PHONG', order_no: 0, is_active: true }
+  form.value = {
+    code: '', name: '', short_name: '', display_prefix: '', parent_id: null, dept_type: 'PHONG', order_no: 0, is_active: true,
+    employee_code_sequence_id: null, apply_to_descendants: false, employee_code_rule_note: '',
+  }
   errors.value = {}
   dialogVisible.value = true
 }
 
-function openEdit(dept: DepartmentRead) {
+async function openEdit(dept: DepartmentRead) {
   editingDept.value = dept
   form.value = {
     code:       dept.code,
     name:       dept.name,
     short_name: dept.short_name ?? '',
+    display_prefix: dept.display_prefix ?? '',
     parent_id:  dept.parent_id,
     dept_type:  dept.dept_type,
     order_no:   dept.order_no,
     is_active:  dept.is_active,
+    employee_code_sequence_id: null,
+    apply_to_descendants: false,
+    employee_code_rule_note: '',
   }
   errors.value = {}
+  try {
+    const ruleRes = await employeeCodeRuleService.getDepartmentRule(dept.id)
+    if (ruleRes.data) {
+      form.value.employee_code_sequence_id = ruleRes.data.employee_code_sequence_id
+      form.value.apply_to_descendants = ruleRes.data.apply_to_descendants
+      form.value.employee_code_rule_note = ruleRes.data.note ?? ''
+    }
+  } catch (e) {
+    toast.add({ severity: 'warn', summary: 'Cảnh báo', detail: `Không tải được rule hệ mã: ${apiError(e)}`, life: 4000 })
+  }
   dialogVisible.value = true
 }
 
@@ -473,22 +560,38 @@ async function submitForm() {
   submitting.value = true
   try {
     const shortName = form.value.short_name.trim() || null
+    const displayPrefix = form.value.display_prefix.trim() || null
 
     if (editingDept.value) {
       await departmentService.update(editingDept.value.id, {
         name:       form.value.name.trim(),
         short_name: shortName,
+        display_prefix: displayPrefix,
         parent_id:  form.value.parent_id ?? null,
         dept_type:  form.value.dept_type,
         order_no:   form.value.order_no ?? 0,
         is_active:  form.value.is_active,
       })
+      if (form.value.employee_code_sequence_id) {
+        await employeeCodeRuleService.upsertDepartmentRule(editingDept.value.id, {
+          employee_code_sequence_id: form.value.employee_code_sequence_id,
+          apply_to_descendants: form.value.apply_to_descendants,
+          note: form.value.employee_code_rule_note.trim() || null,
+        })
+      } else {
+        try {
+          await employeeCodeRuleService.deleteDepartmentRule(editingDept.value.id)
+        } catch {
+          // no direct rule to delete
+        }
+      }
       toast.add({ severity: 'success', summary: 'Thành công', detail: 'Đã cập nhật phòng/ban', life: 3000 })
     } else {
       await departmentService.create({
         code:       form.value.code.trim(),
         name:       form.value.name.trim(),
         short_name: shortName,
+        display_prefix: displayPrefix,
         parent_id:  form.value.parent_id ?? null,
         dept_type:  form.value.dept_type,
         order_no:   form.value.order_no ?? 0,
@@ -534,4 +637,16 @@ onMounted(loadData)
 .dept-name  { font-weight: 500; }
 .short-name { color: var(--p-text-muted-color); font-size: 0.85em; }
 .dept-form  { display: flex; flex-direction: column; gap: 0.1rem; }
+.fieldset-block {
+  margin-top: 0.5rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--p-content-border-color);
+}
+.fieldset-title {
+  margin-bottom: 0.75rem;
+  font-weight: 600;
+}
+.help-msg {
+  color: var(--p-text-muted-color);
+}
 </style>

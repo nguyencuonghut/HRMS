@@ -17,7 +17,7 @@ def compute_employee_display_code(
     *,
     min_digits: int = 4,
 ) -> str:
-    digits = max(1, min_digits)
+    digits = 4 if dept_display_prefix else max(1, min_digits)
     seq_str = f"{employee_seq:0{digits}d}"
     return f"{dept_display_prefix}{seq_str}" if dept_display_prefix else seq_str
 
