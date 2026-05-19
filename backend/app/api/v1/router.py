@@ -16,6 +16,7 @@ from app.api.v1.endpoints import employee_io
 from app.api.v1.endpoints import employee_contracts
 from app.api.v1.endpoints import contracts
 from app.api.v1.endpoints import reminders
+from app.api.v1.endpoints import leave_entitlements
 
 router = APIRouter()
 router.include_router(auth.router,          prefix="/auth",          tags=["Xác thực"])
@@ -47,4 +48,5 @@ router.include_router(employee_io.router,        prefix="/employees",  tags=["Nh
 router.include_router(employee_contracts.router, prefix="/employees",  tags=["Hợp đồng nhân viên"])
 router.include_router(employees.router,          prefix="/employees",  tags=["Nhân sự"])
 router.include_router(contracts.router,          prefix="/contracts",  tags=["Hợp đồng"])
-router.include_router(reminders.router,          prefix="/reminders",  tags=["Nhắc nhở"])
+router.include_router(reminders.router,          prefix="/reminders",         tags=["Nhắc nhở"])
+router.include_router(leave_entitlements.router, prefix="/leave-entitlements", tags=["Quản lý ngày phép"])

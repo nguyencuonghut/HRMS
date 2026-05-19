@@ -20,7 +20,11 @@ celery_app.conf.update(
     beat_schedule={
         "expire-overdue-contracts": {
             "task": "app.workers.tasks.expire_overdue_contracts",
-            "schedule": crontab(hour=0, minute=5),  # 00:05 hàng ngày
+            "schedule": crontab(hour=0, minute=5),              # 00:05 hàng ngày
+        },
+        "reset-expired-carryover": {
+            "task": "app.workers.tasks.reset_expired_carryover",
+            "schedule": crontab(hour=0, minute=5, day_of_month=1, month_of_year=4),  # 00:05 ngày 01/04
         },
     },
 )
