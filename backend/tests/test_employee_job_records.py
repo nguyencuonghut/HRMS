@@ -38,6 +38,7 @@ def _make_session():
 
 async def _cleanup_test_employees():
     async with _make_session()() as s:
+        await s.execute(text("DELETE FROM job_positions WHERE code LIKE 'TESTJOBPOS%'"))
         await s.execute(text(
             "DELETE FROM employee_job_records WHERE employee_id IN "
             "(SELECT id FROM employees WHERE id_number LIKE 'TESTJOB%')"
@@ -95,6 +96,19 @@ def _get_dept_id(client: TestClient, headers: dict, code: str = "HC") -> int:
         if d["code"] == code:
             return d["id"]
     pytest.fail(f"Department '{code}' not found")
+
+
+def _create_job_position(client: TestClient, department_id: int, suffix: str) -> int:
+    resp = client.post(
+        "/api/v1/job-positions",
+        json={
+            "code": f"TESTJOBPOS{suffix}",
+            "name": f"Test Job Position {suffix}",
+            "department_id": department_id,
+        },
+    )
+    assert resp.status_code == 201, resp.text
+    return resp.json()["id"]
 
 
 def _job_record_payload(dept_id: int, *, effective_from: str = "2026-01-01") -> dict:
@@ -189,6 +203,20 @@ def test_create_job_record_duplicate_409(client: TestClient):
     assert r.status_code == 409
 
 
+def test_create_job_record_rejects_job_position_department_mismatch(client: TestClient):
+    headers = _admin(client)
+    emp = _create_employee(client, headers, "TESTJOB0000013A")
+    hc_id = _get_dept_id(client, headers, "HC")
+    kd_id = _get_dept_id(client, headers, "KD")
+    hc_position_id = _create_job_position(client, hc_id, "001")
+
+    payload = _job_record_payload(kd_id)
+    payload["job_position_id"] = hc_position_id
+    r = client.post(f"{BASE}/{emp['id']}/job-records", json=payload, headers=headers)
+    assert r.status_code == 422, r.text
+    assert "không thuộc phòng ban" in r.json()["detail"]
+
+
 def test_create_job_record_official_date_syncs_status(client: TestClient):
     """Khi official_date được set → employees.status = 'official'."""
     headers = _admin(client)
@@ -263,6 +291,46 @@ def test_update_current_does_not_create_new_record(client: TestClient):
     assert len(records) == 1
 
 
+def test_update_current_rejects_job_position_department_mismatch(client: TestClient):
+    headers = _admin(client)
+    emp = _create_employee(client, headers, "TESTJOB0000022A")
+    hc_id = _get_dept_id(client, headers, "HC")
+    kd_id = _get_dept_id(client, headers, "KD")
+    hc_position_id = _create_job_position(client, hc_id, "002")
+
+    client.post(f"{BASE}/{emp['id']}/job-records", json=_job_record_payload(hc_id), headers=headers)
+
+    r = client.put(
+        f"{BASE}/{emp['id']}/job-records/current",
+        json={"department_id": kd_id, "job_position_id": hc_position_id},
+        headers=headers,
+    )
+    assert r.status_code == 422, r.text
+    assert "không thuộc phòng ban" in r.json()["detail"]
+
+
+def test_update_current_allows_department_change_without_reallocating_seq(client: TestClient):
+    headers = _admin(client)
+    emp = _create_employee(client, headers, "TESTJOB0000022B")
+    hc_id = _get_dept_id(client, headers, "HC")
+    kd_id = _get_dept_id(client, headers, "KD")
+
+    client.post(f"{BASE}/{emp['id']}/job-records", json=_job_record_payload(hc_id), headers=headers)
+    before = client.get(f"{BASE}/{emp['id']}", headers=headers).json()
+
+    r = client.put(
+        f"{BASE}/{emp['id']}/job-records/current",
+        json={"department_id": kd_id},
+        headers=headers,
+    )
+    assert r.status_code == 200, r.text
+
+    after = client.get(f"{BASE}/{emp['id']}", headers=headers).json()
+    assert before["employee_seq"] == after["employee_seq"]
+    assert before["display_code"] != after["display_code"]
+    assert after["display_code"].startswith("KD")
+
+
 # ── Transfer job record ────────────────────────────────────────────────────────
 
 def test_transfer_creates_new_record(client: TestClient):
@@ -305,6 +373,7 @@ def test_transfer_updates_display_code(client: TestClient):
         headers=headers,
     )
     detail_after = client.get(f"{BASE}/{emp['id']}", headers=headers).json()
+    assert detail_after["employee_seq"] == detail_before["employee_seq"]
     assert detail_after["display_code"].startswith("KD")
 
 
@@ -319,6 +388,23 @@ def test_transfer_no_current_record_409(client: TestClient):
         headers=headers,
     )
     assert r.status_code == 409
+
+
+def test_transfer_rejects_job_position_department_mismatch(client: TestClient):
+    headers = _admin(client)
+    emp = _create_employee(client, headers, "TESTJOB0000032A")
+    hc_id = _get_dept_id(client, headers, "HC")
+    kd_id = _get_dept_id(client, headers, "KD")
+    hc_position_id = _create_job_position(client, hc_id, "003")
+
+    client.post(f"{BASE}/{emp['id']}/job-records", json=_job_record_payload(hc_id), headers=headers)
+    r = client.post(
+        f"{BASE}/{emp['id']}/job-records/transfer",
+        json={"department_id": kd_id, "job_position_id": hc_position_id, "effective_from": "2026-06-01"},
+        headers=headers,
+    )
+    assert r.status_code == 422, r.text
+    assert "không thuộc phòng ban" in r.json()["detail"]
 
 
 def test_transfer_writes_audit_log(client: TestClient):

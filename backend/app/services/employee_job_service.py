@@ -18,6 +18,56 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
+async def _require_department(session: AsyncSession, department_id: int) -> Department:
+    department = await session.get(Department, department_id)
+    if not department:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Không tìm thấy phòng ban")
+    return department
+
+
+async def _require_job_title(session: AsyncSession, job_title_id: int) -> JobTitle:
+    job_title = await session.get(JobTitle, job_title_id)
+    if not job_title:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Không tìm thấy chức danh")
+    return job_title
+
+
+async def _require_job_position(session: AsyncSession, job_position_id: int) -> JobPosition:
+    job_position = await session.get(JobPosition, job_position_id)
+    if not job_position:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Không tìm thấy vị trí công việc")
+    return job_position
+
+
+async def _validate_job_assignment(
+    session: AsyncSession,
+    *,
+    department_id: int,
+    job_title_id: int | None = None,
+    job_position_id: int | None = None,
+) -> None:
+    await _require_department(session, department_id)
+
+    if job_title_id is not None:
+        await _require_job_title(session, job_title_id)
+
+    if job_position_id is None:
+        return
+
+    job_position = await _require_job_position(session, job_position_id)
+    if job_position.department_id != department_id:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Vị trí công việc không thuộc phòng ban đã chọn",
+        )
+
+    if job_title_id is not None and job_position.job_title_id is not None and job_position.job_title_id != job_title_id:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Vị trí công việc không khớp với chức danh đã chọn",
+        )
+
+
 # ── Queries ───────────────────────────────────────────────────────────────────
 
 async def get_current_job_record(
@@ -126,6 +176,13 @@ async def create_job_record(
             detail="Nhân viên đã có bản ghi công việc hiện tại. Dùng /transfer để chuyển công tác.",
         )
 
+    await _validate_job_assignment(
+        session,
+        department_id=payload.department_id,
+        job_title_id=payload.job_title_id,
+        job_position_id=payload.job_position_id,
+    )
+
     record = EmployeeJobRecord(
         employee_id=employee_id,
         department_id=payload.department_id,
@@ -163,6 +220,16 @@ async def update_current_record(
     if not record:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Chưa có bản ghi công việc hiện tại.")
 
+    target_department_id = payload.department_id or record.department_id
+    target_job_title_id = payload.job_title_id if payload.job_title_id is not None else record.job_title_id
+    target_job_position_id = payload.job_position_id if payload.job_position_id is not None else record.job_position_id
+    await _validate_job_assignment(
+        session,
+        department_id=target_department_id,
+        job_title_id=target_job_title_id,
+        job_position_id=target_job_position_id,
+    )
+
     update_data = payload.model_dump(exclude_none=True)
     for field, value in update_data.items():
         setattr(record, field, value)
@@ -193,6 +260,13 @@ async def transfer_job_record(
             status.HTTP_409_CONFLICT,
             detail="Nhân viên chưa có bản ghi công việc. Dùng POST /job-records để tạo lần đầu.",
         )
+
+    await _validate_job_assignment(
+        session,
+        department_id=payload.department_id,
+        job_title_id=payload.job_title_id,
+        job_position_id=payload.job_position_id,
+    )
 
     current.effective_to = payload.effective_from - timedelta(days=1)
     current.is_current = False

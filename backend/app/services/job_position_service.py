@@ -4,9 +4,11 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import HTTPException, status
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.employee_code import EmployeeCodeSequenceRule
+from app.models.employee_job import EmployeeJobRecord
 from app.models.org import Department, JobPosition, JobPositionAttachment, JobTitle, OrgChangeLog
 from app.schemas.job_position import (
     JobPositionCreate,
@@ -54,6 +56,31 @@ async def _require_job_title(session: AsyncSession, jt_id: int) -> None:
     r = await session.execute(select(JobTitle).where(JobTitle.id == jt_id))
     if not r.scalar_one_or_none():
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Không tìm thấy chức danh")
+
+
+async def _has_active_job_position_rule(session: AsyncSession, pos_id: int) -> bool:
+    count = (
+        await session.execute(
+            select(func.count()).select_from(EmployeeCodeSequenceRule).where(
+                EmployeeCodeSequenceRule.scope_type == "job_position",
+                EmployeeCodeSequenceRule.job_position_id == pos_id,
+                EmployeeCodeSequenceRule.is_active.is_(True),
+            )
+        )
+    ).scalar_one()
+    return count > 0
+
+
+async def _has_current_assignee(session: AsyncSession, pos_id: int) -> bool:
+    count = (
+        await session.execute(
+            select(func.count()).select_from(EmployeeJobRecord).where(
+                EmployeeJobRecord.job_position_id == pos_id,
+                EmployeeJobRecord.is_current.is_(True),
+            )
+        )
+    ).scalar_one()
+    return count > 0
 
 
 # ── Public API ─────────────────────────────────────────────────────────────────
@@ -161,6 +188,17 @@ async def update(
     if "name"               in provided and data.name               is not None: pos.name               = data.name.strip()
     if "department_id"      in provided and data.department_id      is not None:
         await _require_department(session, data.department_id)
+        if data.department_id != pos.department_id:
+            if await _has_active_job_position_rule(session, pos.id):
+                raise HTTPException(
+                    status.HTTP_409_CONFLICT,
+                    detail="Không thể chuyển phòng ban cho vị trí khi còn rule active của hệ mã nhân viên",
+                )
+            if await _has_current_assignee(session, pos.id):
+                raise HTTPException(
+                    status.HTTP_409_CONFLICT,
+                    detail="Không thể chuyển phòng ban cho vị trí đang được gán cho nhân viên hiện hành",
+                )
         pos.department_id = data.department_id
     if "job_title_id"       in provided:
         if data.job_title_id is not None:
@@ -187,9 +225,16 @@ async def delete(
     changed_by: Optional[int] = None,
 ) -> dict:
     pos = await get_by_id(session, pos_id)
-
-    # TODO: chặn xóa khi có nhân viên đang giữ vị trí này
-    # (sẽ bổ sung khi module Nhân sự được implement)
+    if await _has_active_job_position_rule(session, pos.id):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail="Không thể xóa vị trí khi còn rule active của hệ mã nhân viên",
+        )
+    if await _has_current_assignee(session, pos.id):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail="Không thể xóa vị trí đang được gán cho nhân viên hiện hành",
+        )
 
     old_snapshot = _to_dict(pos)
     pos_name = pos.name
