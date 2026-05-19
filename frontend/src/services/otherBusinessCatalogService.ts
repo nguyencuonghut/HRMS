@@ -214,6 +214,12 @@ export interface LeaveTypeRead {
   color_tag: string | null
   is_active: boolean
   description: string | null
+  count_public_holidays: boolean
+  max_days_per_year: number | null
+  max_consecutive_days: number | null
+  min_advance_days: number
+  carryover_allowed: boolean
+  carryover_cutoff_month: number
   created_at: string
   updated_at: string | null
 }
@@ -228,6 +234,12 @@ export interface LeaveTypeCreate {
   color_tag?: string | null
   is_active?: boolean
   description?: string | null
+  count_public_holidays?: boolean
+  max_days_per_year?: number | null
+  max_consecutive_days?: number | null
+  min_advance_days?: number
+  carryover_allowed?: boolean
+  carryover_cutoff_month?: number
 }
 
 export interface LeaveTypeUpdate {
@@ -239,6 +251,12 @@ export interface LeaveTypeUpdate {
   color_tag?: string | null
   is_active?: boolean
   description?: string | null
+  count_public_holidays?: boolean
+  max_days_per_year?: number | null
+  max_consecutive_days?: number | null
+  min_advance_days?: number
+  carryover_allowed?: boolean
+  carryover_cutoff_month?: number
 }
 
 export interface ContractTemplateRead {

@@ -254,9 +254,19 @@
               <template #empty><div class="empty-state"><i class="pi pi-inbox" /><span>Không có dữ liệu loại nghỉ</span></div></template>
               <Column field="name" header="Tên loại nghỉ" style="min-width: 220px" />
               <Column field="code" header="Mã" style="width: 150px" />
-              <Column field="is_paid_leave" header="Hưởng lương" style="width: 130px"><template #body="{ data }"><Tag :value="data.is_paid_leave ? 'Có' : 'Không'" :severity="data.is_paid_leave ? 'success' : 'contrast'" /></template></Column>
-              <Column field="affects_annual_leave" header="Trừ phép năm" style="width: 130px"><template #body="{ data }"><Tag :value="data.affects_annual_leave ? 'Có' : 'Không'" :severity="data.affects_annual_leave ? 'warning' : 'contrast'" /></template></Column>
-              <Column field="is_active" header="Trạng thái" style="width: 120px"><template #body="{ data }"><Tag :value="data.is_active ? 'Hoạt động' : 'Đã khóa'" :severity="data.is_active ? 'success' : 'danger'" /></template></Column>
+              <Column field="is_paid_leave" header="Hưởng lương" style="width: 115px"><template #body="{ data }"><Tag :value="data.is_paid_leave ? 'Có' : 'Không'" :severity="data.is_paid_leave ? 'success' : 'contrast'" /></template></Column>
+              <Column header="Quy tắc" style="min-width:210px;">
+                <template #body="{ data }">
+                  <div class="leave-rule-chips">
+                    <Tag v-if="data.allow_half_day"         value="½ ngày"      severity="info" />
+                    <Tag v-if="data.carryover_allowed"      value="Chuyển phép" severity="warning" />
+                    <Tag v-if="!data.count_public_holidays" value="Trừ ngày lễ" severity="secondary" />
+                    <span v-if="data.max_days_per_year"   class="rule-limit">Max {{ data.max_days_per_year }} ng/năm</span>
+                    <span v-if="data.min_advance_days"    class="rule-limit">Báo trước {{ data.min_advance_days }}ng</span>
+                  </div>
+                </template>
+              </Column>
+              <Column field="is_active" header="Trạng thái" style="width: 115px"><template #body="{ data }"><Tag :value="data.is_active ? 'Hoạt động' : 'Đã khóa'" :severity="data.is_active ? 'success' : 'danger'" /></template></Column>
               <Column header="" style="width: 110px"><template #body="{ data }"><div class="action-cell"><Button icon="pi pi-pencil" text rounded size="small" @click="openEditLeaveType(data)" /><Button icon="pi pi-trash" severity="danger" text rounded size="small" @click="confirmDelete('leaveType', data)" /></div></template></Column>
             </DataTable>
           </TabPanel>
@@ -315,6 +325,7 @@
 
     <Dialog
       v-model:visible="dialogVisible"
+      class="other-business-edit-dialog"
       :header="dialogHeader"
       :style="{ width: dialogWidth, maxWidth: '96vw' }"
       :breakpoints="{ '1200px': '84vw', '960px': '92vw', '640px': '96vw' }"
@@ -388,8 +399,42 @@
             <label class="check-item"><Checkbox v-model="leaveTypeForm.allow_half_day" binary /><span>Cho phép nửa ngày</span></label>
             <label class="check-item"><Checkbox v-model="leaveTypeForm.requires_attachment" binary /><span>Yêu cầu đính kèm</span></label>
           </div>
-          <div class="field"><label>Màu nhãn</label><InputText v-model="leaveTypeForm.color_tag" class="w-full" /></div>
-          <div class="field"><label>Mô tả</label><Textarea v-model="leaveTypeForm.description" rows="3" class="w-full" auto-resize /></div>
+
+          <p class="form-section-label">Quy tắc nghỉ</p>
+          <div class="field-row-3">
+            <div class="field">
+              <label>Số ngày tối đa / năm</label>
+              <InputNumber v-model="leaveTypeForm.max_days_per_year" :min="1" :max-fraction-digits="0" placeholder="Không giới hạn" class="w-full" show-buttons />
+            </div>
+            <div class="field">
+              <label>Ngày liên tiếp tối đa / đơn</label>
+              <InputNumber v-model="leaveTypeForm.max_consecutive_days" :min="1" :max-fraction-digits="0" placeholder="Không giới hạn" class="w-full" show-buttons />
+            </div>
+            <div class="field">
+              <label>Báo trước tối thiểu (ngày)</label>
+              <InputNumber v-model="leaveTypeForm.min_advance_days" :min="0" :max-fraction-digits="0" class="w-full" show-buttons />
+            </div>
+          </div>
+          <div class="checkbox-grid">
+            <label class="check-item">
+              <Checkbox v-model="leaveTypeForm.count_public_holidays" binary />
+              <span>Tính ngày lễ vào quota phép</span>
+            </label>
+            <label class="check-item">
+              <Checkbox v-model="leaveTypeForm.carryover_allowed" binary />
+              <span>Cho phép chuyển phép dư sang năm sau</span>
+            </label>
+          </div>
+          <div v-if="leaveTypeForm.carryover_allowed" class="field" style="max-width:220px;">
+            <label>Hết hạn chuyển (tháng) <span class="req">*</span></label>
+            <InputNumber v-model="leaveTypeForm.carryover_cutoff_month" :min="1" :max="12" :max-fraction-digits="0" class="w-full" show-buttons />
+            <small class="field-hint">3 = hết Quý I (31/03)</small>
+          </div>
+
+          <div class="field-row">
+            <div class="field"><label>Màu nhãn</label><InputText v-model="leaveTypeForm.color_tag" class="w-full" /></div>
+          </div>
+          <div class="field"><label>Mô tả</label><Textarea v-model="leaveTypeForm.description" rows="2" class="w-full" auto-resize /></div>
           <div v-if="editingLeaveType" class="field field-switch"><label>Trạng thái</label><div class="switch-row"><ToggleSwitch v-model="leaveTypeForm.is_active" /><span :class="leaveTypeForm.is_active ? 'active-label' : 'inactive-label'">{{ leaveTypeForm.is_active ? 'Hoạt động' : 'Đã khóa' }}</span></div></div>
         </template>
 
@@ -420,15 +465,17 @@
 
     <Dialog
       v-model:visible="placeholderDialogVisible"
+      class="other-business-placeholder-dialog"
       header="Placeholder của mẫu hợp đồng"
       :style="{ width: '960px', maxWidth: '96vw' }"
       :breakpoints="{ '1200px': '90vw', '960px': '94vw', '640px': '96vw' }"
+      :pt="{ content: { style: 'padding-bottom: 1.5rem' } }"
       modal
       :closable="!submittingPlaceholders"
     >
       <div class="placeholder-shell">
         <div class="placeholder-toolbar">
-          <div>
+          <div class="placeholder-meta">
             <strong>{{ editingPlaceholderTemplate?.name }}</strong>
             <p class="placeholder-note">Quản trị bộ biến metadata dùng cho phase auto-fill hợp đồng/phụ lục.</p>
           </div>
@@ -458,18 +505,20 @@
 
         <DataTable :value="placeholderRows" responsive-layout="scroll" stripedRows>
           <template #empty><div class="empty-state"><i class="pi pi-inbox" /><span>Chưa có placeholder nào</span></div></template>
-          <Column header="Key" style="min-width: 160px"><template #body="{ index }"><InputText v-model="placeholderRows[index].placeholder_key" class="w-full" /></template></Column>
-          <Column header="Label" style="min-width: 160px"><template #body="{ index }"><InputText v-model="placeholderRows[index].label" class="w-full" /></template></Column>
-          <Column header="Scope" style="width: 160px"><template #body="{ index }"><Select v-model="placeholderRows[index].source_scope" :options="placeholderScopeOptions" option-label="label" option-value="value" filter class="w-full" /></template></Column>
-          <Column header="Path" style="min-width: 180px"><template #body="{ index }"><InputText v-model="placeholderRows[index].source_path" class="w-full" /></template></Column>
+          <Column header="Khóa" style="min-width: 160px"><template #body="{ index }"><InputText v-model="placeholderRows[index].placeholder_key" class="w-full" /></template></Column>
+          <Column header="Nhãn" style="min-width: 160px"><template #body="{ index }"><InputText v-model="placeholderRows[index].label" class="w-full" /></template></Column>
+          <Column header="Phạm vi" style="width: 160px"><template #body="{ index }"><Select v-model="placeholderRows[index].source_scope" :options="placeholderScopeOptions" option-label="label" option-value="value" filter class="w-full" /></template></Column>
+          <Column header="Đường dẫn" style="min-width: 180px"><template #body="{ index }"><InputText v-model="placeholderRows[index].source_path" class="w-full" /></template></Column>
           <Column header="Kiểu" style="width: 150px"><template #body="{ index }"><Select v-model="placeholderRows[index].data_type" :options="placeholderTypeOptions" option-label="label" option-value="value" filter class="w-full" /></template></Column>
           <Column header="Bắt buộc" style="width: 110px"><template #body="{ index }"><Checkbox v-model="placeholderRows[index].is_required" binary /></template></Column>
           <Column header="" style="width: 70px"><template #body="{ index }"><Button icon="pi pi-times" severity="danger" text rounded @click="removePlaceholderRow(index)" /></template></Column>
         </DataTable>
       </div>
       <template #footer>
-        <Button label="Đóng" severity="secondary" outlined :disabled="submittingPlaceholders" @click="placeholderDialogVisible = false" />
-        <Button label="Lưu placeholder" icon="pi pi-save" :loading="submittingPlaceholders" @click="savePlaceholders" />
+        <div class="placeholder-dialog-footer">
+          <Button label="Đóng" severity="secondary" outlined :disabled="submittingPlaceholders" @click="placeholderDialogVisible = false" />
+          <Button label="Lưu placeholder" icon="pi pi-save" :loading="submittingPlaceholders" @click="savePlaceholders" />
+        </div>
       </template>
     </Dialog>
   </div>
@@ -575,18 +624,18 @@ const expiryPolicyOptions = [
   { label: 'Theo số tháng sau ngày cấp', value: 'months_after_issue' },
 ]
 const placeholderScopeOptions = [
-  { label: 'Employee', value: 'employee' },
-  { label: 'Organization', value: 'organization' },
-  { label: 'Contract draft', value: 'contract_draft' },
-  { label: 'Signer', value: 'signer' },
-  { label: 'System', value: 'system' },
+  { label: 'Nhân viên', value: 'employee' },
+  { label: 'Tổ chức', value: 'organization' },
+  { label: 'Hợp đồng', value: 'contract_draft' },
+  { label: 'Người ký', value: 'signer' },
+  { label: 'Hệ thống', value: 'system' },
 ]
 const placeholderTypeOptions = [
-  { label: 'Text', value: 'text' },
-  { label: 'Date', value: 'date' },
-  { label: 'Number', value: 'number' },
-  { label: 'Currency', value: 'currency' },
-  { label: 'Boolean', value: 'boolean' },
+  { label: 'Văn bản', value: 'text' },
+  { label: 'Ngày tháng', value: 'date' },
+  { label: 'Số', value: 'number' },
+  { label: 'Tiền tệ', value: 'currency' },
+  { label: 'Đúng/Sai', value: 'boolean' },
 ]
 
 const contractCategoryLookup = ref<ContractCategoryRead[]>([])
@@ -627,7 +676,15 @@ const certificateForm = ref({
 
 const editingLeaveType = ref<LeaveTypeRead | null>(null)
 const leaveTypeForm = ref({
-  code: '', name: '', is_paid_leave: false, affects_annual_leave: false, allow_half_day: false, requires_attachment: false, color_tag: '', is_active: true, description: '',
+  code: '', name: '',
+  is_paid_leave: false, affects_annual_leave: false, allow_half_day: false, requires_attachment: false,
+  color_tag: '', is_active: true, description: '',
+  count_public_holidays: true,
+  max_days_per_year: null as number | null,
+  max_consecutive_days: null as number | null,
+  min_advance_days: 0,
+  carryover_allowed: false,
+  carryover_cutoff_month: 3,
 })
 
 const editingTemplate = ref<ContractTemplateRead | null>(null)
@@ -816,7 +873,17 @@ function resetIdentityForm(kind: IdentityKind) {
 function resetBankForm() { editingBank.value = null; bankForm.value = { code: '', name: '', short_name: '', bin_code: '', swift_code: '', is_active: true } }
 function resetSkillForm() { editingSkill.value = null; skillForm.value = { code: '', name: '', skill_group: '', is_active: true } }
 function resetCertificateForm() { editingCertificate.value = null; certificateForm.value = { code: '', name: '', certificate_group: '', issuer_name: '', expiry_policy: null, default_valid_months: null, is_active: true } }
-function resetLeaveTypeForm() { editingLeaveType.value = null; leaveTypeForm.value = { code: '', name: '', is_paid_leave: false, affects_annual_leave: false, allow_half_day: false, requires_attachment: false, color_tag: '', is_active: true, description: '' } }
+function resetLeaveTypeForm() {
+  editingLeaveType.value = null
+  leaveTypeForm.value = {
+    code: '', name: '',
+    is_paid_leave: false, affects_annual_leave: false, allow_half_day: false, requires_attachment: false,
+    color_tag: '', is_active: true, description: '',
+    count_public_holidays: true,
+    max_days_per_year: null, max_consecutive_days: null, min_advance_days: 0,
+    carryover_allowed: false, carryover_cutoff_month: 3,
+  }
+}
 function resetTemplateForm() { editingTemplate.value = null; templateForm.value = { code: '', name: '', contract_category_id: null, document_kind: 'labor_contract', file_name: '', mime_type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', storage_path: '', version_no: 1, is_active: true, note: '' } }
 
 function openCreateForActiveTab() {
@@ -838,7 +905,23 @@ function openEditSkill(row: SkillRead) { dialogKind.value = 'skill'; editingSkil
 function openCreateCertificate() { dialogKind.value = 'certificate'; resetCertificateForm(); dialogVisible.value = true }
 function openEditCertificate(row: CertificateRead) { dialogKind.value = 'certificate'; editingCertificate.value = row; certificateForm.value = { code: row.code, name: row.name, certificate_group: row.certificate_group || '', issuer_name: row.issuer_name || '', expiry_policy: row.expiry_policy, default_valid_months: row.default_valid_months, is_active: row.is_active }; dialogVisible.value = true }
 function openCreateLeaveType() { dialogKind.value = 'leaveType'; resetLeaveTypeForm(); dialogVisible.value = true }
-function openEditLeaveType(row: LeaveTypeRead) { dialogKind.value = 'leaveType'; editingLeaveType.value = row; leaveTypeForm.value = { code: row.code, name: row.name, is_paid_leave: row.is_paid_leave, affects_annual_leave: row.affects_annual_leave, allow_half_day: row.allow_half_day, requires_attachment: row.requires_attachment, color_tag: row.color_tag || '', is_active: row.is_active, description: row.description || '' }; dialogVisible.value = true }
+function openEditLeaveType(row: LeaveTypeRead) {
+  dialogKind.value = 'leaveType'
+  editingLeaveType.value = row
+  leaveTypeForm.value = {
+    code: row.code, name: row.name,
+    is_paid_leave: row.is_paid_leave, affects_annual_leave: row.affects_annual_leave,
+    allow_half_day: row.allow_half_day, requires_attachment: row.requires_attachment,
+    color_tag: row.color_tag || '', is_active: row.is_active, description: row.description || '',
+    count_public_holidays: row.count_public_holidays,
+    max_days_per_year: row.max_days_per_year ?? null,
+    max_consecutive_days: row.max_consecutive_days ?? null,
+    min_advance_days: row.min_advance_days,
+    carryover_allowed: row.carryover_allowed,
+    carryover_cutoff_month: row.carryover_cutoff_month,
+  }
+  dialogVisible.value = true
+}
 function openCreateTemplate() { dialogKind.value = 'template'; resetTemplateForm(); dialogVisible.value = true }
 function openEditTemplate(row: ContractTemplateRead) { dialogKind.value = 'template'; editingTemplate.value = row; templateForm.value = { code: row.code, name: row.name, contract_category_id: row.contract_category_id, document_kind: row.document_kind, file_name: row.file_name, mime_type: row.mime_type, storage_path: row.storage_path || '', version_no: row.version_no, is_active: row.is_active, note: row.note || '' }; dialogVisible.value = true }
 
@@ -876,8 +959,28 @@ async function submitActiveDialog() {
       else await otherBusinessCatalogService.createCertificate({ code: certificateForm.value.code, name: certificateForm.value.name, certificate_group: certificateForm.value.certificate_group || null, issuer_name: certificateForm.value.issuer_name || null, expiry_policy: certificateForm.value.expiry_policy, default_valid_months: certificateForm.value.default_valid_months })
       await loadCertificates()
     } else if (dialogKind.value === 'leaveType') {
-      if (editingLeaveType.value) await otherBusinessCatalogService.updateLeaveType(editingLeaveType.value.id, { name: leaveTypeForm.value.name, is_paid_leave: leaveTypeForm.value.is_paid_leave, affects_annual_leave: leaveTypeForm.value.affects_annual_leave, allow_half_day: leaveTypeForm.value.allow_half_day, requires_attachment: leaveTypeForm.value.requires_attachment, color_tag: leaveTypeForm.value.color_tag || null, is_active: leaveTypeForm.value.is_active, description: leaveTypeForm.value.description || null })
-      else await otherBusinessCatalogService.createLeaveType({ code: leaveTypeForm.value.code, name: leaveTypeForm.value.name, is_paid_leave: leaveTypeForm.value.is_paid_leave, affects_annual_leave: leaveTypeForm.value.affects_annual_leave, allow_half_day: leaveTypeForm.value.allow_half_day, requires_attachment: leaveTypeForm.value.requires_attachment, color_tag: leaveTypeForm.value.color_tag || null, description: leaveTypeForm.value.description || null })
+      const leaveRuleFields = {
+        count_public_holidays:  leaveTypeForm.value.count_public_holidays,
+        max_days_per_year:      leaveTypeForm.value.max_days_per_year,
+        max_consecutive_days:   leaveTypeForm.value.max_consecutive_days,
+        min_advance_days:       leaveTypeForm.value.min_advance_days,
+        carryover_allowed:      leaveTypeForm.value.carryover_allowed,
+        carryover_cutoff_month: leaveTypeForm.value.carryover_cutoff_month,
+      }
+      if (editingLeaveType.value) await otherBusinessCatalogService.updateLeaveType(editingLeaveType.value.id, {
+        name: leaveTypeForm.value.name, is_paid_leave: leaveTypeForm.value.is_paid_leave,
+        affects_annual_leave: leaveTypeForm.value.affects_annual_leave, allow_half_day: leaveTypeForm.value.allow_half_day,
+        requires_attachment: leaveTypeForm.value.requires_attachment, color_tag: leaveTypeForm.value.color_tag || null,
+        is_active: leaveTypeForm.value.is_active, description: leaveTypeForm.value.description || null,
+        ...leaveRuleFields,
+      })
+      else await otherBusinessCatalogService.createLeaveType({
+        code: leaveTypeForm.value.code, name: leaveTypeForm.value.name,
+        is_paid_leave: leaveTypeForm.value.is_paid_leave, affects_annual_leave: leaveTypeForm.value.affects_annual_leave,
+        allow_half_day: leaveTypeForm.value.allow_half_day, requires_attachment: leaveTypeForm.value.requires_attachment,
+        color_tag: leaveTypeForm.value.color_tag || null, description: leaveTypeForm.value.description || null,
+        ...leaveRuleFields,
+      })
       await loadLeaveTypes()
     } else {
       if (!templateForm.value.contract_category_id) throw new Error('Chọn loại hợp đồng trước khi lưu mẫu')
@@ -1007,360 +1110,3 @@ onMounted(async () => {
   ])
 })
 </script>
-
-<style scoped>
-.other-business-catalog {
-  display: grid;
-  gap: 1.5rem;
-}
-
-.hero-panel,
-.workspace-card,
-.mini-card,
-.stat-card,
-.signal-card {
-  background: var(--l-surface);
-  border: 1px solid var(--l-border);
-  color: var(--l-text);
-}
-
-.hero-panel {
-  display: grid;
-  grid-template-columns: minmax(0, 1.7fr) minmax(320px, 1fr);
-  gap: 1.25rem;
-  padding: 1.5rem;
-  border-radius: 24px;
-}
-
-.eyebrow,
-.section-kicker,
-.signal-label,
-.stat-label {
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  font-size: 0.78rem;
-  font-weight: 700;
-  color: #35bcb2;
-}
-
-.hero-copy h1,
-.workspace-head h2,
-.mini-head h3 {
-  margin: 0;
-}
-
-.hero-copy h1 {
-  margin-top: 0.35rem;
-  font-size: clamp(2rem, 4vw, 3rem);
-}
-
-.hero-text,
-.signal-note,
-.scope-list,
-.placeholder-note {
-  color: var(--l-text-muted);
-}
-
-.hero-actions,
-.toolbar,
-.action-cell,
-.mini-head,
-.signal-head,
-.workspace-head,
-.field-row,
-.switch-row,
-.placeholder-toolbar {
-  display: flex;
-  gap: 0.75rem;
-  align-items: center;
-}
-
-.hero-actions { flex-wrap: wrap; margin-top: 1rem; }
-.hero-side { display: grid; gap: 1rem; }
-.signal-card { border-radius: 20px; padding: 1.25rem; }
-.signal-card.muted { background: color-mix(in srgb, var(--l-surface) 84%, #35bcb2 16%); }
-.signal-value { font-size: 1.15rem; font-weight: 700; margin: 0.75rem 0 0.35rem; }
-.scope-list { margin: 0; padding-left: 1rem; display: grid; gap: 0.4rem; }
-
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 1rem;
-}
-
-.stat-card {
-  border-radius: 20px;
-  padding: 1.2rem;
-  display: flex;
-  gap: 1rem;
-  align-items: center;
-}
-
-.stat-icon {
-  width: 3rem;
-  height: 3rem;
-  border-radius: 14px;
-  display: grid;
-  place-items: center;
-  font-size: 1.15rem;
-}
-
-.tone-teal { background: color-mix(in srgb, #35bcb2 22%, transparent); color: #35bcb2; }
-.tone-amber { background: color-mix(in srgb, #ff8f3d 20%, transparent); color: #ff8f3d; }
-.tone-slate { background: color-mix(in srgb, #7b8794 20%, transparent); color: #7b8794; }
-.tone-rose { background: color-mix(in srgb, #e26ba6 20%, transparent); color: #e26ba6; }
-
-.stat-body { display: grid; gap: 0.25rem; }
-.stat-value { font-size: 1.75rem; }
-.stat-footnote { color: var(--l-text-muted); font-size: 0.92rem; }
-
-.status-banner {
-  display: flex;
-  gap: 0.75rem;
-  align-items: center;
-  padding: 0.9rem 1rem;
-  border-radius: 14px;
-}
-.status-banner.danger {
-  background: color-mix(in srgb, #ef4444 14%, var(--l-surface));
-  color: #ef4444;
-  border: 1px solid color-mix(in srgb, #ef4444 25%, var(--l-border));
-}
-
-.workspace-card {
-  border-radius: 24px;
-  padding: 1rem 1rem 1.25rem;
-}
-
-.workspace-head {
-  justify-content: space-between;
-  margin-bottom: 1rem;
-}
-
-.tabs-scroll {
-  max-width: 100%;
-  overflow-x: auto;
-  padding-bottom: 0.15rem;
-}
-
-.tabs-scroll :deep(.p-tablist-tab-list) {
-  flex-wrap: nowrap;
-  white-space: nowrap;
-}
-
-.toolbar { margin-bottom: 1rem; flex-wrap: wrap; }
-.toolbar.compact { margin-bottom: 0.75rem; }
-.toolbar-filter { min-width: 200px; }
-.toolbar-search { flex: 1; min-width: 220px; }
-
-.health-panel {
-  border: 1px solid var(--p-yellow-300, #fbbf24);
-  background: var(--p-yellow-50, #fefce8);
-  border-radius: 8px;
-  padding: 0.75rem 1rem;
-  margin-bottom: 1rem;
-}
-.health-panel-header {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  color: var(--p-yellow-800, #92400e);
-  margin-bottom: 0.5rem;
-}
-.health-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.5rem; }
-.health-item { background: #fff; border-radius: 6px; padding: 0.5rem 0.75rem; }
-.health-name { font-weight: 600; font-size: 0.9rem; }
-.health-name code { font-weight: normal; font-size: 0.8rem; color: var(--l-text-muted); margin-left: 0.4rem; }
-.health-warnings { list-style: disc; margin: 0.25rem 0 0 1.2rem; padding: 0; font-size: 0.85rem; color: #b45309; }
-
-.triple-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 1rem;
-}
-
-.dual-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1rem;
-}
-
-.mini-card {
-  border-radius: 18px;
-  padding: 1rem;
-}
-
-.mini-head {
-  justify-content: space-between;
-  margin-bottom: 0.75rem;
-}
-
-.stacked-cell { display: grid; gap: 0.15rem; }
-.stacked-cell small { color: var(--l-text-muted); }
-.empty-state, .empty-state.compact {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  color: var(--l-text-muted);
-  padding: 1rem;
-}
-
-.form-shell { display: grid; gap: 1rem; }
-.field { display: grid; gap: 0.4rem; }
-.field label { font-weight: 600; }
-.field-row > .field {
-  flex: 1 1 0;
-  min-width: 0;
-}
-.field :deep(.p-inputtext),
-.field :deep(.p-select),
-.field :deep(.p-inputnumber),
-.field :deep(.p-textarea) {
-  width: 100%;
-}
-.field :deep(.p-inputnumber-input) {
-  width: 100%;
-}
-.req { color: #ef4444; }
-.field-switch { padding-top: 0.35rem; }
-.active-label { color: #16a34a; }
-.inactive-label { color: #dc2626; }
-
-.checkbox-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.75rem 1rem;
-}
-.check-item {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.placeholder-shell { display: grid; gap: 1rem; }
-.placeholder-toolbar { justify-content: space-between; }
-.placeholder-actions { display: flex; gap: 0.75rem; align-items: center; }
-.docx-summary {
-  display: grid;
-  gap: 0.5rem;
-  padding: 0.85rem 1rem;
-  border-radius: 14px;
-  border: 1px solid color-mix(in srgb, #35bcb2 25%, var(--l-border));
-  background: color-mix(in srgb, #35bcb2 10%, var(--l-surface));
-}
-.docx-summary-head {
-  display: flex;
-  justify-content: space-between;
-  gap: 0.75rem;
-  align-items: center;
-}
-.docx-summary-head span {
-  color: var(--l-text-muted);
-  font-size: 0.92rem;
-}
-.docx-warning-list {
-  margin: 0;
-  padding-left: 1rem;
-  color: var(--l-text-muted);
-  display: grid;
-  gap: 0.25rem;
-}
-
-@media (max-width: 1200px) {
-  .hero-panel,
-  .stats-grid,
-  .triple-grid,
-  .dual-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .workspace-head {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-}
-
-@media (max-width: 768px) {
-  .other-business-catalog {
-    gap: 1rem;
-  }
-
-  .hero-panel,
-  .workspace-card,
-  .mini-card,
-  .signal-card,
-  .stat-card {
-    border-radius: 18px;
-  }
-
-  .hero-panel,
-  .workspace-card,
-  .mini-card {
-    padding: 1rem;
-  }
-
-  .hero-copy h1 {
-    font-size: 1.7rem;
-  }
-
-  .hero-text {
-    font-size: 0.95rem;
-    line-height: 1.6;
-  }
-
-  .hero-actions,
-  .toolbar,
-  .field-row,
-  .placeholder-toolbar,
-  .docx-summary-head,
-  .placeholder-actions {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .toolbar-filter,
-  .toolbar-search {
-    min-width: 0;
-    width: 100%;
-  }
-
-  .checkbox-grid,
-  .triple-grid,
-  .dual-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .mini-head {
-    align-items: flex-start;
-  }
-
-  .placeholder-toolbar {
-    gap: 0.75rem;
-  }
-}
-
-@media (max-width: 480px) {
-  .hero-copy h1 {
-    font-size: 1.45rem;
-  }
-
-  .hero-actions :deep(.p-button),
-  .toolbar :deep(.p-button) {
-    width: 100%;
-    justify-content: center;
-  }
-
-  .stat-card {
-    padding: 1rem;
-  }
-
-  .workspace-head h2 {
-    font-size: 1.1rem;
-  }
-
-  .tabs-scroll {
-    width: 100%;
-  }
-}
-</style>
