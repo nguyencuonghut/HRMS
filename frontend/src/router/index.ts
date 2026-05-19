@@ -84,6 +84,12 @@ const router = createRouter({
           component: () => import('@/views/leaves/LeaveListView.vue'),
           meta: { title: 'Nghỉ phép' },
         },
+        {
+          path: 'leave-entitlements',
+          name: 'leave-entitlements',
+          component: () => import('@/views/leaves/LeaveEntitlementView.vue'),
+          meta: { title: 'Số ngày phép' },
+        },
         // Bảo hiểm
         {
           path: 'insurance',

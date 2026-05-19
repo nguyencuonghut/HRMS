@@ -1133,3 +1133,31 @@ $topbar-height: 4rem;
   display: grid;
   gap: 0.25rem;
 }
+
+// ── Leave Entitlements ─────────────────────────────────────────────────────────
+.ent-expires {
+  font-size: 0.85rem;
+  color: var(--p-orange-600);
+}
+html.dark-mode .ent-expires { color: var(--p-orange-400); }
+
+.ent-bulk-result {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.85rem 1rem;
+  border-radius: 10px;
+  border: 1px solid var(--l-border);
+  background: color-mix(in srgb, var(--p-primary-500) 6%, var(--l-surface));
+  margin-bottom: 1rem;
+}
+
+.ent-bulk-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+}
+
+.ent-bulk-ok   { color: var(--p-green-500); }
+.ent-bulk-muted { color: var(--l-text-muted); }
+.ent-bulk-warn { color: var(--p-orange-500); }

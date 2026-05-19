@@ -89,7 +89,14 @@ const menu: MenuItem[] = [
   { to: '/employees', label: 'Nhân sự',  icon: 'pi-users' },
   { to: '/reminders', label: 'Nhắc nhở', icon: 'pi-bell'  },
   { to: '/contracts', label: 'Hợp đồng', icon: 'pi-file-edit' },
-  { to: '/leaves', label: 'Nghỉ phép', icon: 'pi-calendar' },
+  {
+    label: 'Nghỉ phép',
+    icon: 'pi-calendar',
+    items: [
+      { to: '/leave-entitlements', label: 'Số ngày phép', icon: 'pi-chart-bar' },
+      { to: '/leaves',             label: 'Ghi nhận nghỉ phép', icon: 'pi-calendar-times' },
+    ],
+  },
   { to: '/insurance', label: 'Bảo hiểm BHXH', icon: 'pi-shield' },
   { to: '/salary', label: 'Lương BHXH', icon: 'pi-dollar' },
   { to: '/rewards', label: 'Khen thưởng & Kỷ luật', icon: 'pi-star' },
