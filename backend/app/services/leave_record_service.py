@@ -19,7 +19,7 @@ from app.schemas.leave_record import (
     LeaveRecordUpdate,
     compute_total_days,
 )
-from app.services.employee_service import compute_display_code
+from app.services import employee_code_service
 from app.schemas.leave_entitlement import LeaveEntitlementRead
 
 
@@ -42,13 +42,14 @@ async def _build_read(
     record: LeaveRecord,
     warning: Optional[str] = None,
     remaining_days_after: Optional[float] = None,
+    employee_code: Optional[str] = None,
 ) -> LeaveRecordRead:
     emp = await session.get(Employee, record.employee_id)
     lt = await session.get(LeaveType, record.leave_type_id)
     return LeaveRecordRead(
         id=record.id,
         employee_id=record.employee_id,
-        employee_code=compute_display_code(emp.employee_seq) if emp else "",
+        employee_code=employee_code or (await employee_code_service.build_employee_display_code(session, emp) if emp else ""),
         employee_name=emp.full_name if emp else "",
         leave_type_id=record.leave_type_id,
         leave_type_code=lt.code if lt else "",
@@ -146,7 +147,12 @@ async def list_records(
         .limit(page_size)
     )
     rows = (await session.execute(stmt)).scalars().all()
-    items = [await _build_read(session, r) for r in rows]
+    employee_ids = {row.employee_id for row in rows}
+    employees = []
+    if employee_ids:
+        employees = list((await session.execute(select(Employee).where(Employee.id.in_(employee_ids)))).scalars().all())
+    code_map = await employee_code_service.batch_build_employee_display_codes(session, employees)
+    items = [await _build_read(session, r, employee_code=code_map.get(r.employee_id, "")) for r in rows]
     return {"items": items, "total": total, "page": page, "page_size": page_size}
 
 

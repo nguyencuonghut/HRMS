@@ -79,6 +79,7 @@ def _create_employee(
     status: str = "probation",
 ) -> dict:
     resp = client.post(BASE_EMP, json={
+        "employee_code_sequence_id": 1,
         "full_name":    "Test Reminder",
         "last_name":    "Test",
         "first_name":   "Reminder",
@@ -136,10 +137,10 @@ def test_birthday_today(client: TestClient):
     today = date.today()
     dob = date(today.year - 30, today.month, today.day)
     headers = _admin(client)
-    _create_employee(client, headers, "0001", date_of_birth=_isodate(dob))
+    emp = _create_employee(client, headers, "0001", date_of_birth=_isodate(dob))
 
     data = client.get(BASE, params={"days": 30, "types": "birthday"}, headers=headers).json()
-    matches = [e for e in data["birthday"] if e["employee_code"] == f"{_PREFIX}0001"]
+    matches = [e for e in data["birthday"] if e["employee_code"] == emp["display_code"]]
     assert len(matches) == 1
     assert matches[0]["days_until"] == 0
 
@@ -149,10 +150,10 @@ def test_birthday_within_window(client: TestClient):
     target = today + timedelta(days=15)
     dob = date(today.year - 25, target.month, target.day)
     headers = _admin(client)
-    _create_employee(client, headers, "0002", date_of_birth=_isodate(dob))
+    emp = _create_employee(client, headers, "0002", date_of_birth=_isodate(dob))
 
     data = client.get(BASE, params={"days": 30, "types": "birthday"}, headers=headers).json()
-    matches = [e for e in data["birthday"] if e["employee_code"] == f"{_PREFIX}0002"]
+    matches = [e for e in data["birthday"] if e["employee_code"] == emp["display_code"]]
     assert len(matches) == 1
     assert matches[0]["days_until"] == 15
 
@@ -162,10 +163,10 @@ def test_birthday_outside_window(client: TestClient):
     target = today + timedelta(days=31)
     dob = date(today.year - 25, target.month, target.day)
     headers = _admin(client)
-    _create_employee(client, headers, "0003", date_of_birth=_isodate(dob))
+    emp = _create_employee(client, headers, "0003", date_of_birth=_isodate(dob))
 
     data = client.get(BASE, params={"days": 30, "types": "birthday"}, headers=headers).json()
-    matches = [e for e in data["birthday"] if e["employee_code"] == f"{_PREFIX}0003"]
+    matches = [e for e in data["birthday"] if e["employee_code"] == emp["display_code"]]
     assert len(matches) == 0
 
 
@@ -173,10 +174,10 @@ def test_birthday_resigned_excluded(client: TestClient):
     today = date.today()
     dob = date(today.year - 30, today.month, today.day)
     headers = _admin(client)
-    _create_employee(client, headers, "0004", date_of_birth=_isodate(dob), status="resigned")
+    emp = _create_employee(client, headers, "0004", date_of_birth=_isodate(dob), status="resigned")
 
     data = client.get(BASE, params={"days": 30, "types": "birthday"}, headers=headers).json()
-    matches = [e for e in data["birthday"] if e["employee_code"] == f"{_PREFIX}0004"]
+    matches = [e for e in data["birthday"] if e["employee_code"] == emp["display_code"]]
     assert len(matches) == 0
 
 
@@ -186,10 +187,10 @@ def test_anniversary_1_year(client: TestClient):
     today = date.today()
     start = date(today.year - 1, today.month, today.day)
     headers = _admin(client)
-    _create_employee(client, headers, "0010", start_date=_isodate(start), status="official")
+    emp = _create_employee(client, headers, "0010", start_date=_isodate(start), status="official")
 
     data = client.get(BASE, params={"days": 30, "types": "anniversary"}, headers=headers).json()
-    matches = [e for e in data["anniversary"] if e["employee_code"] == f"{_PREFIX}0010"]
+    matches = [e for e in data["anniversary"] if e["employee_code"] == emp["display_code"]]
     assert len(matches) == 1
     assert matches[0]["extra"]["years"] == 1
     assert matches[0]["days_until"] == 0
@@ -201,13 +202,13 @@ def test_anniversary_multiple_milestones(client: TestClient):
     headers = _admin(client)
     start3 = date(today.year - 3, today.month, today.day)
     start5 = date(today.year - 5, today.month, today.day)
-    _create_employee(client, headers, "0011", start_date=_isodate(start3), status="official")
-    _create_employee(client, headers, "0012", start_date=_isodate(start5), status="official")
+    emp3 = _create_employee(client, headers, "0011", start_date=_isodate(start3), status="official")
+    emp5 = _create_employee(client, headers, "0012", start_date=_isodate(start5), status="official")
 
     data = client.get(BASE, params={"days": 30, "types": "anniversary"}, headers=headers).json()
     codes = {e["employee_code"]: e["extra"]["years"] for e in data["anniversary"]}
-    assert codes.get(f"{_PREFIX}0011") == 3
-    assert codes.get(f"{_PREFIX}0012") == 5
+    assert codes.get(emp3["display_code"]) == 3
+    assert codes.get(emp5["display_code"]) == 5
 
 
 def test_anniversary_not_a_milestone(client: TestClient):
@@ -215,10 +216,10 @@ def test_anniversary_not_a_milestone(client: TestClient):
     today = date.today()
     start = date(today.year - 2, today.month, today.day)
     headers = _admin(client)
-    _create_employee(client, headers, "0013", start_date=_isodate(start), status="official")
+    emp = _create_employee(client, headers, "0013", start_date=_isodate(start), status="official")
 
     data = client.get(BASE, params={"days": 30, "types": "anniversary"}, headers=headers).json()
-    matches = [e for e in data["anniversary"] if e["employee_code"] == f"{_PREFIX}0013"]
+    matches = [e for e in data["anniversary"] if e["employee_code"] == emp["display_code"]]
     assert len(matches) == 0
 
 
@@ -227,10 +228,10 @@ def test_anniversary_outside_window(client: TestClient):
     target = today + timedelta(days=31)
     start = date(today.year - 1, target.month, target.day)
     headers = _admin(client)
-    _create_employee(client, headers, "0014", start_date=_isodate(start), status="official")
+    emp = _create_employee(client, headers, "0014", start_date=_isodate(start), status="official")
 
     data = client.get(BASE, params={"days": 30, "types": "anniversary"}, headers=headers).json()
-    matches = [e for e in data["anniversary"] if e["employee_code"] == f"{_PREFIX}0014"]
+    matches = [e for e in data["anniversary"] if e["employee_code"] == emp["display_code"]]
     assert len(matches) == 0
 
 
@@ -245,7 +246,7 @@ def test_probation_end_within_window(client: TestClient):
     _create_job_record(client, headers, emp["id"], dept_id, probation_end_date=_isodate(end_date))
 
     data = client.get(BASE, params={"days": 30, "types": "probation_end"}, headers=headers).json()
-    matches = [e for e in data["probation_end"] if e["employee_code"] == f"{_PREFIX}0020"]
+    matches = [e for e in data["probation_end"] if e["employee_code"] == emp["display_code"]]
     assert len(matches) == 1
     assert matches[0]["days_until"] == 7
 
@@ -258,7 +259,7 @@ def test_probation_end_today(client: TestClient):
     _create_job_record(client, headers, emp["id"], dept_id, probation_end_date=_isodate(today))
 
     data = client.get(BASE, params={"days": 30, "types": "probation_end"}, headers=headers).json()
-    matches = [e for e in data["probation_end"] if e["employee_code"] == f"{_PREFIX}0021"]
+    matches = [e for e in data["probation_end"] if e["employee_code"] == emp["display_code"]]
     assert len(matches) == 1
     assert matches[0]["days_until"] == 0
 
@@ -272,7 +273,7 @@ def test_probation_end_outside_window(client: TestClient):
     _create_job_record(client, headers, emp["id"], dept_id, probation_end_date=_isodate(end_date))
 
     data = client.get(BASE, params={"days": 30, "types": "probation_end"}, headers=headers).json()
-    matches = [e for e in data["probation_end"] if e["employee_code"] == f"{_PREFIX}0022"]
+    matches = [e for e in data["probation_end"] if e["employee_code"] == emp["display_code"]]
     assert len(matches) == 0
 
 
@@ -286,7 +287,7 @@ def test_probation_end_official_excluded(client: TestClient):
     _create_job_record(client, headers, emp["id"], dept_id, probation_end_date=_isodate(end_date))
 
     data = client.get(BASE, params={"days": 30, "types": "probation_end"}, headers=headers).json()
-    matches = [e for e in data["probation_end"] if e["employee_code"] == f"{_PREFIX}0023"]
+    matches = [e for e in data["probation_end"] if e["employee_code"] == emp["display_code"]]
     assert len(matches) == 0
 
 
@@ -324,10 +325,10 @@ def test_days_param_7_excludes_15_day_event(client: TestClient):
     target = today + timedelta(days=15)
     dob = date(today.year - 25, target.month, target.day)
     headers = _admin(client)
-    _create_employee(client, headers, "0030", date_of_birth=_isodate(dob))
+    emp = _create_employee(client, headers, "0030", date_of_birth=_isodate(dob))
 
     data = client.get(BASE, params={"days": 7, "types": "birthday"}, headers=headers).json()
-    matches = [e for e in data["birthday"] if e["employee_code"] == f"{_PREFIX}0030"]
+    matches = [e for e in data["birthday"] if e["employee_code"] == emp["display_code"]]
     assert len(matches) == 0
 
 
@@ -344,7 +345,12 @@ def test_response_has_total(client: TestClient):
     data = client.get(BASE, headers=headers).json()
     assert "total" in data
     total = data["total"]
-    computed = len(data["birthday"]) + len(data["anniversary"]) + len(data["probation_end"])
+    computed = (
+        len(data["birthday"])
+        + len(data["anniversary"])
+        + len(data["probation_end"])
+        + len(data["contract_expiry"])
+    )
     assert total == computed
 
 
@@ -354,10 +360,11 @@ def test_sorted_by_days_until(client: TestClient):
     # Tạo 2 nhân viên: birthday sau 10 ngày và 5 ngày
     t1 = today + timedelta(days=10)
     t2 = today + timedelta(days=5)
-    _create_employee(client, headers, "0040", date_of_birth=_isodate(date(today.year - 25, t1.month, t1.day)))
-    _create_employee(client, headers, "0041", date_of_birth=_isodate(date(today.year - 25, t2.month, t2.day)))
+    emp1 = _create_employee(client, headers, "0040", date_of_birth=_isodate(date(today.year - 25, t1.month, t1.day)))
+    emp2 = _create_employee(client, headers, "0041", date_of_birth=_isodate(date(today.year - 25, t2.month, t2.day)))
 
     data = client.get(BASE, params={"days": 30, "types": "birthday"}, headers=headers).json()
-    test_items = [e for e in data["birthday"] if e["employee_code"].startswith(_PREFIX + "004")]
+    expected_codes = {emp1["display_code"], emp2["display_code"]}
+    test_items = [e for e in data["birthday"] if e["employee_code"] in expected_codes]
     if len(test_items) >= 2:
         assert test_items[0]["days_until"] <= test_items[1]["days_until"]

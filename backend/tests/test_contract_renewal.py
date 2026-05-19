@@ -62,6 +62,7 @@ async def cleanup():
 
 def _create_employee(client: TestClient, headers: dict, suffix: str) -> int:
     resp = client.post(BASE_EMP, json={
+        "employee_code_sequence_id": 1,
         "full_name": f"Test Renewal {suffix}",
         "last_name": "Test",
         "first_name": f"Renewal {suffix}",
@@ -76,6 +77,12 @@ def _create_employee(client: TestClient, headers: dict, suffix: str) -> int:
     }, headers=headers)
     assert resp.status_code == 201, resp.text
     return resp.json()["id"]
+
+
+def _employee_display_code(client: TestClient, headers: dict, employee_id: int) -> str:
+    resp = client.get(f"{BASE_EMP}/{employee_id}", headers=headers)
+    assert resp.status_code == 200, resp.text
+    return resp.json()["display_code"]
 
 
 def _create_contract(
@@ -209,6 +216,7 @@ def test_global_list_includes_employee_name(client: TestClient):
     """GET /contracts trả employee_name và employee_code trong mỗi item."""
     headers = _login(client)
     emp_id = _create_employee(client, headers, "NAME01")
+    expected_code = _employee_display_code(client, headers, emp_id)
     today = date.today().isoformat()
     _create_contract(client, headers, emp_id, "NAME01", today, None,
                      category_id=CAT_LABOR_INDEFINITE)
@@ -219,7 +227,7 @@ def test_global_list_includes_employee_name(client: TestClient):
     assert len(items) >= 1
     item = items[0]
     assert item["employee_name"] == "Test Renewal NAME01"
-    assert item["employee_code"] is not None
+    assert item["employee_code"] == expected_code
 
 
 def test_global_list_expiring_filter_returns_employee_name(client: TestClient):

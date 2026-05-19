@@ -12,6 +12,7 @@ from app.core.config import settings
 
 BASE   = "/api/v1/leave-entitlements"
 BULK   = f"{BASE}/bulk-allocate"
+BASE_EMP = "/api/v1/employees"
 
 _ADMIN_EMAIL    = "admin@hrms.local"
 _ADMIN_PASSWORD = "Hrms@2026"
@@ -69,6 +70,12 @@ def _create(client, headers, *, year=_TEST_YEAR, employee_id=_EMP_ID,
     return client.post(BASE, json=body, headers=headers)
 
 
+def _employee_display_code(client: TestClient, headers: dict, employee_id: int) -> str:
+    resp = client.get(f"{BASE_EMP}/{employee_id}", headers=headers)
+    assert resp.status_code == 200, resp.text
+    return resp.json()["display_code"]
+
+
 # ── Tạo thủ công ──────────────────────────────────────────────────────────────
 
 def test_create_entitlement_manual(client: TestClient):
@@ -93,6 +100,20 @@ def test_create_entitlement_with_carryover(client: TestClient):
     body = r.json()
     assert body["carryover_days"] == 4.0
     assert body["remaining_days"] == 16.0
+
+
+def test_entitlement_employee_code_matches_employee_display_code(client: TestClient):
+    headers = _login(client)
+    expected_code = _employee_display_code(client, headers, _EMP_ID)
+
+    created = _create(client, headers, allocated_days=12.0)
+    assert created.status_code == 201, created.text
+    assert created.json()["employee_code"] == expected_code
+
+    listed = client.get(BASE, params={"year": _TEST_YEAR, "employee_id": _EMP_ID}, headers=headers)
+    assert listed.status_code == 200, listed.text
+    item = next(i for i in listed.json()["items"] if i["employee_id"] == _EMP_ID)
+    assert item["employee_code"] == expected_code
 
 
 def test_create_entitlement_duplicate_rejected(client: TestClient):

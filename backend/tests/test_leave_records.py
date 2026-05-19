@@ -12,6 +12,7 @@ from app.core.config import settings
 
 BASE = "/api/v1/leave-records"
 ENT_BASE = "/api/v1/leave-entitlements"
+EMP_BASE = "/api/v1/employees"
 
 _ADMIN_EMAIL    = "admin@hrms.local"
 _ADMIN_PASSWORD = "Hrms@2026"
@@ -76,6 +77,12 @@ def _create_record(client: TestClient, headers: dict, **kwargs) -> dict:
     body.update(kwargs)
     r = client.post(BASE, json=body, headers=headers)
     return r
+
+
+def _employee_display_code(client: TestClient, headers: dict, employee_id: int) -> str:
+    resp = client.get(f"{EMP_BASE}/{employee_id}", headers=headers)
+    assert resp.status_code == 200, resp.text
+    return resp.json()["display_code"]
 
 
 # ── Tạo bản ghi ───────────────────────────────────────────────────────────────
@@ -147,6 +154,19 @@ def test_create_warns_if_overspend(client: TestClient):
     body = r.json()
     assert body["warning"] is not None
     assert body["remaining_days_after"] < 0
+
+
+def test_list_records_employee_code_matches_employee_display_code(client: TestClient):
+    headers = _login(client)
+    expected_code = _employee_display_code(client, headers, _EMP_ID)
+    _create_entitlement(client, headers)
+    created = _create_record(client, headers)
+    assert created.status_code == 201, created.text
+
+    listed = client.get(BASE, params={"employee_id": _EMP_ID, "year": _YEAR}, headers=headers)
+    assert listed.status_code == 200, listed.text
+    item = next(i for i in listed.json()["items"] if i["id"] == created.json()["id"])
+    assert item["employee_code"] == expected_code
 
 
 def test_create_cross_year_rejected(client: TestClient):

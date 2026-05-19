@@ -22,7 +22,7 @@ from app.schemas.leave_report import (
     YearEndReport,
     YearEndRow,
 )
-from app.services.employee_service import compute_display_code
+from app.services import employee_code_service
 
 
 # ── remaining_days helper (mirrors LeaveEntitlementRead.remaining_days) ────────
@@ -102,6 +102,8 @@ async def get_employee_summary(
         .limit(page_size)
     )
     rows = (await session.execute(stmt)).all()
+    employees = [emp for _, emp, _, _, _, _ in rows]
+    code_map = await employee_code_service.batch_build_employee_display_codes(session, employees)
 
     items: list[EmployeeSummaryRow] = []
     for ent, emp, lt, dept_id, dept_name, rc in rows:
@@ -111,7 +113,7 @@ async def get_employee_summary(
         remaining = _remaining(allocated, carryover, used, ent.carryover_expires)
         items.append(EmployeeSummaryRow(
             employee_id=emp.id,
-            employee_code=compute_display_code(emp.employee_seq),
+            employee_code=code_map.get(emp.id, ""),
             employee_name=emp.full_name,
             department_name=dept_name,
             leave_type_id=lt.id,
@@ -251,6 +253,8 @@ async def get_year_end(
         .limit(page_size)
     )
     rows = (await session.execute(stmt)).all()
+    employees = [emp for _, emp, _, _ in rows]
+    code_map = await employee_code_service.batch_build_employee_display_codes(session, employees)
 
     items: list[YearEndRow] = []
     for ent, emp, lt, dept_name in rows:
@@ -260,7 +264,7 @@ async def get_year_end(
         remaining = _remaining(allocated, carryover, used, ent.carryover_expires)
         items.append(YearEndRow(
             employee_id=emp.id,
-            employee_code=compute_display_code(emp.employee_seq),
+            employee_code=code_map.get(emp.id, ""),
             employee_name=emp.full_name,
             department_name=dept_name,
             leave_type_name=lt.name,

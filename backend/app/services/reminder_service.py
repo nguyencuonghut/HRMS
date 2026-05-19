@@ -16,6 +16,7 @@ from app.schemas.reminder import (
     ReminderItem,
     RemindersResponse,
 )
+from app.services import employee_code_service
 
 
 def _add_years(d: date, years: int) -> date:
@@ -68,6 +69,7 @@ async def _get_birthdays(
     dept_map: dict[int, str],
     today: date,
     end: date,
+    code_map: dict[int, str],
 ) -> list[ReminderItem]:
     items: list[ReminderItem] = []
     for emp in employees:
@@ -77,7 +79,7 @@ async def _get_birthdays(
         if today <= event_date <= end:
             items.append(ReminderItem(
                 employee_id=emp.id,
-                employee_code=emp.id_number or "",
+                employee_code=code_map.get(emp.id, ""),
                 employee_name=emp.full_name,
                 department=dept_map.get(emp.id),
                 event_type="birthday",
@@ -93,6 +95,7 @@ async def _get_anniversaries(
     dept_map: dict[int, str],
     today: date,
     end: date,
+    code_map: dict[int, str],
 ) -> list[ReminderItem]:
     items: list[ReminderItem] = []
     for emp in employees:
@@ -103,7 +106,7 @@ async def _get_anniversaries(
             if today <= ann_date <= end:
                 items.append(ReminderItem(
                     employee_id=emp.id,
-                    employee_code=emp.id_number or "",
+                    employee_code=code_map.get(emp.id, ""),
                     employee_name=emp.full_name,
                     department=dept_map.get(emp.id),
                     event_type="anniversary",
@@ -119,6 +122,7 @@ async def _get_probation_ends(
     dept_map: dict[int, str],
     today: date,
     end: date,
+    code_map: dict[int, str],
 ) -> list[ReminderItem]:
     rows = await session.execute(
         select(Employee, EmployeeJobRecord)
@@ -135,7 +139,7 @@ async def _get_probation_ends(
     for emp, job in rows.fetchall():
         items.append(ReminderItem(
             employee_id=emp.id,
-            employee_code=emp.id_number or "",
+            employee_code=code_map.get(emp.id, ""),
             employee_name=emp.full_name,
             department=dept_map.get(emp.id),
             event_type="probation_end",
@@ -150,6 +154,7 @@ async def _get_contract_expiries(
     dept_map: dict[int, str],
     today: date,
     end: date,
+    code_map: dict[int, str],
 ) -> list[ReminderItem]:
     """HĐ lao động (không phải phụ lục) sắp hết hạn trong khoảng [today, end]."""
     rows = await session.execute(
@@ -168,7 +173,7 @@ async def _get_contract_expiries(
     for emp, c in rows.fetchall():
         items.append(ReminderItem(
             employee_id=emp.id,
-            employee_code=emp.id_number or "",
+            employee_code=code_map.get(emp.id, ""),
             employee_name=emp.full_name,
             department=dept_map.get(emp.id),
             event_type="contract_expiry",
@@ -190,11 +195,12 @@ async def get_reminders(
 
     employees = await _get_active_employees(session)
     dept_map  = await _get_department_map(session)
+    code_map = await employee_code_service.batch_build_employee_display_codes(session, employees)
 
-    birthday         = await _get_birthdays(session, employees, dept_map, today, end)     if "birthday"         in types else []
-    anniversary      = await _get_anniversaries(session, employees, dept_map, today, end) if "anniversary"      in types else []
-    probation_end    = await _get_probation_ends(session, dept_map, today, end)           if "probation_end"    in types else []
-    contract_expiry  = await _get_contract_expiries(session, dept_map, today, end)        if "contract_expiry"  in types else []
+    birthday         = await _get_birthdays(session, employees, dept_map, today, end, code_map)     if "birthday"         in types else []
+    anniversary      = await _get_anniversaries(session, employees, dept_map, today, end, code_map) if "anniversary"      in types else []
+    probation_end    = await _get_probation_ends(session, dept_map, today, end, code_map)           if "probation_end"    in types else []
+    contract_expiry  = await _get_contract_expiries(session, dept_map, today, end, code_map)        if "contract_expiry"  in types else []
 
     return RemindersResponse(
         birthday=birthday,

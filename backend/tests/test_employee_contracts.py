@@ -66,6 +66,7 @@ async def cleanup():
 
 def _create_employee(client: TestClient, headers: dict, suffix: str = "001") -> int:
     resp = client.post(BASE_EMP, json={
+        "employee_code_sequence_id": 1,
         "full_name": f"Test Contract {suffix}",
         "last_name": "Test",
         "first_name": f"Contract {suffix}",

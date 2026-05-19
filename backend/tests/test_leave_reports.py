@@ -13,6 +13,7 @@ from app.core.config import settings
 BASE_ENT = "/api/v1/leave-entitlements"
 BASE_REC = "/api/v1/leave-records"
 BASE     = "/api/v1/leave-reports"
+BASE_EMP = "/api/v1/employees"
 
 _ADMIN_EMAIL    = "admin@hrms.local"
 _ADMIN_PASSWORD = "Hrms@2026"
@@ -74,10 +75,17 @@ def _create_record(client, headers, *, emp_id=_EMP_ID, start=None, end=None):
     return r.json()
 
 
+def _employee_display_code(client: TestClient, headers: dict, employee_id: int) -> str:
+    resp = client.get(f"{BASE_EMP}/{employee_id}", headers=headers)
+    assert resp.status_code == 200, resp.text
+    return resp.json()["display_code"]
+
+
 # ── Báo cáo A — Chi tiết nhân viên ────────────────────────────────────────────
 
 def test_employee_summary_returns_data(client: TestClient):
     headers = _login(client)
+    expected_code = _employee_display_code(client, headers, _EMP_ID)
     _create_entitlement(client, headers, allocated=12.0)
     _create_record(client, headers, start=str(date(_YEAR, 6, 1)), end=str(date(_YEAR, 6, 3)))  # 3 ngày
 
@@ -86,6 +94,7 @@ def test_employee_summary_returns_data(client: TestClient):
     body = r.json()
     assert body["total"] >= 1
     row = next(i for i in body["items"] if i["employee_id"] == _EMP_ID and i["leave_type_code"] == "annual_leave")
+    assert row["employee_code"] == expected_code
     assert row["used_days"] == 3.0
     assert row["remaining_days"] == 9.0
     assert row["record_count"] == 1
@@ -162,6 +171,7 @@ def test_department_summary_month_from_gt_month_to_rejected(client: TestClient):
 
 def test_year_end_only_carryover_types(client: TestClient):
     headers = _login(client)
+    expected_code = _employee_display_code(client, headers, _EMP_ID)
     _create_entitlement(client, headers, allocated=12.0)
 
     r = client.get(f"{BASE}/year-end", params={"year": _YEAR}, headers=headers)
@@ -170,6 +180,8 @@ def test_year_end_only_carryover_types(client: TestClient):
     # annual_leave có carryover_allowed=True → phải xuất hiện
     lt_codes = {i["leave_type_code"] for i in body["items"]}
     assert "annual_leave" in lt_codes
+    row = next(i for i in body["items"] if i["employee_id"] == _EMP_ID and i["leave_type_code"] == "annual_leave")
+    assert row["employee_code"] == expected_code
 
 
 def test_year_end_will_carry_is_non_negative(client: TestClient):

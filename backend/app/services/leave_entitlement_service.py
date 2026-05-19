@@ -19,7 +19,7 @@ from app.schemas.leave_entitlement import (
     LeaveEntitlementRead,
     LeaveEntitlementUpdate,
 )
-from app.services.employee_service import compute_display_code
+from app.services import employee_code_service
 
 
 def _utcnow() -> datetime:
@@ -28,11 +28,17 @@ def _utcnow() -> datetime:
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-def _build_read(ent: LeaveEntitlement, emp: Employee, lt: LeaveType) -> LeaveEntitlementRead:
+def _build_read(
+    ent: LeaveEntitlement,
+    emp: Employee,
+    lt: LeaveType,
+    *,
+    employee_code: str,
+) -> LeaveEntitlementRead:
     return LeaveEntitlementRead(
         id=ent.id,
         employee_id=ent.employee_id,
-        employee_code=compute_display_code(emp.employee_seq),
+        employee_code=employee_code,
         employee_name=emp.full_name,
         leave_type_id=ent.leave_type_id,
         leave_type_code=lt.code,
@@ -112,7 +118,13 @@ async def _joined_read(session: AsyncSession, ent_id: int) -> LeaveEntitlementRe
     row = (await session.execute(stmt)).one_or_none()
     if not row:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Không tìm thấy bản ghi ngày phép")
-    return _build_read(*row)
+    ent, emp, lt = row
+    return _build_read(
+        ent,
+        emp,
+        lt,
+        employee_code=await employee_code_service.build_employee_display_code(session, emp),
+    )
 
 
 # ── CRUD ──────────────────────────────────────────────────────────────────────
@@ -162,7 +174,12 @@ async def list_entitlements(
         .limit(page_size)
     )
     rows = (await session.execute(stmt)).all()
-    items = [_build_read(ent, emp, lt) for ent, emp, lt in rows]
+    employees = [emp for _, emp, _ in rows]
+    code_map = await employee_code_service.batch_build_employee_display_codes(session, employees)
+    items = [
+        _build_read(ent, emp, lt, employee_code=code_map[emp.id])
+        for ent, emp, lt in rows
+    ]
     return {"items": items, "total": total, "page": page, "page_size": page_size}
 
 

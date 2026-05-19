@@ -20,6 +20,7 @@ from app.schemas.employee_contract import (
     _days_until,
     _status_display,
 )
+from app.services import employee_code_service
 
 
 def _utcnow() -> datetime:
@@ -334,8 +335,15 @@ async def list_contracts_global(
     q = q.offset((page - 1) * page_size).limit(page_size)
 
     rows = (await session.execute(q)).fetchall()
+    employees = [emp for _, _, emp in rows]
+    code_map = await employee_code_service.batch_build_employee_display_codes(session, employees)
     items = [
-        _to_read(c, cat.name, employee_name=emp.full_name, employee_code=str(emp.employee_seq))
+        _to_read(
+            c,
+            cat.name,
+            employee_name=emp.full_name,
+            employee_code=code_map.get(emp.id, ""),
+        )
         for c, cat, emp in rows
     ]
 
