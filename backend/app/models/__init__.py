@@ -59,3 +59,4 @@ from app.models.employee_education import (  # noqa: F401
 )
 from app.models.employee_attachment import EmployeeAttachment  # noqa: F401
 from app.models.employee_contract import EmployeeContract  # noqa: F401
+from app.models.leave_entitlement import LeaveEntitlement  # noqa: F401
