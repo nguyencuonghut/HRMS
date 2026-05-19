@@ -1,5 +1,8 @@
 """Tests cho module nhân viên (3.1)."""
 
+import io
+
+import openpyxl
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import text
@@ -86,6 +89,53 @@ def _get_nationality_id(client: TestClient, headers: dict) -> int:
     return vn["id"] if vn else 1
 
 
+def _get_department(client: TestClient, headers: dict, code: str = "HC") -> dict:
+    resp = client.get("/api/v1/departments", headers=headers)
+    payload = resp.json()
+    items = payload["items"] if isinstance(payload, dict) else payload
+    dept = next((x for x in items if x["code"] == code), None)
+    assert dept is not None, f"Department '{code}' not found"
+    return dept
+
+
+def _get_job_position(client: TestClient, headers: dict, department_id: int | None = None) -> dict:
+    params = {"is_active": True}
+    if department_id is not None:
+        params["department_id"] = department_id
+    resp = client.get("/api/v1/job-positions", params=params, headers=headers)
+    assert resp.status_code == 200
+    items = resp.json()
+    assert items, f"No active job position for department_id={department_id}"
+    return items[0]
+
+
+async def _set_employee_sequence_config(id_number: str, *, sequence_code: str, min_digits: int) -> None:
+    async with _make_session()() as s:
+        await s.execute(
+            text(
+                """
+                UPDATE employee_code_sequences
+                SET min_digits = :min_digits
+                WHERE code = :sequence_code
+                """
+            ),
+            {"sequence_code": sequence_code, "min_digits": min_digits},
+        )
+        await s.execute(
+            text(
+                """
+                UPDATE employees
+                SET employee_code_sequence_id = (
+                    SELECT id FROM employee_code_sequences WHERE code = :sequence_code
+                )
+                WHERE id_number = :id_number
+                """
+            ),
+            {"sequence_code": sequence_code, "id_number": id_number},
+        )
+        await s.commit()
+
+
 # ── List & filter ──────────────────────────────────────────────────────────────
 
 def test_list_employees_returns_page(client: TestClient):
@@ -162,6 +212,50 @@ def test_create_employee_requires_create_permission(client: TestClient):
 def test_create_employee_unauthorized(client: TestClient):
     resp = client.post(BASE, json=_valid_payload("TEST999000041"))
     assert resp.status_code == 401
+
+
+def test_create_employee_with_initial_job_context_creates_current_job(client: TestClient):
+    headers = _admin(client)
+    position = _get_job_position(client, headers)
+    dept_payload = client.get("/api/v1/departments", headers=headers).json()
+    departments = dept_payload["items"] if isinstance(dept_payload, dict) else dept_payload
+    dept = next(d for d in departments if d["id"] == position["department_id"])
+
+    payload = {
+        **_valid_payload("TEST999000042"),
+        "initial_department_id": dept["id"],
+        "initial_job_title_id": position["job_title_id"],
+        "initial_job_position_id": position["id"],
+        "initial_job_effective_from": "2026-01-01",
+    }
+    resp = client.post(BASE, json=payload, headers=headers)
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["current_job"] is not None
+    assert data["current_job"]["department_id"] == dept["id"]
+    assert data["current_job"]["job_position_id"] == position["id"]
+    assert data["current_job"]["is_current"] is True
+    assert data["display_code"].startswith(data["current_job"]["department"]["display_prefix"] or "")
+
+
+def test_create_employee_rejects_job_position_department_mismatch(client: TestClient):
+    headers = _admin(client)
+    position = _get_job_position(client, headers)
+    other_resp = client.get("/api/v1/departments", headers=headers)
+    payload = other_resp.json()
+    depts = payload["items"] if isinstance(payload, dict) else payload
+    other_dept = next((x for x in depts if x["id"] != position["department_id"]), None)
+    assert other_dept is not None
+
+    payload = {
+        **_valid_payload("TEST999000043"),
+        "initial_department_id": other_dept["id"],
+        "initial_job_position_id": position["id"],
+        "initial_job_effective_from": "2026-01-01",
+    }
+    resp = client.post(BASE, json=payload, headers=headers)
+    assert resp.status_code == 422
+    assert "không thuộc phòng ban" in resp.json()["detail"]
 
 
 # ── Get by ID ──────────────────────────────────────────────────────────────────
@@ -243,6 +337,61 @@ def test_lookup_returns_list_not_page(client: TestClient):
     resp = client.get(f"{BASE}/lookup", headers=headers)
     assert resp.status_code == 200
     assert isinstance(resp.json(), list)
+
+
+@pytest.mark.asyncio
+async def test_lookup_uses_current_job_prefix(client: TestClient):
+    headers = _admin(client)
+    id_number = "TEST999LOOKUP001"
+    created = client.post(BASE, json=_valid_payload(id_number), headers=headers).json()
+
+    dept_items = client.get("/api/v1/departments", headers=headers).json()
+    items = dept_items["items"] if isinstance(dept_items, dict) else dept_items
+    hc = next(d for d in items if d["code"] == "HC")
+    client.post(
+        f"{BASE}/{created['id']}/job-records",
+        json={"department_id": hc["id"], "effective_from": "2026-01-01"},
+        headers=headers,
+    )
+
+    resp = client.get(f"{BASE}/lookup?keyword={id_number}", headers=headers)
+    assert resp.status_code == 200
+    found = next(item for item in resp.json() if item["id"] == created["id"])
+    assert found["display_code"].startswith("HC")
+
+
+@pytest.mark.asyncio
+async def test_detail_and_list_use_sequence_min_digits(client: TestClient):
+    headers = _admin(client)
+    id_number = "TEST999SEQDIG001"
+    created = client.post(BASE, json=_valid_payload(id_number), headers=headers).json()
+
+    await _set_employee_sequence_config(id_number, sequence_code="SYS2", min_digits=6)
+
+    detail = client.get(f"{BASE}/{created['id']}", headers=headers)
+    assert detail.status_code == 200
+    assert detail.json()["display_code"] == f"{created['employee_seq']:06d}"
+
+    list_resp = client.get(f"{BASE}?keyword={id_number}", headers=headers)
+    assert list_resp.status_code == 200
+    list_item = next(item for item in list_resp.json()["items"] if item["id"] == created["id"])
+    assert list_item["display_code"] == f"{created['employee_seq']:06d}"
+
+
+@pytest.mark.asyncio
+async def test_export_list_uses_sequence_min_digits(client: TestClient):
+    headers = _admin(client)
+    id_number = "TEST999EXPORTSEQ1"
+    created = client.post(BASE, json=_valid_payload(id_number), headers=headers).json()
+
+    await _set_employee_sequence_config(id_number, sequence_code="SYS3", min_digits=7)
+
+    resp = client.get(f"{BASE}/export?keyword={id_number}", headers=headers)
+    assert resp.status_code == 200
+
+    wb = openpyxl.load_workbook(io.BytesIO(resp.content))
+    ws = wb.active
+    assert ws.cell(row=2, column=1).value == f"{created['employee_seq']:07d}"
 
 
 # ── Addresses ──────────────────────────────────────────────────────────────────

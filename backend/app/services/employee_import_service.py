@@ -15,8 +15,8 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.employee import Employee
-from app.models.employee_job import EmployeeJobRecord
-from app.models.org import Department, JobTitle
+from app.models.employee_code import EmployeeCodeSequence
+from app.models.org import Department, JobPosition, JobTitle
 from app.schemas.employee import EmployeeCreate
 from app.services import employee_service
 from app.schemas.employee_import import (
@@ -57,14 +57,14 @@ def generate_template() -> bytes:
         "probation", "01/01/2026",
         "0901234567", "vana@email.com",
         "1234567890", "BHXH123456",
-        "HC", "Chuyên viên nhân sự",
+        "HC", "Chuyên viên nhân sự", "", "",
         "01/01/2026", "31/03/2026",
     ]
     for col_idx, val in enumerate(sample, start=1):
         ws.cell(row=2, column=col_idx, value=val)
 
     # Column widths
-    widths = [20, 12, 12, 14, 10, 16, 14, 24, 12, 14, 14, 22, 14, 14, 14, 22, 20, 20]
+    widths = [20, 12, 12, 14, 10, 16, 14, 24, 12, 14, 14, 22, 14, 14, 14, 22, 22, 18, 20, 20]
     for i, w in enumerate(widths, start=1):
         ws.column_dimensions[ws.cell(row=1, column=i).column_letter].width = w
 
@@ -90,6 +90,8 @@ def generate_template() -> bytes:
         ["Số BHXH", "", "Mã BHXH", "BHXH123456"],
         ["Phòng ban", "", "Mã hoặc tên phòng ban (tìm kiếm tương đối)", "HC"],
         ["Chức danh", "", "Tên chức danh (tìm kiếm tương đối)", "Chuyên viên nhân sự"],
+        ["Vị trí công việc", "", "Tên vị trí công việc, nên đi cùng phòng ban", "Nhân viên nhân sự tổng hợp"],
+        ["Hệ mã nhân viên", "", "Override hệ mã trong case ngoại lệ", "SYS2 / SYS3"],
         ["Ngày bắt đầu thử việc", "", "Định dạng dd/mm/yyyy", "01/01/2026"],
         ["Ngày kết thúc thử việc", "", "Định dạng dd/mm/yyyy", "31/03/2026"],
         [],
@@ -175,6 +177,60 @@ async def _find_job_title(session: AsyncSession, name: str) -> Optional[int]:
     for jt in rows.scalars().all():
         if _norm(jt.name) == norm_val:
             return jt.id
+    return None
+
+
+async def _find_job_position(
+    session: AsyncSession,
+    name_or_code: str,
+    *,
+    department_id: int | None = None,
+) -> Optional[JobPosition]:
+    if not name_or_code:
+        return None
+
+    raw = name_or_code.strip()
+    query = select(JobPosition)
+    if department_id is not None:
+        query = query.where(JobPosition.department_id == department_id)
+
+    exact = (await session.execute(query.where(JobPosition.code == raw))).scalar_one_or_none()
+    if exact:
+        return exact
+
+    norm_val = _norm(raw)
+    rows = await session.execute(query)
+    for position in rows.scalars().all():
+        if _norm(position.name) == norm_val:
+            return position
+    return None
+
+
+async def _find_employee_code_sequence(
+    session: AsyncSession,
+    code_or_name: str,
+) -> Optional[int]:
+    if not code_or_name:
+        return None
+    raw = code_or_name.strip()
+    row = (
+        await session.execute(
+            select(EmployeeCodeSequence).where(
+                EmployeeCodeSequence.is_active.is_(True),
+                EmployeeCodeSequence.code == raw,
+            )
+        )
+    ).scalar_one_or_none()
+    if row:
+        return row.id
+
+    norm_val = _norm(raw)
+    rows = await session.execute(
+        select(EmployeeCodeSequence).where(EmployeeCodeSequence.is_active.is_(True))
+    )
+    for sequence in rows.scalars().all():
+        if _norm(sequence.name) == norm_val:
+            return sequence.id
     return None
 
 
@@ -264,6 +320,8 @@ async def process_import(session: AsyncSession, file_bytes: bytes) -> ImportResu
         bhxh_code    = get(row_vals, "Số BHXH") or None
         dept_raw     = get(row_vals, "Phòng ban")
         jt_raw       = get(row_vals, "Chức danh")
+        position_raw = get(row_vals, "Vị trí công việc")
+        sequence_raw = get(row_vals, "Hệ mã nhân viên")
 
         if row_errors:
             errors.extend(row_errors)
@@ -277,11 +335,25 @@ async def process_import(session: AsyncSession, file_bytes: bytes) -> ImportResu
             failed += 1
             continue
 
-        dept_id     = await _find_department(session, dept_raw)
+        dept_id      = await _find_department(session, dept_raw)
         job_title_id = await _find_job_title(session, jt_raw)
+        job_position = await _find_job_position(session, position_raw, department_id=dept_id) if position_raw else None
+        sequence_id  = await _find_employee_code_sequence(session, sequence_raw) if sequence_raw else None
 
         if dept_raw and not dept_id:
             errors.append(ImportRowError(row=excel_row, column="Phòng ban", message=f"Không tìm thấy phòng ban '{dept_raw}' — nhân viên được tạo nhưng chưa gán phòng ban"))
+        if position_raw and not dept_id:
+            errors.append(ImportRowError(row=excel_row, column="Vị trí công việc", message="Muốn gán vị trí công việc thì phải xác định được phòng ban"))
+            failed += 1
+            continue
+        if position_raw and not job_position:
+            errors.append(ImportRowError(row=excel_row, column="Vị trí công việc", message=f"Không tìm thấy vị trí công việc '{position_raw}' trong phòng ban đã chọn"))
+            failed += 1
+            continue
+        if sequence_raw and not sequence_id:
+            errors.append(ImportRowError(row=excel_row, column="Hệ mã nhân viên", message=f"Không tìm thấy hệ mã nhân viên '{sequence_raw}'"))
+            failed += 1
+            continue
 
         # ── Create employee ───────────────────────────────────────────
         try:
@@ -301,21 +373,15 @@ async def process_import(session: AsyncSession, file_bytes: bytes) -> ImportResu
                 bhxh_code=bhxh_code,
                 status=status,
                 start_date=start_date,
+                employee_code_sequence_id=sequence_id,
+                initial_department_id=dept_id,
+                initial_job_title_id=job_title_id,
+                initial_job_position_id=job_position.id if job_position else None,
+                initial_job_effective_from=start_date if dept_id else None,
+                initial_probation_start_date=prob_start,
+                initial_probation_end_date=prob_end,
             )
             emp = await employee_service.create_employee(session, payload)
-            await session.flush()  # ensure emp.id is populated before FK reference
-
-            if dept_id:
-                job_rec = EmployeeJobRecord(
-                    employee_id=emp.id,
-                    department_id=dept_id,
-                    job_title_id=job_title_id,
-                    effective_from=start_date,
-                    probation_start_date=prob_start,
-                    probation_end_date=prob_end,
-                )
-                session.add(job_rec)
-                await session.flush()
 
             await session.commit()
             created_ids.append(emp.id)

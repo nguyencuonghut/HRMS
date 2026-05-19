@@ -9,13 +9,21 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.catalog import AdministrativeUnit
 from app.models.employee import Employee, EmployeeAddress, EmployeeBankAccount
+from app.models.employee_code import EmployeeCodeSequence
+from app.models.employee_job import EmployeeJobRecord
+from app.models.org import Department, JobPosition, JobTitle
 from app.schemas.employee import (
     EmployeeAddressWrite,
     EmployeeBankAccountWrite,
     EmployeeCreate,
     EmployeeUpdate,
 )
-from app.services import employee_job_service, employee_relative_service, employee_education_service
+from app.services import (
+    employee_code_service,
+    employee_education_service,
+    employee_job_service,
+    employee_relative_service,
+)
 from app.services.administrative_import_service import normalize_text
 
 
@@ -24,8 +32,11 @@ def _utcnow() -> datetime:
 
 
 def compute_display_code(employee_seq: int, dept_display_prefix: Optional[str] = None) -> str:
-    seq_str = f"{employee_seq:04d}"
-    return f"{dept_display_prefix}{seq_str}" if dept_display_prefix else seq_str
+    return employee_code_service.compute_employee_display_code(
+        employee_seq,
+        dept_display_prefix,
+        min_digits=4,
+    )
 
 
 async def next_employee_seq(session: AsyncSession) -> int:
@@ -42,6 +53,83 @@ async def next_employee_seq(session: AsyncSession) -> int:
 
 async def get_employee_by_id(session: AsyncSession, employee_id: int) -> Optional[Employee]:
     return await session.get(Employee, employee_id)
+
+
+async def _require_department(session: AsyncSession, department_id: int) -> Department:
+    department = await session.get(Department, department_id)
+    if not department:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Không tìm thấy phòng ban")
+    return department
+
+
+async def _require_job_title(session: AsyncSession, job_title_id: int) -> JobTitle:
+    job_title = await session.get(JobTitle, job_title_id)
+    if not job_title:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Không tìm thấy chức danh")
+    return job_title
+
+
+async def _resolve_initial_job_context(session: AsyncSession, payload: EmployeeCreate) -> tuple[Department | None, JobTitle | None, JobPosition | None]:
+    department = None
+    job_title = None
+    job_position = None
+
+    if payload.initial_department_id is not None:
+        department = await _require_department(session, payload.initial_department_id)
+
+    if payload.initial_job_title_id is not None:
+        job_title = await _require_job_title(session, payload.initial_job_title_id)
+
+    if payload.initial_job_position_id is not None:
+        job_position = await session.get(JobPosition, payload.initial_job_position_id)
+        if not job_position:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Không tìm thấy vị trí công việc")
+
+        if department is None:
+            department = await _require_department(session, job_position.department_id)
+        elif job_position.department_id != department.id:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Vị trí công việc không thuộc phòng ban đã chọn",
+            )
+
+        if job_position.job_title_id is not None:
+            if job_title is None:
+                job_title = await _require_job_title(session, job_position.job_title_id)
+            elif job_position.job_title_id != job_title.id:
+                raise HTTPException(
+                    status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail="Vị trí công việc không khớp với chức danh đã chọn",
+                )
+
+    return department, job_title, job_position
+
+
+async def _resolve_employee_code_sequence_id(
+    session: AsyncSession,
+    payload: EmployeeCreate,
+    *,
+    department: Department | None,
+    job_position: JobPosition | None,
+) -> int | None:
+    if payload.employee_code_sequence_id is not None:
+        sequence = await session.get(EmployeeCodeSequence, payload.employee_code_sequence_id)
+        if not sequence or not sequence.is_active:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Hệ mã nhân viên không hợp lệ hoặc đã ngừng áp dụng",
+            )
+        return sequence.id
+
+    if department is None and job_position is None:
+        return None
+
+    sequence = await employee_code_service.resolve_employee_code_sequence(
+        session,
+        department_id=department.id if department else None,
+        job_position_id=job_position.id if job_position else None,
+    )
+    return sequence.id if sequence else None
 
 
 async def _get_or_404(session: AsyncSession, employee_id: int) -> Employee:
@@ -110,6 +198,14 @@ async def lookup_employees(
 
 
 async def create_employee(session: AsyncSession, payload: EmployeeCreate) -> Employee:
+    department, job_title, job_position = await _resolve_initial_job_context(session, payload)
+    sequence_id = await _resolve_employee_code_sequence_id(
+        session,
+        payload,
+        department=department,
+        job_position=job_position,
+    )
+
     if payload.employee_seq is not None:
         existing = (await session.execute(
             select(Employee).where(Employee.employee_seq == payload.employee_seq)
@@ -135,6 +231,7 @@ async def create_employee(session: AsyncSession, payload: EmployeeCreate) -> Emp
 
     emp = Employee(
         employee_seq=seq,
+        employee_code_sequence_id=sequence_id,
         full_name=payload.full_name,
         normalized_name=normalize_text(payload.full_name),
         last_name=payload.last_name,
@@ -166,6 +263,25 @@ async def create_employee(session: AsyncSession, payload: EmployeeCreate) -> Emp
         created_at=_utcnow(),
     )
     session.add(emp)
+    await session.flush()
+
+    if department is not None:
+        effective_from = payload.initial_job_effective_from or payload.start_date
+        session.add(
+            EmployeeJobRecord(
+                employee_id=emp.id,
+                department_id=department.id,
+                job_title_id=job_title.id if job_title else None,
+                job_position_id=job_position.id if job_position else None,
+                probation_start_date=payload.initial_probation_start_date,
+                probation_end_date=payload.initial_probation_end_date,
+                official_date=payload.initial_official_date,
+                effective_from=effective_from,
+                is_current=True,
+                notes=payload.initial_job_notes,
+                created_at=_utcnow(),
+            )
+        )
     return emp
 
 
@@ -367,7 +483,7 @@ async def build_employee_read_data(
     return {
         "addresses": await enrich_addresses(session, addresses),
         "bank_accounts": bank_accounts,
-        "display_code": compute_display_code(emp.employee_seq, prefix),
+        "display_code": await employee_code_service.build_employee_display_code(session, emp),
         "current_job": current_job,
         "relatives": relatives,
         "education_histories": education_histories,

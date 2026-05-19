@@ -6,10 +6,14 @@ from datetime import date, timedelta
 import openpyxl
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import text
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.core.config import settings
+from app.models.employee import Employee
+from app.models.employee_code import EmployeeCodeSequence
+from app.models.employee_job import EmployeeJobRecord
+from app.models.org import JobPosition
 from app.seeds import employees as employees_seed
 from app.services.employee_import_service import IMPORT_COLUMNS, generate_template
 
@@ -87,7 +91,8 @@ def _valid_row(suffix: str, dept_code: str = "") -> list:
         "probation", today.strftime("%d/%m/%Y"),
         "0901234567", f"testio{suffix}@email.com",
         "", "",
-        dept_code, "",
+        dept_code, "", "",
+        "",
         "", "",
     ]
 
@@ -99,6 +104,30 @@ def _upload(client: TestClient, headers: dict, xlsx_bytes: bytes) -> dict:
         headers=headers,
     )
     return resp
+
+
+async def _get_employee_state(id_number: str) -> tuple[Employee, EmployeeJobRecord | None]:
+    async with _make_session()() as s:
+        employee = (
+            await s.execute(select(Employee).where(Employee.id_number == id_number))
+        ).scalar_one()
+        job_record = (
+            await s.execute(
+                select(EmployeeJobRecord).where(
+                    EmployeeJobRecord.employee_id == employee.id,
+                    EmployeeJobRecord.is_current == True,
+                )
+            )
+        ).scalar_one_or_none()
+        return employee, job_record
+
+
+async def _get_sequence_code(sequence_id: int | None) -> str | None:
+    if sequence_id is None:
+        return None
+    async with _make_session()() as s:
+        sequence = await s.get(EmployeeCodeSequence, sequence_id)
+        return sequence.code if sequence else None
 
 
 # ── Template ───────────────────────────────────────────────────────────────────
@@ -229,6 +258,82 @@ def test_import_unknown_department_warns(client: TestClient):
     data = resp.json()
     assert data["success"] == 1   # employee vẫn được tạo
     assert any(e["column"] == "Phòng ban" for e in data["errors"])
+
+
+@pytest.mark.asyncio
+async def test_import_department_creates_current_job_record(client: TestClient):
+    headers = _admin(client)
+    dept = _get_dept_code(client, headers)
+    employee_id_number = f"{_PREFIX}0012"
+    xlsx = _make_xlsx([IMPORT_COLUMNS, _valid_row("0012", dept)])
+
+    resp = _upload(client, headers, xlsx)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["success"] == 1
+
+    employee, job_record = await _get_employee_state(employee_id_number)
+    assert employee is not None
+    assert job_record is not None
+    assert job_record.effective_from == employee.start_date
+
+
+def test_import_with_position_and_sequence_override(client: TestClient):
+    headers = _admin(client)
+    dept_code = _get_dept_code(client, headers)
+    positions = client.get("/api/v1/job-positions", params={"is_active": True}, headers=headers).json()
+    position = next((item for item in positions if item["department_name"] and item["department_id"]), None)
+    assert position is not None
+    dept_items = client.get("/api/v1/departments", headers=headers).json()
+    depts = dept_items["items"] if isinstance(dept_items, dict) else dept_items
+    position_dept = next(d for d in depts if d["id"] == position["department_id"])
+
+    row = _valid_row("0013", position_dept["code"])
+    row[16] = position["name"]
+    row[17] = "SYS2"
+    xlsx = _make_xlsx([IMPORT_COLUMNS, row])
+
+    resp = _upload(client, headers, xlsx)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["success"] == 1
+
+
+@pytest.mark.asyncio
+async def test_import_with_position_and_sequence_override_persists_context(client: TestClient):
+    headers = _admin(client)
+    positions = client.get("/api/v1/job-positions", params={"is_active": True}, headers=headers).json()
+    position = positions[0]
+    dept_items = client.get("/api/v1/departments", headers=headers).json()
+    depts = dept_items["items"] if isinstance(dept_items, dict) else dept_items
+    position_dept = next(d for d in depts if d["id"] == position["department_id"])
+    employee_id_number = f"{_PREFIX}0014"
+
+    row = _valid_row("0014", position_dept["code"])
+    row[16] = position["name"]
+    row[17] = "SYS2"
+    xlsx = _make_xlsx([IMPORT_COLUMNS, row])
+    resp = _upload(client, headers, xlsx)
+    assert resp.status_code == 200
+
+    employee, job_record = await _get_employee_state(employee_id_number)
+    assert job_record is not None
+    assert job_record.job_position_id == position["id"]
+    assert await _get_sequence_code(employee.employee_code_sequence_id) == "SYS2"
+
+
+def test_import_invalid_sequence_override_fails_row(client: TestClient):
+    headers = _admin(client)
+    dept = _get_dept_code(client, headers)
+    row = _valid_row("0015", dept)
+    row[17] = "UNKNOWN_SYS"
+    xlsx = _make_xlsx([IMPORT_COLUMNS, row])
+
+    resp = _upload(client, headers, xlsx)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["failed"] == 1
+    assert any(e["column"] == "Hệ mã nhân viên" for e in data["errors"])
 
 
 def test_import_blank_rows_ignored(client: TestClient):

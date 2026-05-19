@@ -90,6 +90,7 @@ class EmployeeBankAccountRead(BaseModel):
 class EmployeeCreate(BaseModel):
     # Nếu truyền employee_seq → dùng khi import; để None → hệ thống tự sinh
     employee_seq: Optional[int] = None
+    employee_code_sequence_id: Optional[int] = None
 
     full_name: str = Field(..., max_length=200)
     last_name: str = Field(..., max_length=100)
@@ -124,6 +125,14 @@ class EmployeeCreate(BaseModel):
     resigned_date: Optional[date] = None
 
     user_id: Optional[int] = None
+    initial_department_id: Optional[int] = None
+    initial_job_title_id: Optional[int] = None
+    initial_job_position_id: Optional[int] = None
+    initial_job_effective_from: Optional[date] = None
+    initial_probation_start_date: Optional[date] = None
+    initial_probation_end_date: Optional[date] = None
+    initial_official_date: Optional[date] = None
+    initial_job_notes: Optional[str] = Field(None, max_length=1000)
 
     @field_validator("full_name", "last_name", "first_name", "id_issued_by")
     @classmethod

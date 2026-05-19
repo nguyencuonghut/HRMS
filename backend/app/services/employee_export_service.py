@@ -16,6 +16,7 @@ from app.models.employee_job import EmployeeJobRecord
 from app.models.org import Department, JobTitle
 from app.schemas.employee_import import EXPORT_MAX_ROWS
 from app.services import (
+    employee_code_service,
     employee_education_service,
     employee_job_service,
     employee_relative_service,
@@ -111,7 +112,7 @@ async def export_employee_list(
             for j in jrows.scalars().all():
                 jt_map[j.id] = j
 
-    prefix_map = await employee_job_service.batch_get_display_code_prefixes(session, emp_ids)
+    display_codes = await employee_code_service.batch_build_employee_display_codes(session, employees)
 
     wb = Workbook()
     ws = wb.active
@@ -127,8 +128,7 @@ async def export_employee_list(
     _write_header(ws, headers, widths)
 
     for row_idx, emp in enumerate(employees, start=2):
-        prefix   = prefix_map.get(emp.id)
-        code     = employee_service.compute_display_code(emp.employee_seq, prefix)
+        code     = display_codes[emp.id]
         job_rec  = job_map.get(emp.id)
         dept_name = dept_map.get(job_rec.department_id).name if job_rec and job_rec.department_id in dept_map else ""
         jt_name   = jt_map.get(job_rec.job_title_id).name  if job_rec and job_rec.job_title_id  in jt_map  else ""

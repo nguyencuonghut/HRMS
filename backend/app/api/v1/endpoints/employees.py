@@ -47,7 +47,15 @@ from app.schemas.employee_attachment import (
     MAX_FILE_SIZE,
     VALID_DOCUMENT_TYPES,
 )
-from app.services import auth_service, employee_job_service, employee_relative_service, employee_service, employee_education_service, employee_attachment_service
+from app.services import (
+    auth_service,
+    employee_attachment_service,
+    employee_code_service,
+    employee_education_service,
+    employee_job_service,
+    employee_relative_service,
+    employee_service,
+)
 from app.core.storage import delete_attachment, get_object_stream, save_employee_attachment
 
 router = APIRouter()
@@ -92,11 +100,12 @@ async def lookup_employees(
     session: AsyncSession = Depends(get_session),
 ):
     items = await employee_service.lookup_employees(session, keyword=keyword, limit=limit)
+    display_codes = await employee_code_service.batch_build_employee_display_codes(session, items)
     return [
         EmployeeLookupItem(
             id=e.id,
             employee_seq=e.employee_seq,
-            display_code=employee_service.compute_display_code(e.employee_seq),
+            display_code=display_codes[e.id],
             full_name=e.full_name,
             status=e.status,
         )
@@ -125,12 +134,11 @@ async def list_employees(
         page_size=page_size,
     )
     from app.schemas.employee import EmployeeListItem
-    emp_ids = [emp.id for emp in result["items"]]
-    prefixes = await employee_job_service.batch_get_display_code_prefixes(session, emp_ids)
+    display_codes = await employee_code_service.batch_build_employee_display_codes(session, result["items"])
     items = [
         EmployeeListItem(**_build_list_item_data(
             emp,
-            employee_service.compute_display_code(emp.employee_seq, prefixes.get(emp.id)),
+            display_codes[emp.id],
         ))
         for emp in result["items"]
     ]

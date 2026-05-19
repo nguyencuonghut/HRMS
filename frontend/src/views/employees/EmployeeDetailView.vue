@@ -147,6 +147,66 @@
                 <label>Ngày nghỉ việc</label>
                 <DatePicker v-model="form.resigned_date_date" class="w-full" dateFormat="dd/mm/yy" :disabled="viewOnly" />
               </div>
+
+              <template v-if="isNew">
+                <div class="field-sep col-full">
+                  <label class="section-label">Công việc hiện hành khi tạo mới</label>
+                </div>
+
+                <div class="field">
+                  <label>Phòng ban <span class="req">*</span></label>
+                  <Select
+                    v-model="form.initial_department_id"
+                    :options="departments"
+                    option-label="name"
+                    option-value="id"
+                    filter
+                    class="w-full"
+                    :invalid="!!errors.initial_department_id"
+                    @update:model-value="onInitialDepartmentChange"
+                  />
+                  <small v-if="errors.initial_department_id" class="error-msg">{{ errors.initial_department_id }}</small>
+                </div>
+
+                <div class="field">
+                  <label>Chức danh</label>
+                  <Select
+                    v-model="form.initial_job_title_id"
+                    :options="jobTitles"
+                    option-label="name"
+                    option-value="id"
+                    filter
+                    show-clear
+                    class="w-full"
+                  />
+                </div>
+
+                <div class="field">
+                  <label>Vị trí công việc</label>
+                  <Select
+                    v-model="form.initial_job_position_id"
+                    :options="filteredPositions"
+                    option-label="name"
+                    option-value="id"
+                    filter
+                    show-clear
+                    class="w-full"
+                    :disabled="!form.initial_department_id"
+                    @update:model-value="onInitialJobPositionChange"
+                  />
+                </div>
+
+                <div class="field">
+                  <label>Ngày hiệu lực công việc <span class="req">*</span></label>
+                  <DatePicker
+                    v-model="form.initial_job_effective_from_date"
+                    class="w-full"
+                    dateFormat="dd/mm/yy"
+                    :invalid="!!errors.initial_job_effective_from"
+                  />
+                  <small v-if="errors.initial_job_effective_from" class="error-msg">{{ errors.initial_job_effective_from }}</small>
+                </div>
+              </template>
             </div>
 
             <div class="tab-actions" v-if="isNew">
@@ -437,6 +497,9 @@ import RelativesTab from './RelativesTab.vue'
 import EducationTab from './EducationTab.vue'
 import AttachmentsTab from './AttachmentsTab.vue'
 import ContractTab from './ContractTab.vue'
+import departmentService, { type DepartmentRead } from '@/services/departmentService'
+import jobTitleService, { type JobTitleRead } from '@/services/jobTitleService'
+import jobPositionService, { type JobPositionListItem } from '@/services/jobPositionService'
 
 import employeeService, {
   type EmployeeRead,
@@ -461,9 +524,17 @@ const fetchError   = ref('')
 const employee     = ref<EmployeeRead | null>(null)
 const addresses    = ref<EmployeeAddressRead[]>([])
 const bankAccounts = ref<EmployeeBankAccountRead[]>([])
+const departments  = ref<DepartmentRead[]>([])
+const jobTitles    = ref<JobTitleRead[]>([])
+const allPositions = ref<JobPositionListItem[]>([])
 
 const permanentAddress = computed(() => addresses.value.find(a => a.address_type === 'permanent') ?? null)
 const contactAddress   = computed(() => addresses.value.find(a => a.address_type === 'contact') ?? null)
+const filteredPositions = computed(() =>
+  form.value.initial_department_id
+    ? allPositions.value.filter(p => p.department_id === form.value.initial_department_id)
+    : []
+)
 
 // ── Edit state ─────────────────────────────────────────────────────────────────
 const editing   = ref(false)
@@ -486,6 +557,10 @@ const form = ref({
   status: 'probation' as StatusType,
   start_date_date: null as Date | null,
   resigned_date_date: null as Date | null,
+  initial_department_id: null as number | null,
+  initial_job_title_id: null as number | null,
+  initial_job_position_id: null as number | null,
+  initial_job_effective_from_date: null as Date | null,
   id_number: '',
   id_issued_on_date: null as Date | null,
   id_issued_by: '',
@@ -569,6 +644,10 @@ function fillForm(emp: EmployeeRead) {
     status: emp.status as StatusType,
     start_date_date: toDate(emp.start_date),
     resigned_date_date: toDate(emp.resigned_date),
+    initial_department_id: null,
+    initial_job_title_id: null,
+    initial_job_position_id: null,
+    initial_job_effective_from_date: null,
     id_number: emp.id_number,
     id_issued_on_date: toDate(emp.id_issued_on),
     id_issued_by: emp.id_issued_by,
@@ -612,6 +691,17 @@ async function loadAddresses() {
   addresses.value = resp.data
 }
 
+async function loadCatalogs() {
+  const [deptResp, titleResp, positionResp] = await Promise.all([
+    departmentService.getList(true),
+    jobTitleService.getList(true),
+    jobPositionService.getList({ is_active: true }),
+  ])
+  departments.value = deptResp.data
+  jobTitles.value = titleResp.data
+  allPositions.value = positionResp.data
+}
+
 // ── Edit ───────────────────────────────────────────────────────────────────────
 function startEdit() { editing.value = true }
 
@@ -619,6 +709,17 @@ function cancelEdit() {
   editing.value = false
   errors.value = {}
   if (employee.value) fillForm(employee.value)
+}
+
+function onInitialDepartmentChange() {
+  form.value.initial_job_position_id = null
+}
+
+function onInitialJobPositionChange(positionId: number | null) {
+  const position = filteredPositions.value.find(item => item.id === positionId)
+  if (position?.job_title_id) {
+    form.value.initial_job_title_id = position.job_title_id
+  }
 }
 
 // ── Validate ───────────────────────────────────────────────────────────────────
@@ -634,6 +735,8 @@ function validate(): boolean {
   if (!form.value.id_issued_on_date) errors.value.id_issued_on = 'Ngày cấp không được để trống'
   if (!form.value.id_issued_by.trim()) errors.value.id_issued_by = 'Nơi cấp không được để trống'
   if (!form.value.start_date_date) errors.value.start_date = 'Ngày vào làm không được để trống'
+  if (isNew.value && !form.value.initial_department_id) errors.value.initial_department_id = 'Chọn phòng ban hiện hành'
+  if (isNew.value && !form.value.initial_job_effective_from_date) errors.value.initial_job_effective_from = 'Chọn ngày hiệu lực công việc'
   return Object.keys(errors.value).length === 0
 }
 
@@ -664,6 +767,10 @@ async function save() {
       status: form.value.status,
       start_date: toIso(form.value.start_date_date)!,
       resigned_date: form.value.status === 'resigned' ? toIso(form.value.resigned_date_date) : null,
+      initial_department_id: isNew.value ? form.value.initial_department_id : undefined,
+      initial_job_title_id: isNew.value ? form.value.initial_job_title_id : undefined,
+      initial_job_position_id: isNew.value ? form.value.initial_job_position_id : undefined,
+      initial_job_effective_from: isNew.value ? toIso(form.value.initial_job_effective_from_date) : undefined,
       id_number: form.value.id_number.trim(),
       id_issued_on: toIso(form.value.id_issued_on_date)!,
       id_issued_by: form.value.id_issued_by.trim(),
@@ -780,10 +887,12 @@ function confirmDeleteBank(acc: EmployeeBankAccountRead) {
   })
 }
 
-onMounted(loadEmployee)
+onMounted(async () => {
+  await loadCatalogs()
+  if (!isNew.value) await loadEmployee()
+})
 
 watch(() => route.params.id, () => {
   if (!isNew.value) loadEmployee()
 })
 </script>
-

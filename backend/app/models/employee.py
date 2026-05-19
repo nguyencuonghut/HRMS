@@ -26,6 +26,15 @@ class Employee(SQLModel, table=True):
     employee_seq: int = Field(
         sa_column=Column(sa.Integer(), unique=True, nullable=False, index=True)
     )
+    employee_code_sequence_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(
+            sa.Integer(),
+            sa.ForeignKey("employee_code_sequences.id", ondelete="RESTRICT"),
+            nullable=True,
+            index=True,
+        ),
+    )
 
     # ── Họ tên ──────────────────────────────────────────────────────────────
     full_name: str = Field(max_length=200)

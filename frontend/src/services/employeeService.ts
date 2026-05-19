@@ -225,6 +225,7 @@ export interface EmployeeLookupItem {
 
 export interface EmployeeCreate {
   employee_seq?: number | null
+  employee_code_sequence_id?: number | null
   full_name: string
   last_name: string
   first_name: string
@@ -250,6 +251,14 @@ export interface EmployeeCreate {
   status?: StatusType
   start_date: string
   resigned_date?: string | null
+  initial_department_id?: number | null
+  initial_job_title_id?: number | null
+  initial_job_position_id?: number | null
+  initial_job_effective_from?: string | null
+  initial_probation_start_date?: string | null
+  initial_probation_end_date?: string | null
+  initial_official_date?: string | null
+  initial_job_notes?: string | null
 }
 
 export interface EmployeeUpdate {
