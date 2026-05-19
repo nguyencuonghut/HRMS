@@ -1161,3 +1161,56 @@ html.dark-mode .ent-expires { color: var(--p-orange-400); }
 .ent-bulk-ok   { color: var(--p-green-500); }
 .ent-bulk-muted { color: var(--l-text-muted); }
 .ent-bulk-warn { color: var(--p-orange-500); }
+
+// ── Leave Records ──────────────────────────────────────────────────────────────
+.leave-status-badge {
+  display: inline-block;
+  padding: 0.2rem 0.55rem;
+  border-radius: 20px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  &.active    { background: color-mix(in srgb, var(--p-green-500) 15%, transparent); color: var(--p-green-600); }
+  &.cancelled { background: color-mix(in srgb, var(--p-surface-500) 15%, transparent); color: var(--l-text-muted); }
+}
+html.dark-mode .leave-status-badge.active    { color: var(--p-green-400); }
+html.dark-mode .leave-status-badge.cancelled { color: var(--p-surface-400); }
+
+.leave-half-tag {
+  display: inline-block;
+  margin-left: 0.35rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  background: color-mix(in srgb, var(--p-primary-500) 12%, transparent);
+  color: var(--p-primary-600);
+}
+html.dark-mode .leave-half-tag { color: var(--p-primary-400); }
+
+.leave-half-check {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.4rem;
+  font-size: 0.85rem;
+  color: var(--l-text-muted);
+}
+
+.leave-days-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.6rem 0.85rem;
+  border-radius: 8px;
+  border: 1px solid var(--l-border);
+  background: color-mix(in srgb, var(--p-primary-500) 5%, var(--l-surface));
+  margin-bottom: 1rem;
+  font-size: 0.875rem;
+}
+.leave-days-label { color: var(--l-text-muted); }
+.leave-days-value { font-weight: 600; }
+.leave-days-sep   { color: var(--l-text-muted); }
+.leave-days-ok    { color: var(--p-green-600); }
+.leave-days-warn  { color: var(--p-red-500); }
+html.dark-mode .leave-days-ok   { color: var(--p-green-400); }
+html.dark-mode .leave-days-warn { color: var(--p-red-400); }
