@@ -24,15 +24,15 @@ async def seed_sample_education(session: AsyncSession) -> dict:
     }
 
     # ── 1. Học vấn ────────────────────────────────────────────────────────────
-    # (emp_seq, institution_id, institution_name, major_id, major_name,
+    # (employee_id_number, institution_id, institution_name, major_id, major_name,
     #  level_id, grad_year, diploma_type, is_main)
     EDUCATIONS = [
         # seq=1: Học viện Nông nghiệp VN, Thú y, Đại học 2012 — bằng chính
-        (1, 1, None, 2, None, 6, 2012, "chính quy", True),
+        ("001088123456", 1, None, 2, None, 6, 2012, "chính quy", True),
         # seq=3: ĐH Nông Lâm HCM, Kinh doanh nông nghiệp (free text), ĐH 2015
-        (3, 2, None, None, "Kinh doanh nông nghiệp", 6, 2015, "chính quy", True),
+        ("001085654321", 2, None, None, "Kinh doanh nông nghiệp", 6, 2015, "chính quy", True),
     ]
-    for emp_seq, inst_id, inst_name, major_id, major_name, level_id, grad_year, diploma, is_main in EDUCATIONS:
+    for employee_id_number, inst_id, inst_name, major_id, major_name, level_id, grad_year, diploma, is_main in EDUCATIONS:
         result = await session.execute(
             text("""
                 INSERT INTO employee_education_histories (
@@ -46,7 +46,7 @@ async def seed_sample_education(session: AsyncSession) -> dict:
                     :major_id, :major_name, :level_id,
                     :grad_year, :diploma, :is_main, now()
                 FROM employees e
-                WHERE e.employee_seq = :emp_seq
+                WHERE e.id_number = :employee_id_number
                   AND NOT EXISTS (
                       SELECT 1 FROM employee_education_histories h
                       WHERE h.employee_id = e.id
@@ -57,7 +57,7 @@ async def seed_sample_education(session: AsyncSession) -> dict:
                   )
             """),
             {
-                "emp_seq": emp_seq,
+                "employee_id_number": employee_id_number,
                 "inst_id": inst_id,
                 "inst_name": inst_name,
                 "major_id": major_id,
@@ -71,12 +71,12 @@ async def seed_sample_education(session: AsyncSession) -> dict:
         counts["education_histories"] += result.rowcount
 
     # ── 2. Kinh nghiệm làm việc ────────────────────────────────────────────────
-    # (emp_seq, company_name, position_name, start_date, end_date)
+    # (employee_id_number, company_name, position_name, start_date, end_date)
     EXPERIENCES = [
-        (1, "Công ty CP Chăn nuôi ABC", "Kỹ thuật viên thú y", "2010-06-01", "2011-12-31"),
-        (3, "Công ty TNHH XYZ",        "Nhân viên kinh doanh", "2015-08-01", "2018-05-31"),
+        ("001088123456", "Công ty CP Chăn nuôi ABC", "Kỹ thuật viên thú y", "2010-06-01", "2011-12-31"),
+        ("001085654321", "Công ty TNHH XYZ",        "Nhân viên kinh doanh", "2015-08-01", "2018-05-31"),
     ]
-    for emp_seq, company, position, start, end in EXPERIENCES:
+    for employee_id_number, company, position, start, end in EXPERIENCES:
         result = await session.execute(
             text("""
                 INSERT INTO employee_work_experiences (
@@ -88,7 +88,7 @@ async def seed_sample_education(session: AsyncSession) -> dict:
                     :company, :position,
                     :start, :end, now()
                 FROM employees e
-                WHERE e.employee_seq = :emp_seq
+                WHERE e.id_number = :employee_id_number
                   AND NOT EXISTS (
                       SELECT 1 FROM employee_work_experiences w
                       WHERE w.employee_id = e.id
@@ -96,7 +96,7 @@ async def seed_sample_education(session: AsyncSession) -> dict:
                   )
             """),
             {
-                "emp_seq": emp_seq,
+                "employee_id_number": employee_id_number,
                 "company": company,
                 "position": position,
                 "start": _d(start),
@@ -106,12 +106,12 @@ async def seed_sample_education(session: AsyncSession) -> dict:
         counts["work_experiences"] += result.rowcount
 
     # ── 3. Kỹ năng ────────────────────────────────────────────────────────────
-    # (emp_seq, skill_id, proficiency_level)
+    # (employee_id_number, skill_id, proficiency_level)
     SKILLS = [
-        (1, 4, "expert"),    # QA/QC — Thành thạo
-        (3, 8, "advanced"),  # Nghiệp vụ xuất nhập khẩu — Khá
+        ("001088123456", 4, "expert"),    # QA/QC — Thành thạo
+        ("001085654321", 8, "advanced"),  # Nghiệp vụ xuất nhập khẩu — Khá
     ]
-    for emp_seq, skill_id, level in SKILLS:
+    for employee_id_number, skill_id, level in SKILLS:
         result = await session.execute(
             text("""
                 INSERT INTO employee_skills (
@@ -119,23 +119,23 @@ async def seed_sample_education(session: AsyncSession) -> dict:
                 )
                 SELECT e.id, :skill_id, :level, now()
                 FROM employees e
-                WHERE e.employee_seq = :emp_seq
+                WHERE e.id_number = :employee_id_number
                   AND NOT EXISTS (
                       SELECT 1 FROM employee_skills s
                       WHERE s.employee_id = e.id AND s.skill_id = :skill_id
                   )
             """),
-            {"emp_seq": emp_seq, "skill_id": skill_id, "level": level},
+            {"employee_id_number": employee_id_number, "skill_id": skill_id, "level": level},
         )
         counts["skills"] += result.rowcount
 
     # ── 4. Chứng chỉ ──────────────────────────────────────────────────────────
-    # (emp_seq, certificate_id, issued_date, expires_on)
+    # (employee_id_number, certificate_id, issued_date, expires_on)
     CERTIFICATES = [
-        (1, 2, "2024-01-15", "2027-01-15"),  # HACCP
-        (3, 1, "2023-06-01", None),          # An toàn vệ sinh lao động
+        ("001088123456", 2, "2024-01-15", "2027-01-15"),  # HACCP
+        ("001085654321", 1, "2023-06-01", None),          # An toàn vệ sinh lao động
     ]
-    for emp_seq, cert_id, issued, expires in CERTIFICATES:
+    for employee_id_number, cert_id, issued, expires in CERTIFICATES:
         result = await session.execute(
             text("""
                 INSERT INTO employee_certificates (
@@ -143,14 +143,14 @@ async def seed_sample_education(session: AsyncSession) -> dict:
                 )
                 SELECT e.id, :cert_id, :issued, :expires, now()
                 FROM employees e
-                WHERE e.employee_seq = :emp_seq
+                WHERE e.id_number = :employee_id_number
                   AND NOT EXISTS (
                       SELECT 1 FROM employee_certificates c
                       WHERE c.employee_id = e.id AND c.certificate_id = :cert_id
                   )
             """),
             {
-                "emp_seq": emp_seq,
+                "employee_id_number": employee_id_number,
                 "cert_id": cert_id,
                 "issued": _d(issued),
                 "expires": _d(expires) if expires else None,
@@ -159,13 +159,13 @@ async def seed_sample_education(session: AsyncSession) -> dict:
         counts["certificates"] += result.rowcount
 
     # ── 5. Ngoại ngữ ──────────────────────────────────────────────────────────
-    # (emp_seq, language_name, proficiency_level)
+    # (employee_id_number, language_name, proficiency_level)
     LANGUAGES = [
-        (1, "Tiếng Anh",  "B2"),
-        (3, "Tiếng Anh",  "B1"),
-        (3, "Tiếng Trung", "A2"),
+        ("001088123456", "Tiếng Anh",  "B2"),
+        ("001085654321", "Tiếng Anh",  "B1"),
+        ("001085654321", "Tiếng Trung", "A2"),
     ]
-    for emp_seq, lang, level in LANGUAGES:
+    for employee_id_number, lang, level in LANGUAGES:
         result = await session.execute(
             text("""
                 INSERT INTO employee_languages (
@@ -173,14 +173,14 @@ async def seed_sample_education(session: AsyncSession) -> dict:
                 )
                 SELECT e.id, :lang, :level, now()
                 FROM employees e
-                WHERE e.employee_seq = :emp_seq
+                WHERE e.id_number = :employee_id_number
                   AND NOT EXISTS (
                       SELECT 1 FROM employee_languages l
                       WHERE l.employee_id = e.id
                         AND l.language_name = CAST(:lang AS varchar)
                   )
             """),
-            {"emp_seq": emp_seq, "lang": lang, "level": level},
+            {"employee_id_number": employee_id_number, "lang": lang, "level": level},
         )
         counts["languages"] += result.rowcount
 

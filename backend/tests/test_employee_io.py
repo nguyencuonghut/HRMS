@@ -82,7 +82,7 @@ def _make_xlsx(rows: list[list]) -> bytes:
     return buf.getvalue()
 
 
-def _valid_row(suffix: str, dept_code: str = "") -> list:
+def _valid_row(suffix: str, dept_code: str = "", sequence_code: str = "SYS1") -> list:
     today = date.today()
     return [
         f"Test IO {suffix}", "Test", f"IO {suffix}",
@@ -92,7 +92,7 @@ def _valid_row(suffix: str, dept_code: str = "") -> list:
         "0901234567", f"testio{suffix}@email.com",
         "", "",
         dept_code, "", "",
-        "",
+        sequence_code,
         "", "",
     ]
 
@@ -168,10 +168,11 @@ def test_import_success(client: TestClient):
     assert len(data["created_ids"]) == 1
 
 
-def test_import_success_without_dept(client: TestClient):
-    """Import thành công dù không có phòng ban — tạo được employee."""
+def test_import_success_without_dept_with_sequence_override(client: TestClient):
+    """Không có phòng ban nhưng có hệ mã explicit thì vẫn import được."""
     headers = _admin(client)
-    xlsx = _make_xlsx([IMPORT_COLUMNS, _valid_row("0002", "")])
+    row = _valid_row("0002", "", "SYS2")
+    xlsx = _make_xlsx([IMPORT_COLUMNS, row])
     resp = _upload(client, headers, xlsx)
     assert resp.status_code == 200
     data = resp.json()
@@ -250,13 +251,13 @@ def test_import_invalid_status(client: TestClient):
 
 
 def test_import_unknown_department_warns(client: TestClient):
-    """Phòng ban không tồn tại → tạo được employee, có warning trong errors."""
+    """Phòng ban không tồn tại và không có fallback → dòng bị fail."""
     headers = _admin(client)
-    row = _valid_row("0010", "DEPT_DOES_NOT_EXIST")
+    row = _valid_row("0010", "DEPT_DOES_NOT_EXIST", "")
     xlsx = _make_xlsx([IMPORT_COLUMNS, row])
     resp = _upload(client, headers, xlsx)
     data = resp.json()
-    assert data["success"] == 1   # employee vẫn được tạo
+    assert data["failed"] == 1
     assert any(e["column"] == "Phòng ban" for e in data["errors"])
 
 

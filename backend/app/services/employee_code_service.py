@@ -115,6 +115,30 @@ async def _get_sequence_min_digits_map(
     return {row.id: row.min_digits for row in rows}
 
 
+async def allocate_employee_seq(
+    session: AsyncSession,
+    *,
+    sequence_id: int,
+) -> int:
+    sequence = (
+        await session.execute(
+            select(EmployeeCodeSequence)
+            .where(
+                EmployeeCodeSequence.id == sequence_id,
+                EmployeeCodeSequence.is_active.is_(True),
+            )
+            .with_for_update()
+        )
+    ).scalar_one_or_none()
+    if not sequence:
+        raise ValueError(f"Employee code sequence {sequence_id} not found or inactive")
+
+    current = sequence.next_value
+    sequence.next_value = current + 1
+    await session.flush()
+    return current
+
+
 async def build_employee_display_code(
     session: AsyncSession,
     emp: Employee,

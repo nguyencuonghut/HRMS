@@ -1,6 +1,6 @@
 """Seed dữ liệu nhân viên mẫu — chỉ dùng trên môi trường dev/test.
 
-Idempotent: dùng ON CONFLICT (employee_seq) DO NOTHING.
+Idempotent: dùng `id_number` để tránh phụ thuộc vào unique toàn cục của `employee_seq`.
 """
 
 from datetime import date
@@ -236,13 +236,13 @@ SAMPLE_EMPLOYEES = [
 
 
 async def seed_sample_employees(session: AsyncSession) -> int:
-    """Seed 10 nhân viên mẫu. Idempotent — bỏ qua nếu employee_seq đã tồn tại."""
+    """Seed 10 nhân viên mẫu. Idempotent — bỏ qua nếu id_number đã tồn tại."""
     added = 0
     for emp in SAMPLE_EMPLOYEES:
         result = await session.execute(
             text("""
                 INSERT INTO employees (
-                    employee_seq, full_name, normalized_name, last_name, first_name,
+                    employee_seq, employee_code_sequence_id, full_name, normalized_name, last_name, first_name,
                     date_of_birth, gender, nationality_id, ethnicity_id,
                     id_number, id_issued_on, id_issued_by,
                     phone_number, personal_email, personal_tax_code,
@@ -250,7 +250,9 @@ async def seed_sample_employees(session: AsyncSession) -> int:
                     is_active, created_at
                 )
                 SELECT
-                    :employee_seq, :full_name, :normalized_name, :last_name, :first_name,
+                    :employee_seq,
+                    (SELECT id FROM employee_code_sequences WHERE code = :employee_code_sequence_code),
+                    :full_name, :normalized_name, :last_name, :first_name,
                     :date_of_birth, :gender,
                     (SELECT id FROM nationalities WHERE code = :nationality_code),
                     (SELECT id FROM ethnicities WHERE code = :ethnicity_code),
@@ -258,10 +260,11 @@ async def seed_sample_employees(session: AsyncSession) -> int:
                     :phone_number, :personal_email, :personal_tax_code,
                     :status, :start_date, :resigned_date,
                     true, now()
-                ON CONFLICT (employee_seq) DO NOTHING
+                ON CONFLICT (id_number) DO NOTHING
             """),
             {
                 "employee_seq": emp["employee_seq"],
+                "employee_code_sequence_code": emp.get("employee_code_sequence_code", "SYS1"),
                 "full_name": emp["full_name"],
                 "normalized_name": _n(emp["full_name"]),
                 "last_name": emp["last_name"],
@@ -294,11 +297,11 @@ async def seed_sample_employees(session: AsyncSession) -> int:
                         e.id,
                         (SELECT id FROM banks WHERE code = :bank_code),
                         :account_number, :account_name, true, true, now()
-                    FROM employees e WHERE e.employee_seq = :employee_seq
+                    FROM employees e WHERE e.id_number = :id_number
                     ON CONFLICT DO NOTHING
                 """),
                 {
-                    "employee_seq": emp["employee_seq"],
+                    "id_number": emp["id_number"],
                     "bank_code": emp["bank_code"],
                     "account_number": emp["bank_account_number"],
                     "account_name": emp["account_name"],

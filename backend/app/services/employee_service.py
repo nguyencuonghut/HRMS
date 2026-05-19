@@ -39,18 +39,6 @@ def compute_display_code(employee_seq: int, dept_display_prefix: Optional[str] =
     )
 
 
-async def next_employee_seq(session: AsyncSession) -> int:
-    """Lấy employee_seq tiếp theo: dùng subquery SELECT FOR UPDATE để tránh race condition."""
-    result = await session.execute(
-        select(Employee.employee_seq)
-        .order_by(Employee.employee_seq.desc())
-        .limit(1)
-        .with_for_update()
-    )
-    current_max = result.scalar()
-    return (current_max or 0) + 1
-
-
 async def get_employee_by_id(session: AsyncSession, employee_id: int) -> Optional[Employee]:
     return await session.get(Employee, employee_id)
 
@@ -205,19 +193,30 @@ async def create_employee(session: AsyncSession, payload: EmployeeCreate) -> Emp
         department=department,
         job_position=job_position,
     )
+    if sequence_id is None:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Phải có ngữ cảnh công việc hiện hành hoặc hệ mã nhân viên explicit khi tạo nhân viên",
+        )
 
     if payload.employee_seq is not None:
         existing = (await session.execute(
-            select(Employee).where(Employee.employee_seq == payload.employee_seq)
+            select(Employee).where(
+                Employee.employee_code_sequence_id == sequence_id,
+                Employee.employee_seq == payload.employee_seq,
+            )
         )).scalar_one_or_none()
         if existing:
             raise HTTPException(
                 status.HTTP_409_CONFLICT,
-                detail=f"Mã số nhân viên {payload.employee_seq} đã tồn tại",
+                detail=f"Mã số nhân viên {payload.employee_seq} đã tồn tại trong hệ mã đã chọn",
             )
         seq = payload.employee_seq
     else:
-        seq = await next_employee_seq(session)
+        seq = await employee_code_service.allocate_employee_seq(
+            session,
+            sequence_id=sequence_id,
+        )
 
     # Kiểm tra trùng CCCD
     existing_id = (await session.execute(

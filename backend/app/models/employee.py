@@ -21,17 +21,15 @@ class Employee(SQLModel, table=True):
 
     id: Optional[int] = Field(default=None, primary_key=True)
 
-    # Mã số nhân viên: số nguyên thuần, tự tăng bằng MAX+1 trong service.
-    # KHÔNG dùng SERIAL để kiểm soát giá trị khi import dữ liệu cũ.
+    # Mã số nhân viên: số nguyên thuần, tăng độc lập theo từng hệ mã nhân viên.
     employee_seq: int = Field(
-        sa_column=Column(sa.Integer(), unique=True, nullable=False, index=True)
+        sa_column=Column(sa.Integer(), nullable=False, index=True)
     )
-    employee_code_sequence_id: Optional[int] = Field(
-        default=None,
+    employee_code_sequence_id: int = Field(
         sa_column=Column(
             sa.Integer(),
             sa.ForeignKey("employee_code_sequences.id", ondelete="RESTRICT"),
-            nullable=True,
+            nullable=False,
             index=True,
         ),
     )
@@ -104,6 +102,14 @@ class Employee(SQLModel, table=True):
     is_active: bool = Field(default=True)
     created_at: datetime = Field(default_factory=_utcnow)
     updated_at: Optional[datetime] = Field(default=None)
+
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "employee_code_sequence_id",
+            "employee_seq",
+            name="uq_employees_sequence_seq",
+        ),
+    )
 
 
 class EmployeeAddress(SQLModel, table=True):

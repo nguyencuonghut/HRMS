@@ -27,24 +27,24 @@ DEPT_PREFIXES = {
     "CL":  "CL",
 }
 
-# (employee_seq, dept_code, job_title_code, effective_from, status_after)
+# (employee_id_number, dept_code, job_title_code, effective_from, status_after)
 ASSIGNMENTS = [
-    (1,  "HC",  "TP",   "2024-01-15", "official"),
-    (2,  "PK",  "NV",   "2024-03-01", "official"),
-    (3,  "KD",  "NVKD", "2024-06-15", "official"),
-    (4,  "PK",  "NV",   "2024-09-01", "official"),
-    (5,  "KD",  "NVKD", "2025-01-01", "official"),
-    (6,  "HC",  "NV",   "2025-04-01", "official"),
-    (7,  "KD",  "NVKD", "2025-11-01", "probation"),
-    (8,  "HC",  "NV",   "2026-03-01", "probation"),
-    (9,  "PK",  "NV",   "2026-04-15", "probation"),
-    (10, "KD",  "NVKD", "2023-06-01", "resigned"),
+    ("001088123456", "HC",  "TP",   "2024-01-15", "official"),
+    ("038092456789", "PK",  "NV",   "2024-03-01", "official"),
+    ("001085654321", "KD",  "NVKD", "2024-06-15", "official"),
+    ("086095789012", "PK",  "NV",   "2024-09-01", "official"),
+    ("020090345678", "KD",  "NVKD", "2025-01-01", "official"),
+    ("079094567890", "HC",  "NV",   "2025-04-01", "official"),
+    ("036099678901", "KD",  "NVKD", "2025-11-01", "probation"),
+    ("001201789012", "HC",  "NV",   "2026-03-01", "probation"),
+    ("051098890123", "PK",  "NV",   "2026-04-15", "probation"),
+    ("025087901234", "KD",  "NVKD", "2023-06-01", "resigned"),
 ]
 
 # Bản ghi lịch sử thêm cho nhân viên 1 (demo tab lịch sử):
 # Trước khi vào HC, An từng ở KD từ 2024-01-15 → 2024-06-14
 HISTORY_RECORD = {
-    "employee_seq": 1,
+    "employee_id_number": "001088123456",
     "dept_code": "KD",
     "job_title_code": "NVKD",
     "effective_from": "2024-01-15",
@@ -76,7 +76,7 @@ async def seed_sample_job_records(session: AsyncSession) -> int:
                 (SELECT id FROM job_titles WHERE code = :title_code),
                 :effective_from, :effective_to, false, now()
             FROM employees e
-            WHERE e.employee_seq = :employee_seq
+            WHERE e.id_number = :employee_id_number
               AND NOT EXISTS (
                   SELECT 1 FROM employee_job_records r
                   WHERE r.employee_id = e.id
@@ -85,7 +85,7 @@ async def seed_sample_job_records(session: AsyncSession) -> int:
               )
         """),
         {
-            "employee_seq": HISTORY_RECORD["employee_seq"],
+            "employee_id_number": HISTORY_RECORD["employee_id_number"],
             "dept_code": HISTORY_RECORD["dept_code"],
             "title_code": HISTORY_RECORD["job_title_code"],
             "effective_from": _d(HISTORY_RECORD["effective_from"]),
@@ -94,7 +94,7 @@ async def seed_sample_job_records(session: AsyncSession) -> int:
     )
 
     # Thêm bản ghi is_current cho từng nhân viên
-    for emp_seq, dept_code, title_code, effective_from, _ in ASSIGNMENTS:
+    for employee_id_number, dept_code, title_code, effective_from, _ in ASSIGNMENTS:
         result = await session.execute(
             text("""
                 INSERT INTO employee_job_records (
@@ -107,14 +107,14 @@ async def seed_sample_job_records(session: AsyncSession) -> int:
                     (SELECT id FROM job_titles WHERE code = :title_code),
                     :effective_from, true, now()
                 FROM employees e
-                WHERE e.employee_seq = :employee_seq
+                WHERE e.id_number = :employee_id_number
                   AND NOT EXISTS (
                       SELECT 1 FROM employee_job_records r
                       WHERE r.employee_id = e.id AND r.is_current = true
                   )
             """),
             {
-                "employee_seq": emp_seq,
+                "employee_id_number": employee_id_number,
                 "dept_code": dept_code,
                 "title_code": title_code,
                 "effective_from": _d(effective_from),

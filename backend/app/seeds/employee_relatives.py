@@ -13,20 +13,20 @@ def _d(s: str) -> date:
     return date.fromisoformat(s)
 
 
-# (employee_seq, full_name, relationship_type, date_of_birth, occupation, phone_number, is_emergency_contact)
+# (employee_id_number, full_name, relationship_type, date_of_birth, occupation, phone_number, is_emergency_contact)
 RELATIVES = [
-    (1, "Trần Thị Lan",    "vo",   "1990-06-20", "Giáo viên",    "0912345678", True),
-    (1, "Nguyễn Văn Bình", "cha",  "1960-02-10", "Nông dân",     None,         False),
-    (2, "Lê Văn Nam",      "chong","1985-11-05", "Kỹ sư",        "0923456789", True),
-    (3, "Lê Thị Mai",      "me",   "1962-07-15", "Nội trợ",      "0934567890", True),
-    (3, "Lê Văn Tuấn",     "anh",  "1991-03-22", "Kinh doanh",   None,         False),
+    ("001088123456", "Trần Thị Lan",    "vo",   "1990-06-20", "Giáo viên",    "0912345678", True),
+    ("001088123456", "Nguyễn Văn Bình", "cha",  "1960-02-10", "Nông dân",     None,         False),
+    ("038092456789", "Lê Văn Nam",      "chong","1985-11-05", "Kỹ sư",        "0923456789", True),
+    ("001085654321", "Lê Thị Mai",      "me",   "1962-07-15", "Nội trợ",      "0934567890", True),
+    ("001085654321", "Lê Văn Tuấn",     "anh",  "1991-03-22", "Kinh doanh",   None,         False),
 ]
 
 
 async def seed_sample_relatives(session: AsyncSession) -> int:
     """Seed người thân mẫu. Idempotent — bỏ qua employee đã có dữ liệu."""
     added = 0
-    for emp_seq, full_name, rel_type, dob, occupation, phone, is_emergency in RELATIVES:
+    for employee_id_number, full_name, rel_type, dob, occupation, phone, is_emergency in RELATIVES:
         result = await session.execute(
             text("""
                 INSERT INTO employee_relatives (
@@ -40,7 +40,7 @@ async def seed_sample_relatives(session: AsyncSession) -> int:
                     :dob, :occupation, :phone,
                     :is_emergency, now()
                 FROM employees e
-                WHERE e.employee_seq = :emp_seq
+                WHERE e.id_number = :employee_id_number
                   AND NOT EXISTS (
                       SELECT 1 FROM employee_relatives r
                       WHERE r.employee_id = e.id
@@ -48,7 +48,7 @@ async def seed_sample_relatives(session: AsyncSession) -> int:
                   )
             """),
             {
-                "emp_seq": emp_seq,
+                "employee_id_number": employee_id_number,
                 "full_name": full_name,
                 "rel_type": rel_type,
                 "dob": _d(dob),

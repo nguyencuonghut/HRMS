@@ -68,6 +68,7 @@ async def cleanup():
 
 def _valid_payload(id_number: str = "TEST001234567890") -> dict:
     return {
+        "employee_code_sequence_id": 1,
         "full_name": "Nguyễn Test Viên",
         "last_name": "Nguyễn",
         "first_name": "Test Viên",
@@ -212,6 +213,14 @@ def test_create_employee_requires_create_permission(client: TestClient):
 def test_create_employee_unauthorized(client: TestClient):
     resp = client.post(BASE, json=_valid_payload("TEST999000041"))
     assert resp.status_code == 401
+
+
+def test_create_employee_without_sequence_or_job_context_rejected(client: TestClient):
+    headers = _admin(client)
+    payload = _valid_payload("TEST999000040")
+    payload.pop("employee_code_sequence_id", None)
+    resp = client.post(BASE, json=payload, headers=headers)
+    assert resp.status_code == 422
 
 
 def test_create_employee_with_initial_job_context_creates_current_job(client: TestClient):

@@ -71,6 +71,7 @@ async def cleanup():
 
 def _create_employee(client: TestClient, headers: dict, id_number: str = "TESTJOB0000001") -> dict:
     payload = {
+        "employee_code_sequence_id": 1,
         "full_name": "Test Job Viên",
         "last_name": "Test",
         "first_name": "Job Viên",
