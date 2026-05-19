@@ -93,8 +93,9 @@ const menu: MenuItem[] = [
     label: 'Nghỉ phép',
     icon: 'pi-calendar',
     items: [
-      { to: '/leave-entitlements', label: 'Số ngày phép', icon: 'pi-chart-bar' },
+      { to: '/leave-entitlements', label: 'Số ngày phép',        icon: 'pi-chart-bar' },
       { to: '/leaves',             label: 'Ghi nhận nghỉ phép', icon: 'pi-calendar-times' },
+      { to: '/leave-reports',      label: 'Báo cáo nghỉ phép',  icon: 'pi-file-excel' },
     ],
   },
   { to: '/insurance', label: 'Bảo hiểm BHXH', icon: 'pi-shield' },
