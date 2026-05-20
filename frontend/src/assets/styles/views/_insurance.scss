@@ -1,0 +1,289 @@
+.insurance-view,
+.insurance-foundation-view {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+
+  .insurance-header {
+    margin-bottom: 0;
+  }
+
+  .insurance-header-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.75rem;
+  }
+
+  .insurance-note {
+    padding: 1rem 1.125rem;
+    border: 1px solid color-mix(in srgb, var(--p-yellow-500) 35%, transparent);
+    border-radius: 12px;
+    background:
+      linear-gradient(135deg, color-mix(in srgb, var(--p-yellow-100) 72%, transparent), transparent 72%),
+      color-mix(in srgb, var(--p-yellow-50) 88%, var(--p-content-background));
+    color: color-mix(in srgb, var(--p-yellow-900) 68%, var(--p-text-color));
+
+    strong {
+      display: block;
+      margin-bottom: 0.5rem;
+      color: color-mix(in srgb, var(--p-yellow-900) 82%, var(--p-text-color));
+    }
+
+    ul {
+      margin: 0;
+      padding-left: 1.25rem;
+      color: inherit;
+    }
+  }
+
+  .insurance-summary-grid,
+  .insurance-section-grid {
+    display: grid;
+    gap: 1rem;
+  }
+
+  .insurance-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .insurance-section-grid {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  .insurance-summary-card,
+  .insurance-policy-list-card,
+  .insurance-active-rates-card,
+  .insurance-region-history-card {
+    padding: 1rem 1.125rem;
+  }
+
+  .insurance-card-label {
+    margin-bottom: 0.4rem;
+    color: var(--p-text-muted-color);
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .insurance-card-main {
+    font-size: 1.2rem;
+    font-weight: 700;
+    line-height: 1.3;
+  }
+
+  .insurance-card-sub,
+  .insurance-card-empty {
+    margin-top: 0.35rem;
+    color: var(--p-text-muted-color);
+    font-size: 0.9rem;
+  }
+
+  .section-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+
+    h3 {
+      margin: 0;
+      font-size: 1.02rem;
+      font-weight: 700;
+    }
+  }
+
+  .section-hint {
+    color: var(--p-text-muted-color);
+    font-size: 0.84rem;
+  }
+
+  .range-cell,
+  .rate-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .rate-cell strong {
+    color: var(--p-primary-color);
+  }
+
+  .insurance-policy-form,
+  .insurance-region-form {
+    padding-top: 0.25rem;
+  }
+
+  .policy-components-editor {
+    margin-top: 0.25rem;
+    padding: 1rem;
+    border: 1px solid var(--p-content-border-color);
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--p-content-background) 82%, var(--p-primary-50));
+  }
+
+  .dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-top: 1.25rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--p-content-border-color);
+  }
+}
+
+html.dark-mode {
+  .insurance-view,
+  .insurance-foundation-view {
+    .insurance-note {
+      border-color: color-mix(in srgb, var(--p-yellow-400) 42%, var(--p-content-border-color));
+      background:
+        linear-gradient(135deg, color-mix(in srgb, var(--p-yellow-500) 18%, transparent), transparent 70%),
+        color-mix(in srgb, var(--p-yellow-950) 42%, var(--p-content-background));
+      color: color-mix(in srgb, white 90%, var(--p-yellow-100));
+
+      strong {
+        color: color-mix(in srgb, white 94%, var(--p-yellow-50));
+      }
+    }
+  }
+}
+
+@media (max-width: 960px) {
+  .insurance-view,
+  .insurance-foundation-view {
+    .insurance-summary-grid,
+    .insurance-section-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+}
+
+@media (max-width: 640px) {
+  .insurance-view,
+  .insurance-foundation-view {
+    .insurance-header-actions,
+    .dialog-actions {
+      justify-content: stretch;
+    }
+
+    .insurance-header-actions > .p-button,
+    .dialog-actions > .p-button {
+      width: 100%;
+    }
+
+    .insurance-summary-card,
+    .insurance-policy-list-card,
+    .insurance-active-rates-card,
+    .insurance-region-history-card,
+    .policy-components-editor {
+      padding-left: 0.875rem;
+      padding-right: 0.875rem;
+    }
+  }
+}
+
+.employee-insurance-view {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+
+  .employee-insurance-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.75rem;
+  }
+
+  .employee-insurance-hero,
+  .employee-insurance-grid {
+    display: grid;
+    gap: 1rem;
+  }
+
+  .employee-insurance-hero {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .employee-insurance-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .employee-insurance-summary,
+  .employee-insurance-card {
+    padding: 1.125rem;
+  }
+
+  .employee-insurance-summary.muted {
+    background: color-mix(in srgb, var(--p-content-background) 84%, var(--p-primary-50));
+  }
+
+  .employee-insurance-kicker {
+    display: inline-block;
+    margin-bottom: 0.6rem;
+    color: var(--p-text-muted-color);
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .employee-insurance-summary h3 {
+    margin: 0 0 0.7rem;
+    font-size: 1.18rem;
+  }
+
+  .employee-insurance-summary p {
+    margin: 0;
+    line-height: 1.6;
+    color: var(--p-text-color);
+  }
+
+  .employee-insurance-card--accent {
+    background:
+      linear-gradient(
+        160deg,
+        color-mix(in srgb, var(--p-primary-50) 82%, var(--p-content-background)),
+        var(--p-content-background)
+      );
+  }
+
+  .employee-insurance-list {
+    margin: 0;
+    padding-left: 1.1rem;
+    display: grid;
+    gap: 0.55rem;
+    color: var(--p-text-color);
+  }
+
+  .employee-insurance-links {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+}
+
+@media (max-width: 960px) {
+  .employee-insurance-view {
+    .employee-insurance-hero,
+    .employee-insurance-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+}
+
+@media (max-width: 640px) {
+  .employee-insurance-view {
+    .employee-insurance-actions {
+      justify-content: stretch;
+    }
+
+    .employee-insurance-actions > .p-button,
+    .employee-insurance-links > .p-button {
+      width: 100%;
+    }
+  }
+}

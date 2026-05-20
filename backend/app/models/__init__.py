@@ -39,6 +39,11 @@ from app.models.salary import (  # noqa: F401
     SalaryScale,
     SalaryScaleEntry,
 )
+from app.models.insurance import (  # noqa: F401
+    InsuranceContributionComponent,
+    InsurancePolicyVersion,
+    InsurancePolicyComponentRate,
+)
 from app.models.employee import (  # noqa: F401
     Employee,
     EmployeeAddress,

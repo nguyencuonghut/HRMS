@@ -10,8 +10,14 @@
         </p>
         <div class="hero-actions">
           <Button
+            label="Mở cấu hình BHXH"
+            icon="pi pi-sliders-h"
+            @click="router.push('/catalog/insurance')"
+          />
+          <Button
             label="Mở danh mục hành chính"
             icon="pi pi-map"
+            severity="secondary"
             @click="router.push('/catalog/administrative-units')"
           />
           <Button
@@ -55,6 +61,7 @@
             <li>Danh mục hành chính hệ cũ 3 cấp</li>
             <li>Danh mục học vấn cho hồ sơ nhân sự</li>
             <li>Danh mục nghiệp vụ khác cho hợp đồng và nghỉ phép</li>
+            <li>Cấu hình policy, tỷ lệ đóng và vùng BHXH dùng chung</li>
             <li>Lịch sử import và rà soát batch lỗi</li>
           </ul>
         </div>
@@ -117,9 +124,28 @@
             </div>
           </RouterLink>
 
-          <RouterLink to="/catalog/administrative-imports" class="module-card secondary">
+          <RouterLink to="/catalog/insurance" class="module-card secondary">
             <div class="module-meta">
               <div class="module-icon secondary">
+                <i class="pi pi-sliders-h" />
+              </div>
+              <div>
+                <h3>Cấu hình BHXH dùng chung</h3>
+                <p>Quản trị policy version, tỷ lệ đóng mặc định, component nộp hộ và vùng BHXH công ty.</p>
+              </div>
+            </div>
+            <div class="module-tail">
+              <div class="module-stat">
+                <span>Foundation</span>
+                <strong>Slice 0</strong>
+              </div>
+              <span class="module-link">Mở workspace BHXH</span>
+            </div>
+          </RouterLink>
+
+          <RouterLink to="/catalog/administrative-imports" class="module-card tertiary">
+            <div class="module-meta">
+              <div class="module-icon tertiary">
                 <i class="pi pi-download" />
               </div>
               <div>
@@ -136,9 +162,9 @@
             </div>
           </RouterLink>
 
-          <RouterLink to="/catalog/education" class="module-card tertiary">
+          <RouterLink to="/catalog/education" class="module-card quaternary">
             <div class="module-meta">
-              <div class="module-icon tertiary">
+              <div class="module-icon quaternary">
                 <i class="pi pi-graduation-cap" />
               </div>
               <div>
@@ -155,9 +181,9 @@
             </div>
           </RouterLink>
 
-          <RouterLink to="/catalog/other-business" class="module-card quaternary">
+          <RouterLink to="/catalog/other-business" class="module-card">
             <div class="module-meta">
-              <div class="module-icon quaternary">
+              <div class="module-icon">
                 <i class="pi pi-briefcase" />
               </div>
               <div>
@@ -702,6 +728,11 @@ onMounted(loadOverview)
 .module-icon.tertiary {
   background: color-mix(in srgb, var(--p-blue-500) 14%, var(--catalog-surface));
   color: var(--p-blue-600);
+}
+
+.module-icon.quaternary {
+  background: color-mix(in srgb, var(--p-pink-500) 14%, var(--catalog-surface));
+  color: var(--p-pink-600);
 }
 
 .module-meta h3,

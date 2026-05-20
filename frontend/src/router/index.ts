@@ -164,6 +164,12 @@ const router = createRouter({
           meta: { title: 'Danh mục học vấn' },
         },
         {
+          path: 'catalog/insurance',
+          name: 'catalog-insurance',
+          component: () => import('@/views/catalog/InsuranceFoundationView.vue'),
+          meta: { title: 'Cấu hình BHXH' },
+        },
+        {
           path: 'catalog/other-business',
           name: 'catalog-other-business',
           component: () => import('@/views/catalog/OtherBusinessCatalogView.vue'),
