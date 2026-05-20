@@ -61,6 +61,15 @@ async def activate_insurance_policy_version(
     return await insurance_policy_service.activate_policy_version(session, policy_id)
 
 
+@router.delete("/policy-versions/{policy_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Hủy nháp policy version chưa active")
+async def delete_insurance_policy_version(
+    policy_id: int,
+    _: User = require_permission("insurance:delete"),
+    session: AsyncSession = Depends(get_session),
+):
+    await insurance_policy_service.delete_policy_version(session, policy_id)
+
+
 @router.get("/company-region", response_model=CompanyRegionRead, summary="Xem vùng BHXH công ty hiện hành và lịch sử")
 async def get_company_bhxh_region(
     _: User = require_permission("insurance:view"),

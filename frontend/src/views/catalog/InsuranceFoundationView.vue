@@ -76,14 +76,17 @@
           </Column>
           <Column header="Trạng thái" style="width: 110px">
             <template #body="{ data }">
-              <Tag :value="data.is_active ? 'Đang dùng' : 'Nháp'" :severity="data.is_active ? 'success' : 'secondary'" />
+              <Tag
+                :value="data.is_active ? 'Đang dùng' : (data.effective_to ? 'Lịch sử' : 'Nháp')"
+                :severity="data.is_active ? 'success' : (data.effective_to ? 'contrast' : 'secondary')"
+              />
             </template>
           </Column>
-          <Column header="" style="width: 120px">
+          <Column header="" style="width: 156px">
             <template #body="{ data }">
               <div class="action-cell">
                 <Button
-                  v-if="!data.is_active"
+                  v-if="!data.is_active && !data.effective_to"
                   icon="pi pi-pencil"
                   severity="secondary"
                   text
@@ -92,7 +95,7 @@
                   @click="openEditPolicyDialog(data)"
                 />
                 <Button
-                  v-if="!data.is_active"
+                  v-if="!data.is_active && !data.effective_to"
                   icon="pi pi-check"
                   severity="success"
                   text
@@ -100,6 +103,15 @@
                   size="small"
                   :loading="activatingPolicyId === data.id"
                   @click="activatePolicy(data)"
+                />
+                <Button
+                  v-if="!data.is_active && !data.effective_to"
+                  icon="pi pi-trash"
+                  severity="danger"
+                  text
+                  rounded
+                  size="small"
+                  @click="confirmDeletePolicy(data)"
                 />
               </div>
             </template>
@@ -170,7 +182,7 @@
           </div>
           <div class="field">
             <label>Ngày hiệu lực <span class="req">*</span></label>
-            <input v-model="policyForm.effective_from" class="p-inputtext p-component w-full" type="date" :disabled="!!editingPolicy" />
+            <input v-model="policyForm.effective_from" class="p-inputtext p-component w-full" type="date" />
           </div>
           <div class="field">
             <label>Vùng công ty snapshot <span class="req">*</span></label>
@@ -180,7 +192,6 @@
               option-label="label"
               option-value="value"
               class="w-full"
-              :disabled="!!editingPolicy"
             />
           </div>
         </div>
@@ -268,6 +279,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { useConfirm } from 'primevue/useconfirm'
 import Button from 'primevue/button'
 import Checkbox from 'primevue/checkbox'
 import Column from 'primevue/column'
@@ -296,6 +308,7 @@ type PolicyFormComponent = {
 }
 
 const router = useRouter()
+const confirm = useConfirm()
 const toast = useToast()
 
 const loading = ref(false)
@@ -456,6 +469,8 @@ async function submitPolicy() {
       const payload: InsurancePolicyVersionUpdate = {
         name: policyForm.value.name,
         legal_basis_summary: policyForm.value.legal_basis_summary || null,
+        effective_from: policyForm.value.effective_from,
+        company_region: policyForm.value.company_region,
         note: policyForm.value.note || null,
         components: componentsPayload,
       }
@@ -495,6 +510,32 @@ async function activatePolicy(policy: InsurancePolicyVersionRead) {
   } finally {
     activatingPolicyId.value = null
   }
+}
+
+function confirmDeletePolicy(policy: InsurancePolicyVersionRead) {
+  confirm.require({
+    message: `Hủy nháp policy ${policy.code}? Thao tác này sẽ xóa toàn bộ component rates của bản nháp này.`,
+    header: 'Xác nhận hủy nháp',
+    icon: 'pi pi-exclamation-triangle',
+    rejectProps: {
+      label: 'Không',
+      severity: 'secondary',
+      outlined: true,
+    },
+    acceptProps: {
+      label: 'Hủy nháp',
+      severity: 'danger',
+    },
+    accept: async () => {
+      try {
+        await insuranceService.deletePolicyVersion(policy.id)
+        toast.add({ severity: 'success', summary: 'Thành công', detail: `Đã hủy nháp ${policy.code}`, life: 3000 })
+        await loadAll()
+      } catch (error) {
+        toast.add({ severity: 'error', summary: 'Lỗi', detail: apiError(error), life: 5000 })
+      }
+    },
+  })
 }
 
 async function submitRegion() {

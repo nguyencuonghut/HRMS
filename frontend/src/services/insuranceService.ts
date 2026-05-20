@@ -51,6 +51,8 @@ export interface InsurancePolicyVersionCreate {
 export interface InsurancePolicyVersionUpdate {
   name?: string
   legal_basis_summary?: string | null
+  effective_from?: string
+  company_region?: number
   note?: string | null
   components?: InsurancePolicyComponentRateInput[]
 }
@@ -89,6 +91,9 @@ export default {
 
   activatePolicyVersion: (policyId: number) =>
     api.post<InsurancePolicyVersionRead>(`/insurance/policy-versions/${policyId}/activate`),
+
+  deletePolicyVersion: (policyId: number) =>
+    api.delete(`/insurance/policy-versions/${policyId}`),
 
   getCompanyRegion: () =>
     api.get<CompanyRegionRead>('/insurance/company-region'),

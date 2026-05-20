@@ -53,6 +53,8 @@ class InsurancePolicyVersionCreate(BaseModel):
 class InsurancePolicyVersionUpdate(BaseModel):
     name: Optional[str] = Field(None, max_length=255)
     legal_basis_summary: Optional[str] = None
+    effective_from: Optional[date] = None
+    company_region: Optional[int] = Field(None, ge=1, le=4)
     note: Optional[str] = None
     components: Optional[list[InsurancePolicyComponentRateInput]] = None
 

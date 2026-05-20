@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
@@ -136,6 +136,8 @@ def test_create_and_activate_policy_version_closes_previous_active(client: TestC
     list_resp = client.get(f"{BASE}/policy-versions", headers=headers)
     assert list_resp.status_code == 200, list_resp.text
     current_active = next(item for item in list_resp.json() if item["is_active"])
+    current_active_from = date.fromisoformat(current_active["effective_from"])
+    new_effective_from = current_active_from + timedelta(days=30)
 
     create_resp = client.post(
         f"{BASE}/policy-versions",
@@ -143,7 +145,7 @@ def test_create_and_activate_policy_version_closes_previous_active(client: TestC
             "code": _TEST_POLICY_CODE,
             "name": "TEST Policy",
             "legal_basis_summary": "TEST legal basis",
-            "effective_from": "2026-07-01",
+            "effective_from": new_effective_from.isoformat(),
             "company_region": 3,
             "note": "TEST create",
             "components": [
@@ -171,7 +173,7 @@ def test_create_and_activate_policy_version_closes_previous_active(client: TestC
 
     old = next(item for item in after if item["id"] == current_active["id"])
     assert old["is_active"] is False
-    assert old["effective_to"] == "2026-06-30"
+    assert old["effective_to"] == (new_effective_from - timedelta(days=1)).isoformat()
 
 
 def test_update_company_region_creates_new_current_row_and_closes_previous(client: TestClient):
@@ -226,6 +228,8 @@ def test_update_non_active_policy_version(client: TestClient):
         json={
             "name": "TEST Policy Edit Updated",
             "legal_basis_summary": "Updated legal basis",
+            "effective_from": "2026-10-15",
+            "company_region": 2,
             "components": [
                 {"component_code": "RETIREMENT_SURVIVOR", "employee_rate_percent": "8.0", "employer_rate_percent": "14.0", "employer_advances_employee_part": False},
                 {"component_code": "SICKNESS_MATERNITY", "employee_rate_percent": "0", "employer_rate_percent": "3.0", "employer_advances_employee_part": False},
@@ -239,6 +243,8 @@ def test_update_non_active_policy_version(client: TestClient):
     assert update_resp.status_code == 200, update_resp.text
     updated = update_resp.json()
     assert updated["name"] == "TEST Policy Edit Updated"
+    assert updated["effective_from"] == "2026-10-15"
+    assert updated["company_region"] == 2
     health = next(item for item in updated["components"] if item["component_code"] == "HEALTH")
     assert health["employer_advances_employee_part"] is True
 
@@ -270,3 +276,102 @@ def test_create_policy_rejects_duplicate_components(client: TestClient):
     )
     assert resp.status_code == 422, resp.text
     assert "Component bị lặp" in resp.json()["detail"]
+
+
+def test_delete_non_active_policy_version(client: TestClient):
+    headers = _admin(client)
+    create_resp = client.post(
+        f"{BASE}/policy-versions",
+        json={
+            "code": f"{_TEST_POLICY_CODE}_DELETE",
+            "name": "TEST delete draft",
+            "effective_from": "2026-12-01",
+            "company_region": 3,
+            "components": [
+                {"component_code": "RETIREMENT_SURVIVOR", "employee_rate_percent": "8.0", "employer_rate_percent": "14.0", "employer_advances_employee_part": False},
+                {"component_code": "SICKNESS_MATERNITY", "employee_rate_percent": "0", "employer_rate_percent": "3.0", "employer_advances_employee_part": False},
+                {"component_code": "OCC_ACCIDENT_DISEASE", "employee_rate_percent": "0", "employer_rate_percent": "0.5", "employer_advances_employee_part": False},
+                {"component_code": "HEALTH", "employee_rate_percent": "1.5", "employer_rate_percent": "3.0", "employer_advances_employee_part": False},
+                {"component_code": "UNEMPLOYMENT", "employee_rate_percent": "1.0", "employer_rate_percent": "1.0", "employer_advances_employee_part": False},
+            ],
+        },
+        headers=headers,
+    )
+    assert create_resp.status_code == 201, create_resp.text
+    created = create_resp.json()
+
+    delete_resp = client.delete(f"{BASE}/policy-versions/{created['id']}", headers=headers)
+    assert delete_resp.status_code == 204, delete_resp.text
+
+    list_resp = client.get(f"{BASE}/policy-versions", headers=headers)
+    assert list_resp.status_code == 200, list_resp.text
+    assert all(item["id"] != created["id"] for item in list_resp.json())
+
+
+def test_delete_active_policy_version_conflicts(client: TestClient):
+    headers = _admin(client)
+    list_resp = client.get(f"{BASE}/policy-versions", headers=headers)
+    assert list_resp.status_code == 200, list_resp.text
+    active = next(item for item in list_resp.json() if item["is_active"])
+
+    delete_resp = client.delete(f"{BASE}/policy-versions/{active['id']}", headers=headers)
+    assert delete_resp.status_code == 409, delete_resp.text
+
+
+def test_delete_historical_policy_version_conflicts(client: TestClient):
+    headers = _admin(client)
+    list_resp = client.get(f"{BASE}/policy-versions", headers=headers)
+    assert list_resp.status_code == 200, list_resp.text
+    current_active = next(item for item in list_resp.json() if item["is_active"])
+    current_active_from = date.fromisoformat(current_active["effective_from"])
+    first_effective_from = current_active_from + timedelta(days=30)
+    replacement_effective_from = first_effective_from + timedelta(days=30)
+
+    create_resp = client.post(
+        f"{BASE}/policy-versions",
+        json={
+            "code": f"{_TEST_POLICY_CODE}_HISTORY",
+            "name": "TEST historical policy",
+            "effective_from": first_effective_from.isoformat(),
+            "company_region": 3,
+            "components": [
+                {"component_code": "RETIREMENT_SURVIVOR", "employee_rate_percent": "8.0", "employer_rate_percent": "14.0", "employer_advances_employee_part": False},
+                {"component_code": "SICKNESS_MATERNITY", "employee_rate_percent": "0", "employer_rate_percent": "3.0", "employer_advances_employee_part": False},
+                {"component_code": "OCC_ACCIDENT_DISEASE", "employee_rate_percent": "0", "employer_rate_percent": "0.5", "employer_advances_employee_part": False},
+                {"component_code": "HEALTH", "employee_rate_percent": "1.5", "employer_rate_percent": "3.0", "employer_advances_employee_part": False},
+                {"component_code": "UNEMPLOYMENT", "employee_rate_percent": "1.0", "employer_rate_percent": "1.0", "employer_advances_employee_part": False},
+            ],
+        },
+        headers=headers,
+    )
+    assert create_resp.status_code == 201, create_resp.text
+    created = create_resp.json()
+
+    activate_resp = client.post(f"{BASE}/policy-versions/{created['id']}/activate", headers=headers)
+    assert activate_resp.status_code == 200, activate_resp.text
+
+    replacement_resp = client.post(
+        f"{BASE}/policy-versions",
+        json={
+            "code": f"{_TEST_POLICY_CODE}_NEXT",
+            "name": "TEST replacement policy",
+            "effective_from": replacement_effective_from.isoformat(),
+            "company_region": 3,
+            "components": [
+                {"component_code": "RETIREMENT_SURVIVOR", "employee_rate_percent": "8.0", "employer_rate_percent": "14.0", "employer_advances_employee_part": False},
+                {"component_code": "SICKNESS_MATERNITY", "employee_rate_percent": "0", "employer_rate_percent": "3.0", "employer_advances_employee_part": False},
+                {"component_code": "OCC_ACCIDENT_DISEASE", "employee_rate_percent": "0", "employer_rate_percent": "0.5", "employer_advances_employee_part": False},
+                {"component_code": "HEALTH", "employee_rate_percent": "1.5", "employer_rate_percent": "3.0", "employer_advances_employee_part": False},
+                {"component_code": "UNEMPLOYMENT", "employee_rate_percent": "1.0", "employer_rate_percent": "1.0", "employer_advances_employee_part": False},
+            ],
+        },
+        headers=headers,
+    )
+    assert replacement_resp.status_code == 201, replacement_resp.text
+    replacement = replacement_resp.json()
+
+    activate_replacement_resp = client.post(f"{BASE}/policy-versions/{replacement['id']}/activate", headers=headers)
+    assert activate_replacement_resp.status_code == 200, activate_replacement_resp.text
+
+    delete_resp = client.delete(f"{BASE}/policy-versions/{created['id']}", headers=headers)
+    assert delete_resp.status_code == 409, delete_resp.text

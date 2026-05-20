@@ -174,12 +174,18 @@ async def update_policy_version(session: AsyncSession, policy_id: int, payload: 
     policy = await _get_policy_or_404(session, policy_id)
     if policy.is_active:
         raise HTTPException(status.HTTP_409_CONFLICT, detail="Không thể sửa policy đang active")
+    if policy.effective_to is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail="Không thể sửa policy lịch sử")
 
     provided = payload.model_fields_set
     if "name" in provided and payload.name is not None:
         policy.name = payload.name
     if "legal_basis_summary" in provided:
         policy.legal_basis_summary = payload.legal_basis_summary
+    if "effective_from" in provided and payload.effective_from is not None:
+        policy.effective_from = payload.effective_from
+    if "company_region" in provided and payload.company_region is not None:
+        policy.company_region = payload.company_region
     if "note" in provided:
         policy.note = payload.note
     policy.updated_at = _utcnow()
@@ -251,6 +257,18 @@ async def activate_policy_version(session: AsyncSession, policy_id: int) -> dict
     await session.commit()
     await session.refresh(policy)
     return await _policy_to_read(session, policy)
+
+
+async def delete_policy_version(session: AsyncSession, policy_id: int) -> None:
+    policy = await _get_policy_or_404(session, policy_id)
+    if policy.is_active or policy.effective_to is not None:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail="Chỉ được hủy policy ở trạng thái nháp chưa từng active",
+        )
+
+    await session.delete(policy)
+    await session.commit()
 
 
 async def get_company_region(session: AsyncSession) -> dict:
