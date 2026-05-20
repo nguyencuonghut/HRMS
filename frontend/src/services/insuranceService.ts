@@ -76,6 +76,95 @@ export interface CompanyRegionUpsert {
   note?: string | null
 }
 
+// ── Employee insurance profile ────────────────────────────────────────────────
+
+export interface InsuranceContributionComponentSnapshot {
+  component_code: string
+  component_name: string
+  insurance_kind: string
+  sort_order: number
+  calc_mode: string // 'company_policy' | 'fixed_amount'
+  employee_rate_percent: string | null
+  employer_rate_percent: string | null
+  fixed_employee_amount: string | null
+  fixed_employer_amount: string | null
+  employer_advances_employee_part: boolean
+  employee_amount: string | null
+  employer_amount: string | null
+}
+
+export interface EmployeeInsuranceListItem {
+  employee_id: number
+  employee_code: string
+  employee_name: string
+  department_name: string | null
+  job_title_name: string | null
+  bhxh_code: string | null
+  bhyt_initial_clinic_name: string | null
+  company_bhxh_joined_date: string | null
+  participation_status: string
+  insurance_basis_amount: string | null
+  insurance_basis_source: string
+  policy_version_id: number | null
+  policy_version_name: string | null
+  effective_regulation_code: string | null
+  company_region: number | null
+  has_component_overrides: boolean
+  employer_pays_on_behalf: boolean
+  contract_id: number | null
+  contract_number: string | null
+  contributions: InsuranceContributionComponentSnapshot[]
+}
+
+export interface EmployeeInsuranceListPage {
+  items: EmployeeInsuranceListItem[]
+  total: number
+  page: number
+  page_size: number
+}
+
+export interface EmployeeInsuranceProfileRead extends EmployeeInsuranceListItem {
+  id: number
+  status_effective_from: string | null
+  status_note: string | null
+  created_at: string
+  updated_at: string | null
+}
+
+export interface EmployeeInsuranceComponentOverrideInput {
+  component_code: string
+  use_company_default: boolean
+  fixed_employee_amount?: number | null
+  fixed_employer_amount?: number | null
+  employer_advances_employee_part?: boolean | null
+}
+
+export interface EmployeeInsuranceProfileUpdate {
+  bhxh_code?: string | null
+  bhyt_initial_clinic_name?: string | null
+  company_bhxh_joined_date?: string | null
+  participation_status: 'active' | 'paused' | 'stopped'
+  status_effective_from?: string | null
+  status_note?: string | null
+  insurance_basis_source: 'contract' | 'computed' | 'manual_fixed'
+  insurance_basis_amount?: number | null
+  component_overrides?: EmployeeInsuranceComponentOverrideInput[]
+}
+
+export interface InsuranceListFilters {
+  keyword?: string | null
+  department_id?: number | null
+  participation_status?: string | null
+  has_bhxh_code?: boolean | null
+  joined_from?: string | null
+  joined_to?: string | null
+  policy_version_id?: number | null
+  has_component_overrides?: boolean | null
+  employer_pays_on_behalf?: boolean | null
+  page?: number
+  page_size?: number
+}
+
 export default {
   getComponents: () =>
     api.get<InsuranceContributionComponentRead[]>('/insurance/components'),
@@ -100,4 +189,14 @@ export default {
 
   updateCompanyRegion: (payload: CompanyRegionUpsert) =>
     api.put<CompanyRegionRead>('/insurance/company-region', payload),
+
+  // Employee insurance profiles
+  listEmployeeProfiles: (filters: InsuranceListFilters) =>
+    api.get<EmployeeInsuranceListPage>('/insurance/employees', { params: filters }),
+
+  getEmployeeProfile: (employeeId: number) =>
+    api.get<EmployeeInsuranceProfileRead>(`/insurance/employees/${employeeId}`),
+
+  updateEmployeeProfile: (employeeId: number, payload: EmployeeInsuranceProfileUpdate) =>
+    api.put<EmployeeInsuranceProfileRead>(`/insurance/employees/${employeeId}`, payload),
 }

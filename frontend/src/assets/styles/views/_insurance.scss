@@ -287,3 +287,279 @@ html.dark-mode {
     }
   }
 }
+
+// ── Insurance list / dialog helpers ──────────────────────────────────────────
+
+.ins-code {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--p-primary-color) 10%, transparent);
+  color: var(--p-primary-color);
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+.ins-basis {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.ins-basis-source {
+  color: var(--p-text-muted-color);
+  font-size: 0.75rem;
+}
+
+.ins-basis-resolved {
+  padding: 0.4rem 0.6rem;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--p-primary-color) 6%, var(--p-content-background));
+  color: var(--p-text-color);
+  font-size: 0.95rem;
+}
+
+.ins-contract-ref {
+  margin-top: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--p-primary-50) 60%, transparent);
+  color: var(--p-text-muted-color);
+  font-size: 0.84rem;
+}
+
+.ins-dialog-body {
+  min-height: 340px;
+}
+
+.ins-dialog-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  color: var(--p-text-muted-color);
+}
+
+.ins-override-hint {
+  margin: 0.5rem 0 1rem;
+  color: var(--p-text-muted-color);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.ins-overrides-table {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.ins-override-row {
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--p-content-border-color);
+  border-radius: 10px;
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 0.5rem 1rem;
+  align-items: center;
+}
+
+.ins-override-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.ins-override-policy {
+  color: var(--p-text-muted-color);
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.ins-override-toggle {
+  display: flex;
+  align-items: center;
+}
+
+.ins-toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  font-size: 0.88rem;
+  color: var(--p-text-color);
+}
+
+.ins-override-inputs {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 0.5rem 1rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--p-content-border-color);
+  align-items: end;
+}
+
+.ins-fixed-badge {
+  display: inline-block;
+  padding: 0.1rem 0.45rem;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--p-orange-500) 14%, transparent);
+  color: var(--p-orange-700);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+html.dark-mode {
+  .ins-fixed-badge {
+    background: color-mix(in srgb, var(--p-orange-400) 18%, transparent);
+    color: var(--p-orange-300);
+  }
+
+  .ins-contract-ref {
+    background: color-mix(in srgb, var(--p-primary-900) 35%, transparent);
+  }
+}
+
+@media (max-width: 640px) {
+  .ins-override-row {
+    grid-template-columns: 1fr;
+  }
+
+  .ins-override-inputs {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+// ── InsuranceTab (employee detail) ───────────────────────────────────────────
+
+.insurance-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.ins-tab-loading {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 2rem;
+  color: var(--p-text-muted-color);
+}
+
+.ins-tab-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 3rem 1rem;
+  color: var(--p-text-muted-color);
+}
+
+.ins-tab-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.ins-tab-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.ins-tab-policy {
+  font-size: 0.88rem;
+  color: var(--p-text-muted-color);
+}
+
+.ins-tab-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.ins-tab-info-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.ins-tab-contribs {
+  margin-top: 0.5rem;
+}
+
+.ins-tab-section-title {
+  margin: 0 0 0.75rem;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--p-text-muted-color);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.ins-tab-contrib-table {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border: 1px solid var(--p-content-border-color);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.ins-contrib-head,
+.ins-contrib-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+  gap: 0.5rem 1rem;
+  padding: 0.6rem 0.875rem;
+  align-items: center;
+}
+
+.ins-contrib-head {
+  background: var(--p-surface-100);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--p-text-color);
+  border-bottom: 1px solid var(--p-content-border-color);
+}
+
+.ins-contrib-row {
+  border-top: 1px solid var(--p-content-border-color);
+  font-size: 0.9rem;
+  color: var(--p-text-color);
+}
+
+html.dark-mode {
+  .ins-contrib-head {
+    background: var(--p-surface-800);
+  }
+}
+
+.ins-contrib-name {
+  font-weight: 600;
+}
+
+.ins-calc-tag {
+  margin-right: 0.3rem;
+}
+
+.field-sep {
+  border: none;
+  border-top: 1px solid var(--p-content-border-color);
+  margin: 0.25rem 0;
+}
+
+@media (max-width: 640px) {
+  .ins-tab-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .ins-contrib-head,
+  .ins-contrib-row {
+    grid-template-columns: 1fr 1fr;
+  }
+}

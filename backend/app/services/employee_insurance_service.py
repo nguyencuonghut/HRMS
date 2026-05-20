@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import Optional
 
 from fastapi import HTTPException, status
-from sqlalchemy import and_, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.employee import Employee
@@ -387,10 +387,9 @@ async def list_insurance_profiles(
         base_stmt = base_stmt.where(~pays_subq)
 
     # Count
-    count_result = await session.execute(
-        select(Employee.id).select_from(base_stmt.subquery())
-    )
-    total = len(count_result.all())
+    subq = base_stmt.subquery()
+    count_result = await session.execute(select(func.count()).select_from(subq))
+    total = count_result.scalar_one()
 
     # Paginate
     page_stmt = (

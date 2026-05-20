@@ -63,6 +63,7 @@
           <Tab value="education" :disabled="isNew">Học vấn & KN</Tab>
           <Tab value="attachments" :disabled="isNew">Tài liệu</Tab>
           <Tab value="contracts" :disabled="isNew">Hợp đồng</Tab>
+          <Tab value="insurance" :disabled="isNew">Bảo hiểm</Tab>
         </TabList>
 
         <TabPanels>
@@ -306,8 +307,8 @@
                 <InputText v-model="form.personal_tax_code" class="w-full" :disabled="viewOnly" />
               </div>
               <div class="field">
-                <label>Mã số BHXH</label>
-                <InputText v-model="form.bhxh_code" class="w-full" :disabled="viewOnly" />
+                <label>Mã số BHXH <small class="text-muted">(quản lý trong tab Bảo hiểm)</small></label>
+                <InputText v-model="form.bhxh_code" class="w-full" :disabled="true" />
               </div>
             </div>
             <div class="tab-actions" v-if="isNew">
@@ -423,6 +424,15 @@
               :employee-id="employeeId"
             />
           </TabPanel>
+
+          <!-- ── TAB: Bảo hiểm ───────────────────────────────────────────── -->
+          <TabPanel value="insurance">
+            <InsuranceTab
+              v-if="!isNew && employeeId"
+              :employee-id="employeeId"
+              @refresh="loadEmployee"
+            />
+          </TabPanel>
         </TabPanels>
       </Tabs>
     </template>
@@ -497,6 +507,7 @@ import RelativesTab from './RelativesTab.vue'
 import EducationTab from './EducationTab.vue'
 import AttachmentsTab from './AttachmentsTab.vue'
 import ContractTab from './ContractTab.vue'
+import InsuranceTab from './InsuranceTab.vue'
 import departmentService, { type DepartmentRead } from '@/services/departmentService'
 import jobTitleService, { type JobTitleRead } from '@/services/jobTitleService'
 import jobPositionService, { type JobPositionListItem } from '@/services/jobPositionService'
