@@ -431,6 +431,140 @@ html.dark-mode {
   }
 }
 
+// ── Grouped rates table ───────────────────────────────────────────────────────
+
+.ins-rates-table {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--p-content-border-color);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.ins-rates-head,
+.ins-rates-row,
+.ins-rates-subtotal,
+.ins-rates-total {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr 100px;
+  gap: 0.5rem 1rem;
+  align-items: center;
+  padding: 0.6rem 0.875rem;
+}
+
+.ins-rates-head {
+  background: var(--p-surface-100);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--p-text-color);
+  border-bottom: 1px solid var(--p-content-border-color);
+}
+
+.ins-rates-group-header {
+  padding: 0.4rem 0.875rem;
+  background: color-mix(in srgb, var(--p-primary-50) 55%, var(--p-content-background));
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--p-primary-color);
+  border-top: 1px solid var(--p-content-border-color);
+}
+
+.ins-rates-row {
+  border-top: 1px solid var(--p-content-border-color);
+  font-size: 0.9rem;
+  color: var(--p-text-color);
+}
+
+.ins-rates-subtotal {
+  border-top: 1px dashed var(--p-content-border-color);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--p-text-muted-color);
+  background: color-mix(in srgb, var(--p-surface-100) 50%, transparent);
+}
+
+.ins-rates-total {
+  border-top: 2px solid var(--p-content-border-color);
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--p-text-color);
+  background: color-mix(in srgb, var(--p-primary-50) 40%, var(--p-content-background));
+}
+
+html.dark-mode {
+  .ins-rates-head {
+    background: var(--p-surface-800);
+  }
+
+  .ins-rates-group-header {
+    background: color-mix(in srgb, var(--p-primary-900) 30%, var(--p-content-background));
+  }
+
+  .ins-rates-subtotal {
+    background: color-mix(in srgb, var(--p-surface-800) 50%, transparent);
+  }
+
+  .ins-rates-total {
+    background: color-mix(in srgb, var(--p-primary-900) 25%, var(--p-content-background));
+  }
+}
+
+// ── Date checker card ─────────────────────────────────────────────────────────
+
+.ins-date-checker {
+  padding: 1rem 1.125rem;
+
+  .ins-check-action {
+    display: flex;
+    align-items: flex-end;
+  }
+}
+
+.ins-check-result {
+  margin-top: 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--p-green-500) 35%, transparent);
+  background: color-mix(in srgb, var(--p-green-50) 70%, var(--p-content-background));
+  color: var(--p-text-color);
+  font-size: 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.ins-check-error {
+  margin-top: 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--p-red-500) 35%, transparent);
+  background: color-mix(in srgb, var(--p-red-50) 70%, var(--p-content-background));
+  color: color-mix(in srgb, var(--p-red-700) 80%, var(--p-text-color));
+  font-size: 0.9rem;
+}
+
+html.dark-mode {
+  .ins-check-result {
+    border-color: color-mix(in srgb, var(--p-green-400) 40%, var(--p-content-border-color));
+    background: color-mix(in srgb, var(--p-green-950) 40%, var(--p-content-background));
+  }
+
+  .ins-check-error {
+    border-color: color-mix(in srgb, var(--p-red-400) 40%, var(--p-content-border-color));
+    background: color-mix(in srgb, var(--p-red-950) 40%, var(--p-content-background));
+    color: color-mix(in srgb, var(--p-red-300) 80%, white);
+  }
+}
+
+@media (max-width: 640px) {
+  .ins-rates-head,
+  .ins-rates-row,
+  .ins-rates-subtotal,
+  .ins-rates-total {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
 // ── InsuranceTab (employee detail) ───────────────────────────────────────────
 
 .insurance-tab {

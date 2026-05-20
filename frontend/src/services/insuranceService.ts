@@ -76,6 +76,12 @@ export interface CompanyRegionUpsert {
   note?: string | null
 }
 
+export interface InsuranceEffectiveContributionConfigRead {
+  as_of_date: string
+  company_region: CompanyRegionHistoryItem
+  policy_version: InsurancePolicyVersionRead
+}
+
 // ── Employee insurance profile ────────────────────────────────────────────────
 
 export interface InsuranceContributionComponentSnapshot {
@@ -189,6 +195,9 @@ export default {
 
   updateCompanyRegion: (payload: CompanyRegionUpsert) =>
     api.put<CompanyRegionRead>('/insurance/company-region', payload),
+
+  getEffectiveConfig: (asOfDate: string) =>
+    api.get<InsuranceEffectiveContributionConfigRead>('/insurance/effective-config', { params: { as_of_date: asOfDate } }),
 
   // Employee insurance profiles
   listEmployeeProfiles: (filters: InsuranceListFilters) =>

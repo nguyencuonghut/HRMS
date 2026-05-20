@@ -9,6 +9,13 @@
         <Button label="Cập nhật vùng công ty" icon="pi pi-map-marker" severity="secondary" @click="openRegionDialog" />
         <Button label="Tạo policy mới" icon="pi pi-plus" @click="openCreatePolicyDialog" />
         <Button
+          v-if="activePolicy"
+          label="Tạo nháp từ policy hiện hành"
+          icon="pi pi-copy"
+          severity="secondary"
+          @click="openCloneDialog"
+        />
+        <Button
           label="Về tổng quan danh mục"
           icon="pi pi-th-large"
           severity="secondary"
@@ -126,24 +133,39 @@
         </div>
 
         <div v-if="!activePolicy" class="empty-state">Chưa có policy active</div>
-        <DataTable v-else :value="activePolicy.components" stripedRows responsive-layout="scroll">
-          <Column field="component_code" header="Mã" style="min-width: 140px" />
-          <Column field="component_name" header="Tên tiếng Việt" style="min-width: 280px" />
-          <Column header="Tỷ lệ đóng mặc định" style="min-width: 260px">
-            <template #body="{ data }">
-              <div class="rate-cell">
-                <span>Người lao động: <strong>{{ formatPercent(data.employee_rate_percent) }}</strong></span>
-                <span>Người sử dụng: <strong>{{ formatPercent(data.employer_rate_percent) }}</strong></span>
-                <span>Tổng: <strong>{{ formatPercent(totalRate(data)) }}</strong></span>
-              </div>
-            </template>
-          </Column>
-          <Column header="Nộp hộ" style="width: 120px">
-            <template #body="{ data }">
-              <Tag :value="data.employer_advances_employee_part ? 'Có' : 'Không'" :severity="data.employer_advances_employee_part ? 'warn' : 'contrast'" />
-            </template>
-          </Column>
-        </DataTable>
+        <div v-else class="ins-rates-table">
+          <div class="ins-rates-head">
+            <span>Thành phần</span>
+            <span>NLĐ %</span>
+            <span>NSDLĐ %</span>
+            <span>Tổng %</span>
+            <span>Nộp hộ</span>
+          </div>
+          <template v-for="group in groupedRates" :key="group.kind">
+            <div class="ins-rates-group-header">{{ group.label }}</div>
+            <div v-for="item in group.items" :key="item.component_code" class="ins-rates-row">
+              <span>{{ item.component_name }}</span>
+              <span>{{ formatPercent(item.employee_rate_percent) }}</span>
+              <span>{{ formatPercent(item.employer_rate_percent) }}</span>
+              <span>{{ formatPercent(totalRate(item)) }}</span>
+              <Tag :value="item.employer_advances_employee_part ? 'Có' : 'Không'" :severity="item.employer_advances_employee_part ? 'warn' : 'contrast'" size="small" />
+            </div>
+            <div class="ins-rates-subtotal">
+              <span>Tổng {{ group.label.split('—')[0].trim() }}</span>
+              <span>{{ formatPercent(group.empTotal) }}</span>
+              <span>{{ formatPercent(group.erTotal) }}</span>
+              <span>{{ formatPercent(group.empTotal + group.erTotal) }}</span>
+              <span></span>
+            </div>
+          </template>
+          <div class="ins-rates-total">
+            <span>Tổng tất cả</span>
+            <span>{{ formatPercent(grandTotals.emp) }}</span>
+            <span>{{ formatPercent(grandTotals.er) }}</span>
+            <span>{{ formatPercent(grandTotals.emp + grandTotals.er) }}</span>
+            <span></span>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -164,6 +186,26 @@
         </Column>
         <Column field="note" header="Ghi chú" style="min-width: 240px" />
       </DataTable>
+    </div>
+
+    <div class="card ins-date-checker">
+      <div class="section-heading">
+        <h3>Kiểm tra cấu hình theo ngày</h3>
+      </div>
+      <div class="field-row-2">
+        <div class="field">
+          <label>Ngày kiểm tra</label>
+          <input v-model="checkDate" class="p-inputtext p-component w-full" type="date" />
+        </div>
+        <div class="field ins-check-action">
+          <Button label="Kiểm tra" icon="pi pi-search" :loading="checkingDate" :disabled="!checkDate" @click="checkEffectiveConfig" />
+        </div>
+      </div>
+      <div v-if="checkResult" class="ins-check-result">
+        <div>Policy: <strong>{{ checkResult.policy_version.code }} — {{ checkResult.policy_version.name }}</strong></div>
+        <div>Vùng công ty: <strong>{{ regionLabel(checkResult.company_region.region) }}</strong> (từ {{ formatDate(checkResult.company_region.effective_from) }})</div>
+      </div>
+      <div v-if="checkError" class="ins-check-error">{{ checkError }}</div>
     </div>
 
     <Dialog
@@ -191,6 +233,7 @@
               :options="regionOptions"
               option-label="label"
               option-value="value"
+              filter
               class="w-full"
             />
           </div>
@@ -256,7 +299,7 @@
       <form class="insurance-region-form" @submit.prevent="submitRegion">
         <div class="field">
           <label>Vùng mới <span class="req">*</span></label>
-          <Select v-model="regionForm.region" :options="regionOptions" option-label="label" option-value="value" class="w-full" />
+          <Select v-model="regionForm.region" :options="regionOptions" option-label="label" option-value="value" filter class="w-full" />
         </div>
         <div class="field">
           <label>Ngày hiệu lực <span class="req">*</span></label>
@@ -294,6 +337,7 @@ import { useToast } from 'primevue/usetoast'
 import insuranceService, {
   type CompanyRegionRead,
   type InsuranceContributionComponentRead,
+  type InsuranceEffectiveContributionConfigRead,
   type InsurancePolicyVersionCreate,
   type InsurancePolicyVersionRead,
   type InsurancePolicyVersionUpdate,
@@ -347,7 +391,41 @@ const regionOptions = [
   { label: 'Vùng IV', value: 4 },
 ]
 
+const checkDate = ref('')
+const checkResult = ref<InsuranceEffectiveContributionConfigRead | null>(null)
+const checkError = ref('')
+const checkingDate = ref(false)
+
 const activePolicy = computed(() => policyVersions.value.find((item) => item.is_active) ?? null)
+
+const _kindOrder = ['bhxh', 'bhyt', 'bhtn']
+const _kindLabels: Record<string, string> = {
+  bhxh: 'BHXH — Bảo hiểm xã hội',
+  bhyt: 'BHYT — Bảo hiểm y tế',
+  bhtn: 'BHTN — Bảo hiểm thất nghiệp',
+}
+
+const groupedRates = computed(() => {
+  if (!activePolicy.value) return []
+  const sorted = [...activePolicy.value.components].sort((a, b) => a.sort_order - b.sort_order)
+  return _kindOrder
+    .map((kind) => {
+      const items = sorted.filter((c) => c.insurance_kind.toLowerCase() === kind)
+      const empTotal = items.reduce((s: number, c) => s + Number(c.employee_rate_percent), 0)
+      const erTotal = items.reduce((s: number, c) => s + Number(c.employer_rate_percent), 0)
+      return { kind, label: _kindLabels[kind] ?? kind.toUpperCase(), items, empTotal, erTotal }
+    })
+    .filter((g) => g.items.length > 0)
+})
+
+const grandTotals = computed(() => {
+  if (!activePolicy.value) return { emp: 0, er: 0 }
+  const comps = activePolicy.value.components
+  return {
+    emp: comps.reduce((s, c) => s + Number(c.employee_rate_percent), 0),
+    er: comps.reduce((s, c) => s + Number(c.employer_rate_percent), 0),
+  }
+})
 
 function regionLabel(region: number) {
   return regionOptions.find((item) => item.value === region)?.label ?? `Vùng ${region}`
@@ -420,6 +498,30 @@ function resetPolicyForm() {
 function openCreatePolicyDialog() {
   editingPolicy.value = null
   resetPolicyForm()
+  policyDialogVisible.value = true
+}
+
+function openCloneDialog() {
+  if (!activePolicy.value) return
+  editingPolicy.value = null
+  policyForm.value = {
+    code: '',
+    name: `[NHÁP] ${activePolicy.value.name}`,
+    legal_basis_summary: activePolicy.value.legal_basis_summary ?? '',
+    effective_from: '',
+    company_region: activePolicy.value.company_region,
+    note: activePolicy.value.note ?? '',
+    components: activePolicy.value.components
+      .slice()
+      .sort((a: { sort_order: number }, b: { sort_order: number }) => a.sort_order - b.sort_order)
+      .map((item: typeof activePolicy.value.components[number]) => ({
+        component_code: item.component_code,
+        component_name: item.component_name,
+        employee_rate_percent_n: Number(item.employee_rate_percent),
+        employer_rate_percent_n: Number(item.employer_rate_percent),
+        employer_advances_employee_part: item.employer_advances_employee_part,
+      })),
+  }
   policyDialogVisible.value = true
 }
 
@@ -536,6 +638,22 @@ function confirmDeletePolicy(policy: InsurancePolicyVersionRead) {
       }
     },
   })
+}
+
+async function checkEffectiveConfig() {
+  if (!checkDate.value) return
+  checkingDate.value = true
+  checkResult.value = null
+  checkError.value = ''
+  try {
+    const resp = await insuranceService.getEffectiveConfig(checkDate.value)
+    checkResult.value = resp.data
+  } catch (error) {
+    const detail = (error as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail
+    checkError.value = typeof detail === 'string' ? detail : 'Không tìm thấy cấu hình cho ngày này'
+  } finally {
+    checkingDate.value = false
+  }
 }
 
 async function submitRegion() {

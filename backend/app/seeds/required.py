@@ -4,6 +4,8 @@ Dữ liệu bắt buộc — chạy trên mọi môi trường (dev/staging/prod
 Nội dung:
   - Mức lương tối thiểu vùng theo Nghị định 293/2025/NĐ-CP (hiệu lực 01/01/2026)
   - Vùng BHXH mặc định của công ty (Vùng III — có thể sửa trong DB sau)
+  - Danh mục thành phần đóng BHXH/BHYT/BHTN (5 component chuẩn)
+  - Policy version mặc định theo Luật BHXH 2024 (41/2024/QH15), hiệu lực 01/07/2025
   - Danh mục hành chính hệ cũ: tỉnh/thành + quận/huyện + xã/phường từ JSON chuyển đổi từ Excel
   - Danh mục hành chính hệ mới: 34 tỉnh/thành + xã/phường từ JSON chính thức
 
@@ -101,9 +103,132 @@ async def seed_company_region(session: AsyncSession, region: int = 3) -> int:
     return 1
 
 
+async def seed_insurance_components(session: AsyncSession) -> int:
+    """Seed danh mục 5 thành phần đóng BHXH/BHYT/BHTN chuẩn.
+
+    Migration 0018 đã seed các component này khi chạy lần đầu.
+    Hàm này là belt-and-suspenders cho môi trường migration seed bị bỏ qua.
+    Format phải khớp với migration: insurance_kind lowercase, sort_order bội số 10.
+
+    Căn cứ: Luật BHXH 2024 (41/2024/QH15), Luật BHYT sửa đổi, Luật Việc làm 2025.
+    Returns số dòng được thêm mới (0 nếu đã tồn tại).
+    """
+    components = [
+        # ── BHXH ──────────────────────────────────────────────────────────────
+        {"code": "RETIREMENT_SURVIVOR",  "name_vi": "BHXH - Hưu trí và Tử tuất",                              "insurance_kind": "bhxh", "sort_order": 10},
+        {"code": "SICKNESS_MATERNITY",   "name_vi": "BHXH - Ốm đau và Thai sản",                              "insurance_kind": "bhxh", "sort_order": 20},
+        {"code": "OCC_ACCIDENT_DISEASE", "name_vi": "BHTNLĐ-BNN - Tai nạn lao động và Bệnh nghề nghiệp",      "insurance_kind": "bhxh", "sort_order": 30},
+        # ── BHYT ──────────────────────────────────────────────────────────────
+        {"code": "HEALTH",               "name_vi": "BHYT - Y tế",                                             "insurance_kind": "bhyt", "sort_order": 40},
+        # ── BHTN ──────────────────────────────────────────────────────────────
+        {"code": "UNEMPLOYMENT",         "name_vi": "BHTN - Thất nghiệp",                                      "insurance_kind": "bhtn", "sort_order": 50},
+    ]
+
+    inserted = 0
+    for c in components:
+        result = await session.execute(
+            text("""
+                INSERT INTO insurance_contribution_components
+                    (code, name_vi, insurance_kind, sort_order, is_active)
+                VALUES
+                    (:code, :name_vi, :insurance_kind, :sort_order, TRUE)
+                ON CONFLICT (code) DO NOTHING
+            """),
+            c,
+        )
+        inserted += result.rowcount
+
+    return inserted
+
+
+async def seed_insurance_policy_version_baseline(session: AsyncSession) -> bool:
+    """Seed policy version tỷ lệ đóng mặc định theo pháp luật hiện hành.
+
+    Migration 0018 đã seed VN_STANDARD_2026_01_01 khi chạy lần đầu.
+    Hàm này chỉ seed khi không có bất kỳ policy nào tồn tại (fresh env không migration).
+
+    Căn cứ pháp lý (tỷ lệ verify từ văn bản trước khi deploy prod):
+      - Luật BHXH 2024 (41/2024/QH15), hiệu lực 01/07/2025 — Điều 85, 86, 87
+        · Hưu trí - Tử tuất: NLĐ 8%, NSDLĐ 14%
+        · Ốm đau - Thai sản: NLĐ 0%, NSDLĐ 3%
+        · TNLĐ-BNN: NLĐ 0%, NSDLĐ 0.5%
+          (NQ 28/2023/NQ-CP giảm xuống 0.3% đến hết 2025; từ 2026 về 0.5% nếu không gia hạn)
+      - Nghị định 188/2025/NĐ-CP: BHYT NLĐ 1.5%, NSDLĐ 3%
+      - Luật Việc làm 2025: BHTN NLĐ 1%, NSDLĐ 1% (HĐ ≥ 3 tháng)
+      Tổng: NLĐ 10.5%, NSDLĐ 21.5%
+
+    Returns True nếu đã seed, False nếu bỏ qua (đã có policy).
+    """
+    existing = await session.execute(
+        text("SELECT COUNT(*) FROM insurance_policy_versions")
+    )
+    if existing.scalar() > 0:
+        return False
+
+    result = await session.execute(
+        text("""
+            INSERT INTO insurance_policy_versions
+                (code, name, legal_basis_summary, effective_from, effective_to,
+                 is_active, company_region, note)
+            VALUES
+                (:code, :name, :legal_basis_summary, :effective_from, NULL,
+                 TRUE, :company_region, :note)
+            RETURNING id
+        """),
+        {
+            "code": "VN_STANDARD_BASELINE",
+            "name": "Tỷ lệ đóng BHXH/BHYT/BHTN — mặc định hệ thống",
+            "legal_basis_summary": (
+                "Luật BHXH 2024 (41/2024/QH15) Điều 85–87; "
+                "NĐ 188/2025/NĐ-CP (BHYT); "
+                "Luật Việc làm 2025 (BHTN). "
+                "Seed tự động khi không có migration data."
+            ),
+            "effective_from": datetime.date(2026, 1, 1),
+            "company_region": 3,
+            "note": "Seed tự động. Verify lại tỷ lệ TNLĐ-BNN (0.5%) trước deploy prod.",
+        },
+    )
+    policy_id = result.scalar_one()
+
+    component_rates = [
+        ("RETIREMENT_SURVIVOR",  "8.0000", "14.0000", False),
+        ("SICKNESS_MATERNITY",   "0.0000",  "3.0000", False),
+        ("OCC_ACCIDENT_DISEASE", "0.0000",  "0.5000", False),
+        ("HEALTH",               "1.5000",  "3.0000", False),
+        ("UNEMPLOYMENT",         "1.0000",  "1.0000", False),
+    ]
+
+    for code, emp_rate, er_rate, advances in component_rates:
+        await session.execute(
+            text("""
+                INSERT INTO insurance_policy_component_rates
+                    (policy_version_id, component_code,
+                     employee_rate_percent, employer_rate_percent,
+                     employer_advances_employee_part, is_active)
+                VALUES
+                    (:policy_version_id, :component_code,
+                     :employee_rate_percent, :employer_rate_percent,
+                     :employer_advances_employee_part, TRUE)
+                ON CONFLICT (policy_version_id, component_code) DO NOTHING
+            """),
+            {
+                "policy_version_id": policy_id,
+                "component_code": code,
+                "employee_rate_percent": emp_rate,
+                "employer_rate_percent": er_rate,
+                "employer_advances_employee_part": advances,
+            },
+        )
+
+    return True
+
+
 async def run(session: AsyncSession) -> None:
     wages_added = await seed_minimum_wages(session)
     region_added = await seed_company_region(session)
+    ins_components_added = await seed_insurance_components(session)
+    ins_policy_seeded = await seed_insurance_policy_version_baseline(session)
     education_levels_added = await education_catalog.seed_required_education_catalog(session)
     (
         contract_categories_added,
@@ -119,6 +244,8 @@ async def run(session: AsyncSession) -> None:
 
     print(f"  [required] Mức lương tối thiểu vùng: +{wages_added} dòng")
     print(f"  [required] Vùng BHXH công ty:         +{region_added} dòng")
+    print(f"  [required] Component BHXH/BHYT/BHTN:  +{ins_components_added} dòng")
+    print(f"  [required] Policy version baseline:    {'seeded (BHXH_2025_V1)' if ins_policy_seeded else 'bỏ qua (đã có policy active)'}")
     print(f"  [required] Trình độ học vấn:         +{education_levels_added} upsert")
     print(f"  [required] Loại hợp đồng:            +{contract_categories_added} upsert")
     print(f"  [required] Quốc tịch:                +{nationalities_added} upsert")

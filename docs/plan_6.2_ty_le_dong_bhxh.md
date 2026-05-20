@@ -242,7 +242,7 @@ Không dùng scoped style.
 
 Thêm button bên cạnh "Tạo policy mới":
 
-```vue
+```html
 <Button
   v-if="activePolicy"
   label="Tạo nháp từ policy hiện hành"
