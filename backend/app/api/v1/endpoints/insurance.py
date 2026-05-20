@@ -6,6 +6,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.v1.deps import require_permission
 from app.core.database import get_session
 from app.models.auth import User
+from app.schemas.employee_insurance import (
+    EmployeeInsuranceListPage,
+    EmployeeInsuranceProfileRead,
+    EmployeeInsuranceProfileUpdate,
+)
 from app.schemas.insurance import (
     CompanyRegionRead,
     CompanyRegionUpsert,
@@ -15,7 +20,7 @@ from app.schemas.insurance import (
     InsurancePolicyVersionRead,
     InsurancePolicyVersionUpdate,
 )
-from app.services import insurance_policy_service
+from app.services import employee_insurance_service, insurance_policy_service
 
 router = APIRouter()
 
@@ -104,3 +109,68 @@ async def update_company_bhxh_region(
     session: AsyncSession = Depends(get_session),
 ):
     return await insurance_policy_service.upsert_company_region(session, body)
+
+
+# ── Employee insurance profile endpoints ──────────────────────────────────────
+
+@router.get(
+    "/employees",
+    response_model=EmployeeInsuranceListPage,
+    summary="Danh sách hồ sơ bảo hiểm nhân viên",
+)
+async def list_employee_insurance_profiles(
+    keyword: str | None = Query(None, description="Tìm theo mã NV, tên, mã BHXH"),
+    department_id: int | None = Query(None),
+    participation_status: str | None = Query(None, description="active | paused | stopped"),
+    has_bhxh_code: bool | None = Query(None),
+    joined_from: date | None = Query(None),
+    joined_to: date | None = Query(None),
+    policy_version_id: int | None = Query(None),
+    has_component_overrides: bool | None = Query(None),
+    employer_pays_on_behalf: bool | None = Query(None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=200),
+    _: User = require_permission("insurance:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await employee_insurance_service.list_insurance_profiles(
+        session,
+        keyword=keyword,
+        department_id=department_id,
+        participation_status=participation_status,
+        has_bhxh_code=has_bhxh_code,
+        joined_from=joined_from,
+        joined_to=joined_to,
+        policy_version_id=policy_version_id,
+        has_component_overrides=has_component_overrides,
+        employer_pays_on_behalf=employer_pays_on_behalf,
+        page=page,
+        page_size=page_size,
+    )
+
+
+@router.get(
+    "/employees/{employee_id}",
+    response_model=EmployeeInsuranceProfileRead,
+    summary="Chi tiết hồ sơ bảo hiểm của 1 nhân viên",
+)
+async def get_employee_insurance_profile(
+    employee_id: int,
+    _: User = require_permission("insurance:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await employee_insurance_service.get_insurance_profile_detail(session, employee_id)
+
+
+@router.put(
+    "/employees/{employee_id}",
+    response_model=EmployeeInsuranceProfileRead,
+    summary="Cập nhật hồ sơ bảo hiểm + overrides của nhân viên",
+)
+async def upsert_employee_insurance_profile(
+    employee_id: int,
+    body: EmployeeInsuranceProfileUpdate,
+    _: User = require_permission("insurance:edit"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await employee_insurance_service.upsert_insurance_profile(session, employee_id, body)
