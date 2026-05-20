@@ -101,3 +101,9 @@ class CompanyRegionUpsert(BaseModel):
     region: int = Field(..., ge=1, le=4)
     effective_from: date
     note: Optional[str] = Field(None, max_length=1000)
+
+
+class InsuranceEffectiveContributionConfigRead(BaseModel):
+    as_of_date: date
+    company_region: CompanyRegionHistoryItem
+    policy_version: InsurancePolicyVersionRead

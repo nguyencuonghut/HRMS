@@ -18,6 +18,7 @@ from app.schemas.employee_import import EXPORT_MAX_ROWS
 from app.services import (
     employee_code_service,
     employee_education_service,
+    employee_insurance_service,
     employee_job_service,
     employee_relative_service,
     employee_service,
@@ -163,6 +164,12 @@ async def export_employee_profile(session: AsyncSession, employee_id: int) -> by
     emp = await session.get(Employee, employee_id)
     if not emp:
         raise ValueError("Không tìm thấy nhân viên")
+    insurance_profile = await employee_insurance_service.get_employee_insurance_profile(session, employee_id)
+    bhxh_code = (
+        insurance_profile.bhxh_code
+        if insurance_profile and insurance_profile.bhxh_code is not None
+        else emp.bhxh_code
+    )
 
     wb = Workbook()
 
@@ -188,7 +195,7 @@ async def export_employee_profile(session: AsyncSession, employee_id: int) -> by
         ("Điện thoại",      emp.phone_number or ""),
         ("Email cá nhân",   emp.personal_email or ""),
         ("Mã số thuế",      emp.personal_tax_code or ""),
-        ("Số BHXH",         emp.bhxh_code or ""),
+        ("Số BHXH",         bhxh_code or ""),
         ("Trạng thái",      _status_label(emp.status)),
         ("Ngày vào làm",    _fmt_date(emp.start_date)),
         ("Ngày nghỉ việc",  _fmt_date(emp.resigned_date) if emp.resigned_date else ""),

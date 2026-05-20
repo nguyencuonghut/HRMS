@@ -49,6 +49,10 @@ from app.models.employee import (  # noqa: F401
     EmployeeAddress,
     EmployeeBankAccount,
 )
+from app.models.employee_insurance import (  # noqa: F401
+    EmployeeInsuranceProfile,
+    EmployeeInsuranceComponentOverride,
+)
 from app.models.employee_code import (  # noqa: F401
     EmployeeCodeSequence,
     EmployeeCodeSequenceRule,

@@ -21,6 +21,7 @@ from app.schemas.employee import (
 from app.services import (
     employee_code_service,
     employee_education_service,
+    employee_insurance_service,
     employee_job_service,
     employee_relative_service,
 )
@@ -228,6 +229,8 @@ async def create_employee(session: AsyncSession, payload: EmployeeCreate) -> Emp
             detail=f"Số CCCD/CMND '{payload.id_number}' đã tồn tại",
         )
 
+    normalized_bhxh_code = employee_insurance_service.normalize_bhxh_code(payload.bhxh_code)
+
     emp = Employee(
         employee_seq=seq,
         employee_code_sequence_id=sequence_id,
@@ -253,7 +256,7 @@ async def create_employee(session: AsyncSession, payload: EmployeeCreate) -> Emp
         phone_number=payload.phone_number,
         personal_email=payload.personal_email,
         personal_tax_code=payload.personal_tax_code,
-        bhxh_code=payload.bhxh_code,
+        bhxh_code=normalized_bhxh_code,
         status=payload.status,
         start_date=payload.start_date,
         resigned_date=payload.resigned_date,
@@ -263,6 +266,7 @@ async def create_employee(session: AsyncSession, payload: EmployeeCreate) -> Emp
     )
     session.add(emp)
     await session.flush()
+    await employee_insurance_service.ensure_employee_insurance_profile(session, emp)
 
     if department is not None:
         effective_from = payload.initial_job_effective_from or payload.start_date
@@ -306,9 +310,13 @@ async def update_employee(
     update_data = payload.model_dump(exclude_unset=True)
     if "full_name" in update_data:
         update_data["normalized_name"] = normalize_text(update_data["full_name"])
+    if "bhxh_code" in update_data:
+        update_data["bhxh_code"] = employee_insurance_service.normalize_bhxh_code(update_data["bhxh_code"])
 
     for field, value in update_data.items():
         setattr(emp, field, value)
+    if "bhxh_code" in update_data:
+        await employee_insurance_service.sync_employee_profile_from_employee(session, emp)
     emp.updated_at = _utcnow()
     return emp
 

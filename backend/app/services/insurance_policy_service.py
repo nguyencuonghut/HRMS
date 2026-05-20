@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import Iterable
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.insurance import (
@@ -291,6 +291,107 @@ async def get_company_region(session: AsyncSession) -> dict:
     ]
     current = next((item for item in history if item["effective_to"] is None), None)
     return {"current": current, "history": history}
+
+
+async def resolve_company_region_for_date(session: AsyncSession, *, as_of_date: date) -> CompanyBhxhRegion:
+    rows = await session.execute(
+        select(CompanyBhxhRegion).where(
+            CompanyBhxhRegion.effective_from <= as_of_date,
+            or_(
+                CompanyBhxhRegion.effective_to.is_(None),
+                CompanyBhxhRegion.effective_to >= as_of_date,
+            ),
+        )
+    )
+    matches = list(rows.scalars().all())
+    if not matches:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"Không có vùng BHXH công ty hiệu lực cho ngày {as_of_date.isoformat()}",
+        )
+    if len(matches) > 1:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail=f"Phát hiện nhiều vùng BHXH công ty cùng hiệu lực cho ngày {as_of_date.isoformat()}",
+        )
+    return matches[0]
+
+
+async def resolve_policy_version_for_date(session: AsyncSession, *, as_of_date: date) -> InsurancePolicyVersion:
+    rows = await session.execute(
+        select(InsurancePolicyVersion).where(
+            InsurancePolicyVersion.effective_from <= as_of_date,
+            or_(
+                InsurancePolicyVersion.effective_to.is_(None),
+                InsurancePolicyVersion.effective_to >= as_of_date,
+            ),
+            or_(
+                InsurancePolicyVersion.is_active.is_(True),
+                InsurancePolicyVersion.effective_to.is_not(None),
+            ),
+        )
+    )
+    matches = list(rows.scalars().all())
+    if not matches:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"Không có policy version hiệu lực cho ngày {as_of_date.isoformat()}",
+        )
+    if len(matches) > 1:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail=f"Phát hiện nhiều policy version cùng hiệu lực cho ngày {as_of_date.isoformat()}",
+        )
+    return matches[0]
+
+
+async def resolve_effective_contribution_config(
+    session: AsyncSession,
+    *,
+    as_of_date: date,
+) -> dict:
+    company_region = await resolve_company_region_for_date(session, as_of_date=as_of_date)
+    policy = await resolve_policy_version_for_date(session, as_of_date=as_of_date)
+
+    if policy.company_region != company_region.region:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail=(
+                "Policy version hiệu lực không khớp với vùng BHXH công ty "
+                f"cho ngày {as_of_date.isoformat()}"
+            ),
+        )
+
+    components = [item for item in await list_components(session) if item.is_active]
+    current_rates = await session.execute(
+        select(InsurancePolicyComponentRate).where(
+            InsurancePolicyComponentRate.policy_version_id == policy.id
+        )
+    )
+    _validate_complete_component_set(
+        components,
+        [
+            InsurancePolicyComponentRateInput(
+                component_code=row.component_code,
+                employee_rate_percent=Decimal(str(row.employee_rate_percent)),
+                employer_rate_percent=Decimal(str(row.employer_rate_percent)),
+                employer_advances_employee_part=row.employer_advances_employee_part,
+            )
+            for row in current_rates.scalars().all()
+        ],
+    )
+
+    return {
+        "as_of_date": as_of_date,
+        "company_region": {
+            "id": company_region.id,
+            "region": company_region.region,
+            "effective_from": company_region.effective_from,
+            "effective_to": company_region.effective_to,
+            "note": company_region.note,
+        },
+        "policy_version": await _policy_to_read(session, policy),
+    }
 
 
 async def upsert_company_region(session: AsyncSession, payload: CompanyRegionUpsert) -> dict:

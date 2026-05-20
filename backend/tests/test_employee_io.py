@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from app.core.config import settings
 from app.models.employee import Employee
 from app.models.employee_code import EmployeeCodeSequence
+from app.models.employee_insurance import EmployeeInsuranceProfile
 from app.models.employee_job import EmployeeJobRecord
 from app.models.org import JobPosition
 from app.seeds import employees as employees_seed
@@ -128,6 +129,22 @@ async def _get_sequence_code(sequence_id: int | None) -> str | None:
     async with _make_session()() as s:
         sequence = await s.get(EmployeeCodeSequence, sequence_id)
         return sequence.code if sequence else None
+
+
+async def _get_employee_profile_by_id_number(id_number: str) -> EmployeeInsuranceProfile | None:
+    async with _make_session()() as s:
+        employee = (
+            await s.execute(select(Employee).where(Employee.id_number == id_number))
+        ).scalar_one_or_none()
+        if not employee:
+            return None
+        return (
+            await s.execute(
+                select(EmployeeInsuranceProfile).where(
+                    EmployeeInsuranceProfile.employee_id == employee.id
+                )
+            )
+        ).scalar_one_or_none()
 
 
 # ── Template ───────────────────────────────────────────────────────────────────
@@ -323,6 +340,23 @@ async def test_import_with_position_and_sequence_override_persists_context(clien
     assert await _get_sequence_code(employee.employee_code_sequence_id) == "SYS2"
 
 
+@pytest.mark.asyncio
+async def test_import_bhxh_code_syncs_employee_insurance_profile(client: TestClient):
+    headers = _admin(client)
+    dept = _get_dept_code(client, headers)
+    row = _valid_row("0014BH", dept)
+    row[13] = "  BHXH-IMPORT-001  "
+    xlsx = _make_xlsx([IMPORT_COLUMNS, row])
+
+    resp = _upload(client, headers, xlsx)
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["success"] == 1
+
+    profile = await _get_employee_profile_by_id_number(f"{_PREFIX}0014BH")
+    assert profile is not None
+    assert profile.bhxh_code == "BHXH-IMPORT-001"
+
+
 def test_import_invalid_sequence_override_fails_row(client: TestClient):
     headers = _admin(client)
     dept = _get_dept_code(client, headers)
@@ -452,3 +486,54 @@ def test_export_profile_viewer_200(client: TestClient):
     headers_viewer = _viewer(client)
     emp_id = client.get(BASE, headers=headers_admin).json()["items"][0]["id"]
     assert client.get(f"{BASE}/{emp_id}/export", headers=headers_viewer).status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_export_profile_reads_bhxh_code_from_insurance_profile(client: TestClient):
+    headers = _admin(client)
+    create_resp = client.post(
+        BASE,
+        json={
+            "employee_code_sequence_id": 1,
+            "full_name": "Export BHXH Profile",
+            "last_name": "Export",
+            "first_name": "BHXH Profile",
+            "date_of_birth": "1990-01-01",
+            "gender": "male",
+            "nationality_id": 1,
+            "id_number": f"{_PREFIX}EXPBH001",
+            "id_issued_on": "2020-01-01",
+            "id_issued_by": "Cục",
+            "status": "official",
+            "start_date": "2020-01-01",
+            "bhxh_code": "BHXH-OLD",
+        },
+        headers=headers,
+    )
+    assert create_resp.status_code == 201, create_resp.text
+    employee_id = create_resp.json()["id"]
+
+    async with _make_session()() as s:
+        employee = (
+            await s.execute(select(Employee).where(Employee.id == employee_id))
+        ).scalar_one()
+        profile = (
+            await s.execute(
+                select(EmployeeInsuranceProfile).where(
+                    EmployeeInsuranceProfile.employee_id == employee_id
+                )
+            )
+        ).scalar_one()
+        employee.bhxh_code = None
+        profile.bhxh_code = "BHXH-PROFILE-SOURCE"
+        await s.commit()
+
+    resp = client.get(f"{BASE}/{employee_id}/export", headers=headers)
+    assert resp.status_code == 200, resp.text
+    wb = openpyxl.load_workbook(io.BytesIO(resp.content))
+    ws = wb["Thông tin cá nhân"]
+    rows = {
+        ws.cell(row=row_idx, column=1).value: ws.cell(row=row_idx, column=2).value
+        for row_idx in range(1, ws.max_row + 1)
+    }
+    assert rows["Số BHXH"] == "BHXH-PROFILE-SOURCE"

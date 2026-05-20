@@ -5,10 +5,11 @@ import io
 import openpyxl
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import text
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.core.config import settings
+from app.models.employee_insurance import EmployeeInsuranceProfile
 from app.seeds import employees as employees_seed
 from app.seeds import other_business_catalog
 
@@ -152,6 +153,17 @@ async def _set_employee_sequence_config(id_number: str, *, sequence_code: str, m
         await s.commit()
 
 
+async def _get_employee_insurance_profile(employee_id: int) -> EmployeeInsuranceProfile | None:
+    async with _make_session()() as s:
+        return (
+            await s.execute(
+                select(EmployeeInsuranceProfile).where(
+                    EmployeeInsuranceProfile.employee_id == employee_id
+                )
+            )
+        ).scalar_one_or_none()
+
+
 # ── List & filter ──────────────────────────────────────────────────────────────
 
 def test_list_employees_returns_page(client: TestClient):
@@ -201,6 +213,22 @@ def test_create_employee_success(client: TestClient):
     assert data["bank_accounts"] == []
 
 
+@pytest.mark.asyncio
+async def test_create_employee_syncs_bhxh_code_to_insurance_profile(client: TestClient):
+    headers = _admin(client)
+    payload = _valid_payload("TEST999000001BH")
+    payload["bhxh_code"] = "  BHXH-001  "
+    resp = client.post(BASE, json=payload, headers=headers)
+    assert resp.status_code == 201, resp.text
+    data = resp.json()
+    assert data["bhxh_code"] == "BHXH-001"
+
+    profile = await _get_employee_insurance_profile(data["id"])
+    assert profile is not None
+    assert profile.bhxh_code == "BHXH-001"
+    assert profile.participation_status == "active"
+
+
 def test_create_employee_auto_seq(client: TestClient):
     headers = _admin(client)
     r1 = client.post(BASE, json=_valid_payload("TEST999000011"), headers=headers)
@@ -208,6 +236,26 @@ def test_create_employee_auto_seq(client: TestClient):
     assert r1.status_code == 201
     assert r2.status_code == 201
     assert r2.json()["employee_seq"] == r1.json()["employee_seq"] + 1
+
+
+@pytest.mark.asyncio
+async def test_update_employee_syncs_bhxh_code_to_insurance_profile(client: TestClient):
+    headers = _admin(client)
+    create_resp = client.post(BASE, json=_valid_payload("TEST999000012BH"), headers=headers)
+    assert create_resp.status_code == 201, create_resp.text
+    employee_id = create_resp.json()["id"]
+
+    update_resp = client.put(
+        f"{BASE}/{employee_id}",
+        json={"bhxh_code": "  BHXH-UPDATED  "},
+        headers=headers,
+    )
+    assert update_resp.status_code == 200, update_resp.text
+    assert update_resp.json()["bhxh_code"] == "BHXH-UPDATED"
+
+    profile = await _get_employee_insurance_profile(employee_id)
+    assert profile is not None
+    assert profile.bhxh_code == "BHXH-UPDATED"
 
 
 def test_create_employee_duplicate_id_number(client: TestClient):

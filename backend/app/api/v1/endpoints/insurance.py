@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, status
+from datetime import date
+
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import require_permission
@@ -7,6 +9,7 @@ from app.models.auth import User
 from app.schemas.insurance import (
     CompanyRegionRead,
     CompanyRegionUpsert,
+    InsuranceEffectiveContributionConfigRead,
     InsuranceContributionComponentRead,
     InsurancePolicyVersionCreate,
     InsurancePolicyVersionRead,
@@ -76,6 +79,22 @@ async def get_company_bhxh_region(
     session: AsyncSession = Depends(get_session),
 ):
     return await insurance_policy_service.get_company_region(session)
+
+
+@router.get(
+    "/effective-config",
+    response_model=InsuranceEffectiveContributionConfigRead,
+    summary="Resolve cấu hình đóng BHXH/BHYT/BHTN hiệu lực theo ngày",
+)
+async def get_effective_contribution_config(
+    as_of_date: date = Query(..., description="Ngày cần resolve cấu hình hiệu lực"),
+    _: User = require_permission("insurance:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await insurance_policy_service.resolve_effective_contribution_config(
+        session,
+        as_of_date=as_of_date,
+    )
 
 
 @router.put("/company-region", response_model=CompanyRegionRead, summary="Cập nhật vùng BHXH công ty")
