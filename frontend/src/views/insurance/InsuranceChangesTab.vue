@@ -13,20 +13,12 @@
       />
       <div class="ins-changes-export-group">
         <Button
-          label="Xuất D02-TS"
+          label="Xuất D02-TS (VNPT)"
           icon="pi pi-file-excel"
           severity="secondary"
           outlined
           :disabled="!selectedMonth"
           @click="exportD02Ts"
-        />
-        <Button
-          label="Xuất XML iBHXH"
-          icon="pi pi-code"
-          severity="secondary"
-          outlined
-          :disabled="!selectedMonth"
-          @click="exportXml"
         />
       </div>
     </div>
@@ -499,30 +491,15 @@ async function confirmDelete(event: InsuranceChangeEventRead) {
 async function exportD02Ts() {
   if (!selectedMonth.value) return
   try {
-    const res = await insuranceService.exportD02TsExcel(selectedYear.value, selectedMonth.value)
+    const res = await insuranceService.exportVnptD02Ts(selectedYear.value, selectedMonth.value)
     const url = URL.createObjectURL(new Blob([res.data as BlobPart]))
     const a = document.createElement('a')
     a.href = url
-    a.download = `D02-TS_T${String(selectedMonth.value).padStart(2, '0')}_${selectedYear.value}.xlsx`
+    a.download = `D02-TS_T${String(selectedMonth.value).padStart(2, '0')}_${selectedYear.value}_VNPT.xlsx`
     a.click()
     URL.revokeObjectURL(url)
   } catch {
-    toast.add({ severity: 'warn', summary: 'Chưa sẵn sàng', detail: 'Export D02-TS sẽ ra mắt ở phiên bản tiếp theo', life: 4000 })
-  }
-}
-
-async function exportXml() {
-  if (!selectedMonth.value) return
-  try {
-    const res = await insuranceService.exportIbhxhXml(selectedYear.value, selectedMonth.value)
-    const url = URL.createObjectURL(new Blob([res.data as BlobPart]))
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `iBHXH_T${String(selectedMonth.value).padStart(2, '0')}_${selectedYear.value}.xml`
-    a.click()
-    URL.revokeObjectURL(url)
-  } catch {
-    toast.add({ severity: 'warn', summary: 'Chưa sẵn sàng', detail: 'Export XML iBHXH sẽ ra mắt ở phiên bản tiếp theo', life: 4000 })
+    toast.add({ severity: 'warn', summary: 'Chưa sẵn sàng', detail: 'Export D02-TS VNPT sẽ ra mắt ở phiên bản tiếp theo', life: 4000 })
   }
 }
 

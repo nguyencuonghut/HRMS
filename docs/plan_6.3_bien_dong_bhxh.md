@@ -524,61 +524,305 @@ html.dark-mode { /* adaptive colors */ }
 
 ---
 
-### Slice 4 — Export backend (D02-TS Excel + iBHXH XML)
+### Slice 4a — Refactoring dữ liệu nền tảng (VNPT compatibility)
+
+> **Mục tiêu:** Chuẩn bị đủ data model và seed data để export D02-TS đúng theo yêu cầu của phần mềm BHXH VNPT. Phân tích file mẫu `FileMau_D02_TK1_VNPT.xlsx` phát hiện 4 gap so với schema hiện tại.
+
+**Files:**
+
+```
+backend/alembic/versions/0021_vnpt_compat_ethnicities_clinics_snapshot.py  (NEW)
+backend/app/models/administrative.py                (EDIT: thêm bhxh_code vào Ethnicity)
+backend/app/models/insurance.py                     (EDIT: thêm ethnicity_bhxh_code_snapshot)
+backend/app/models/bhyt_clinic.py                   (NEW: BhytClinic model)
+backend/app/models/__init__.py                      (EDIT: export BhytClinic)
+backend/app/services/insurance_change_service.py    (EDIT: snapshot ethnicity_bhxh_code)
+backend/alembic/seed/seed_ethnicities.py            (EDIT: re-seed 56 entries với VNPT codes)
+backend/alembic/seed/seed_nationalities.py          (EDIT: mở rộng lên 241 entries ISO2)
+backend/alembic/seed/seed_bhyt_clinics.py           (NEW: seed ~12,822 bệnh viện từ BenhVien sheet)
+```
+
+---
+
+#### Gap 1 — Dân tộc: thêm `bhxh_code` vào bảng `ethnicities`
+
+Sheet `Dân tộc` của VNPT dùng mã số 2 chữ số (`01`–`54`, `55`, `99`).  
+Hiện tại seed dùng mã chuỗi (`KINH`, `TAY`) — không tương thích.
+
+**Schema change:**
+```sql
+-- migration 0021
+ALTER TABLE ethnicities ADD COLUMN bhxh_code VARCHAR(10) UNIQUE;
+```
+
+**Model change (`administrative.py`):**
+```python
+class Ethnicity(SQLModel, table=True):
+    # ... existing fields ...
+    bhxh_code: Optional[str] = Field(default=None, max_length=10, unique=True)
+```
+
+**Re-seed `seed_ethnicities.py`:** 56 dân tộc với `bhxh_code` theo sheet VNPT:
+- `01` = Kinh, `02` = Tày, `03` = Thái, `04` = Mường, … `54` = Ơ Đu
+- `55` = Cà Dong (bổ sung trong VNPT)
+- `99` = Nước ngoài
+
+> Seed phải **UPDATE** rows hiện hữu (by name) thay vì INSERT mới để không phá FK đang trỏ vào `ethnicity_id`.
+
+---
+
+#### Gap 2 — Quốc tịch: mở rộng seed lên 241 entries
+
+Sheet `QuocTich` dùng ISO 3166-1 alpha-2 (`VN`, `KR`, `CN`...). Cột `iso2_code` trong `nationalities` đã tồn tại — không cần sửa schema.
+
+**Chỉ cần:** expand `seed_nationalities.py` từ ~10 entries lên **241 entries** theo danh sách ISO 3166-1 alpha-2 đầy đủ (đối chiếu với sheet `QuocTich` trong template).
+
+---
+
+#### Gap 3 — Bệnh viện KCB: tạo bảng `bhyt_clinics`
+
+Hiện tại `employee_insurance_profiles` chỉ lưu `bhyt_initial_clinic_name` (text).  
+VNPT yêu cầu **mã bệnh viện 5 chữ số** (`MaBenhVien`) để import. Sheet `BenhVien` có ~12,822 bệnh viện với cột: `code` (5 chữ số) + `province_code` (2 chữ số mã tỉnh) + `name`.
+
+**Model mới `bhyt_clinic.py`:**
+```python
+class BhytClinic(SQLModel, table=True):
+    __tablename__ = "bhyt_clinics"
+    id:            int            = Field(default=None, primary_key=True)
+    code:          str            = Field(max_length=20, unique=True, index=True)
+    name:          str            = Field(max_length=255)
+    province_code: Optional[str] = Field(default=None, max_length=10)
+```
+
+**Migration 0021** — tạo bảng `bhyt_clinics`.
+
+**Seed `seed_bhyt_clinics.py`:** ~12,822 rows từ sheet `BenhVien` của template VNPT.
+
+> `bhyt_initial_clinic_code` trên `employee_insurance_profiles` đã được thêm ở migration 0020 — column này FK-like về `bhyt_clinics.code` (soft reference, không tạo FK cứng vì clinic code là lookup).
+
+---
+
+#### Gap 4 — Snapshot thiếu `ethnicity_bhxh_code`
+
+Sheet `Dữ Liệu` cột `DanToc` cần mã dân tộc 2 chữ số. Snapshot hiện tại không có trường này.
+
+**Schema change:**
+```sql
+-- migration 0021
+ALTER TABLE insurance_change_events
+    ADD COLUMN ethnicity_bhxh_code_snapshot VARCHAR(10);
+```
+
+**Model change (`insurance.py`):**
+```python
+class InsuranceChangeEvent(SQLModel, table=True):
+    # ... existing fields ...
+    ethnicity_bhxh_code_snapshot: Optional[str] = Field(default=None, max_length=10)
+```
+
+**Service change (`insurance_change_service.py`):** trong `record_status_change()` và `create_manual_event()`:
+```python
+# Lookup ethnicity bhxh_code từ employee.ethnicity_id
+if employee.ethnicity_id:
+    ethnicity = await session.get(Ethnicity, employee.ethnicity_id)
+    ethnicity_bhxh_code = ethnicity.bhxh_code if ethnicity else None
+else:
+    ethnicity_bhxh_code = None
+```
+
+---
+
+**Exit criteria Slice 4a:**
+- `alembic upgrade head` + `alembic downgrade -1` không lỗi
+- `ethnicities.bhxh_code` không NULL cho 56 dân tộc VNPT
+- `nationalities` có đủ 241 entries với ISO2 code
+- `bhyt_clinics` có ~12,822 rows, mỗi row có `code` không NULL
+- `insurance_change_events.ethnicity_bhxh_code_snapshot` được điền khi tạo event mới
+- Tạo profile mới với nhân viên có `ethnicity_id` → snapshot đúng mã dân tộc
+
+---
+
+### Slice 4b — Export VNPT D02-TS Excel
+
+> **Thiết kế:** Export iBHXH XML bị loại bỏ (công ty không dùng phần mềm iBHXH).
+> Fill file mẫu `FileMau_D02_TK1_VNPT.xlsx` — copy template, điền 2 sheet dữ liệu, trả về blob.
 
 **Files:**
 
 ```
 backend/app/services/insurance_export_service.py         (NEW)
-backend/app/api/v1/endpoints/insurance.py                (EDIT: thêm 2 export endpoints)
+backend/app/api/v1/endpoints/insurance.py                (EDIT: thêm 1 export endpoint)
+templates/FileMau_D02_TK1_VNPT.xlsx                     (template — read-only, không sửa)
 ```
 
-**Dependencies:** `openpyxl` (đã có nếu dùng cho module khác, nếu chưa thêm vào requirements.txt)
+**Dependencies:** `openpyxl` (đã có trong container từ Slice 4 testing; thêm vào `requirements.txt`)
 
-**`insurance_export_service.py`:**
+---
+
+#### Cấu trúc file mẫu VNPT
+
+File `FileMau_D02_TK1_VNPT.xlsx` có 11 sheet:
+- **3 sheet dữ liệu** (ta điền vào): `Dữ Liệu`, `Phụ lục`, `Bảng kê`
+- **8 sheet tra cứu** (giữ nguyên): `Dân tộc`, `QuocTich`, `BenhVien`, `Tinh`, `TinhBenhVien`, `Xa`, `Mức hưởng BHYT`, `Tổng hợp`
+
+Ta chỉ điền vào **`Dữ Liệu`** (row 4+) và **`Bảng kê`** (row 4+).
+Sheet `Phụ lục` (thành viên hộ gia đình) — để trống, phần mềm VNPT không bắt buộc.
+
+> **Sheet `TinhBenhVien`** có 34 tỉnh/TP + `97 Bộ Quốc phòng` — dùng khi điền province_code cho bệnh viện quân y.
+
+---
+
+#### Mapping cột — Sheet "Dữ Liệu"
+
+Rows 1–3 là header/ghi chú — giữ nguyên từ template. Data bắt đầu từ **row 4**.
+
+| Col | Field code | Tên hiển thị | Source field | Ghi chú |
+|-----|-----------|--------------|--------------|---------|
+| A (1) | STT | ID Lao động | sequential 1, 2, 3… | |
+| B (2) | HoTen | Họ tên | `employee_name_snapshot` | |
+| C (3) | MasoBHXH | Mã số BHXH | `bhxh_code_snapshot` | |
+| D (4) | TenLoaiKhaiBao | Loại khai báo | "Tăng lao động" / "Giảm lao động" | |
+| E (5) | Loai | Mã loại khai báo | **1** (tăng) / **3** (giảm) | ⚠ VNPT dùng 1 và 3, không phải 1 và 2 |
+| F (6) | TenPhuongAn | Phương án | PA label (xem bảng mapping) | |
+| G (7) | PA | Mã Phương án | PA code (xem bảng mapping) | |
+| H (8) | ChucVu | Chức vụ | để trống | tùy chọn |
+| I (9) | NoiLamViec | Nơi làm việc | để trống | tùy chọn |
+| J (10) | TienLuong | Tiền lương | `basis_amount` | số nguyên (int) |
+| K (11) | PhuCap | Phụ cấp tính vào mức đóng | `allowances_amount` | số nguyên; 0 nếu không có |
+| P (16) | TuThang | Từ tháng | `effective_date` → "MM/YYYY" | |
+| Q (17) | DenThang | Đến tháng | `contract_to_snapshot` → "MM/YYYY" | chỉ điền khi PA=GH (giảm hẳn) |
+| S (19) | Ghichu | Ghi chú | xem quy tắc bên dưới | |
+| T (20) | TyleDong | Tỷ lệ đóng (%) | `employee_rate_total_snapshot + employer_rate_total_snapshot` dạng `"32,5"` | **dấu phẩy** thập phân theo format VNPT |
+| AB (28) | CMND | CMND/CCCD | `identity_number_snapshot` | |
+| AD (30) | NgaySinh | Ngày sinh | `date_of_birth_snapshot` → `"DD/MM/YYYY"` | |
+| AE (31) | GioiTinh | Giới tính | `gender_snapshot` → `1` (male) / `0` (female/other) | |
+| AF (32) | TenQuocTich | Tên quốc tịch | tra cứu từ `nationality_code_snapshot` → tên tiếng Việt | "Việt Nam" nếu code = "VN" |
+| AG (33) | QuocTich | Mã quốc tịch | `nationality_code_snapshot` | ISO 3166-1 alpha-2 |
+| AH (34) | DanToc | Mã dân tộc | `ethnicity_bhxh_code_snapshot` | 2 chữ số ("01"–"99"); trống nếu NULL |
+| AL (38) | TenBenhVien | Tên bệnh viện KCB | `bhyt_clinic_name_snapshot` | |
+| AM (39) | MaBenhVien | Mã bệnh viện | `bhyt_clinic_code_snapshot` | trống nếu NULL (không crash) |
+| AX (50) | MavungLTT | Mã vùng lương tối thiểu | derive từ company region tại export time | xem bảng MavungLTT bên dưới |
+
+> Các cột không liệt kê (L–O, R, U–AA, AC, AI–AK, AN–AW, AY–BZ) — để trống; phần mềm VNPT không bắt buộc.
+
+**Quy tắc cột `Ghichu` (S):**
+- PA = `TM` (tăng mới): `"{contract_number_snapshot} - KCB: {bhyt_clinic_code_snapshot}"`
+- PA khác tăng: `note` nếu có, ngược lại để trống
+- Giảm: `note` nếu có, ngược lại để trống
+
+**Bảng MavungLTT** (tra cứu từ sheet "Tổng hợp"):
+
+| Giá trị | Vùng áp dụng |
+|---------|-------------|
+| `01` | Vùng I — Hà Nội, TP.HCM và một số quận nội thành |
+| `02` | Vùng II — Các tỉnh/TP còn lại của Hà Nội, TP.HCM; Hải Phòng, Cần Thơ... |
+| `03` | Vùng III — Thành phố tỉnh lỵ và một số thị xã, huyện |
+| `04` | Vùng IV — Các khu vực còn lại |
+
+> Tại export time: tra `company_region` hiện hành (bảng `company_region_history`) → map sang `MavungLTT` (01–04). Mapping: region 1 → "01", region 2 → "02", region 3 → "03", region 4 → "04".
+
+---
+
+#### Mapping cột — Sheet "Bảng kê"
+
+Rows 1–3 header — giữ nguyên. Data từ **row 4**.
+
+| Col | Field code | Source field |
+|-----|-----------|--------------|
+| A (1) | STT | cùng STT với hàng tương ứng ở "Dữ Liệu" |
+| B (2) | HoTen | `employee_name_snapshot` |
+| C (3) | MasoBHXH | `bhxh_code_snapshot` |
+| D (4) | TenLoaiVanBan | "Hợp đồng lao động" |
+| E (5) | SoVanBan | `contract_number_snapshot` |
+| F (6) | NgayBanHanh | `contract_signed_date_snapshot` → "DD/MM/YYYY" |
+| G (7) | NgayHieuLuc | `contract_from_snapshot` → "DD/MM/YYYY" |
+
+---
+
+#### Bảng mapping change_reason → PA (VNPT)
+
+| `change_reason` | Loai | PA | Tên PA |
+|----------------|------|----|--------|
+| `new_hire` | 1 | TM | Tăng mới |
+| `return_from_leave` | 1 | ON | Đi làm lại |
+| `transfer_in` | 1 | TD | Tăng do chuyển đơn vị |
+| `contract_renewal` | 1 | TM | Tăng mới |
+| `resignation` | 3 | GH | Giảm hẳn |
+| `contract_end` | 3 | GH | Giảm hẳn |
+| `dismissal` | 3 | GH | Giảm hẳn |
+| `unpaid_leave` | 3 | KL | Nghỉ không lương |
+| `maternity_no_contribution` | 3 | TS | Thai sản |
+| `long_term_sick` | 3 | OF | Nghỉ do ốm đau |
+| `transfer_out` | 3 | GD | Giảm do chuyển đơn vị |
+| `manual_correction` (increase) | 1 | TM | Tăng mới |
+| `manual_correction` (decrease) | 3 | GH | Giảm hẳn |
+
+---
+
+#### `insurance_export_service.py`
 
 ```python
-async def export_d02_ts_excel(session, period_year, period_month) -> BytesIO:
-    """
-    Sheet "TĂNG": tất cả event change_type='increase' trong kỳ
-    Sheet "GIẢM": tất cả event change_type='decrease' trong kỳ
-    Header row: theo mẫu D02-TS QĐ 595/QĐ-BHXH
-    """
+TEMPLATE_PATH = Path(__file__).parent.parent.parent / "templates" / "FileMau_D02_TK1_VNPT.xlsx"
 
-async def export_ibhxh_xml(session, period_year, period_month) -> str:
+_CHANGE_REASON_PA_MAP: dict[tuple[str, str], tuple[int, str, str]] = {
+    # (change_reason, change_type) → (Loai, PA, TenPhuongAn)
+    ("new_hire",                "increase"): (1, "TM", "Tăng mới"),
+    ("return_from_leave",       "increase"): (1, "ON", "Đi làm lại"),
+    ("transfer_in",             "increase"): (1, "TD", "Tăng do chuyển đơn vị"),
+    ("contract_renewal",        "increase"): (1, "TM", "Tăng mới"),
+    ("manual_correction",       "increase"): (1, "TM", "Tăng mới"),
+    ("resignation",             "decrease"): (3, "GH", "Giảm hẳn"),
+    ("contract_end",            "decrease"): (3, "GH", "Giảm hẳn"),
+    ("dismissal",               "decrease"): (3, "GH", "Giảm hẳn"),
+    ("unpaid_leave",            "decrease"): (3, "KL", "Nghỉ không lương"),
+    ("maternity_no_contribution","decrease"): (3, "TS", "Thai sản"),
+    ("long_term_sick",          "decrease"): (3, "OF", "Nghỉ do ốm đau"),
+    ("transfer_out",            "decrease"): (3, "GD", "Giảm do chuyển đơn vị"),
+    ("manual_correction",       "decrease"): (3, "GH", "Giảm hẳn"),
+}
+
+async def export_d02_ts_vnpt(
+    session: AsyncSession,
+    period_year: int,
+    period_month: int,
+) -> BytesIO:
     """
-    XML chuẩn iBHXH 3.0.x
-    Cần verify schema XML từ phần mềm iBHXH đang dùng trước khi deploy.
-    Field <noiDangKyKCB> để trống nếu bhyt_clinic_code_snapshot IS NULL.
+    Load template FileMau_D02_TK1_VNPT.xlsx, fill sheet 'Dữ Liệu' và 'Bảng kê'
+    với tất cả InsuranceChangeEvent trong kỳ period_year/period_month.
+    Trả về BytesIO để stream về client.
     """
 ```
 
-**Cấu trúc D02-TS Excel (theo QĐ 595):**
+**Logic chi tiết:**
+1. Query `InsuranceChangeEvent` với `period_year + period_month`, sort `change_type ASC, id ASC` (tăng trước, giảm sau)
+2. Lấy `company_region` hiện hành → tính `MavungLTT`
+3. Load template bằng `openpyxl.load_workbook(TEMPLATE_PATH, keep_vba=False)`
+4. Clear data rows cũ: xóa row 4+ trong "Dữ Liệu" và "Bảng kê" (template có ≤1 example row)
+5. Fill từng event vào row tương ứng theo bảng mapping; dùng `ws.cell(row=r, column=c).value = ...`
+6. Format ngày: `"DD/MM/YYYY"` (string); số tiền: `int`; tỷ lệ: `str` dạng `"32,5"` (dấu phẩy)
+7. Save sang `BytesIO` → trả về
 
-| Cột | Tên cột | Source field |
-|---|---|---|
-| A | STT | auto |
-| B | Họ và tên | `employee_name_snapshot` |
-| C | Mã số BHXH | `bhxh_code_snapshot` |
-| D | Ngày sinh | `date_of_birth_snapshot` (dd/MM/yyyy) |
-| E | Giới tính | `gender_snapshot` → Nam/Nữ |
-| F | Quốc tịch | `nationality_code_snapshot` → tên |
-| G | Loại hợp đồng | `contract_type_code_snapshot` → tên |
-| H | Số hợp đồng | `contract_number_snapshot` |
-| I | Ngày ký HĐ | `contract_signed_date_snapshot` |
-| J | Ngày kết thúc HĐ | `contract_to_snapshot` |
-| K | Mức lương đóng BHXH | `basis_amount` |
-| L | Phụ cấp tính vào mức đóng | `allowances_amount` |
-| M | Nơi đăng ký KCB | `bhyt_clinic_name_snapshot` |
-| N | Ngày tham gia/nghỉ | `effective_date` |
-| O | Lý do | `ibhxh_reason_code` → tên đầy đủ |
-| P | Ghi chú | `note` |
+**Endpoint:**
 
-**Exit criteria Slice 4:**
-- `GET /insurance/change-events/export/d02-ts?period_year=2026&period_month=5` → file .xlsx đúng format
-- File Excel có 2 sheet: TĂNG / GIẢM, đúng cột
-- `GET /insurance/change-events/export/ibhxh-xml?period_year=2026&period_month=5` → file .xml parse được
-- Event có `bhyt_clinic_code_snapshot IS NULL` → field `<noiDangKyKCB>` empty (không crash)
+```
+GET /insurance/change-events/export/vnpt-d02-ts
+    ?period_year=2026&period_month=5
+→ StreamingResponse, Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+→ Content-Disposition: attachment; filename="D02-TS_T05_2026_VNPT.xlsx"
+```
+
+---
+
+**Exit criteria Slice 4b:**
+- `GET /insurance/change-events/export/vnpt-d02-ts?period_year=2026&period_month=5` → file .xlsx download được
+- File có đủ 11 sheet; 8 sheet tra cứu giữ nguyên không bị xóa/sửa
+- Sheet "Dữ Liệu" row 4+ có đúng số dòng = số event trong kỳ
+- Cột `Loai` = 1 cho tăng, 3 cho giảm; cột `PA` đúng theo mapping
+- Cột `TyleDong` format "32,5" (dấu phẩy, không phải dấu chấm)
+- Cột `DanToc` điền đúng mã 2 chữ số từ `ethnicity_bhxh_code_snapshot`
+- Cột `MavungLTT` điền đúng "01"/"02"/"03"/"04" theo company region
+- Event có `bhyt_clinic_code_snapshot IS NULL` → cột MaBenhVien trống (không crash)
+- Kỳ không có event → file rỗng (chỉ có header 3 rows), không lỗi
 
 ---
 
@@ -612,12 +856,26 @@ class TestMonthlyReport:
     async def test_has_missing_clinic_code_flag_when_clinic_code_null()
     async def test_filter_by_period_returns_correct_events()
 
-class TestExport:
-    async def test_d02_ts_excel_returns_xlsx_content_type()
-    async def test_d02_ts_excel_has_increase_and_decrease_sheets()
-    async def test_ibhxh_xml_is_valid_xml()
-    async def test_export_empty_period_returns_empty_file_not_error()
-    async def test_missing_clinic_code_does_not_crash_xml_export()
+class TestRefactoring:  # Slice 4a
+    async def test_ethnicity_bhxh_code_seeded_for_all_56_entries()
+    async def test_ethnicity_kinh_has_code_01()
+    async def test_nationality_seed_has_241_entries_with_iso2_codes()
+    async def test_bhyt_clinics_table_has_expected_row_count()
+    async def test_bhyt_clinics_code_is_unique()
+    async def test_create_event_snapshots_ethnicity_bhxh_code()
+    async def test_create_event_with_null_ethnicity_snapshots_null()
+
+class TestExport:  # Slice 4b
+    async def test_vnpt_d02_ts_returns_xlsx_content_type()
+    async def test_vnpt_d02_ts_has_11_sheets_with_lookup_sheets_intact()
+    async def test_vnpt_d02_ts_row_count_matches_event_count()
+    async def test_vnpt_d02_ts_loai_is_1_for_increase_3_for_decrease()
+    async def test_vnpt_d02_ts_pa_codes_correct_per_reason()
+    async def test_vnpt_d02_ts_tyle_dong_uses_comma_decimal()
+    async def test_vnpt_d02_ts_dan_toc_filled_from_snapshot()
+    async def test_vnpt_d02_ts_mavung_ltt_from_company_region()
+    async def test_export_empty_period_returns_header_only_not_error()
+    async def test_missing_clinic_code_does_not_crash_export()
 ```
 
 **Exit criteria:**
@@ -629,15 +887,17 @@ class TestExport:
 ## Thứ tự thực hiện
 
 ```
-Slice 1 (Migration)
+Slice 1 (Migration 0020: bảng change_events + bhyt_initial_clinic_code)
   ↓
 Slice 2 (Service + API CRUD + auto-record)
   ↓
 Slice 3 (Frontend tab)
   ↓
-Slice 4 (Export backend)
+Slice 4a (Migration 0021: refactoring ethnicities + bhyt_clinics + snapshot ethnicity)
   ↓
-Slice 5 (Tests)
+Slice 4b (Export service + endpoint VNPT D02-TS)
+  ↓
+Slice 5 (Tests toàn bộ 6.3)
 ```
 
 ---
@@ -664,8 +924,9 @@ Slice 5 (Tests)
 |---|---|
 | Snapshot thiếu field → export bị lỗi | Service `record_status_change` phải validate đủ field trước khi INSERT; raise ValueError nếu thiếu |
 | Double-record khi gọi upsert nhiều lần | Guard: chỉ tạo event nếu `old_status != new_status` |
-| Format XML iBHXH thay đổi theo phiên bản phần mềm | Cấu hình `ibhxh_version` trong settings; export service chọn template theo version |
-| `bhyt_clinic_code` thiếu → XML bị từ chối bởi iBHXH | Cảnh báo trong UI (cột `has_missing_clinic_code`); XML export vẫn chạy được, chỉ để trống field đó |
+| `bhyt_clinic_code` thiếu → VNPT từ chối file import | Cảnh báo trong UI (cột warning); export vẫn chạy, để trống MaBenhVien; HR phải cập nhật mã KCB trước khi nộp |
+| Ethnicity seed re-run phá FK | Seed phải UPDATE by name, không DELETE+INSERT; kiểm tra ON DELETE trên FK trỏ vào ethnicities |
+| Seed bhyt_clinics lần đầu chậm (~12k rows) | Dùng `session.bulk_insert_mappings()` hoặc COPY; không INSERT từng row |
 | Xóa nhân viên → mất event ledger | `ON DELETE RESTRICT` trên FK `employee_id` |
 | Event auto bị sửa sai | Không cho sửa event auto — chỉ cho thêm thủ công hoặc xóa manual; mọi chỉnh sửa phải là event mới |
 | Tỷ lệ đóng snapshot sai nếu policy thay đổi sau khi ghi event | Snapshot `policy_version_code_snapshot` + `employee_rate_total_snapshot` / `employer_rate_total_snapshot` → dùng số snapshot, không recalculate |

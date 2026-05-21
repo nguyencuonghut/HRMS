@@ -292,16 +292,10 @@ export default {
   deleteChangeEvent: (eventId: number) =>
     api.delete(`/insurance/change-events/${eventId}`),
 
-  // Export (Slice 4)
-  exportD02TsExcel: (year: number, month: number) =>
-    api.get(`/insurance/change-events/export/d02-ts`, {
-      params: { year, month },
-      responseType: 'blob',
-    }),
-
-  exportIbhxhXml: (year: number, month: number) =>
-    api.get(`/insurance/change-events/export/ibhxh-xml`, {
-      params: { year, month },
+  // Export VNPT D02-TS (Slice 4)
+  exportVnptD02Ts: (year: number, month: number) =>
+    api.get(`/insurance/change-events/export/vnpt-d02-ts`, {
+      params: { period_year: year, period_month: month },
       responseType: 'blob',
     }),
 }
