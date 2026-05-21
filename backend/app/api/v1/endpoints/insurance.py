@@ -1,4 +1,5 @@
 from datetime import date
+from typing import Optional
 
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,7 +21,13 @@ from app.schemas.insurance import (
     InsurancePolicyVersionRead,
     InsurancePolicyVersionUpdate,
 )
-from app.services import employee_insurance_service, insurance_policy_service
+from app.schemas.insurance_change import (
+    InsuranceChangeEventCreate,
+    InsuranceChangeEventListPage,
+    InsuranceChangeEventRead,
+    InsuranceMonthlyChangeSummary,
+)
+from app.services import employee_insurance_service, insurance_change_service, insurance_policy_service
 
 router = APIRouter()
 
@@ -174,3 +181,74 @@ async def upsert_employee_insurance_profile(
     session: AsyncSession = Depends(get_session),
 ):
     return await employee_insurance_service.upsert_insurance_profile(session, employee_id, body)
+
+
+# ── Change Events ──────────────────────────────────────────────────────────────
+
+@router.get(
+    "/change-events",
+    response_model=InsuranceChangeEventListPage,
+    summary="Danh sách biến động tăng/giảm BHXH",
+)
+async def list_insurance_change_events(
+    employee_id: Optional[int] = Query(None),
+    change_type: Optional[str] = Query(None, pattern=r"^(increase|decrease)$"),
+    period_year: Optional[int] = Query(None),
+    period_month: Optional[int] = Query(None, ge=1, le=12),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    _: User = require_permission("insurance:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await insurance_change_service.list_change_events(
+        session,
+        employee_id=employee_id,
+        change_type=change_type,
+        period_year=period_year,
+        period_month=period_month,
+        page=page,
+        page_size=page_size,
+    )
+
+
+@router.get(
+    "/change-events/monthly-summary",
+    response_model=InsuranceMonthlyChangeSummary,
+    summary="Tổng hợp tăng/giảm BHXH theo tháng",
+)
+async def get_insurance_monthly_summary(
+    year: int = Query(...),
+    month: int = Query(..., ge=1, le=12),
+    _: User = require_permission("insurance:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await insurance_change_service.get_monthly_summary(session, year, month)
+
+
+@router.post(
+    "/change-events",
+    response_model=InsuranceChangeEventRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Tạo biến động thủ công",
+)
+async def create_manual_insurance_change_event(
+    body: InsuranceChangeEventCreate,
+    current_user: User = require_permission("insurance:edit"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await insurance_change_service.create_manual_event(
+        session, body, created_by_id=current_user.id
+    )
+
+
+@router.delete(
+    "/change-events/{event_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Xóa biến động thủ công",
+)
+async def delete_manual_insurance_change_event(
+    event_id: int,
+    _: User = require_permission("insurance:edit"),
+    session: AsyncSession = Depends(get_session),
+):
+    await insurance_change_service.delete_manual_event(session, event_id)

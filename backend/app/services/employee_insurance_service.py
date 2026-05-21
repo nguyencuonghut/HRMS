@@ -28,7 +28,7 @@ from app.schemas.employee_insurance import (
     EmployeeInsuranceProfileUpdate,
     InsuranceContributionComponentSnapshot,
 )
-from app.services import employee_code_service
+from app.services import employee_code_service, insurance_change_service
 
 
 def _utcnow() -> datetime:
@@ -573,6 +573,7 @@ async def get_insurance_profile_detail(
         job_title_name=jt_name,
         bhxh_code=profile.bhxh_code,
         bhyt_initial_clinic_name=profile.bhyt_initial_clinic_name,
+        bhyt_initial_clinic_code=profile.bhyt_initial_clinic_code,
         company_bhxh_joined_date=profile.company_bhxh_joined_date,
         participation_status=profile.participation_status,
         status_effective_from=profile.status_effective_from,
@@ -603,7 +604,8 @@ async def upsert_insurance_profile(
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Không tìm thấy nhân viên")
 
     profile = await get_employee_insurance_profile(session, employee_id)
-    if not profile:
+    is_new_profile = profile is None
+    if is_new_profile:
         profile = EmployeeInsuranceProfile(
             employee_id=employee_id,
             insurance_basis_source="contract",
@@ -624,9 +626,13 @@ async def upsert_insurance_profile(
                     detail=f"Component code không hợp lệ: {ov.component_code}",
                 )
 
+    # Capture old status: None for brand-new profile (triggers new_hire event)
+    old_status: Optional[str] = None if is_new_profile else profile.participation_status
+
     # Update profile fields
     profile.bhxh_code = normalize_bhxh_code(payload.bhxh_code)
     profile.bhyt_initial_clinic_name = payload.bhyt_initial_clinic_name
+    profile.bhyt_initial_clinic_code = payload.bhyt_initial_clinic_code
     profile.company_bhxh_joined_date = payload.company_bhxh_joined_date
     profile.participation_status = payload.participation_status
     profile.status_effective_from = payload.status_effective_from
@@ -669,4 +675,18 @@ async def upsert_insurance_profile(
         session.add(new_ov)
 
     await session.commit()
+
+    # Auto-record biến động nếu trạng thái thay đổi
+    if old_status != profile.participation_status:
+        effective_date = payload.status_effective_from or date.today()
+        await insurance_change_service.record_status_change(
+            session=session,
+            employee_id=employee_id,
+            old_status=old_status,
+            new_status=profile.participation_status,
+            profile=profile,
+            effective_date=effective_date,
+        )
+        await session.commit()
+
     return await get_insurance_profile_detail(session, employee_id)

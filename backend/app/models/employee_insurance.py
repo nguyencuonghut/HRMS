@@ -27,6 +27,7 @@ class EmployeeInsuranceProfile(SQLModel, table=True):
     )
     bhxh_code: Optional[str] = Field(default=None, max_length=20)
     bhyt_initial_clinic_name: Optional[str] = Field(default=None, max_length=255)
+    bhyt_initial_clinic_code: Optional[str] = Field(default=None, max_length=20)
     company_bhxh_joined_date: Optional[date] = Field(default=None)
     participation_status: str = Field(
         default="active",

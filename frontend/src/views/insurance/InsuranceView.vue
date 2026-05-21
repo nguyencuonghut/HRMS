@@ -17,6 +17,15 @@
       </div>
     </div>
 
+    <!-- Top tabs -->
+    <Tabs v-model:value="activeTopTab" class="ins-top-tabs">
+      <TabList>
+        <Tab value="profiles">Hồ sơ BHXH</Tab>
+        <Tab value="changes">Biến động</Tab>
+      </TabList>
+      <TabPanels>
+        <TabPanel value="profiles">
+
     <!-- Summary cards -->
     <div class="insurance-summary-grid">
       <div class="card insurance-summary-card">
@@ -340,6 +349,14 @@
         <Button label="Lưu" icon="pi pi-save" :loading="saving" @click="submitForm" />
       </template>
     </Dialog>
+
+        </TabPanel>
+
+        <TabPanel value="changes">
+          <InsuranceChangesTab />
+        </TabPanel>
+      </TabPanels>
+    </Tabs>
   </div>
 </template>
 
@@ -364,6 +381,7 @@ import TabPanels from 'primevue/tabpanels'
 import Tabs from 'primevue/tabs'
 import Tag from 'primevue/tag'
 import departmentService from '@/services/departmentService'
+import InsuranceChangesTab from './InsuranceChangesTab.vue'
 import insuranceService, {
   type EmployeeInsuranceComponentOverrideInput,
   type EmployeeInsuranceListItem,
@@ -372,6 +390,8 @@ import insuranceService, {
 } from '@/services/insuranceService'
 
 const router = useRouter()
+
+const activeTopTab = ref('profiles')
 
 // ── State ─────────────────────────────────────────────────────────────────────
 

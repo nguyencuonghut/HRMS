@@ -171,6 +171,67 @@ export interface InsuranceListFilters {
   page_size?: number
 }
 
+export interface InsuranceChangeEventRead {
+  id: number
+  employee_id: number
+  change_type: 'increase' | 'decrease'
+  change_reason: string
+  ibhxh_reason_code: string
+  effective_date: string
+  period_year: number
+  period_month: number
+  employee_name_snapshot: string
+  date_of_birth_snapshot: string
+  gender_snapshot: string
+  nationality_code_snapshot: string
+  identity_number_snapshot: string | null
+  contract_number_snapshot: string | null
+  contract_type_code_snapshot: string | null
+  contract_signed_date_snapshot: string | null
+  contract_from_snapshot: string | null
+  contract_to_snapshot: string | null
+  bhxh_code_snapshot: string | null
+  basis_amount: number
+  allowances_amount: number
+  bhyt_clinic_name_snapshot: string | null
+  bhyt_clinic_code_snapshot: string | null
+  policy_version_code_snapshot: string | null
+  employee_rate_total_snapshot: number
+  employer_rate_total_snapshot: number
+  old_status: string | null
+  new_status: string
+  suggested_declaration_year: number
+  suggested_declaration_month: number
+  is_manual: boolean
+  note: string | null
+  created_by_id: number | null
+  created_at: string
+}
+
+export interface InsuranceChangeEventListPage {
+  items: InsuranceChangeEventRead[]
+  total: number
+  page: number
+  page_size: number
+}
+
+export interface InsuranceMonthlyChangeSummary {
+  period_year: number
+  period_month: number
+  increase_count: number
+  decrease_count: number
+  total_basis_increase: number
+  total_basis_decrease: number
+}
+
+export interface InsuranceChangeEventCreate {
+  employee_id: number
+  change_type: 'increase' | 'decrease'
+  change_reason: string
+  effective_date: string
+  note?: string | null
+}
+
 export default {
   getComponents: () =>
     api.get<InsuranceContributionComponentRead[]>('/insurance/components'),
@@ -208,4 +269,39 @@ export default {
 
   updateEmployeeProfile: (employeeId: number, payload: EmployeeInsuranceProfileUpdate) =>
     api.put<EmployeeInsuranceProfileRead>(`/insurance/employees/${employeeId}`, payload),
+
+  // Change events
+  listChangeEvents: (params: {
+    employee_id?: number
+    change_type?: string
+    period_year?: number
+    period_month?: number
+    page?: number
+    page_size?: number
+  }) =>
+    api.get<InsuranceChangeEventListPage>('/insurance/change-events', { params }),
+
+  getMonthlySummary: (year: number, month: number) =>
+    api.get<InsuranceMonthlyChangeSummary>('/insurance/change-events/monthly-summary', {
+      params: { year, month },
+    }),
+
+  createManualChangeEvent: (payload: InsuranceChangeEventCreate) =>
+    api.post<InsuranceChangeEventRead>('/insurance/change-events', payload),
+
+  deleteChangeEvent: (eventId: number) =>
+    api.delete(`/insurance/change-events/${eventId}`),
+
+  // Export (Slice 4)
+  exportD02TsExcel: (year: number, month: number) =>
+    api.get(`/insurance/change-events/export/d02-ts`, {
+      params: { year, month },
+      responseType: 'blob',
+    }),
+
+  exportIbhxhXml: (year: number, month: number) =>
+    api.get(`/insurance/change-events/export/ibhxh-xml`, {
+      params: { year, month },
+      responseType: 'blob',
+    }),
 }

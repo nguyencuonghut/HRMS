@@ -31,6 +31,7 @@ class EmployeeInsuranceListItem(BaseModel):
 
     bhxh_code: Optional[str]
     bhyt_initial_clinic_name: Optional[str]
+    bhyt_initial_clinic_code: Optional[str] = None
     company_bhxh_joined_date: Optional[date]
     participation_status: str
 
@@ -76,6 +77,7 @@ class EmployeeInsuranceComponentOverrideInput(BaseModel):
 class EmployeeInsuranceProfileBase(BaseModel):
     bhxh_code: Optional[str] = Field(None, max_length=20)
     bhyt_initial_clinic_name: Optional[str] = Field(None, max_length=255)
+    bhyt_initial_clinic_code: Optional[str] = Field(None, max_length=20)
     company_bhxh_joined_date: Optional[date] = None
     participation_status: Literal["active", "paused", "stopped"] = "active"
     status_effective_from: Optional[date] = None
@@ -106,6 +108,7 @@ class EmployeeInsuranceProfileRead(BaseModel):
 
     bhxh_code: Optional[str]
     bhyt_initial_clinic_name: Optional[str]
+    bhyt_initial_clinic_code: Optional[str]
     company_bhxh_joined_date: Optional[date]
     participation_status: str
     status_effective_from: Optional[date]

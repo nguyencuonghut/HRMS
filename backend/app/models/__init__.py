@@ -43,6 +43,7 @@ from app.models.insurance import (  # noqa: F401
     InsuranceContributionComponent,
     InsurancePolicyVersion,
     InsurancePolicyComponentRate,
+    InsuranceChangeEvent,
 )
 from app.models.employee import (  # noqa: F401
     Employee,
