@@ -10,6 +10,7 @@ class BhytClinicRead(BaseModel):
     code: str
     name: str
     province_code: Optional[str] = None
+    province_name: Optional[str] = None
 
 
 class BhytClinicCreate(BaseModel):

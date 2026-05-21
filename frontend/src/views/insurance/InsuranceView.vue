@@ -582,7 +582,7 @@ async function openEdit(item: EmployeeInsuranceListItem) {
     form.value = {
       bhxh_code:               d.bhxh_code,
       bhyt_initial_clinic:     d.bhyt_initial_clinic_code
-        ? { id: 0, code: d.bhyt_initial_clinic_code, name: d.bhyt_initial_clinic_name ?? '', province_code: null }
+        ? { id: 0, code: d.bhyt_initial_clinic_code, name: d.bhyt_initial_clinic_name ?? '', province_code: null, province_name: null }
         : null,
       company_bhxh_joined_date_obj: fromIsoDate(d.company_bhxh_joined_date),
       status_effective_from_obj:    fromIsoDate(d.status_effective_from),

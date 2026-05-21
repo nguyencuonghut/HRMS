@@ -812,4 +812,11 @@ html.dark-mode {
 .ins-clinic-name {
   font-size: 0.875rem;
   color: var(--p-text-color);
+  flex: 1;
+}
+
+.ins-clinic-province {
+  font-size: 0.78rem;
+  color: var(--p-text-muted-color);
+  white-space: nowrap;
 }

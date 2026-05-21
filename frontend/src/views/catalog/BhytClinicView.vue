@@ -55,6 +55,9 @@
       >
         <Column field="code" header="Mã BV" style="min-width: 90px; font-family: monospace" />
         <Column field="name" header="Tên bệnh viện / phòng khám" style="min-width: 280px" />
+        <Column header="Tên tỉnh" style="min-width: 160px">
+          <template #body="{ data }">{{ data.province_name ?? '—' }}</template>
+        </Column>
         <Column field="province_code" header="Mã tỉnh" style="min-width: 80px">
           <template #body="{ data }">{{ data.province_code ?? '—' }}</template>
         </Column>
@@ -130,11 +133,11 @@ const toast = useToast()
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
-const loading = ref(false)
-const saving  = ref(false)
-const items   = ref<BhytClinicRead[]>([])
-const total   = ref(0)
-const page    = ref(1)
+const loading  = ref(false)
+const saving   = ref(false)
+const items    = ref<BhytClinicRead[]>([])
+const total    = ref(0)
+const page     = ref(1)
 const pageSize = ref(20)
 
 const filters = ref({

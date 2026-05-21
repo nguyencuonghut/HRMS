@@ -330,7 +330,7 @@ function startEdit() {
   form.value = {
     bhxh_code:                    p.bhxh_code,
     bhyt_initial_clinic:          p.bhyt_initial_clinic_code
-      ? { id: 0, code: p.bhyt_initial_clinic_code, name: p.bhyt_initial_clinic_name ?? '', province_code: null }
+      ? { id: 0, code: p.bhyt_initial_clinic_code, name: p.bhyt_initial_clinic_name ?? '', province_code: null, province_name: null }
       : null,
     company_bhxh_joined_date_obj: fromIsoDate(p.company_bhxh_joined_date),
     status_effective_from_obj:    fromIsoDate(p.status_effective_from),

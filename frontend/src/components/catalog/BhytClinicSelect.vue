@@ -2,7 +2,7 @@
   <AutoComplete
     v-model="internalValue"
     :suggestions="suggestions"
-    option-label="name"
+    :option-label="clinicLabel"
     dropdown
     force-selection
     :loading="loading"
@@ -16,6 +16,9 @@
       <div class="ins-clinic-option">
         <span class="ins-clinic-code">{{ option.code }}</span>
         <span class="ins-clinic-name">{{ option.name }}</span>
+        <span v-if="option.province_name" class="ins-clinic-province">
+          {{ option.province_name }}
+        </span>
       </div>
     </template>
   </AutoComplete>
@@ -25,6 +28,10 @@
 import { ref, watch } from 'vue'
 import AutoComplete from 'primevue/autocomplete'
 import bhytClinicService, { type BhytClinicRead } from '@/services/bhytClinicService'
+
+function clinicLabel(c: BhytClinicRead): string {
+  return c.province_name ? `${c.name} — ${c.province_name}` : c.name
+}
 
 const props = withDefaults(defineProps<{
   modelValue: BhytClinicRead | null

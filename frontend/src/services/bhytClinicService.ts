@@ -5,6 +5,7 @@ export interface BhytClinicRead {
   code: string
   name: string
   province_code: string | null
+  province_name: string | null
 }
 
 export interface BhytClinicCreate {

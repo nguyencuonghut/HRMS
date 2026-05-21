@@ -1,13 +1,51 @@
 """
 Seed dữ liệu danh mục cơ sở KCB ban đầu BHYT.
 
-Nguồn: sheet 'BenhVien' trong FileMau_D02_TK1_VNPT.xlsx
+Nguồn: sheet 'BenhVien' + 'TinhBenhVien' trong FileMau_D02_TK1_VNPT.xlsx
 ~11,867 cơ sở y tế toàn quốc.
 """
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+# Nguồn: sheet 'TinhBenhVien' — mã tỉnh BHXH (khác mã hành chính)
+_PROVINCE_NAMES: dict[str, str] = {
+    '01': 'Thành phố Hà Nội',
+    '04': 'Tỉnh Cao Bằng',
+    '08': 'Tỉnh Tuyên Quang',
+    '11': 'Tỉnh Điện Biên',
+    '12': 'Tỉnh Lai Châu',
+    '14': 'Tỉnh Sơn La',
+    '15': 'Tỉnh Lào Cai',
+    '19': 'Tỉnh Thái Nguyên',
+    '20': 'Tỉnh Lạng Sơn',
+    '22': 'Tỉnh Quảng Ninh',
+    '24': 'Tỉnh Bắc Ninh',
+    '25': 'Tỉnh Phú Thọ',
+    '31': 'Thành phố Hải Phòng',
+    '33': 'Tỉnh Hưng Yên',
+    '37': 'Tỉnh Ninh Bình',
+    '38': 'Tỉnh Thanh Hóa',
+    '40': 'Tỉnh Nghệ An',
+    '42': 'Tỉnh Hà Tĩnh',
+    '44': 'Tỉnh Quảng Trị',
+    '46': 'Thành phố Huế',
+    '48': 'Thành phố Đà Nẵng',
+    '51': 'Tỉnh Quảng Ngãi',
+    '52': 'Tỉnh Gia Lai',
+    '56': 'Tỉnh Khánh Hòa',
+    '66': 'Tỉnh Đắk Lắk',
+    '68': 'Tỉnh Lâm Đồng',
+    '75': 'Tỉnh Đồng Nai',
+    '79': 'Thành phố Hồ Chí Minh',
+    '80': 'Tỉnh Tây Ninh',
+    '82': 'Tỉnh Đồng Tháp',
+    '86': 'Tỉnh Vĩnh Long',
+    '91': 'Tỉnh An Giang',
+    '92': 'Thành phố Cần Thơ',
+    '96': 'Tỉnh Cà Mau',
+    '97': 'Bộ quốc phòng',
+}
 
 BHYT_CLINICS = [
     # (code, name, province_code)
@@ -11882,17 +11920,25 @@ BHYT_CLINICS = [
 
 
 async def seed_bhyt_clinics(session: AsyncSession) -> int:
-    """Seed danh mục bệnh viện KCB. Idempotent — ON CONFLICT DO NOTHING."""
+    """Seed danh mục bệnh viện KCB. Idempotent — upsert name/province_name khi chạy lại."""
     before = (await session.execute(text("SELECT COUNT(*) FROM bhyt_clinics"))).scalar_one()
     stmt = text("""
-        INSERT INTO bhyt_clinics (code, name, province_code)
-        VALUES (:code, :name, :province_code)
-        ON CONFLICT (code) DO NOTHING
+        INSERT INTO bhyt_clinics (code, name, province_code, province_name)
+        VALUES (:code, :name, :province_code, :province_name)
+        ON CONFLICT (code) DO UPDATE SET
+            name          = EXCLUDED.name,
+            province_code = EXCLUDED.province_code,
+            province_name = EXCLUDED.province_name
     """)
     batch_size = 1000
     for i in range(0, len(BHYT_CLINICS), batch_size):
         batch = [
-            {"code": code, "name": name, "province_code": province_code}
+            {
+                "code": code,
+                "name": name,
+                "province_code": province_code,
+                "province_name": _PROVINCE_NAMES.get(province_code) if province_code else None,
+            }
             for code, name, province_code in BHYT_CLINICS[i:i + batch_size]
         ]
         await session.execute(stmt, batch)
