@@ -184,6 +184,9 @@ class InsuranceChangeEvent(SQLModel, table=True):
         sa_column=Column(sa.Numeric(8, 4), nullable=False, server_default="0"),
     )
 
+    # ── Snapshot bổ sung (Slice 4a — VNPT compat) ────────────────────────
+    ethnicity_bhxh_code_snapshot: Optional[str] = Field(default=None, max_length=10)
+
     # ── Trạng thái cũ / mới ───────────────────────────────────────────────
     old_status: Optional[str] = Field(default=None, max_length=20)
     new_status: str = Field(max_length=20)

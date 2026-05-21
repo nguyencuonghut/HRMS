@@ -9,7 +9,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.catalog import Nationality
+from app.models.catalog import Ethnicity, Nationality
 from app.models.employee import Employee
 from app.models.employee_contract import EmployeeContract
 from app.models.employee_insurance import EmployeeInsuranceProfile
@@ -66,6 +66,15 @@ def _compute_suggested_declaration(effective_date: date, created_at: datetime) -
         if created_at.year == prev_year and created_at.month == prev_month:
             return prev_year, prev_month
     return effective_date.year, effective_date.month
+
+
+async def _load_ethnicity_bhxh_code(
+    session: AsyncSession, ethnicity_id: Optional[int]
+) -> Optional[str]:
+    if not ethnicity_id:
+        return None
+    eth = await session.get(Ethnicity, ethnicity_id)
+    return eth.bhxh_code if eth else None
 
 
 async def _load_nationality_code(session: AsyncSession, nationality_id: int) -> str:
@@ -145,6 +154,7 @@ async def record_status_change(
         return None
 
     nationality_code = await _load_nationality_code(session, employee.nationality_id)
+    ethnicity_bhxh_code = await _load_ethnicity_bhxh_code(session, employee.ethnicity_id)
     contract = await _load_current_contract(session, employee_id)
 
     basis_amount = _resolve_basis_amount(profile, contract)
@@ -192,6 +202,7 @@ async def record_status_change(
         policy_version_code_snapshot=policy_code,
         employee_rate_total_snapshot=emp_rate_total,
         employer_rate_total_snapshot=er_rate_total,
+        ethnicity_bhxh_code_snapshot=ethnicity_bhxh_code,
         old_status=old_status,
         new_status=new_status,
         suggested_declaration_year=sugg_year,
@@ -243,6 +254,7 @@ async def create_manual_event(
         )
 
     nationality_code = await _load_nationality_code(session, employee.nationality_id)
+    ethnicity_bhxh_code = await _load_ethnicity_bhxh_code(session, employee.ethnicity_id)
     contract = await _load_current_contract(session, payload.employee_id)
 
     basis_amount = _resolve_basis_amount(profile, contract)
@@ -294,6 +306,7 @@ async def create_manual_event(
         policy_version_code_snapshot=policy_code,
         employee_rate_total_snapshot=emp_rate_total,
         employer_rate_total_snapshot=er_rate_total,
+        ethnicity_bhxh_code_snapshot=ethnicity_bhxh_code,
         old_status=None,
         new_status=profile.participation_status,
         suggested_declaration_year=sugg_year,

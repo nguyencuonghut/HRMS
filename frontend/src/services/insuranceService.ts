@@ -107,6 +107,7 @@ export interface EmployeeInsuranceListItem {
   job_title_name: string | null
   bhxh_code: string | null
   bhyt_initial_clinic_name: string | null
+  bhyt_initial_clinic_code: string | null
   company_bhxh_joined_date: string | null
   participation_status: string
   insurance_basis_amount: string | null
@@ -148,6 +149,7 @@ export interface EmployeeInsuranceComponentOverrideInput {
 export interface EmployeeInsuranceProfileUpdate {
   bhxh_code?: string | null
   bhyt_initial_clinic_name?: string | null
+  bhyt_initial_clinic_code?: string | null
   company_bhxh_joined_date?: string | null
   participation_status: 'active' | 'paused' | 'stopped'
   status_effective_from?: string | null
@@ -198,6 +200,7 @@ export interface InsuranceChangeEventRead {
   policy_version_code_snapshot: string | null
   employee_rate_total_snapshot: number
   employer_rate_total_snapshot: number
+  ethnicity_bhxh_code_snapshot: string | null
   old_status: string | null
   new_status: string
   suggested_declaration_year: number
@@ -292,7 +295,7 @@ export default {
   deleteChangeEvent: (eventId: number) =>
     api.delete(`/insurance/change-events/${eventId}`),
 
-  // Export VNPT D02-TS (Slice 4)
+  // Export VNPT D02-TS (Slice 4b)
   exportVnptD02Ts: (year: number, month: number) =>
     api.get(`/insurance/change-events/export/vnpt-d02-ts`, {
       params: { period_year: year, period_month: month },

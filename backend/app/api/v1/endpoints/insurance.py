@@ -2,6 +2,7 @@ from datetime import date
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import require_permission
@@ -27,7 +28,7 @@ from app.schemas.insurance_change import (
     InsuranceChangeEventRead,
     InsuranceMonthlyChangeSummary,
 )
-from app.services import employee_insurance_service, insurance_change_service, insurance_policy_service
+from app.services import employee_insurance_service, insurance_change_service, insurance_export_service, insurance_policy_service
 
 router = APIRouter()
 
@@ -252,3 +253,22 @@ async def delete_manual_insurance_change_event(
     session: AsyncSession = Depends(get_session),
 ):
     await insurance_change_service.delete_manual_event(session, event_id)
+
+
+@router.get(
+    "/change-events/export/vnpt-d02-ts",
+    summary="Export D02-TS VNPT Excel",
+)
+async def export_vnpt_d02_ts(
+    period_year: int = Query(..., ge=2000, le=2100),
+    period_month: int = Query(..., ge=1, le=12),
+    _: User = require_permission("insurance:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    buf = await insurance_export_service.export_d02_ts_vnpt(session, period_year, period_month)
+    filename = f"D02-TS_T{period_month:02d}_{period_year}_VNPT.xlsx"
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

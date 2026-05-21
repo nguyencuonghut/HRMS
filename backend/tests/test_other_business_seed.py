@@ -24,12 +24,12 @@ async def test_required_other_business_catalog_seed_is_idempotent():
         await other_business_catalog.seed_required_other_business_catalog(session)
         await session.commit()
 
-    assert await _scalar("SELECT COUNT(*) FROM contract_categories") == 5
-    assert await _scalar("SELECT COUNT(*) FROM nationalities") == 8
-    assert await _scalar("SELECT COUNT(*) FROM ethnicities") == 8
-    assert await _scalar("SELECT COUNT(*) FROM religions") == 6
-    assert await _scalar("SELECT COUNT(*) FROM banks") == 8
-    assert await _scalar("SELECT COUNT(*) FROM leave_types") == 6
+    assert await _scalar("SELECT COUNT(*) FROM contract_categories") == len(other_business_catalog.CONTRACT_CATEGORIES)
+    assert await _scalar("SELECT COUNT(*) FROM nationalities") == len(other_business_catalog.NATIONALITIES)
+    assert await _scalar("SELECT COUNT(*) FROM ethnicities") == len(other_business_catalog.ETHNICITIES)
+    assert await _scalar("SELECT COUNT(*) FROM religions") == len(other_business_catalog.RELIGIONS)
+    assert await _scalar("SELECT COUNT(*) FROM banks") == len(other_business_catalog.BANKS)
+    assert await _scalar("SELECT COUNT(*) FROM leave_types") == len(other_business_catalog.LEAVE_TYPES)
 
 
 async def test_sample_other_business_catalog_seed_is_idempotent():

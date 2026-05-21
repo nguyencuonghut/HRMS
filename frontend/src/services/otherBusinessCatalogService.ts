@@ -78,6 +78,7 @@ export interface EthnicityRead {
   code: string
   name: string
   normalized_name: string
+  bhxh_code: string | null
   is_active: boolean
   created_at: string
   updated_at: string | null

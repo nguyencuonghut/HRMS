@@ -115,7 +115,7 @@
           </div>
           <div class="field">
             <label>Nơi KCB ban đầu</label>
-            <InputText v-model="form.bhyt_initial_clinic_name" class="w-full" placeholder="Tên bệnh viện/phòng khám..." />
+            <BhytClinicSelect v-model="form.bhyt_initial_clinic" />
           </div>
         </div>
 
@@ -212,9 +212,9 @@ import InputNumber from 'primevue/inputnumber'
 import InputText from 'primevue/inputtext'
 import Select from 'primevue/select'
 import Tag from 'primevue/tag'
-import insuranceService, {
-  type EmployeeInsuranceProfileRead,
-} from '@/services/insuranceService'
+import BhytClinicSelect from '@/components/catalog/BhytClinicSelect.vue'
+import { type BhytClinicRead } from '@/services/bhytClinicService'
+import insuranceService, { type EmployeeInsuranceProfileRead } from '@/services/insuranceService'
 
 const props = defineProps<{ employeeId: number }>()
 const emit  = defineEmits<{ refresh: [] }>()
@@ -228,7 +228,7 @@ const profile = ref<EmployeeInsuranceProfileRead | null>(null)
 
 interface FormState {
   bhxh_code: string | null
-  bhyt_initial_clinic_name: string | null
+  bhyt_initial_clinic: BhytClinicRead | null
   company_bhxh_joined_date_obj: Date | null
   status_effective_from_obj: Date | null
   participation_status: 'active' | 'paused' | 'stopped'
@@ -239,7 +239,7 @@ interface FormState {
 
 const form = ref<FormState>({
   bhxh_code: null,
-  bhyt_initial_clinic_name: null,
+  bhyt_initial_clinic: null,
   company_bhxh_joined_date_obj: null,
   status_effective_from_obj: null,
   participation_status: 'active',
@@ -329,7 +329,9 @@ function startEdit() {
   const p = profile.value
   form.value = {
     bhxh_code:                    p.bhxh_code,
-    bhyt_initial_clinic_name:     p.bhyt_initial_clinic_name,
+    bhyt_initial_clinic:          p.bhyt_initial_clinic_code
+      ? { id: 0, code: p.bhyt_initial_clinic_code, name: p.bhyt_initial_clinic_name ?? '', province_code: null }
+      : null,
     company_bhxh_joined_date_obj: fromIsoDate(p.company_bhxh_joined_date),
     status_effective_from_obj:    fromIsoDate(p.status_effective_from),
     participation_status:         p.participation_status as 'active' | 'paused' | 'stopped',
@@ -349,7 +351,8 @@ async function save() {
   try {
     await insuranceService.updateEmployeeProfile(props.employeeId, {
       bhxh_code:                form.value.bhxh_code || null,
-      bhyt_initial_clinic_name: form.value.bhyt_initial_clinic_name || null,
+      bhyt_initial_clinic_name: form.value.bhyt_initial_clinic?.name || null,
+      bhyt_initial_clinic_code: form.value.bhyt_initial_clinic?.code || null,
       company_bhxh_joined_date: toIsoDate(form.value.company_bhxh_joined_date_obj),
       participation_status:     form.value.participation_status,
       status_effective_from:    toIsoDate(form.value.status_effective_from_obj),

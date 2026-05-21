@@ -17,7 +17,7 @@ import datetime
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.seeds import administrative_units, education_catalog, old_administrative_units, other_business_catalog
+from app.seeds import administrative_units, bhyt_clinics as bhyt_clinics_seed, education_catalog, old_administrative_units, other_business_catalog
 
 
 async def seed_minimum_wages(session: AsyncSession) -> int:
@@ -240,6 +240,7 @@ async def run(session: AsyncSession) -> None:
     ) = await other_business_catalog.seed_required_other_business_catalog(session)
     old_admin_units_upserted, old_admin_hierarchies_added = await old_administrative_units.seed_old_administrative_system(session)
     admin_units_upserted, admin_hierarchies_added = await administrative_units.seed_new_administrative_system(session)
+    clinics_added = await bhyt_clinics_seed.seed_bhyt_clinics(session)
     await session.commit()
 
     print(f"  [required] Mức lương tối thiểu vùng: +{wages_added} dòng")
@@ -257,3 +258,4 @@ async def run(session: AsyncSession) -> None:
     print(f"  [required] Quan hệ cũ tỉnh→huyện→xã:  +{old_admin_hierarchies_added} dòng")
     print(f"  [required] Đơn vị hành chính mới:     +{admin_units_upserted} upsert")
     print(f"  [required] Quan hệ tỉnh → xã/phường:  +{admin_hierarchies_added} dòng")
+    print(f"  [required] Bệnh viện KCB BHYT:         +{clinics_added} upsert")

@@ -38,6 +38,7 @@ class InsuranceChangeEventRead(BaseModel):
     policy_version_code_snapshot: Optional[str]
     employee_rate_total_snapshot: Decimal
     employer_rate_total_snapshot: Decimal
+    ethnicity_bhxh_code_snapshot: Optional[str]
 
     old_status: Optional[str]
     new_status: str

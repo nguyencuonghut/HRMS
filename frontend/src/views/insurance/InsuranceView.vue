@@ -183,7 +183,7 @@
                 </div>
                 <div class="field">
                   <label>Nơi KCB ban đầu</label>
-                  <InputText v-model="form.bhyt_initial_clinic_name" placeholder="Tên bệnh viện/phòng khám..." class="w-full" />
+                  <BhytClinicSelect v-model="form.bhyt_initial_clinic" />
                 </div>
               </div>
 
@@ -381,7 +381,9 @@ import TabPanels from 'primevue/tabpanels'
 import Tabs from 'primevue/tabs'
 import Tag from 'primevue/tag'
 import departmentService from '@/services/departmentService'
+import BhytClinicSelect from '@/components/catalog/BhytClinicSelect.vue'
 import InsuranceChangesTab from './InsuranceChangesTab.vue'
+import { type BhytClinicRead } from '@/services/bhytClinicService'
 import insuranceService, {
   type EmployeeInsuranceComponentOverrideInput,
   type EmployeeInsuranceListItem,
@@ -544,7 +546,7 @@ const detail        = ref<EmployeeInsuranceProfileRead | null>(null)
 
 interface FormState {
   bhxh_code: string | null
-  bhyt_initial_clinic_name: string | null
+  bhyt_initial_clinic: BhytClinicRead | null
   company_bhxh_joined_date_obj: Date | null
   status_effective_from_obj: Date | null
   participation_status: 'active' | 'paused' | 'stopped'
@@ -556,7 +558,7 @@ interface FormState {
 
 const form = ref<FormState>({
   bhxh_code: null,
-  bhyt_initial_clinic_name: null,
+  bhyt_initial_clinic: null,
   company_bhxh_joined_date_obj: null,
   status_effective_from_obj: null,
   participation_status: 'active',
@@ -578,8 +580,10 @@ async function openEdit(item: EmployeeInsuranceListItem) {
     detail.value = res.data
     const d = res.data
     form.value = {
-      bhxh_code:                    d.bhxh_code,
-      bhyt_initial_clinic_name:     d.bhyt_initial_clinic_name,
+      bhxh_code:               d.bhxh_code,
+      bhyt_initial_clinic:     d.bhyt_initial_clinic_code
+        ? { id: 0, code: d.bhyt_initial_clinic_code, name: d.bhyt_initial_clinic_name ?? '', province_code: null }
+        : null,
       company_bhxh_joined_date_obj: fromIsoDate(d.company_bhxh_joined_date),
       status_effective_from_obj:    fromIsoDate(d.status_effective_from),
       participation_status:         d.participation_status as 'active' | 'paused' | 'stopped',
@@ -641,7 +645,8 @@ async function submitForm() {
   try {
     const payload = {
       bhxh_code:                form.value.bhxh_code || null,
-      bhyt_initial_clinic_name: form.value.bhyt_initial_clinic_name || null,
+      bhyt_initial_clinic_name: form.value.bhyt_initial_clinic?.name || null,
+      bhyt_initial_clinic_code: form.value.bhyt_initial_clinic?.code || null,
       company_bhxh_joined_date: toIsoDate(form.value.company_bhxh_joined_date_obj),
       participation_status:     form.value.participation_status,
       status_effective_from:    toIsoDate(form.value.status_effective_from_obj),

@@ -795,3 +795,21 @@ html.dark-mode {
     background: color-mix(in srgb, var(--p-primary-color) 15%, transparent);
   }
 }
+
+.ins-clinic-option {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.ins-clinic-code {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--p-text-muted-color);
+  min-width: 3.5rem;
+}
+
+.ins-clinic-name {
+  font-size: 0.875rem;
+  color: var(--p-text-color);
+}

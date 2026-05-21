@@ -20,6 +20,7 @@ from app.api.v1.endpoints import reminders
 from app.api.v1.endpoints import leave_entitlements
 from app.api.v1.endpoints import leave_records
 from app.api.v1.endpoints import leave_reports
+from app.api.v1.endpoints import bhyt_clinic
 from app.api.v1.endpoints import insurance
 
 router = APIRouter()
@@ -57,4 +58,5 @@ router.include_router(reminders.router,          prefix="/reminders",         ta
 router.include_router(leave_entitlements.router, prefix="/leave-entitlements", tags=["Quản lý ngày phép"])
 router.include_router(leave_records.router,     prefix="/leave-records",     tags=["Ghi nhận nghỉ phép"])
 router.include_router(leave_reports.router,     prefix="/leave-reports",     tags=["Báo cáo nghỉ phép"])
+router.include_router(bhyt_clinic.router,       prefix="/bhyt-clinics",      tags=["Danh mục bệnh viện KCB"])
 router.include_router(insurance.router,         prefix="/insurance",         tags=["Bảo hiểm BHXH"])

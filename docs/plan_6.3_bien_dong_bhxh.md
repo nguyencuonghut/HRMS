@@ -632,13 +632,142 @@ else:
 
 ---
 
-**Exit criteria Slice 4a:**
+**Exit criteria Slice 4a (BE):**
 - `alembic upgrade head` + `alembic downgrade -1` không lỗi
 - `ethnicities.bhxh_code` không NULL cho 56 dân tộc VNPT
 - `nationalities` có đủ 241 entries với ISO2 code
 - `bhyt_clinics` có ~12,822 rows, mỗi row có `code` không NULL
 - `insurance_change_events.ethnicity_bhxh_code_snapshot` được điền khi tạo event mới
 - Tạo profile mới với nhân viên có `ethnicity_id` → snapshot đúng mã dân tộc
+
+---
+
+### Slice 4a FE — Frontend cập nhật theo Slice 4a
+
+> **Lý do:** Slice 4a thay đổi 4 gap dữ liệu có ảnh hưởng đến các component FE hiện tại.  
+> Được tách riêng để không làm phức tạp Slice 4a BE; phải hoàn thành trước khi bắt đầu Slice 4b.
+
+**Files:**
+
+```
+backend/app/api/v1/endpoints/insurance.py                   (EDIT: thêm GET /bhyt-clinics)
+backend/app/schemas/bhyt_clinic.py                          (NEW: BhytClinicRead schema)
+frontend/src/services/insuranceService.ts                   (EDIT: types + method)
+frontend/src/services/otherBusinessCatalogService.ts        (EDIT: EthnicityRead thêm bhxh_code)
+frontend/src/views/employees/InsuranceTab.vue               (EDIT: clinic autocomplete)
+frontend/src/views/insurance/InsuranceView.vue              (EDIT: clinic autocomplete)
+frontend/src/assets/styles/views/_insurance.scss            (EDIT: nếu cần style mới)
+```
+
+---
+
+#### FE Gap 1 — API endpoint GET /insurance/bhyt-clinics (BE)
+
+FE cần endpoint tìm kiếm bệnh viện. Phải thêm vào BE trước khi implement FE.
+
+```
+GET /insurance/bhyt-clinics
+    ?keyword=&province_code=&limit=20
+→ list[BhytClinicRead]
+```
+
+`BhytClinicRead`:
+```python
+class BhytClinicRead(BaseModel):
+    id: int
+    code: str
+    name: str
+    province_code: str | None
+```
+
+Logic: `SELECT * FROM bhyt_clinics WHERE name ILIKE '%keyword%' OR code ILIKE '%keyword%' LIMIT limit`
+
+---
+
+#### FE Gap 2 — `insuranceService.ts`: thêm types + method
+
+```typescript
+// Thêm interface
+export interface BhytClinicRead {
+  id: number
+  code: string
+  name: string
+  province_code: string | null
+}
+
+// Cập nhật EmployeeInsuranceProfileUpdate (đã có bhyt_initial_clinic_name)
+// Thêm:
+  bhyt_initial_clinic_code?: string | null
+
+// Cập nhật InsuranceChangeEventRead (đã có ~30 fields)
+// Thêm:
+  ethnicity_bhxh_code_snapshot: string | null
+
+// Thêm service method
+lookupBhytClinics: (params?: { keyword?: string; province_code?: string; limit?: number }) =>
+  api.get<BhytClinicRead[]>('/insurance/bhyt-clinics', { params })
+```
+
+---
+
+#### FE Gap 3 — `InsuranceTab.vue` + `InsuranceView.vue`: clinic autocomplete
+
+**Hiện trạng:** `bhyt_initial_clinic_name` là `InputText` tự nhập tên tự do — không có mã.
+
+**Sau khi sửa:** Component autocomplete tìm kiếm `bhyt_clinics`:
+- User gõ keyword → debounce 300ms → gọi `lookupBhytClinics({ keyword })`
+- Chọn một bệnh viện → lưu cả `bhyt_initial_clinic_code` và `bhyt_initial_clinic_name`
+- Hiển thị: `[code] — name` (ví dụ: `01001 — Bệnh viện Bạch Mai`)
+- Clear → reset cả code và name về `null`
+
+**Pattern dùng:** PrimeVue `AutoComplete` với `optionLabel` custom template.
+
+```vue
+<AutoComplete
+  v-model="clinicDisplay"
+  :suggestions="clinicSuggestions"
+  @complete="searchClinics"
+  optionLabel="name"
+  placeholder="Nhập tên hoặc mã bệnh viện..."
+  class="w-full"
+>
+  <template #option="{ option }">
+    <span class="ins-clinic-code">{{ option.code }}</span>
+    <span class="ins-clinic-name">{{ option.name }}</span>
+  </template>
+</AutoComplete>
+```
+
+Khi chọn: `form.bhyt_initial_clinic_code = selected.code; form.bhyt_initial_clinic_name = selected.name`
+
+> **Lưu ý:** Không dùng `<style scoped>` — thêm `.ins-clinic-code` và `.ins-clinic-name` vào `_insurance.scss`.
+
+---
+
+#### FE Gap 4 — `otherBusinessCatalogService.ts`: thêm `bhxh_code` vào `EthnicityRead`
+
+```typescript
+// Cập nhật interface EthnicityRead
+export interface EthnicityRead {
+  id: number
+  code: string
+  name: string
+  normalized_name: string
+  bhxh_code: string | null   // thêm mới — mã 2 chữ số VNPT
+  is_active: boolean
+}
+```
+
+> `EthnicitySelect.vue` hiện dùng `AutoComplete` — không cần thay đổi component, chỉ cần type đúng để TS không warn.
+
+---
+
+**Exit criteria Slice 4a FE:**
+- `GET /insurance/bhyt-clinics?keyword=bach+mai` → trả về list bệnh viện đúng
+- `InsuranceTab.vue`: gõ "Bạch Mai" → gợi ý list → chọn → `bhyt_initial_clinic_code` và `bhyt_initial_clinic_name` được lưu
+- `InsuranceView.vue`: tương tự
+- `PUT /insurance/employees/{id}` với `bhyt_initial_clinic_code` hợp lệ → profile lưu cả 2 field
+- `vue-tsc --noEmit` không lỗi
 
 ---
 
@@ -893,7 +1022,9 @@ Slice 2 (Service + API CRUD + auto-record)
   ↓
 Slice 3 (Frontend tab)
   ↓
-Slice 4a (Migration 0021: refactoring ethnicities + bhyt_clinics + snapshot ethnicity)
+Slice 4a BE (Migration 0021: refactoring ethnicities + bhyt_clinics + snapshot ethnicity)
+  ↓
+Slice 4a FE (Clinic autocomplete + types update + GET /bhyt-clinics endpoint)
   ↓
 Slice 4b (Export service + endpoint VNPT D02-TS)
   ↓

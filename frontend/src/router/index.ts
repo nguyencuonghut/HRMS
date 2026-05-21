@@ -175,6 +175,12 @@ const router = createRouter({
           component: () => import('@/views/catalog/OtherBusinessCatalogView.vue'),
           meta: { title: 'Danh mục nghiệp vụ khác' },
         },
+        {
+          path: 'catalog/bhyt-clinics',
+          name: 'catalog-bhyt-clinics',
+          component: () => import('@/views/catalog/BhytClinicView.vue'),
+          meta: { title: 'Danh mục bệnh viện KCB' },
+        },
         // Cài đặt
         {
           path: 'settings',

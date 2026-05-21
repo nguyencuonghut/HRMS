@@ -200,6 +200,7 @@ class Ethnicity(SQLModel, table=True):
     code: str = Field(max_length=20, unique=True, index=True)
     name: str = Field(max_length=255)
     normalized_name: str = Field(max_length=255, index=True)
+    bhxh_code: Optional[str] = Field(default=None, max_length=10, unique=True)
     is_active: bool = Field(default=True)
     created_at: datetime = Field(default_factory=_utcnow)
     updated_at: Optional[datetime] = Field(default=None)
