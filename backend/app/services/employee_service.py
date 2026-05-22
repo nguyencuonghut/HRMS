@@ -175,11 +175,22 @@ async def lookup_employees(
 ) -> list[Employee]:
     filters = [Employee.is_active == True]
     if keyword:
-        norm = normalize_text(keyword)
+        kw = keyword.strip()
+        norm = normalize_text(kw)
+        numeric_id: Optional[int] = None
+        if kw.isdigit():
+            try:
+                numeric_id = int(kw)
+            except ValueError:
+                pass
+        id_conditions = []
+        if numeric_id is not None:
+            id_conditions = [Employee.id == numeric_id, Employee.employee_seq == numeric_id]
         filters.append(
             or_(
                 Employee.normalized_name.contains(norm),
-                Employee.id_number.ilike(f"%{keyword.strip()}%"),
+                Employee.id_number.ilike(f"%{kw}%"),
+                *id_conditions,
             )
         )
     q = select(Employee).where(*filters).order_by(Employee.employee_seq).limit(limit)

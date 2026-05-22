@@ -144,10 +144,10 @@ async def export_d02_ts_vnpt(
         ws_data.cell(row=row, column=31).value = gender_val
         ws_data.cell(row=row, column=32).value = nat_name
         ws_data.cell(row=row, column=33).value = event.nationality_code_snapshot
-        ws_data.cell(row=row, column=34).value = event.ethnicity_bhxh_code_snapshot
+        ws_data.cell(row=row, column=35).value = event.ethnicity_bhxh_code_snapshot  # DanToc (code, col35)
         ws_data.cell(row=row, column=38).value = event.bhyt_clinic_name_snapshot
         ws_data.cell(row=row, column=39).value = event.bhyt_clinic_code_snapshot
-        ws_data.cell(row=row, column=50).value = mavung_ltt
+        ws_data.cell(row=row, column=26).value = mavung_ltt  # MavungLTT (col26)
 
         # Sheet "Bảng kê"
         ws_bangke.cell(row=row, column=1).value = idx

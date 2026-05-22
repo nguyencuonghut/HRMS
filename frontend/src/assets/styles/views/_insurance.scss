@@ -820,3 +820,15 @@ html.dark-mode {
   color: var(--p-text-muted-color);
   white-space: nowrap;
 }
+
+.ins-emp-code {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--p-text-muted-color);
+  min-width: 5rem;
+}
+
+.ins-emp-name {
+  font-size: 0.875rem;
+  color: var(--p-text-color);
+}

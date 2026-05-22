@@ -70,7 +70,7 @@
             <span
               v-if="data.missing_clinic_count"
               class="ins-changes-warn"
-              :title="`${data.missing_clinic_count} nhân viên tăng chưa có mã KCB — export iBHXH XML sẽ thiếu trường noiDangKyKCB`"
+              :title="`${data.missing_clinic_count} nhân viên tăng chưa có mã KCB (MaBenhVien) — file VNPT D02-TS sẽ bị trống cột này. Vui lòng cập nhật 'Nơi KCB ban đầu' trong hồ sơ bảo hiểm.`"
             >
               ⚠ Thiếu mã KCB ({{ data.missing_clinic_count }})
             </span>
@@ -169,13 +169,25 @@
     >
       <div class="ins-dialog-body">
         <div class="field">
-          <label>Mã số nhân viên (ID) <span class="req">*</span></label>
-          <InputNumber
-            v-model="addForm.employee_id"
-            :use-grouping="false"
-            placeholder="Nhập ID nhân viên..."
+          <label>Nhân viên <span class="req">*</span></label>
+          <AutoComplete
+            v-model="addForm.employee_selected"
+            :suggestions="employeeSuggestions"
+            :option-label="empOptionLabel"
+            dropdown
+            force-selection
+            :loading="employeeSearchLoading"
+            placeholder="Nhập mã hoặc tên nhân viên..."
             class="w-full"
-          />
+            @complete="searchEmployees"
+            @option-select="onEmployeeSelect"
+            @clear="addForm.employee_id = null"
+          >
+            <template #option="{ option }">
+              <span class="ins-emp-code">{{ option.display_code }}</span>
+              <span class="ins-emp-name">{{ option.full_name }}</span>
+            </template>
+          </AutoComplete>
         </div>
         <div class="field-row">
           <div class="field">
@@ -232,17 +244,18 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import AutoComplete from 'primevue/autocomplete'
 import Button from 'primevue/button'
 import Column from 'primevue/column'
 import DataTable from 'primevue/datatable'
 import DatePicker from 'primevue/datepicker'
 import Dialog from 'primevue/dialog'
-import InputNumber from 'primevue/inputnumber'
 import InputText from 'primevue/inputtext'
 import Select from 'primevue/select'
 import Tag from 'primevue/tag'
 import { useToast } from 'primevue/usetoast'
 import insuranceService, { type InsuranceChangeEventRead } from '@/services/insuranceService'
+import employeeService, { type EmployeeLookupItem } from '@/services/employeeService'
 
 const toast = useToast()
 const now = new Date()
@@ -302,6 +315,7 @@ const allReasonLabels: Record<string, string> = Object.fromEntries(
 
 interface AddForm {
   employee_id: number | null
+  employee_selected: EmployeeLookupItem | null
   change_type: 'increase' | 'decrease' | null
   change_reason: string | null
   effective_date_obj: Date | null
@@ -310,11 +324,35 @@ interface AddForm {
 
 const addForm = ref<AddForm>({
   employee_id: null,
+  employee_selected: null,
   change_type: null,
   change_reason: null,
   effective_date_obj: null,
   note: null,
 })
+
+const employeeSuggestions = ref<EmployeeLookupItem[]>([])
+const employeeSearchLoading = ref(false)
+
+async function searchEmployees(event: { query: string }) {
+  employeeSearchLoading.value = true
+  try {
+    const res = await employeeService.lookup({ keyword: event.query || undefined, limit: 20 })
+    employeeSuggestions.value = res.data
+  } catch {
+    employeeSuggestions.value = []
+  } finally {
+    employeeSearchLoading.value = false
+  }
+}
+
+function onEmployeeSelect() {
+  addForm.value.employee_id = addForm.value.employee_selected?.id ?? null
+}
+
+function empOptionLabel(e: EmployeeLookupItem): string {
+  return `${e.display_code} — ${e.full_name}`
+}
 
 const filteredReasonOptions = computed(() =>
   addForm.value.change_type ? (reasonOptionsByType[addForm.value.change_type] ?? []) : []
@@ -436,6 +474,7 @@ function onMonthRowClick(e: { data: MonthlySummary }) {
 function openAddDialog() {
   addForm.value = {
     employee_id: null,
+    employee_selected: null,
     change_type: null,
     change_reason: null,
     effective_date_obj: null,
@@ -498,8 +537,9 @@ async function exportD02Ts() {
     a.download = `D02-TS_T${String(selectedMonth.value).padStart(2, '0')}_${selectedYear.value}_VNPT.xlsx`
     a.click()
     URL.revokeObjectURL(url)
-  } catch {
-    toast.add({ severity: 'warn', summary: 'Chưa sẵn sàng', detail: 'Export D02-TS VNPT sẽ ra mắt ở phiên bản tiếp theo', life: 4000 })
+  } catch (err: unknown) {
+    const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? 'Không thể xuất file D02-TS'
+    toast.add({ severity: 'error', summary: 'Lỗi xuất file', detail: msg, life: 4000 })
   }
 }
 
