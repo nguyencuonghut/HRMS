@@ -1,6 +1,6 @@
 # Kế hoạch triển khai — 6.4. Báo cáo BHXH
 
-**Phạm vi chính:** Tổng hợp biến động thành báo cáo tháng · Workflow duyệt báo cáo trước khi xuất file chính thức · Điều chỉnh tháng kê khai chính thức từng dòng · Export D02-TS Excel + iBHXH XML từ báo cáo đã duyệt  
+**Phạm vi chính:** Tổng hợp biến động thành báo cáo tháng · Workflow duyệt báo cáo trước khi xuất file chính thức · Điều chỉnh tháng kê khai chính thức từng dòng · Export D02-TS Excel (mẫu VNPT) từ báo cáo đã duyệt  
 **Phụ thuộc hoàn thành:** `6.3 Biến động tăng/giảm BHXH` ✅ (có bảng `insurance_change_events` với `suggested_declaration_year/month`)  
 **Căn cứ pháp lý:**
 - Quyết định 595/QĐ-BHXH (2017) — Mẫu D02-TS, quy trình nộp hồ sơ tăng/giảm
@@ -34,7 +34,7 @@ event A  suggested=01/2026 ─┐
 event B  suggested=01/2026 ─┤→  Báo cáo tháng 01/2026 [draft]
 event C  suggested=02/2026  │       ↓ HR xem, điều chỉnh declared_month
 event D  suggested=01/2026 ─┘       ↓ Duyệt → [approved]
-                                    ↓ Export D02-TS / XML (chỉ từ approved)
+                                    ↓ Export D02-TS VNPT (chỉ từ approved)
 ```
 
 ---
@@ -174,8 +174,7 @@ insurance_change_events
    → status: 'pending_review' → 'rejected' → 'draft' (HR sửa lại)
 
 6. [HR xuất file chính thức — chỉ từ approved]
-   GET /insurance/reports/{id}/export/d02-ts   → Excel D02-TS
-   GET /insurance/reports/{id}/export/ibhxh-xml → XML iBHXH
+   GET /insurance/reports/{id}/export/d02-ts   → Excel D02-TS (mẫu VNPT)
 ```
 
 ### Quy tắc business
@@ -238,10 +237,7 @@ DELETE /insurance/reports/{id}/line-items/{line_id}
 
 -- Export (chỉ approved)
 GET    /insurance/reports/{id}/export/d02-ts
-       → StreamingResponse .xlsx
-
-GET    /insurance/reports/{id}/export/ibhxh-xml
-       → StreamingResponse .xml
+       → StreamingResponse .xlsx  (mẫu VNPT D02-TS)
 ```
 
 ### Schemas chính
@@ -261,7 +257,7 @@ class InsurancePeriodReportRead(BaseModel):
     note: str | None
     line_item_count: int         # total dòng
     adjusted_count: int          # số dòng đã điều chỉnh declared
-    missing_clinic_code_count: int  # cảnh báo cho export XML
+    missing_clinic_code_count: int  # cảnh báo VNPT Excel: thiếu cột MaBenhVien
     created_at: datetime
 
 class InsuranceReportLineItemRead(BaseModel):
@@ -318,7 +314,7 @@ class InsuranceReportLineItemRead(BaseModel):
 │ Báo cáo T05/2026 — Lần đầu                        [Nộp duyệt] [Xóa]   │
 │ Trạng thái: ✎ Nháp                                                     │
 ├────────────────────────────────────────────────────────────────────────┤
-│ ⚠ 1 dòng thiếu mã KCB — export iBHXH XML sẽ thiếu <noiDangKyKCB>      │
+│ ⚠ 1 dòng thiếu mã KCB — file VNPT D02-TS sẽ bị trống cột MaBenhVien    │
 │ ℹ 1 dòng đã được điều chỉnh tháng kê khai                              │
 ├─────────────────────────────────────────────────────────────────────────┤
 │ [+ Thêm biến động]  Lọc: [Tất cả ▼] [Tăng/Giảm ▼]  Sắp xếp: [Ngày ▼]│
@@ -456,7 +452,7 @@ backend/app/api/v1/endpoints/insurance.py           (EDIT: thêm export endpoint
 ```
 
 **Thay đổi so với export trong 6.3:**
-- Export D02-TS và iBHXH XML trong 6.4 dùng `declared_year/month` từ line item (không phải `suggested` hay `period_year/month` của event)
+- Export D02-TS VNPT trong 6.4 dùng `declared_year/month` từ line item (không phải `suggested` hay `period_year/month` của event)
 - Chỉ báo cáo `approved` mới được export
 - Thứ tự dòng theo `sort_order` trên line item
 - Header ghi rõ: "Kỳ kê khai: {declared_year}/{declared_month}" của từng dòng

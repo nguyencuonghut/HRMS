@@ -1,6 +1,6 @@
 # Kế hoạch triển khai — 6.3. Biến động tăng/giảm BHXH
 
-**Phạm vi chính:** Ghi nhận sự kiện tăng/giảm nhân sự đóng bảo hiểm · Bảng tổng hợp biến động theo tháng · Tích hợp tự động với thay đổi trạng thái hồ sơ · Export D02-TS Excel và iBHXH XML  
+**Phạm vi chính:** Ghi nhận sự kiện tăng/giảm nhân sự đóng bảo hiểm · Bảng tổng hợp biến động theo tháng · Tích hợp tự động với thay đổi trạng thái hồ sơ · Export D02-TS Excel (mẫu VNPT)  
 **Phụ thuộc hoàn thành:** `6.1 Thông tin bảo hiểm nhân viên` ✅ · `6.2 Tỷ lệ đóng BHXH` ✅  
 **Căn cứ pháp lý:**
 - Luật BHXH 2024 (41/2024/QH15), hiệu lực 01/07/2025 — Điều 16, 17, 97 (trách nhiệm đơn vị báo cáo)
@@ -87,15 +87,15 @@ Ví dụ thực tế:
 
 ### Gap cần xử lý
 
-| Field cần cho D02-TS / iBHXH XML | Trạng thái | Hướng xử lý |
+| Field cần cho D02-TS VNPT | Trạng thái | Hướng xử lý |
 |---|---|---|
 | Mã KCB ban đầu (`bhyt_initial_clinic_code`) | ❌ **Thiếu** — hiện chỉ có `bhyt_initial_clinic_name` | Thêm field `bhyt_initial_clinic_code` vào `employee_insurance_profiles` trong migration 0020; snapshot vào event |
 | Số CCCD/CMND (`identity_number`) | ❌ **Thiếu** trong model hiện tại | Lưu vào snapshot event khi có; nếu chưa có field thì để nullable |
 | Mã quốc tịch (ISO 3166-1 alpha-2) | Có `nationality_id` → cần join | Snapshot `nationality_code` (VN/KR/...) vào event |
 | Phụ cấp tính vào mức đóng BHXH | ❌ **Thiếu** — chưa có trong model | Snapshot `allowances_amount` (nullable, default 0) |
-| Loại HĐ theo mã iBHXH (01/02/03) | Có `document_kind` + `effective_to` | Derive lúc tạo event, snapshot `contract_type_code` |
+| Loại HĐ (`contract_type_code`) | Có `document_kind` + `effective_to` | Derive lúc tạo event, snapshot `contract_type_code` |
 
-> **Lưu ý triển khai:** `bhyt_initial_clinic_code` cần được thêm vào `employee_insurance_profiles` (migration 0020) cùng lúc với bảng event. Hiện tại iBHXH XML sẽ để trống nếu không có mã này — không blocking nhưng cần điền trước khi nộp file chính thức.
+> **Lưu ý triển khai:** `bhyt_initial_clinic_code` cần được thêm vào `employee_insurance_profiles` (migration 0020) cùng lúc với bảng event. Nếu không có mã này, cột `MaBenhVien` trong file VNPT D02-TS sẽ bị trống — không crash export nhưng HR cần điền trước khi nộp file chính thức.
 
 ---
 
@@ -135,7 +135,7 @@ CREATE TABLE insurance_change_events (
     basis_amount                NUMERIC(18, 2) NOT NULL,  -- Mức lương đóng
     allowances_amount           NUMERIC(18, 2) NOT NULL DEFAULT 0,  -- Phụ cấp tính vào mức đóng
     bhyt_clinic_name_snapshot   VARCHAR(255),
-    bhyt_clinic_code_snapshot   VARCHAR(20),  -- Mã KCB — dùng trong iBHXH XML
+    bhyt_clinic_code_snapshot   VARCHAR(20),  -- Mã KCB — cột MaBenhVien trong VNPT D02-TS
     policy_version_code_snapshot VARCHAR(50), -- Mã policy version (tỷ lệ đóng)
     employee_rate_total_snapshot NUMERIC(8, 4) NOT NULL DEFAULT 0,  -- Tổng % NLĐ
     employer_rate_total_snapshot NUMERIC(8, 4) NOT NULL DEFAULT 0,  -- Tổng % NSDLĐ
