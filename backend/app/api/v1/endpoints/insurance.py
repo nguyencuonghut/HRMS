@@ -28,7 +28,25 @@ from app.schemas.insurance_change import (
     InsuranceChangeEventRead,
     InsuranceMonthlyChangeSummary,
 )
-from app.services import employee_insurance_service, insurance_change_service, insurance_export_service, insurance_policy_service
+from app.schemas.insurance_report import (
+    ApproveBody,
+    InsurancePeriodReportCreate,
+    InsurancePeriodReportDetail,
+    InsurancePeriodReportListPage,
+    InsurancePeriodReportRead,
+    InsurancePeriodReportUpdate,
+    InsuranceReportLineItemCreate,
+    InsuranceReportLineItemRead,
+    InsuranceReportLineItemUpdate,
+    RejectBody,
+)
+from app.services import (
+    employee_insurance_service,
+    insurance_change_service,
+    insurance_export_service,
+    insurance_policy_service,
+    insurance_report_service,
+)
 
 router = APIRouter()
 
@@ -253,6 +271,130 @@ async def delete_manual_insurance_change_event(
     session: AsyncSession = Depends(get_session),
 ):
     await insurance_change_service.delete_manual_event(session, event_id)
+
+
+# ── Báo cáo biến động (6.4) ──────────────────────────────────────────────────
+
+@router.get("/reports", response_model=InsurancePeriodReportListPage, summary="Danh sách báo cáo biến động BHXH")
+async def list_insurance_reports(
+    year: Optional[int] = Query(None, ge=2000, le=2100),
+    report_status: Optional[str] = Query(None, alias="status"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    _: User = require_permission("insurance:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await insurance_report_service.list_reports(
+        session, year=year, status_filter=report_status, page=page, page_size=page_size
+    )
+
+
+@router.post("/reports", response_model=InsurancePeriodReportRead, status_code=status.HTTP_201_CREATED, summary="Tạo báo cáo biến động tháng mới")
+async def create_insurance_report(
+    body: InsurancePeriodReportCreate,
+    current_user: User = require_permission("insurance:create"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await insurance_report_service.create_report(session, body, current_user.id)
+
+
+@router.get("/reports/{report_id}", response_model=InsurancePeriodReportDetail, summary="Chi tiết báo cáo + danh sách dòng")
+async def get_insurance_report(
+    report_id: int,
+    _: User = require_permission("insurance:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await insurance_report_service.get_report_detail(session, report_id)
+
+
+@router.patch("/reports/{report_id}", response_model=InsurancePeriodReportRead, summary="Cập nhật ghi chú báo cáo")
+async def update_insurance_report(
+    report_id: int,
+    body: InsurancePeriodReportUpdate,
+    _: User = require_permission("insurance:edit"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await insurance_report_service.update_report(session, report_id, body)
+
+
+@router.delete("/reports/{report_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Xóa báo cáo draft")
+async def delete_insurance_report(
+    report_id: int,
+    _: User = require_permission("insurance:edit"),
+    session: AsyncSession = Depends(get_session),
+):
+    await insurance_report_service.delete_report(session, report_id)
+
+
+@router.post("/reports/{report_id}/submit", response_model=InsurancePeriodReportRead, summary="Nộp báo cáo lên duyệt")
+async def submit_insurance_report(
+    report_id: int,
+    current_user: User = require_permission("insurance:edit"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await insurance_report_service.submit_for_review(session, report_id, current_user.id)
+
+
+@router.post("/reports/{report_id}/approve", response_model=InsurancePeriodReportRead, summary="Phê duyệt báo cáo")
+async def approve_insurance_report(
+    report_id: int,
+    body: ApproveBody,
+    current_user: User = require_permission("insurance:approve"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await insurance_report_service.approve_report(session, report_id, current_user.id, body)
+
+
+@router.post("/reports/{report_id}/reject", response_model=InsurancePeriodReportRead, summary="Trả lại báo cáo")
+async def reject_insurance_report(
+    report_id: int,
+    body: RejectBody,
+    current_user: User = require_permission("insurance:approve"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await insurance_report_service.reject_report(session, report_id, current_user.id, body)
+
+
+@router.get("/reports/{report_id}/line-items", response_model=list[InsuranceReportLineItemRead], summary="Danh sách dòng báo cáo")
+async def list_report_line_items(
+    report_id: int,
+    _: User = require_permission("insurance:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await insurance_report_service.list_line_items(session, report_id)
+
+
+@router.post("/reports/{report_id}/line-items", response_model=InsuranceReportLineItemRead, status_code=status.HTTP_201_CREATED, summary="Thêm dòng vào báo cáo")
+async def add_report_line_item(
+    report_id: int,
+    body: InsuranceReportLineItemCreate,
+    _: User = require_permission("insurance:edit"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await insurance_report_service.add_line_item(session, report_id, body)
+
+
+@router.patch("/reports/{report_id}/line-items/{line_item_id}", response_model=InsuranceReportLineItemRead, summary="Điều chỉnh tháng kê khai của dòng")
+async def update_report_line_item(
+    report_id: int,
+    line_item_id: int,
+    body: InsuranceReportLineItemUpdate,
+    current_user: User = require_permission("insurance:edit"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await insurance_report_service.update_line_item(
+        session, report_id, line_item_id, body, current_user.id
+    )
+
+
+@router.delete("/reports/{report_id}/line-items/{line_item_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Xóa dòng khỏi báo cáo")
+async def remove_report_line_item(
+    report_id: int,
+    line_item_id: int,
+    _: User = require_permission("insurance:edit"),
+    session: AsyncSession = Depends(get_session),
+):
+    await insurance_report_service.remove_line_item(session, report_id, line_item_id)
 
 
 @router.get(
