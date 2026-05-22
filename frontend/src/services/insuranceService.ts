@@ -301,4 +301,109 @@ export default {
       params: { period_year: year, period_month: month },
       responseType: 'blob',
     }),
+
+  // ── Báo cáo biến động (6.4) ────────────────────────────────────────────────
+
+  listReports: (params: { year?: number; status?: string; page?: number; page_size?: number }) =>
+    api.get<InsurancePeriodReportListPage>('/insurance/reports', { params }),
+
+  createReport: (payload: InsurancePeriodReportCreate) =>
+    api.post<InsurancePeriodReportRead>('/insurance/reports', payload),
+
+  getReport: (reportId: number) =>
+    api.get<InsurancePeriodReportDetail>(`/insurance/reports/${reportId}`),
+
+  updateReport: (reportId: number, payload: { note?: string | null }) =>
+    api.patch<InsurancePeriodReportRead>(`/insurance/reports/${reportId}`, payload),
+
+  deleteReport: (reportId: number) =>
+    api.delete(`/insurance/reports/${reportId}`),
+
+  submitReport: (reportId: number) =>
+    api.post<InsurancePeriodReportRead>(`/insurance/reports/${reportId}/submit`),
+
+  approveReport: (reportId: number, payload: { note?: string | null }) =>
+    api.post<InsurancePeriodReportRead>(`/insurance/reports/${reportId}/approve`, payload),
+
+  rejectReport: (reportId: number, payload: { review_note: string }) =>
+    api.post<InsurancePeriodReportRead>(`/insurance/reports/${reportId}/reject`, payload),
+
+  listLineItems: (reportId: number) =>
+    api.get<InsuranceReportLineItemRead[]>(`/insurance/reports/${reportId}/line-items`),
+
+  addLineItem: (reportId: number, payload: { event_id: number; declared_year?: number; declared_month?: number }) =>
+    api.post<InsuranceReportLineItemRead>(`/insurance/reports/${reportId}/line-items`, payload),
+
+  updateLineItem: (reportId: number, lineItemId: number, payload: { declared_year: number; declared_month: number; adjustment_note: string }) =>
+    api.patch<InsuranceReportLineItemRead>(`/insurance/reports/${reportId}/line-items/${lineItemId}`, payload),
+
+  removeLineItem: (reportId: number, lineItemId: number) =>
+    api.delete(`/insurance/reports/${reportId}/line-items/${lineItemId}`),
+
+  exportReportD02Ts: (reportId: number) =>
+    api.get(`/insurance/reports/${reportId}/export/d02-ts`, { responseType: 'blob' }),
+}
+
+// ── Report types (6.4) ────────────────────────────────────────────────────────
+
+export type ReportStatus = 'draft' | 'pending_review' | 'approved' | 'rejected'
+export type SubmissionType = 'initial' | 'supplement' | 'correction'
+
+export interface InsurancePeriodReportRead {
+  id: number
+  period_year: number
+  period_month: number
+  submission_type: SubmissionType
+  status: ReportStatus
+  prepared_by_id: number | null
+  prepared_by_name: string | null
+  prepared_at: string | null
+  reviewed_by_id: number | null
+  reviewed_by_name: string | null
+  reviewed_at: string | null
+  review_note: string | null
+  note: string | null
+  line_item_count: number
+  adjusted_count: number
+  missing_clinic_code_count: number
+  created_at: string
+}
+
+export interface InsuranceReportLineItemRead {
+  id: number
+  report_id: number
+  event_id: number
+  employee_name: string
+  employee_code: string
+  bhxh_code: string | null
+  change_type: 'increase' | 'decrease'
+  change_reason: string
+  effective_date: string
+  basis_amount: number
+  bhyt_clinic_code: string | null
+  suggested_year: number
+  suggested_month: number
+  declared_year: number
+  declared_month: number
+  is_adjusted: boolean
+  adjustment_note: string | null
+  sort_order: number
+}
+
+export interface InsurancePeriodReportDetail extends InsurancePeriodReportRead {
+  line_items: InsuranceReportLineItemRead[]
+}
+
+export interface InsurancePeriodReportListPage {
+  items: InsurancePeriodReportRead[]
+  total: number
+  page: number
+  page_size: number
+}
+
+export interface InsurancePeriodReportCreate {
+  period_year: number
+  period_month: number
+  submission_type: SubmissionType
+  note?: string | null
 }

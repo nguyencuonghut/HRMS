@@ -8,6 +8,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.employee import Employee
+from app.models.auth import AuditLog, User
 from app.models.insurance import (
     InsuranceChangeEvent,
     InsurancePeriodReport,
@@ -29,12 +30,24 @@ def _utcnow() -> datetime:
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
+async def _user_name_map(session: AsyncSession, ids: set[int]) -> dict[int, str]:
+    if not ids:
+        return {}
+    rows = (
+        await session.execute(select(User.id, User.full_name).where(User.id.in_(ids)))
+    ).all()
+    return {r.id: r.full_name for r in rows}
+
+
 def _to_report_dict(
     report: InsurancePeriodReport,
     total: int,
     adjusted: int,
     missing: int,
+    *,
+    name_map: dict[int, str] | None = None,
 ) -> dict:
+    nm = name_map or {}
     return {
         "id": report.id,
         "period_year": report.period_year,
@@ -42,8 +55,10 @@ def _to_report_dict(
         "submission_type": report.submission_type,
         "status": report.status,
         "prepared_by_id": report.prepared_by_id,
+        "prepared_by_name": nm.get(report.prepared_by_id) if report.prepared_by_id else None,
         "prepared_at": report.prepared_at,
         "reviewed_by_id": report.reviewed_by_id,
+        "reviewed_by_name": nm.get(report.reviewed_by_id) if report.reviewed_by_id else None,
         "reviewed_at": report.reviewed_at,
         "review_note": report.review_note,
         "note": report.note,
@@ -263,7 +278,8 @@ async def create_report(
     await session.commit()
     await session.refresh(report)
     total, adjusted, missing = await _single_counts(session, report.id)
-    return _to_report_dict(report, total, adjusted, missing)
+    nm = await _user_name_map(session, {i for i in (report.prepared_by_id, report.reviewed_by_id) if i})
+    return _to_report_dict(report, total, adjusted, missing, name_map=nm)
 
 
 async def list_reports(
@@ -293,8 +309,10 @@ async def list_reports(
     ).scalars().all()
 
     counts_map = await _batch_counts(session, [r.id for r in rows])
+    user_ids = {i for r in rows for i in (r.prepared_by_id, r.reviewed_by_id) if i}
+    nm = await _user_name_map(session, user_ids)
     items = [
-        _to_report_dict(r, *counts_map.get(r.id, (0, 0, 0))) for r in rows
+        _to_report_dict(r, *counts_map.get(r.id, (0, 0, 0)), name_map=nm) for r in rows
     ]
     return {"items": items, "total": total, "page": page, "page_size": page_size}
 
@@ -326,7 +344,8 @@ async def get_report_detail(session: AsyncSession, report_id: int) -> dict:
     ]
 
     total, adjusted, missing = await _single_counts(session, report_id)
-    base = _to_report_dict(report, total, adjusted, missing)
+    nm = await _user_name_map(session, {i for i in (report.prepared_by_id, report.reviewed_by_id) if i})
+    base = _to_report_dict(report, total, adjusted, missing, name_map=nm)
     return {**base, "line_items": line_items}
 
 
@@ -341,7 +360,8 @@ async def update_report(
     await session.commit()
     await session.refresh(report)
     total, adjusted, missing = await _single_counts(session, report_id)
-    return _to_report_dict(report, total, adjusted, missing)
+    nm = await _user_name_map(session, {i for i in (report.prepared_by_id, report.reviewed_by_id) if i})
+    return _to_report_dict(report, total, adjusted, missing, name_map=nm)
 
 
 async def delete_report(session: AsyncSession, report_id: int) -> None:
@@ -521,7 +541,8 @@ async def submit_for_review(
     await session.commit()
     await session.refresh(report)
     total, adjusted, missing = await _single_counts(session, report_id)
-    return _to_report_dict(report, total, adjusted, missing)
+    nm = await _user_name_map(session, {i for i in (report.prepared_by_id, report.reviewed_by_id) if i})
+    return _to_report_dict(report, total, adjusted, missing, name_map=nm)
 
 
 async def approve_report(
@@ -531,28 +552,31 @@ async def approve_report(
     payload: ApproveBody,
 ) -> dict:
     report = await _get_report_or_404(session, report_id)
-    if report.status != "pending_review":
+    if report.status not in ("draft", "pending_review"):
         raise HTTPException(
             status.HTTP_409_CONFLICT,
-            detail=(
-                f"Chỉ có thể duyệt báo cáo ở trạng thái 'pending_review', "
-                f"hiện tại: '{report.status}'"
-            ),
-        )
-    if report.prepared_by_id == reviewed_by_id:
-        raise HTTPException(
-            status.HTTP_403_FORBIDDEN,
-            detail="Người duyệt không được là người đã nộp báo cáo",
+            detail=f"Không thể xác nhận báo cáo ở trạng thái '{report.status}'",
         )
 
+    old_status = report.status
     report.status = "approved"
     report.reviewed_by_id = reviewed_by_id
     report.reviewed_at = _utcnow()
     report.review_note = payload.note
+    session.add(AuditLog(
+        user_id=reviewed_by_id,
+        action="APPROVE",
+        entity_type="insurance_period_report",
+        entity_id=report_id,
+        entity_name=f"T{report.period_month:02d}/{report.period_year}",
+        old_data={"status": old_status},
+        new_data={"status": "approved", "note": payload.note},
+    ))
     await session.commit()
     await session.refresh(report)
     total, adjusted, missing = await _single_counts(session, report_id)
-    return _to_report_dict(report, total, adjusted, missing)
+    nm = await _user_name_map(session, {i for i in (report.prepared_by_id, report.reviewed_by_id) if i})
+    return _to_report_dict(report, total, adjusted, missing, name_map=nm)
 
 
 async def reject_report(
@@ -562,20 +586,28 @@ async def reject_report(
     payload: RejectBody,
 ) -> dict:
     report = await _get_report_or_404(session, report_id)
-    if report.status != "pending_review":
+    if report.status not in ("draft", "pending_review"):
         raise HTTPException(
             status.HTTP_409_CONFLICT,
-            detail=(
-                f"Chỉ có thể trả lại báo cáo ở trạng thái 'pending_review', "
-                f"hiện tại: '{report.status}'"
-            ),
+            detail=f"Không thể trả lại báo cáo ở trạng thái '{report.status}'",
         )
 
+    old_status = report.status
     report.status = "rejected"
     report.reviewed_by_id = reviewed_by_id
     report.reviewed_at = _utcnow()
     report.review_note = payload.review_note
+    session.add(AuditLog(
+        user_id=reviewed_by_id,
+        action="REJECT",
+        entity_type="insurance_period_report",
+        entity_id=report_id,
+        entity_name=f"T{report.period_month:02d}/{report.period_year}",
+        old_data={"status": old_status},
+        new_data={"status": "rejected", "review_note": payload.review_note},
+    ))
     await session.commit()
     await session.refresh(report)
     total, adjusted, missing = await _single_counts(session, report_id)
-    return _to_report_dict(report, total, adjusted, missing)
+    nm = await _user_name_map(session, {i for i in (report.prepared_by_id, report.reviewed_by_id) if i})
+    return _to_report_dict(report, total, adjusted, missing, name_map=nm)

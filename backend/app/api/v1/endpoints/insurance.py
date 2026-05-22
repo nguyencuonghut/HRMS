@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, Query, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.v1.deps import require_permission
+from app.api.v1.deps import require_admin_or_hr, require_permission
 from app.core.database import get_session
 from app.models.auth import User
 from app.schemas.employee_insurance import (
@@ -335,11 +335,11 @@ async def submit_insurance_report(
     return await insurance_report_service.submit_for_review(session, report_id, current_user.id)
 
 
-@router.post("/reports/{report_id}/approve", response_model=InsurancePeriodReportRead, summary="Phê duyệt báo cáo")
+@router.post("/reports/{report_id}/approve", response_model=InsurancePeriodReportRead, summary="Xác nhận báo cáo")
 async def approve_insurance_report(
     report_id: int,
     body: ApproveBody,
-    current_user: User = require_permission("insurance:approve"),
+    current_user: User = require_admin_or_hr(),
     session: AsyncSession = Depends(get_session),
 ):
     return await insurance_report_service.approve_report(session, report_id, current_user.id, body)
@@ -349,7 +349,7 @@ async def approve_insurance_report(
 async def reject_insurance_report(
     report_id: int,
     body: RejectBody,
-    current_user: User = require_permission("insurance:approve"),
+    current_user: User = require_admin_or_hr(),
     session: AsyncSession = Depends(get_session),
 ):
     return await insurance_report_service.reject_report(session, report_id, current_user.id, body)

@@ -103,6 +103,18 @@ const router = createRouter({
           component: () => import('@/views/insurance/InsuranceView.vue'),
           meta: { title: 'Bảo hiểm BHXH' },
         },
+        {
+          path: 'insurance/reports',
+          name: 'insurance-reports',
+          component: () => import('@/views/insurance/InsuranceReportsView.vue'),
+          meta: { title: 'Báo cáo biến động BHXH' },
+        },
+        {
+          path: 'insurance/reports/:id',
+          name: 'insurance-report-detail',
+          component: () => import('@/views/insurance/InsuranceReportDetailView.vue'),
+          meta: { title: 'Chi tiết báo cáo BHXH' },
+        },
         // Lương BHXH
         {
           path: 'salary',

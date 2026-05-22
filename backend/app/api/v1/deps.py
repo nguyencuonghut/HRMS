@@ -66,3 +66,24 @@ def require_permission(*perms: str):
             )
         return user
     return Depends(_dependency)
+
+
+_HR_ROLES = frozenset({"admin", "hr_manager", "hr_officer"})
+
+
+def require_admin_or_hr():
+    """Depends: chỉ cho phép superuser hoặc user thuộc vai trò admin/HR."""
+    async def _dependency(
+        user: User = Depends(get_current_active_user),
+        session: AsyncSession = Depends(get_session),
+    ) -> User:
+        if user.is_superuser:
+            return user
+        roles = await auth_service.get_user_roles(session, user.id)
+        if not any(r in _HR_ROLES for r in roles):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Chỉ Admin hoặc HR mới có quyền xác nhận báo cáo",
+            )
+        return user
+    return Depends(_dependency)

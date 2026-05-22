@@ -98,7 +98,14 @@ const menu: MenuItem[] = [
       { to: '/leave-reports',      label: 'Báo cáo nghỉ phép',  icon: 'pi-file-excel' },
     ],
   },
-  { to: '/insurance', label: 'Bảo hiểm BHXH', icon: 'pi-shield' },
+  {
+    label: 'Bảo hiểm BHXH',
+    icon: 'pi-shield',
+    items: [
+      { to: '/insurance',         label: 'Hồ sơ & Chính sách',  icon: 'pi-id-card' },
+      { to: '/insurance/reports', label: 'Báo cáo biến động',   icon: 'pi-file-excel' },
+    ],
+  },
   { to: '/salary', label: 'Lương BHXH', icon: 'pi-dollar' },
   { to: '/rewards', label: 'Khen thưởng & Kỷ luật', icon: 'pi-star' },
   { to: '/training', label: 'Đào tạo', icon: 'pi-graduation-cap' },
