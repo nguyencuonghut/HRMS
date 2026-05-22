@@ -397,6 +397,20 @@ async def remove_report_line_item(
     await insurance_report_service.remove_line_item(session, report_id, line_item_id)
 
 
+@router.get("/reports/{report_id}/export/d02-ts", summary="Export D02-TS VNPT Excel từ báo cáo đã duyệt")
+async def export_report_d02_ts(
+    report_id: int,
+    _: User = require_permission("insurance:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    buf, filename = await insurance_export_service.export_d02_ts_from_report(session, report_id)
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 @router.get(
     "/change-events/export/vnpt-d02-ts",
     summary="Export D02-TS VNPT Excel",
