@@ -33,6 +33,12 @@
             @click="router.push('/catalog/other-business')"
           />
           <Button
+            label="Mở danh mục bệnh viện KCB"
+            icon="pi pi-heart"
+            severity="secondary"
+            @click="router.push('/catalog/bhyt-clinics')"
+          />
+          <Button
             label="Xem lịch sử import"
             icon="pi pi-history"
             severity="secondary"
@@ -62,6 +68,7 @@
             <li>Danh mục học vấn cho hồ sơ nhân sự</li>
             <li>Danh mục nghiệp vụ khác cho hợp đồng và nghỉ phép</li>
             <li>Cấu hình policy, tỷ lệ đóng và vùng BHXH dùng chung</li>
+            <li>Danh mục bệnh viện KCB ban đầu BHYT (~12,000 cơ sở)</li>
             <li>Lịch sử import và rà soát batch lỗi</li>
           </ul>
         </div>
@@ -199,6 +206,25 @@
               <span class="module-link">Mở workspace nghiệp vụ</span>
             </div>
           </RouterLink>
+
+          <RouterLink to="/catalog/bhyt-clinics" class="module-card">
+            <div class="module-meta">
+              <div class="module-icon" style="background: color-mix(in srgb, var(--p-red-500) 14%, var(--catalog-surface)); color: var(--p-red-600)">
+                <i class="pi pi-heart" />
+              </div>
+              <div>
+                <h3>Danh mục bệnh viện KCB</h3>
+                <p>Danh sách cơ sở khám chữa bệnh ban đầu BHYT theo chuẩn VNPT, dùng khi khai báo biến động.</p>
+              </div>
+            </div>
+            <div class="module-tail">
+              <div class="module-stat">
+                <span>Cơ sở KCB</span>
+                <strong>{{ formatNumber(statsSnapshot.bhytClinics) }}</strong>
+              </div>
+              <span class="module-link">Mở danh mục KCB</span>
+            </div>
+          </RouterLink>
         </div>
       </article>
 
@@ -224,6 +250,13 @@
               <span>{{ formatNumber(statsSnapshot.oldProvinces) }} tỉnh/thành đang hoạt động</span>
             </div>
             <Tag value="3 cấp" severity="contrast" rounded />
+          </div>
+          <div class="coverage-row">
+            <div>
+              <strong>Bệnh viện KCB BHYT</strong>
+              <span>{{ formatNumber(statsSnapshot.bhytClinics) }} cơ sở KCB theo chuẩn VNPT</span>
+            </div>
+            <Tag value="BHYT" severity="danger" rounded />
           </div>
           <div class="coverage-row">
             <div>
@@ -286,6 +319,7 @@ import Tag from 'primevue/tag'
 import administrativeUnitService, {
   type AdministrativeImportBatchRead,
 } from '@/services/administrativeUnitService'
+import bhytClinicService from '@/services/bhytClinicService'
 import educationCatalogService from '@/services/educationCatalogService'
 
 type Severity = 'success' | 'info' | 'warning' | 'danger' | 'contrast'
@@ -300,6 +334,7 @@ interface OverviewStats {
   educationLevels: number
   educationInstitutions: number
   educationMajors: number
+  bhytClinics: number
 }
 
 interface StatItem {
@@ -324,6 +359,7 @@ const statsSnapshot = ref<OverviewStats>({
   educationLevels: 0,
   educationInstitutions: 0,
   educationMajors: 0,
+  bhytClinics: 0,
 })
 
 function formatNumber(value: number) {
@@ -403,31 +439,17 @@ async function loadOverview() {
       educationLevelsRes,
       educationInstitutionsRes,
       educationMajorsRes,
+      bhytClinicsRes,
     ] = await Promise.all([
-      administrativeUnitService.getList({
-        system_type: 'new',
-        is_active: true,
-        page: 1,
-        page_size: 1,
-      }),
-      administrativeUnitService.getList({
-        system_type: 'old',
-        is_active: true,
-        page: 1,
-        page_size: 1,
-      }),
-      administrativeUnitService.listProvinces({
-        system_type: 'new',
-        is_active: true,
-      }),
-      administrativeUnitService.listProvinces({
-        system_type: 'old',
-        is_active: true,
-      }),
+      administrativeUnitService.getList({ system_type: 'new', is_active: true, page: 1, page_size: 1 }),
+      administrativeUnitService.getList({ system_type: 'old', is_active: true, page: 1, page_size: 1 }),
+      administrativeUnitService.listProvinces({ system_type: 'new', is_active: true }),
+      administrativeUnitService.listProvinces({ system_type: 'old', is_active: true }),
       administrativeUnitService.listImportBatches(),
       educationCatalogService.getEducationLevels({ is_active: true, page: 1, page_size: 1 }),
       educationCatalogService.getEducationalInstitutions({ is_active: true, page: 1, page_size: 1 }),
       educationCatalogService.getEducationMajors({ is_active: true, page: 1, page_size: 1 }),
+      bhytClinicService.list({ page: 1, page_size: 1 }),
     ])
 
     batches.value = importBatchesRes.data
@@ -440,6 +462,7 @@ async function loadOverview() {
       educationLevels: educationLevelsRes.data.total,
       educationInstitutions: educationInstitutionsRes.data.total,
       educationMajors: educationMajorsRes.data.total,
+      bhytClinics: bhytClinicsRes.data.total,
     }
   } catch {
     errorMessage.value = 'Không tải được dữ liệu tổng quan danh mục. Vui lòng thử lại.'
