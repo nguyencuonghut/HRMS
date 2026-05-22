@@ -245,3 +245,151 @@ class InsuranceChangeEvent(SQLModel, table=True):
         sa.Index("ix_ice_change_type", "change_type"),
         sa.Index("ix_ice_ibhxh_code", "ibhxh_reason_code"),
     )
+
+
+class InsurancePeriodReport(SQLModel, table=True):
+    """Báo cáo biến động BHXH theo kỳ — cần được duyệt trước khi export file chính thức."""
+
+    __tablename__ = "insurance_period_reports"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+
+    # ── Kỳ báo cáo ───────────────────────────────────────────────────────────
+    period_year: int = Field(sa_column=Column(sa.SmallInteger(), nullable=False))
+    period_month: int = Field(sa_column=Column(sa.SmallInteger(), nullable=False))
+    submission_type: str = Field(
+        default="initial",
+        sa_column=Column(sa.String(20), nullable=False, server_default="initial"),
+    )
+
+    # ── Trạng thái workflow ───────────────────────────────────────────────────
+    status: str = Field(
+        default="draft",
+        sa_column=Column(sa.String(20), nullable=False, server_default="draft"),
+    )
+
+    # ── Người chuẩn bị ────────────────────────────────────────────────────────
+    prepared_by_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(
+            sa.Integer(),
+            sa.ForeignKey("users.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
+    )
+    prepared_at: Optional[datetime] = Field(
+        default=None, sa_column=Column(sa.DateTime(), nullable=True)
+    )
+
+    # ── Người duyệt ───────────────────────────────────────────────────────────
+    reviewed_by_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(
+            sa.Integer(),
+            sa.ForeignKey("users.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
+    )
+    reviewed_at: Optional[datetime] = Field(
+        default=None, sa_column=Column(sa.DateTime(), nullable=True)
+    )
+    review_note: Optional[str] = Field(
+        default=None, sa_column=Column(sa.Text(), nullable=True)
+    )
+
+    # ── Metadata ──────────────────────────────────────────────────────────────
+    note: Optional[str] = Field(default=None, sa_column=Column(sa.Text(), nullable=True))
+    created_by_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(
+            sa.Integer(),
+            sa.ForeignKey("users.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
+    )
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: Optional[datetime] = Field(default=None)
+
+    __table_args__ = (
+        sa.CheckConstraint("period_month BETWEEN 1 AND 12", name="ck_ipr_period_month"),
+        sa.CheckConstraint(
+            "status IN ('draft', 'pending_review', 'approved', 'rejected')",
+            name="ck_ipr_status",
+        ),
+        sa.CheckConstraint(
+            "submission_type IN ('initial', 'supplement', 'correction')",
+            name="ck_ipr_submission_type",
+        ),
+        sa.UniqueConstraint(
+            "period_year", "period_month", "submission_type",
+            name="uq_ipr_period_type",
+        ),
+        sa.Index("ix_ipr_period", "period_year", "period_month"),
+        sa.Index("ix_ipr_status", "status"),
+    )
+
+
+class InsuranceReportLineItem(SQLModel, table=True):
+    """Dòng trong báo cáo — tháng kê khai chính thức có thể điều chỉnh so với gợi ý."""
+
+    __tablename__ = "insurance_report_line_items"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    report_id: int = Field(
+        sa_column=Column(
+            sa.Integer(),
+            sa.ForeignKey("insurance_period_reports.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        )
+    )
+    event_id: int = Field(
+        sa_column=Column(
+            sa.Integer(),
+            sa.ForeignKey("insurance_change_events.id", ondelete="RESTRICT"),
+            nullable=False,
+            index=True,
+        )
+    )
+
+    # ── Tháng kê khai ─────────────────────────────────────────────────────────
+    suggested_year: int = Field(sa_column=Column(sa.SmallInteger(), nullable=False))
+    suggested_month: int = Field(sa_column=Column(sa.SmallInteger(), nullable=False))
+    declared_year: int = Field(sa_column=Column(sa.SmallInteger(), nullable=False))
+    declared_month: int = Field(sa_column=Column(sa.SmallInteger(), nullable=False))
+
+    # ── Audit điều chỉnh ──────────────────────────────────────────────────────
+    is_adjusted: bool = Field(
+        default=False,
+        sa_column=Column(sa.Boolean(), nullable=False, server_default=sa.text("false")),
+    )
+    adjustment_note: Optional[str] = Field(
+        default=None, sa_column=Column(sa.Text(), nullable=True)
+    )
+    adjusted_by_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(
+            sa.Integer(),
+            sa.ForeignKey("users.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
+    )
+    adjusted_at: Optional[datetime] = Field(
+        default=None, sa_column=Column(sa.DateTime(), nullable=True)
+    )
+
+    sort_order: int = Field(
+        default=0,
+        sa_column=Column(sa.Integer(), nullable=False, server_default="0"),
+    )
+
+    __table_args__ = (
+        sa.CheckConstraint(
+            "suggested_month BETWEEN 1 AND 12", name="ck_irli_suggested_month"
+        ),
+        sa.CheckConstraint(
+            "declared_month BETWEEN 1 AND 12", name="ck_irli_declared_month"
+        ),
+        sa.UniqueConstraint("report_id", "event_id", name="uq_irli_report_event"),
+        sa.Index("ix_irli_declared", "declared_year", "declared_month"),
+    )
