@@ -22,10 +22,7 @@
           <DisciplineListTab />
         </TabPanel>
         <TabPanel value="report">
-          <div class="rewards-placeholder">
-            <i class="pi pi-chart-bar" />
-            <span>Báo cáo tổng hợp — đang phát triển (Plan 8.3)</span>
-          </div>
+          <ReportTab />
         </TabPanel>
       </TabPanels>
     </Tabs>
@@ -42,6 +39,7 @@ import Tabs from 'primevue/tabs'
 
 import RewardListTab from './components/RewardListTab.vue'
 import DisciplineListTab from './components/DisciplineListTab.vue'
+import ReportTab from './components/RewardDisciplineReport.vue'
 
 const activeTab = ref('rewards')
 </script>
