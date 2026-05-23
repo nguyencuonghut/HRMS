@@ -12,11 +12,15 @@
     <Tabs v-model:value="activeTab">
       <TabList>
         <Tab value="basis">Mức lương BHXH</Tab>
+        <Tab value="summary">Tổng hợp BHXH</Tab>
       </TabList>
 
       <TabPanels>
         <TabPanel value="basis">
           <BhxhBasisTable />
+        </TabPanel>
+        <TabPanel value="summary">
+          <BhxhSummaryTable />
         </TabPanel>
       </TabPanels>
     </Tabs>
@@ -32,6 +36,7 @@ import TabPanels from 'primevue/tabpanels'
 import Tabs from 'primevue/tabs'
 
 import BhxhBasisTable from './components/BhxhBasisTable.vue'
+import BhxhSummaryTable from './components/BhxhSummaryTable.vue'
 
 const activeTab = ref('basis')
 </script>
