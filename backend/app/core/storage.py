@@ -121,6 +121,22 @@ async def save_template_file(template_id: int, upload: UploadFile) -> tuple[str,
     return object_name, len(content)
 
 
+async def save_reward_file(reward_id: int, upload: UploadFile) -> tuple[str, int]:
+    """Upload file quyết định khen thưởng lên MinIO. Trả về (object_name, file_size)."""
+    content = await upload.read()
+    safe_name = Path(upload.filename or "file").name
+    object_name = f"rewards/{reward_id}/{uuid.uuid4().hex[:8]}_{safe_name}"
+    content_type = upload.content_type or "application/octet-stream"
+    _client().put_object(
+        bucket_name=settings.MINIO_BUCKET,
+        object_name=object_name,
+        data=BytesIO(content),
+        length=len(content),
+        content_type=content_type,
+    )
+    return object_name, len(content)
+
+
 def delete_attachment(object_name: str) -> None:
     """Xóa object khỏi MinIO; bỏ qua nếu không tồn tại."""
     try:

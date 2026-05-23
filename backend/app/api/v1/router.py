@@ -23,6 +23,7 @@ from app.api.v1.endpoints import leave_reports
 from app.api.v1.endpoints import bhyt_clinic
 from app.api.v1.endpoints import insurance
 from app.api.v1.endpoints import salary
+from app.api.v1.endpoints import rewards
 
 router = APIRouter()
 router.include_router(auth.router,          prefix="/auth",          tags=["Xác thực"])
@@ -62,3 +63,5 @@ router.include_router(leave_reports.router,     prefix="/leave-reports",     tag
 router.include_router(bhyt_clinic.router,       prefix="/bhyt-clinics",      tags=["Danh mục bệnh viện KCB"])
 router.include_router(insurance.router,         prefix="/insurance",         tags=["Bảo hiểm BHXH"])
 router.include_router(salary.router,            prefix="/salary",            tags=["Lương BHXH"])
+router.include_router(rewards.router,                prefix="/rewards",   tags=["Khen thưởng"])
+router.include_router(rewards.employee_history_router, prefix="/employees", tags=["Khen thưởng"])
