@@ -147,7 +147,7 @@ async def create_reward(
     try:
         data = RewardCreate.model_validate(json.loads(body))
     except Exception as exc:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc))
 
     result = await reward_service.create_reward(session, data, file or None, current_user.id)
     await auth_service.log_audit(
@@ -172,7 +172,7 @@ async def update_reward(
     try:
         data = RewardUpdate.model_validate(json.loads(body))
     except Exception as exc:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc))
 
     result = await reward_service.update_reward(session, reward_id, data, file or None)
     await auth_service.log_audit(

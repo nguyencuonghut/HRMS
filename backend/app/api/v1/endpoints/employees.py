@@ -95,7 +95,7 @@ def _build_list_item_data(emp, display_code: str) -> dict:
 )
 async def lookup_employees(
     keyword: Optional[str] = Query(None),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(20, ge=1, le=500),
     _: User = require_permission("employees:view"),
     session: AsyncSession = Depends(get_session),
 ):

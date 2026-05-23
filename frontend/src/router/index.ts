@@ -132,7 +132,7 @@ const router = createRouter({
         {
           path: 'rewards',
           name: 'rewards',
-          component: () => import('@/views/rewards/RewardListView.vue'),
+          component: () => import('@/views/rewards/RewardsView.vue'),
           meta: { title: 'Khen thưởng & Kỷ luật' },
         },
         // Đào tạo

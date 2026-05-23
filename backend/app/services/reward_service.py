@@ -6,12 +6,14 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import HTTPException, UploadFile, status
-from sqlalchemy import func, select
+from sqlalchemy import String, func, or_, select
+from sqlalchemy import cast as sa_cast
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import storage
 from app.models.auth import User
 from app.models.employee import Employee
+from app.models.employee_code import EmployeeCodeSequence
 from app.models.employee_job import EmployeeJobRecord
 from app.models.org import Department
 from app.models.reward import EmployeeReward, RewardType
@@ -175,21 +177,11 @@ async def list_rewards(
     page: int = 1,
     page_size: int = 20,
 ) -> RewardListPage:
-    # Base query với joins cần thiết
+    # Base query — join EmployeeCodeSequence để có thể search theo mã NV
     stmt = (
         select(EmployeeReward)
         .join(Employee, Employee.id == EmployeeReward.employee_id)
-        .outerjoin(
-            EmployeeJobRecord,
-            (EmployeeJobRecord.employee_id == EmployeeReward.employee_id)
-            & (EmployeeJobRecord.id == (
-                select(EmployeeJobRecord.id)
-                .where(EmployeeJobRecord.employee_id == EmployeeReward.employee_id)
-                .order_by(EmployeeJobRecord.effective_from.desc())
-                .limit(1)
-                .scalar_subquery()
-            )),
-        )
+        .join(EmployeeCodeSequence, EmployeeCodeSequence.id == Employee.employee_code_sequence_id)
     )
 
     if employee_id is not None:
@@ -197,7 +189,12 @@ async def list_rewards(
     if reward_type_id is not None:
         stmt = stmt.where(EmployeeReward.reward_type_id == reward_type_id)
     if department_id is not None:
-        stmt = stmt.where(EmployeeJobRecord.department_id == department_id)
+        dept_sub = (
+            select(EmployeeJobRecord.employee_id)
+            .where(EmployeeJobRecord.department_id == department_id)
+            .distinct()
+        )
+        stmt = stmt.where(EmployeeReward.employee_id.in_(dept_sub))
     if from_date is not None:
         stmt = stmt.where(EmployeeReward.reward_date >= from_date)
     if to_date is not None:
@@ -206,10 +203,18 @@ async def list_rewards(
         from app.services.administrative_import_service import normalize_text
         kw = f"%{search.strip()}%"
         norm_kw = f"%{normalize_text(search.strip())}%"
+        generated_code = EmployeeCodeSequence.code + func.lpad(
+            sa_cast(Employee.employee_seq, String),
+            EmployeeCodeSequence.min_digits,
+            "0",
+        )
         stmt = stmt.where(
-            Employee.full_name.ilike(kw)
-            | Employee.normalized_name.ilike(norm_kw)
-            | EmployeeReward.decision_number.ilike(kw)
+            or_(
+                Employee.full_name.ilike(kw),
+                Employee.normalized_name.ilike(norm_kw),
+                generated_code.ilike(kw),
+                EmployeeReward.decision_number.ilike(kw),
+            )
         )
 
     total_stmt = select(func.count()).select_from(stmt.subquery())
@@ -244,7 +249,7 @@ async def create_reward(
     # Validate value logic
     if rt.is_monetary and data.value is None:
         raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Loại khen thưởng tiền mặt phải nhập giá trị",
         )
     value = data.value if rt.is_monetary else None
@@ -255,7 +260,7 @@ async def create_reward(
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Không tìm thấy nhân viên")
     if emp.status == "resigned":
         raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Không thể thêm khen thưởng cho nhân viên đã nghỉ việc",
         )
 
@@ -339,7 +344,7 @@ async def update_reward(
         new_value = data.value if data.value is not None else record.value
         if rt.is_monetary and new_value is None:
             raise HTTPException(
-                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="Loại khen thưởng tiền mặt phải nhập giá trị",
             )
         if not rt.is_monetary:
