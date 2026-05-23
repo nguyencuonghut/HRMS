@@ -533,6 +533,8 @@ async def list_adjustments(
     session: AsyncSession,
     *,
     employee_id: Optional[int] = None,
+    department_id: Optional[int] = None,
+    search: Optional[str] = None,
     from_date=None,
     to_date=None,
     page: int = 1,
@@ -550,13 +552,30 @@ async def list_adjustments(
             ),
         )
         .outerjoin(Department, Department.id == EmployeeJobRecord.department_id)
+        .join(EmployeeCodeSequence, EmployeeCodeSequence.id == Employee.employee_code_sequence_id)
     )
     if employee_id is not None:
         stmt = stmt.where(BhxhSalaryAdjustment.employee_id == employee_id)
+    if department_id is not None:
+        stmt = stmt.where(EmployeeJobRecord.department_id == department_id)
     if from_date is not None:
         stmt = stmt.where(BhxhSalaryAdjustment.effective_date >= from_date)
     if to_date is not None:
         stmt = stmt.where(BhxhSalaryAdjustment.effective_date <= to_date)
+    if search:
+        kw_norm = f"%{normalize_text(search.strip())}%"
+        kw_raw = f"%{search.strip()}%"
+        generated_code = EmployeeCodeSequence.code + func.lpad(
+            sa_cast(Employee.employee_seq, String),
+            EmployeeCodeSequence.min_digits,
+            "0",
+        )
+        stmt = stmt.where(
+            or_(
+                Employee.normalized_name.ilike(kw_norm),
+                generated_code.ilike(kw_raw),
+            )
+        )
 
     total = (
         await session.execute(select(func.count()).select_from(stmt.subquery()))

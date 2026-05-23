@@ -256,3 +256,137 @@
     color: var(--p-red-400);
   }
 }
+
+// ── Adjustments list view ─────────────────────────────────────────────────────
+
+.salary-adj-view {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.salary-adj-layout {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.salary-adj-table-card {
+  flex: 1;
+  min-width: 0;
+}
+
+.salary-adj-empty {
+  padding: 1rem;
+  color: var(--p-text-muted-color);
+}
+
+.salary-adj-emp-code {
+  font-weight: 500;
+  font-size: 0.85rem;
+  color: var(--p-text-muted-color);
+}
+
+.salary-adj-emp-sep {
+  margin: 0 0.3rem;
+  color: var(--p-text-muted-color);
+  font-size: 0.75rem;
+}
+
+.salary-adj-emp-name {
+  color: var(--p-text-color);
+}
+
+.salary-adj-amount-old {
+  color: var(--p-text-muted-color);
+  font-variant-numeric: tabular-nums;
+}
+
+.salary-adj-pct {
+  font-size: 0.85em;
+  opacity: 0.85;
+}
+
+.salary-adj-footer-total {
+  padding: 0.4rem 0;
+  font-size: 0.85rem;
+  color: var(--p-text-muted-color);
+}
+
+.salary-adj-row-selected td {
+  background: color-mix(in srgb, var(--p-primary-50) 60%, transparent) !important;
+}
+
+// Detail panel
+
+.salary-adj-detail-panel {
+  width: 320px;
+  flex-shrink: 0;
+  font-size: 0.875rem;
+}
+
+.salary-adj-detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+}
+
+.salary-adj-detail-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.salary-adj-detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.salary-adj-detail-label {
+  font-size: 0.775rem;
+  color: var(--p-text-muted-color);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.salary-adj-detail-value {
+  color: var(--p-text-color);
+}
+
+.salary-adj-detail-reason {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.salary-adj-detail-divider {
+  height: 1px;
+  background: var(--p-surface-200);
+  margin: 0.75rem 0;
+
+  .dark-mode & {
+    background: var(--p-surface-700);
+  }
+}
+
+.salary-adj-event-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: var(--p-primary-color);
+  font-size: 0.85rem;
+}
+
+// Panel transition
+.salary-adj-panel-enter-active,
+.salary-adj-panel-leave-active {
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.salary-adj-panel-enter-from,
+.salary-adj-panel-leave-to {
+  opacity: 0;
+  transform: translateX(12px);
+}

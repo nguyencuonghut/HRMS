@@ -122,6 +122,12 @@ const router = createRouter({
           component: () => import('@/views/salary/SalaryView.vue'),
           meta: { title: 'Lương BHXH' },
         },
+        {
+          path: 'salary/bhxh-adjustments',
+          name: 'salary-bhxh-adjustments',
+          component: () => import('@/views/salary/BhxhAdjustmentsView.vue'),
+          meta: { title: 'Lịch sử điều chỉnh lương BHXH' },
+        },
         // Khen thưởng & Kỷ luật
         {
           path: 'rewards',

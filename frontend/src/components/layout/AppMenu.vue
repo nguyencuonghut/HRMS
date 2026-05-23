@@ -106,7 +106,14 @@ const menu: MenuItem[] = [
       { to: '/insurance/reports', label: 'Báo cáo biến động',   icon: 'pi-file-excel' },
     ],
   },
-  { to: '/salary', label: 'Lương BHXH', icon: 'pi-dollar' },
+  {
+    label: 'Lương BHXH',
+    icon: 'pi-dollar',
+    items: [
+      { to: '/salary',                   label: 'Mức lương BHXH',       icon: 'pi-list' },
+      { to: '/salary/bhxh-adjustments',  label: 'Lịch sử điều chỉnh',   icon: 'pi-history' },
+    ],
+  },
   { to: '/rewards', label: 'Khen thưởng & Kỷ luật', icon: 'pi-star' },
   { to: '/training', label: 'Đào tạo', icon: 'pi-graduation-cap' },
   { to: '/performance', label: 'Đánh giá KPI', icon: 'pi-chart-bar' },

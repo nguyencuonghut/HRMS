@@ -107,6 +107,8 @@ export default {
 
   listAdjustments(params: {
     employee_id?: number | null
+    department_id?: number | null
+    search?: string | null
     from_date?: string | null
     to_date?: string | null
     page?: number

@@ -91,6 +91,8 @@ async def create_bhxh_adjustment(
 )
 async def list_adjustments(
     employee_id: Optional[int] = Query(None),
+    department_id: Optional[int] = Query(None),
+    search: Optional[str] = Query(None),
     from_date: Optional[date] = Query(None),
     to_date: Optional[date] = Query(None),
     page: int = Query(1, ge=1),
@@ -101,6 +103,8 @@ async def list_adjustments(
     return await salary_service.list_adjustments(
         session,
         employee_id=employee_id,
+        department_id=department_id,
+        search=search,
         from_date=from_date,
         to_date=to_date,
         page=page,
