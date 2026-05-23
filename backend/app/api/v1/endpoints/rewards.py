@@ -1,7 +1,9 @@
 """Endpoints khen thưởng nhân viên (8.1)."""
 from __future__ import annotations
 
+import io
 import json
+from datetime import date as _date
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
@@ -21,8 +23,8 @@ from app.schemas.reward import (
     RewardTypeUpdate,
     RewardUpdate,
 )
-from app.services import auth_service, reward_service
-from datetime import date
+from app.schemas.reward_report import RewardDisciplineReportPage
+from app.services import auth_service, reward_export_service, reward_report_service, reward_service
 
 router = APIRouter()
 
@@ -103,8 +105,8 @@ async def list_rewards(
     employee_id:    Optional[int]  = Query(None),
     reward_type_id: Optional[int]  = Query(None),
     department_id:  Optional[int]  = Query(None),
-    from_date:      Optional[date] = Query(None),
-    to_date:        Optional[date] = Query(None),
+    from_date:      Optional[_date] = Query(None),
+    to_date:        Optional[_date] = Query(None),
     search:         Optional[str]  = Query(None),
     page:           int            = Query(1, ge=1),
     page_size:      int            = Query(20, ge=1, le=200),
@@ -121,6 +123,56 @@ async def list_rewards(
         search=search,
         page=page,
         page_size=page_size,
+    )
+
+
+# ── Report routes (must be before /{reward_id} to avoid path conflicts) ──────
+
+
+@router.get("/report/summary", response_model=RewardDisciplineReportPage, tags=[_TAG],
+            summary="Báo cáo tổng hợp khen thưởng – kỷ luật")
+async def get_report_summary(
+    from_date: _date = Query(...),
+    to_date: _date = Query(...),
+    department_id: Optional[int] = Query(None),
+    reward_page: int = Query(1, ge=1),
+    reward_page_size: int = Query(20, ge=1, le=200),
+    discipline_page: int = Query(1, ge=1),
+    discipline_page_size: int = Query(20, ge=1, le=200),
+    _: User = require_permission("rewards:read"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await reward_report_service.get_reward_discipline_report(
+        session,
+        from_date=from_date,
+        to_date=to_date,
+        department_id=department_id,
+        reward_page=reward_page,
+        reward_page_size=reward_page_size,
+        discipline_page=discipline_page,
+        discipline_page_size=discipline_page_size,
+    )
+
+
+@router.get("/report/export", tags=[_TAG], summary="Xuất Excel khen thưởng – kỷ luật")
+async def export_report_excel(
+    from_date: _date = Query(...),
+    to_date: _date = Query(...),
+    department_id: Optional[int] = Query(None),
+    _: User = require_permission("rewards:read"),
+    session: AsyncSession = Depends(get_session),
+):
+    content = await reward_export_service.export_reward_discipline_excel(
+        session,
+        from_date=from_date,
+        to_date=to_date,
+        department_id=department_id,
+    )
+    filename = f"khen_thuong_ky_luat_{from_date}_{to_date}.xlsx"
+    return StreamingResponse(
+        io.BytesIO(content),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
 
 
