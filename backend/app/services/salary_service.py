@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Optional
 
@@ -8,13 +9,19 @@ from sqlalchemy import String, and_, func, or_, select
 from sqlalchemy import cast as sa_cast
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.auth import AuditLog, User
 from app.models.employee import Employee
 from app.models.employee_contract import EmployeeContract
 from app.models.employee_insurance import EmployeeInsuranceProfile
 from app.models.employee_job import EmployeeJobRecord
 from app.models.employee_code import EmployeeCodeSequence
+from app.models.insurance import InsuranceChangeEvent
 from app.models.org import Department, JobPosition
+from app.models.salary_adjustment import BhxhSalaryAdjustment
 from app.schemas.salary import (
+    BhxhSalaryAdjustmentCreate,
+    BhxhSalaryAdjustmentListPage,
+    BhxhSalaryAdjustmentRead,
     BhxhSalaryHistoryItem,
     SalaryBhxhBasisDetail,
     SalaryEmployeeListPage,
@@ -22,6 +29,14 @@ from app.schemas.salary import (
 )
 from app.services import employee_code_service
 from app.services.administrative_import_service import normalize_text
+from app.services.insurance_change_service import (
+    _compute_rate_totals,
+    _compute_suggested_declaration,
+    _load_active_policy,
+    _load_current_contract,
+    _load_ethnicity_bhxh_code,
+    _load_nationality_code,
+)
 
 
 def _has_discrepancy(
@@ -282,33 +297,338 @@ async def get_employee_bhxh_history(
             created_by_name=None,
         ))
 
-    # Nguồn 2: BhxhSalaryAdjustment (7.2) — conditional: bảng có thể chưa tồn tại
-    try:
-        from app.models.salary_adjustment import BhxhSalaryAdjustment
-        from app.models.auth import User as AuthUser
-        adj_rows = (
-            await session.execute(
-                select(BhxhSalaryAdjustment, AuthUser)
-                .outerjoin(AuthUser, AuthUser.id == BhxhSalaryAdjustment.created_by_id)
-                .where(BhxhSalaryAdjustment.employee_id == employee_id)
-                .order_by(BhxhSalaryAdjustment.effective_date.desc())
-                .limit(50)
-            )
-        ).all()
-        for adj, creator in adj_rows:
-            items.append(BhxhSalaryHistoryItem(
-                effective_date=adj.effective_date,
-                basis_amount=adj.new_basis_amount,
-                source_type="manual_adjustment",
-                note=adj.reason,
-                decision_number=adj.decision_number,
-                old_basis_amount=adj.old_basis_amount,
-                created_by_name=creator.full_name if creator else None,
-            ))
-    except (ImportError, Exception):
-        # 7.2 chưa được triển khai — bỏ qua adjustments
-        pass
+    # Nguồn 2: BhxhSalaryAdjustment
+    adj_rows = (
+        await session.execute(
+            select(BhxhSalaryAdjustment, User)
+            .outerjoin(User, User.id == BhxhSalaryAdjustment.created_by_id)
+            .where(BhxhSalaryAdjustment.employee_id == employee_id)
+            .order_by(BhxhSalaryAdjustment.effective_date.desc())
+            .limit(50)
+        )
+    ).all()
+    for adj, creator in adj_rows:
+        items.append(BhxhSalaryHistoryItem(
+            effective_date=adj.effective_date,
+            basis_amount=adj.new_basis_amount,
+            source_type="manual_adjustment",
+            note=adj.reason,
+            decision_number=adj.decision_number,
+            old_basis_amount=adj.old_basis_amount,
+            created_by_name=creator.full_name if creator else None,
+        ))
 
     # Sắp xếp theo effective_date giảm dần
     items.sort(key=lambda x: x.effective_date, reverse=True)
     return items
+
+
+# ── Adjustment helpers ────────────────────────────────────────────────────────
+
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def _build_adjustment_read(
+    adj: BhxhSalaryAdjustment,
+    employee_code: str,
+    employee_name: str,
+    department_name: Optional[str],
+    created_by_name: Optional[str],
+) -> BhxhSalaryAdjustmentRead:
+    direction = "increase" if adj.new_basis_amount > adj.old_basis_amount else "decrease"
+    change_amt = abs(adj.new_basis_amount - adj.old_basis_amount)
+    change_pct = float(change_amt / adj.old_basis_amount * 100)
+    return BhxhSalaryAdjustmentRead(
+        id=adj.id,
+        employee_id=adj.employee_id,
+        employee_code=employee_code,
+        employee_name=employee_name,
+        department_name=department_name,
+        decision_number=adj.decision_number,
+        old_basis_amount=adj.old_basis_amount,
+        new_basis_amount=adj.new_basis_amount,
+        change_direction=direction,
+        change_amount=change_amt,
+        change_pct=round(change_pct, 2),
+        effective_date=adj.effective_date,
+        reason=adj.reason,
+        created_by_id=adj.created_by_id,
+        created_by_name=created_by_name,
+        created_at=adj.created_at,
+        insurance_change_event_id=adj.insurance_change_event_id,
+    )
+
+
+# ── create_bhxh_adjustment ────────────────────────────────────────────────────
+
+async def create_bhxh_adjustment(
+    session: AsyncSession,
+    data: BhxhSalaryAdjustmentCreate,
+    created_by_id: int,
+) -> BhxhSalaryAdjustmentRead:
+    # Bước 1: Validate
+    employee = await session.get(Employee, data.employee_id)
+    if not employee:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Không tìm thấy nhân viên")
+
+    profile = (
+        await session.execute(
+            select(EmployeeInsuranceProfile).where(
+                EmployeeInsuranceProfile.employee_id == data.employee_id
+            )
+        )
+    ).scalars().first()
+    if not profile:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "Nhân viên chưa có hồ sơ bảo hiểm",
+        )
+
+    # Bước 2: Snapshot old_basis_amount
+    contract = await _get_active_contract(session, data.employee_id)
+    contract_salary = contract.insurance_salary if contract else None
+    raw_basis = profile.insurance_basis_amount
+    old_basis: Optional[Decimal] = raw_basis if raw_basis is not None else (
+        contract_salary if profile.insurance_basis_source == "contract" else None
+    )
+    if old_basis is None or old_basis <= 0:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "Không xác định được mức lương BHXH hiện tại — "
+            "vui lòng cập nhật hợp đồng hoặc nhập mức cố định trước",
+        )
+    if old_basis == data.new_basis_amount:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "Mức lương BHXH mới phải khác mức hiện tại",
+        )
+
+    # Bước 3: Tạo BhxhSalaryAdjustment
+    adj = BhxhSalaryAdjustment(
+        employee_id=data.employee_id,
+        decision_number=data.decision_number,
+        old_basis_amount=old_basis,
+        new_basis_amount=data.new_basis_amount,
+        effective_date=data.effective_date,
+        reason=data.reason,
+        created_by_id=created_by_id,
+        created_at=_utcnow(),
+    )
+    session.add(adj)
+    await session.flush()  # lấy adj.id
+
+    # Bước 4: Tạo InsuranceChangeEvent
+    is_increase = data.new_basis_amount > old_basis
+    change_type = "increase" if is_increase else "decrease"
+    ibhxh_code = "T-05" if is_increase else "G-07"
+
+    nationality_code = await _load_nationality_code(session, employee.nationality_id)
+    ethnicity_bhxh_code = await _load_ethnicity_bhxh_code(session, employee.ethnicity_id)
+    now = _utcnow()
+    sugg_year, sugg_month = _compute_suggested_declaration(data.effective_date, now)
+    active_policy = await _load_active_policy(session)
+    emp_rate_total = Decimal("0")
+    er_rate_total = Decimal("0")
+    policy_code: Optional[str] = None
+    if active_policy:
+        emp_rate_total, er_rate_total = await _compute_rate_totals(session, active_policy.id)
+        policy_code = active_policy.code
+    current_contract = await _load_current_contract(session, data.employee_id)
+    contract_type_code: Optional[str] = None
+    if current_contract and current_contract.document_kind:
+        contract_type_code = current_contract.document_kind[:5]
+
+    employee_code = await employee_code_service.build_employee_display_code(session, employee)
+
+    event = InsuranceChangeEvent(
+        employee_id=data.employee_id,
+        change_type=change_type,
+        change_reason="manual_correction",
+        ibhxh_reason_code=ibhxh_code,
+        effective_date=data.effective_date,
+        period_year=data.effective_date.year,
+        period_month=data.effective_date.month,
+        employee_name_snapshot=employee.full_name,
+        date_of_birth_snapshot=employee.date_of_birth,
+        gender_snapshot=employee.gender,
+        nationality_code_snapshot=nationality_code,
+        identity_number_snapshot=employee.id_number,
+        contract_number_snapshot=current_contract.contract_number if current_contract else None,
+        contract_type_code_snapshot=contract_type_code,
+        contract_signed_date_snapshot=current_contract.signed_date if current_contract else None,
+        contract_from_snapshot=current_contract.effective_from if current_contract else None,
+        contract_to_snapshot=current_contract.effective_to if current_contract else None,
+        bhxh_code_snapshot=profile.bhxh_code,
+        basis_amount=data.new_basis_amount,
+        allowances_amount=Decimal("0"),
+        bhyt_clinic_name_snapshot=profile.bhyt_initial_clinic_name,
+        bhyt_clinic_code_snapshot=profile.bhyt_initial_clinic_code,
+        policy_version_code_snapshot=policy_code,
+        employee_rate_total_snapshot=emp_rate_total,
+        employer_rate_total_snapshot=er_rate_total,
+        ethnicity_bhxh_code_snapshot=ethnicity_bhxh_code,
+        old_status=profile.participation_status,
+        new_status=profile.participation_status or "active",
+        suggested_declaration_year=sugg_year,
+        suggested_declaration_month=sugg_month,
+        is_manual=True,
+        note=(
+            f"Điều chỉnh lương BHXH: {int(old_basis):,} → {int(data.new_basis_amount):,} đ. "
+            f"Lý do: {data.reason}"
+        ),
+        created_by_id=created_by_id,
+        created_at=now,
+    )
+    session.add(event)
+    await session.flush()
+
+    # Bước 5: Cập nhật profile
+    profile.insurance_basis_amount = data.new_basis_amount
+    profile.insurance_basis_source = "manual_fixed"
+    session.add(profile)
+
+    # Bước 6: Link event vào adjustment
+    adj.insurance_change_event_id = event.id
+    session.add(adj)
+
+    # Bước 7: AuditLog
+    audit = AuditLog(
+        user_id=created_by_id,
+        action="bhxh_salary_adjustment_created",
+        entity_type="employee",
+        entity_id=data.employee_id,
+        entity_name=employee.full_name,
+        old_data={"basis_amount": str(old_basis)},
+        new_data={
+            "basis_amount": str(data.new_basis_amount),
+            "adjustment_id": adj.id,
+            "effective_date": str(data.effective_date),
+        },
+    )
+    session.add(audit)
+    await session.flush()
+
+    # Bước 8: Commit (caller phải gọi session.commit())
+    dept_name = None
+    job_row = (
+        await session.execute(
+            select(EmployeeJobRecord, Department)
+            .outerjoin(Department, Department.id == EmployeeJobRecord.department_id)
+            .where(
+                EmployeeJobRecord.employee_id == data.employee_id,
+                EmployeeJobRecord.is_current.is_(True),
+            )
+        )
+    ).first()
+    if job_row:
+        dept_name = job_row.Department.name if job_row.Department else None
+
+    return _build_adjustment_read(adj, employee_code, employee.full_name, dept_name, None)
+
+
+# ── list_adjustments ──────────────────────────────────────────────────────────
+
+async def list_adjustments(
+    session: AsyncSession,
+    *,
+    employee_id: Optional[int] = None,
+    from_date=None,
+    to_date=None,
+    page: int = 1,
+    page_size: int = 50,
+) -> BhxhSalaryAdjustmentListPage:
+    stmt = (
+        select(BhxhSalaryAdjustment, Employee, User, Department)
+        .join(Employee, Employee.id == BhxhSalaryAdjustment.employee_id)
+        .outerjoin(User, User.id == BhxhSalaryAdjustment.created_by_id)
+        .outerjoin(
+            EmployeeJobRecord,
+            and_(
+                EmployeeJobRecord.employee_id == Employee.id,
+                EmployeeJobRecord.is_current.is_(True),
+            ),
+        )
+        .outerjoin(Department, Department.id == EmployeeJobRecord.department_id)
+    )
+    if employee_id is not None:
+        stmt = stmt.where(BhxhSalaryAdjustment.employee_id == employee_id)
+    if from_date is not None:
+        stmt = stmt.where(BhxhSalaryAdjustment.effective_date >= from_date)
+    if to_date is not None:
+        stmt = stmt.where(BhxhSalaryAdjustment.effective_date <= to_date)
+
+    total = (
+        await session.execute(select(func.count()).select_from(stmt.subquery()))
+    ).scalar_one()
+
+    rows = (
+        await session.execute(
+            stmt.order_by(
+                BhxhSalaryAdjustment.effective_date.desc(),
+                BhxhSalaryAdjustment.created_at.desc(),
+            )
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
+    ).all()
+
+    emp_objects = [r.Employee for r in rows]
+    code_map = await employee_code_service.batch_build_employee_display_codes(session, emp_objects)
+
+    items = [
+        _build_adjustment_read(
+            r.BhxhSalaryAdjustment,
+            code_map.get(r.Employee.id, str(r.Employee.employee_seq)),
+            r.Employee.full_name,
+            r.Department.name if r.Department else None,
+            r.User.full_name if r.User else None,
+        )
+        for r in rows
+    ]
+    return BhxhSalaryAdjustmentListPage(items=items, total=total, page=page, page_size=page_size)
+
+
+# ── get_employee_adjustment_history ──────────────────────────────────────────
+
+async def get_employee_adjustment_history(
+    session: AsyncSession,
+    employee_id: int,
+) -> list[BhxhSalaryAdjustmentRead]:
+    emp = await session.get(Employee, employee_id)
+    if not emp:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Không tìm thấy nhân viên")
+
+    rows = (
+        await session.execute(
+            select(BhxhSalaryAdjustment, User)
+            .outerjoin(User, User.id == BhxhSalaryAdjustment.created_by_id)
+            .where(BhxhSalaryAdjustment.employee_id == employee_id)
+            .order_by(BhxhSalaryAdjustment.effective_date.desc())
+        )
+    ).all()
+
+    employee_code = await employee_code_service.build_employee_display_code(session, emp)
+
+    job_row = (
+        await session.execute(
+            select(EmployeeJobRecord, Department)
+            .outerjoin(Department, Department.id == EmployeeJobRecord.department_id)
+            .where(
+                EmployeeJobRecord.employee_id == employee_id,
+                EmployeeJobRecord.is_current.is_(True),
+            )
+        )
+    ).first()
+    dept_name = job_row.Department.name if job_row and job_row.Department else None
+
+    return [
+        _build_adjustment_read(
+            adj,
+            employee_code,
+            emp.full_name,
+            dept_name,
+            creator.full_name if creator else None,
+        )
+        for adj, creator in rows
+    ]

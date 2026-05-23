@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Optional
+from typing import Literal, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 
 
 class SalaryEmployeeRow(BaseModel):
@@ -52,3 +52,47 @@ class BhxhSalaryHistoryItem(BaseModel):
     decision_number: Optional[str]  # chỉ manual_adjustment
     old_basis_amount: Optional[Decimal]
     created_by_name: Optional[str]
+
+
+# ── Adjustment schemas ────────────────────────────────────────────────────────
+
+class BhxhSalaryAdjustmentCreate(BaseModel):
+    employee_id: int
+    new_basis_amount: Decimal = Field(gt=0)
+    effective_date: date
+    reason: str = Field(min_length=5, max_length=500)
+    decision_number: Optional[str] = Field(default=None, max_length=100)
+
+    @field_validator("new_basis_amount")
+    @classmethod
+    def must_be_positive(cls, v: Decimal) -> Decimal:
+        if v <= 0:
+            raise ValueError("Mức lương BHXH phải > 0")
+        return v
+
+
+class BhxhSalaryAdjustmentRead(BaseModel):
+    id: int
+    employee_id: int
+    employee_code: str
+    employee_name: str
+    department_name: Optional[str]
+    decision_number: Optional[str]
+    old_basis_amount: Decimal
+    new_basis_amount: Decimal
+    change_direction: Literal["increase", "decrease"]
+    change_amount: Decimal
+    change_pct: float
+    effective_date: date
+    reason: str
+    created_by_id: Optional[int]
+    created_by_name: Optional[str]
+    created_at: datetime
+    insurance_change_event_id: Optional[int]
+
+
+class BhxhSalaryAdjustmentListPage(BaseModel):
+    items: list[BhxhSalaryAdjustmentRead]
+    total: int
+    page: int
+    page_size: int
