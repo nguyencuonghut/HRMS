@@ -47,6 +47,41 @@ export interface BhxhSalaryHistoryItem {
   created_by_name: string | null
 }
 
+export interface BhxhSalaryAdjustmentCreate {
+  employee_id: number
+  new_basis_amount: number
+  effective_date: string          // 'YYYY-MM-DD'
+  reason: string
+  decision_number?: string | null
+}
+
+export interface BhxhSalaryAdjustmentRead {
+  id: number
+  employee_id: number
+  employee_code: string
+  employee_name: string
+  department_name: string | null
+  decision_number: string | null
+  old_basis_amount: string
+  new_basis_amount: string
+  change_direction: 'increase' | 'decrease'
+  change_amount: string
+  change_pct: number
+  effective_date: string
+  reason: string
+  created_by_id: number | null
+  created_by_name: string | null
+  created_at: string
+  insurance_change_event_id: number | null
+}
+
+export interface BhxhSalaryAdjustmentListPage {
+  items: BhxhSalaryAdjustmentRead[]
+  total: number
+  page: number
+  page_size: number
+}
+
 export default {
   listEmployees(params: {
     department_id?: number | null
@@ -64,5 +99,23 @@ export default {
 
   getEmployeeBhxhHistory(employeeId: number) {
     return api.get<BhxhSalaryHistoryItem[]>(`/salary/employees/${employeeId}/bhxh-history`)
+  },
+
+  createAdjustment(data: BhxhSalaryAdjustmentCreate) {
+    return api.post<BhxhSalaryAdjustmentRead>('/salary/adjustments', data)
+  },
+
+  listAdjustments(params: {
+    employee_id?: number | null
+    from_date?: string | null
+    to_date?: string | null
+    page?: number
+    page_size?: number
+  }) {
+    return api.get<BhxhSalaryAdjustmentListPage>('/salary/adjustments', { params })
+  },
+
+  getEmployeeAdjustmentHistory(employeeId: number) {
+    return api.get<BhxhSalaryAdjustmentRead[]>(`/salary/employees/${employeeId}/adjustment-history`)
   },
 }

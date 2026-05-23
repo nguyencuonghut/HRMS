@@ -109,6 +109,20 @@
             <span v-else style="color: var(--p-text-muted-color)">—</span>
           </template>
         </Column>
+
+        <Column header="" style="width: 60px; text-align: right">
+          <template #body="{ data }: { data: SalaryEmployeeRow }">
+            <Button
+              v-if="data.participation_status === 'active'"
+              v-tooltip.left="'Điều chỉnh lương BHXH'"
+              icon="pi pi-pencil"
+              text
+              rounded
+              size="small"
+              @click.stop="openAdjustment(data)"
+            />
+          </template>
+        </Column>
       </DataTable>
 
       <!-- Pagination -->
@@ -131,6 +145,16 @@
       :employee="selectedEmployee"
       @hide="selectedEmployee = null"
     />
+
+    <!-- Adjustment dialog -->
+    <BhxhAdjustmentDialog
+      v-model="showAdjustment"
+      :employee="adjustEmployee"
+      @hide="adjustEmployee = null"
+      @saved="onAdjustmentSaved"
+    />
+
+    <Toast />
   </div>
 </template>
 
@@ -144,9 +168,12 @@ import InputIcon from 'primevue/inputicon'
 import InputText from 'primevue/inputtext'
 import Paginator from 'primevue/paginator'
 import Select from 'primevue/select'
+import Toast from 'primevue/toast'
+import { useToast } from 'primevue/usetoast'
 
 import departmentService, { type DepartmentRead } from '@/services/departmentService'
 import salaryService, { type SalaryEmployeeRow } from '@/services/salaryService'
+import BhxhAdjustmentDialog from './BhxhAdjustmentDialog.vue'
 import BhxhHistoryDialog from './BhxhHistoryDialog.vue'
 
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -164,6 +191,10 @@ const search = ref('')
 const departments = ref<DepartmentRead[]>([])
 const showHistory = ref(false)
 const selectedEmployee = ref<SalaryEmployeeRow | null>(null)
+
+const showAdjustment = ref(false)
+const adjustEmployee = ref<SalaryEmployeeRow | null>(null)
+const toast = useToast()
 
 // ── Options ───────────────────────────────────────────────────────────────────
 
@@ -216,6 +247,16 @@ function onSearchInput() {
 function openHistory(event: { data: SalaryEmployeeRow }) {
   selectedEmployee.value = event.data
   showHistory.value = true
+}
+
+function openAdjustment(row: SalaryEmployeeRow) {
+  adjustEmployee.value = row
+  showAdjustment.value = true
+}
+
+function onAdjustmentSaved() {
+  toast.add({ severity: 'success', summary: 'Thành công', detail: 'Điều chỉnh lương BHXH đã được lưu', life: 3000 })
+  loadPage(currentPage.value)
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

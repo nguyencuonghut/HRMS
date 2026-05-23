@@ -113,3 +113,146 @@
   background: color-mix(in srgb, var(--p-primary-50) 60%, transparent) !important;
   font-weight: 600;
 }
+
+// ── Adjustment dialog ─────────────────────────────────────────────────────────
+
+.salary-adj-info-bar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  background: var(--p-surface-100);
+  margin-bottom: 1rem;
+  font-size: 0.875rem;
+
+  .dark-mode & {
+    background: var(--p-surface-800);
+  }
+}
+
+.salary-adj-info-name {
+  color: var(--p-text-color);
+}
+
+.salary-adj-info-dept {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--p-text-muted-color);
+  font-size: 0.8rem;
+}
+
+.salary-adj-current {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+  font-size: 0.875rem;
+}
+
+.salary-adj-current-label {
+  color: var(--p-text-muted-color);
+}
+
+.salary-adj-current-source {
+  color: var(--p-text-muted-color);
+  font-size: 0.8rem;
+}
+
+.salary-adj-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.salary-adj-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.salary-adj-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.salary-adj-label {
+  font-size: 0.875rem;
+  color: var(--p-text-color);
+  font-weight: 500;
+}
+
+.salary-adj-required {
+  color: var(--p-red-500);
+  margin-left: 0.1rem;
+}
+
+.salary-adj-optional {
+  color: var(--p-text-muted-color);
+  font-weight: 400;
+  font-size: 0.8rem;
+}
+
+.salary-adj-error {
+  color: var(--p-red-500);
+  font-size: 0.8rem;
+}
+
+.salary-adj-delta-row {
+  font-size: 0.875rem;
+  font-weight: 600;
+  padding: 0.35rem 0;
+}
+
+.salary-adj-delta-up {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--p-green-600);
+}
+
+.salary-adj-delta-down {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--p-red-500);
+}
+
+.salary-adj-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--p-orange-500) 10%, transparent);
+  color: var(--p-orange-700);
+  font-size: 0.8rem;
+  line-height: 1.5;
+
+  .dark-mode & {
+    color: var(--p-orange-400);
+  }
+
+  i {
+    margin-top: 0.1rem;
+    flex-shrink: 0;
+  }
+}
+
+.salary-adj-api-error {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--p-red-500) 10%, transparent);
+  color: var(--p-red-600);
+  font-size: 0.85rem;
+
+  .dark-mode & {
+    color: var(--p-red-400);
+  }
+}
