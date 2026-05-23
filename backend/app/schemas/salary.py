@@ -96,3 +96,60 @@ class BhxhSalaryAdjustmentListPage(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+# ── Salary summary schemas ────────────────────────────────────────────────────
+
+class SalarySummaryRates(BaseModel):
+    bhxh_employee_rate: Decimal
+    bhyt_employee_rate: Decimal
+    bhtn_employee_rate: Decimal
+    bhxh_employer_rate: Decimal
+    bhyt_employer_rate: Decimal
+    bhtn_employer_rate: Decimal
+
+
+class SalarySummaryRow(BaseModel):
+    stt: int
+    employee_id: int
+    employee_code: str
+    full_name: str
+    department_name: Optional[str]
+    basis_amount: Decimal
+
+    bhxh_employee: Decimal
+    bhyt_employee: Decimal
+    bhtn_employee: Decimal
+    total_employee: Decimal
+
+    bhxh_employer: Decimal
+    bhyt_employer: Decimal
+    bhtn_employer: Decimal
+    total_employer: Decimal
+
+    grand_total: Decimal
+
+
+class SalarySummaryTotals(BaseModel):
+    total_employees: int
+    sum_basis: Decimal
+    sum_bhxh_employee: Decimal
+    sum_bhyt_employee: Decimal
+    sum_bhtn_employee: Decimal
+    sum_total_employee: Decimal
+    sum_bhxh_employer: Decimal
+    sum_bhyt_employer: Decimal
+    sum_bhtn_employer: Decimal
+    sum_total_employer: Decimal
+    sum_grand_total: Decimal
+
+
+class SalarySummaryPage(BaseModel):
+    year: int
+    month: int
+    rates: SalarySummaryRates
+    items: list[SalarySummaryRow]
+    totals: SalarySummaryTotals
+    total: int
+    page: int
+    page_size: int

@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from decimal import Decimal
+import calendar
+from datetime import date, datetime, timezone
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Optional
 
 from fastapi import HTTPException, status
@@ -15,7 +16,12 @@ from app.models.employee_contract import EmployeeContract
 from app.models.employee_insurance import EmployeeInsuranceProfile
 from app.models.employee_job import EmployeeJobRecord
 from app.models.employee_code import EmployeeCodeSequence
-from app.models.insurance import InsuranceChangeEvent
+from app.models.insurance import (
+    InsuranceChangeEvent,
+    InsuranceContributionComponent,
+    InsurancePolicyComponentRate,
+    InsurancePolicyVersion,
+)
 from app.models.org import Department, JobPosition
 from app.models.salary_adjustment import BhxhSalaryAdjustment
 from app.schemas.salary import (
@@ -26,6 +32,10 @@ from app.schemas.salary import (
     SalaryBhxhBasisDetail,
     SalaryEmployeeListPage,
     SalaryEmployeeRow,
+    SalarySummaryPage,
+    SalarySummaryRates,
+    SalarySummaryRow,
+    SalarySummaryTotals,
 )
 from app.services import employee_code_service
 from app.services.administrative_import_service import normalize_text
@@ -651,3 +661,282 @@ async def get_employee_adjustment_history(
         )
         for adj, creator in rows
     ]
+
+
+# ── Salary summary helpers ────────────────────────────────────────────────────
+
+async def _get_rates_for_month(
+    session: AsyncSession,
+    year: int,
+    month: int,
+) -> tuple[dict[str, dict], InsurancePolicyVersion]:
+    """Trả rates grouped by insurance_kind và policy version dùng cho tháng."""
+    first_day = date(year, month, 1)
+    last_day = date(year, month, calendar.monthrange(year, month)[1])
+
+    policy = (
+        await session.execute(
+            select(InsurancePolicyVersion)
+            .where(
+                InsurancePolicyVersion.effective_from <= last_day,
+                or_(
+                    InsurancePolicyVersion.effective_to.is_(None),
+                    InsurancePolicyVersion.effective_to >= first_day,
+                ),
+            )
+            .order_by(InsurancePolicyVersion.effective_from.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+
+    if not policy:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            f"Chưa cấu hình tỷ lệ đóng BHXH cho tháng {month:02d}/{year}. "
+            "Vào mục Cấu hình BHXH để thêm.",
+        )
+
+    rate_rows = (
+        await session.execute(
+            select(InsurancePolicyComponentRate, InsuranceContributionComponent)
+            .join(
+                InsuranceContributionComponent,
+                InsuranceContributionComponent.code == InsurancePolicyComponentRate.component_code,
+            )
+            .where(
+                InsurancePolicyComponentRate.policy_version_id == policy.id,
+                InsurancePolicyComponentRate.is_active.is_(True),
+            )
+        )
+    ).all()
+
+    if not rate_rows:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            f"Chưa cấu hình tỷ lệ đóng BHXH cho tháng {month:02d}/{year}. "
+            "Vào mục Cấu hình BHXH để thêm.",
+        )
+
+    grouped: dict[str, dict] = {}
+    for rate_row, comp in rate_rows:
+        kind = comp.insurance_kind.upper()
+        if kind not in grouped:
+            grouped[kind] = {"employee_rate": Decimal("0"), "employer_rate": Decimal("0")}
+        grouped[kind]["employee_rate"] += Decimal(str(rate_row.employee_rate_percent))
+        grouped[kind]["employer_rate"] += Decimal(str(rate_row.employer_rate_percent))
+
+    for key in ("BHXH", "BHYT", "BHTN"):
+        grouped.setdefault(key, {"employee_rate": Decimal("0"), "employer_rate": Decimal("0")})
+
+    return grouped, policy
+
+
+def _compute_contributions(basis: Decimal, rates: dict[str, dict]) -> dict:
+    def pct(r: Decimal) -> Decimal:
+        return (basis * r / Decimal("100")).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+
+    bhxh_emp = pct(rates["BHXH"]["employee_rate"])
+    bhyt_emp = pct(rates["BHYT"]["employee_rate"])
+    bhtn_emp = pct(rates["BHTN"]["employee_rate"])
+    total_emp = bhxh_emp + bhyt_emp + bhtn_emp
+
+    bhxh_er = pct(rates["BHXH"]["employer_rate"])
+    bhyt_er = pct(rates["BHYT"]["employer_rate"])
+    bhtn_er = pct(rates["BHTN"]["employer_rate"])
+    total_er = bhxh_er + bhyt_er + bhtn_er
+
+    return {
+        "bhxh_employee": bhxh_emp,
+        "bhyt_employee": bhyt_emp,
+        "bhtn_employee": bhtn_emp,
+        "total_employee": total_emp,
+        "bhxh_employer": bhxh_er,
+        "bhyt_employer": bhyt_er,
+        "bhtn_employer": bhtn_er,
+        "total_employer": total_er,
+        "grand_total": total_emp + total_er,
+    }
+
+
+def _build_summary_query(department_id: Optional[int]):
+    """Base query cho summary — trả rows employee có basis xác định."""
+    contract_sq = (
+        select(
+            EmployeeContract.employee_id.label("employee_id"),
+            func.max(EmployeeContract.insurance_salary).label("insurance_salary"),
+        )
+        .where(
+            EmployeeContract.status == "active",
+            EmployeeContract.insurance_salary.is_not(None),
+        )
+        .group_by(EmployeeContract.employee_id)
+        .subquery("active_contract")
+    )
+
+    stmt = (
+        select(
+            Employee,
+            EmployeeInsuranceProfile,
+            Department,
+            EmployeeCodeSequence,
+            contract_sq.c.insurance_salary.label("contract_salary"),
+        )
+        .join(EmployeeInsuranceProfile, EmployeeInsuranceProfile.employee_id == Employee.id)
+        .outerjoin(
+            EmployeeJobRecord,
+            and_(
+                EmployeeJobRecord.employee_id == Employee.id,
+                EmployeeJobRecord.is_current.is_(True),
+            ),
+        )
+        .outerjoin(Department, Department.id == EmployeeJobRecord.department_id)
+        .join(EmployeeCodeSequence, EmployeeCodeSequence.id == Employee.employee_code_sequence_id)
+        .outerjoin(contract_sq, contract_sq.c.employee_id == Employee.id)
+        .where(
+            EmployeeInsuranceProfile.participation_status == "active",
+            Employee.status != "resigned",
+            or_(
+                EmployeeInsuranceProfile.insurance_basis_amount.is_not(None),
+                and_(
+                    EmployeeInsuranceProfile.insurance_basis_source == "contract",
+                    contract_sq.c.insurance_salary.is_not(None),
+                ),
+            ),
+        )
+    )
+
+    if department_id is not None:
+        stmt = stmt.where(EmployeeJobRecord.department_id == department_id)
+
+    stmt = stmt.order_by(
+        Department.name.asc().nullslast(),
+        Employee.employee_seq.asc(),
+    )
+    return stmt
+
+
+def _resolve_basis_from_row(profile: EmployeeInsuranceProfile, contract_salary) -> Decimal:
+    raw = profile.insurance_basis_amount
+    if raw is not None:
+        return Decimal(str(raw))
+    return Decimal(str(contract_salary))
+
+
+def _build_summary_row(stt: int, emp: Employee, profile: EmployeeInsuranceProfile,
+                       dept: Optional[Department], seq: EmployeeCodeSequence,
+                       contract_salary, rates: dict) -> SalarySummaryRow:
+    emp_code = seq.code + str(emp.employee_seq).zfill(seq.min_digits)
+    basis = _resolve_basis_from_row(profile, contract_salary)
+    contrib = _compute_contributions(basis, rates)
+    return SalarySummaryRow(
+        stt=stt,
+        employee_id=emp.id,
+        employee_code=emp_code,
+        full_name=emp.full_name,
+        department_name=dept.name if dept else None,
+        basis_amount=basis,
+        **contrib,
+    )
+
+
+# ── get_salary_summary ────────────────────────────────────────────────────────
+
+async def get_salary_summary(
+    session: AsyncSession,
+    *,
+    year: int,
+    month: int,
+    department_id: Optional[int] = None,
+    page: int = 1,
+    page_size: int = 100,
+) -> SalarySummaryPage:
+    rates, _ = await _get_rates_for_month(session, year, month)
+    stmt = _build_summary_query(department_id)
+
+    total = (
+        await session.execute(select(func.count()).select_from(stmt.subquery()))
+    ).scalar_one()
+
+    rows = (
+        await session.execute(stmt.offset((page - 1) * page_size).limit(page_size))
+    ).all()
+
+    offset = (page - 1) * page_size
+    items = [
+        _build_summary_row(
+            offset + i + 1,
+            r.Employee,
+            r.EmployeeInsuranceProfile,
+            r.Department,
+            r.EmployeeCodeSequence,
+            r.contract_salary,
+            rates,
+        )
+        for i, r in enumerate(rows)
+    ]
+
+    zero = Decimal("0")
+    totals = SalarySummaryTotals(
+        total_employees=total,
+        sum_basis=sum((x.basis_amount for x in items), zero),
+        sum_bhxh_employee=sum((x.bhxh_employee for x in items), zero),
+        sum_bhyt_employee=sum((x.bhyt_employee for x in items), zero),
+        sum_bhtn_employee=sum((x.bhtn_employee for x in items), zero),
+        sum_total_employee=sum((x.total_employee for x in items), zero),
+        sum_bhxh_employer=sum((x.bhxh_employer for x in items), zero),
+        sum_bhyt_employer=sum((x.bhyt_employer for x in items), zero),
+        sum_bhtn_employer=sum((x.bhtn_employer for x in items), zero),
+        sum_total_employer=sum((x.total_employer for x in items), zero),
+        sum_grand_total=sum((x.grand_total for x in items), zero),
+    )
+
+    summary_rates = SalarySummaryRates(
+        bhxh_employee_rate=rates["BHXH"]["employee_rate"],
+        bhyt_employee_rate=rates["BHYT"]["employee_rate"],
+        bhtn_employee_rate=rates["BHTN"]["employee_rate"],
+        bhxh_employer_rate=rates["BHXH"]["employer_rate"],
+        bhyt_employer_rate=rates["BHYT"]["employer_rate"],
+        bhtn_employer_rate=rates["BHTN"]["employer_rate"],
+    )
+
+    return SalarySummaryPage(
+        year=year,
+        month=month,
+        rates=summary_rates,
+        items=items,
+        totals=totals,
+        total=total,
+        page=page,
+        page_size=page_size,
+    )
+
+
+# ── get_salary_summary_all ────────────────────────────────────────────────────
+
+async def get_salary_summary_all(
+    session: AsyncSession,
+    *,
+    year: int,
+    month: int,
+    department_id: Optional[int] = None,
+) -> tuple[list[SalarySummaryRow], SalarySummaryRates]:
+    """Trả tất cả rows (không phân trang) dùng cho export."""
+    rates, _ = await _get_rates_for_month(session, year, month)
+    stmt = _build_summary_query(department_id)
+    rows = (await session.execute(stmt)).all()
+
+    items = [
+        _build_summary_row(i + 1, r.Employee, r.EmployeeInsuranceProfile,
+                           r.Department, r.EmployeeCodeSequence, r.contract_salary, rates)
+        for i, r in enumerate(rows)
+    ]
+
+    summary_rates = SalarySummaryRates(
+        bhxh_employee_rate=rates["BHXH"]["employee_rate"],
+        bhyt_employee_rate=rates["BHYT"]["employee_rate"],
+        bhtn_employee_rate=rates["BHTN"]["employee_rate"],
+        bhxh_employer_rate=rates["BHXH"]["employer_rate"],
+        bhyt_employer_rate=rates["BHYT"]["employer_rate"],
+        bhtn_employer_rate=rates["BHTN"]["employer_rate"],
+    )
+    return items, summary_rates

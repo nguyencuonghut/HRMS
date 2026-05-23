@@ -1,7 +1,9 @@
+import io
 from datetime import date
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import require_admin_or_hr, require_permission
@@ -14,8 +16,9 @@ from app.schemas.salary import (
     BhxhSalaryHistoryItem,
     SalaryBhxhBasisDetail,
     SalaryEmployeeListPage,
+    SalarySummaryPage,
 )
-from app.services import salary_service
+from app.services import salary_export_service, salary_service
 
 router = APIRouter()
 
@@ -123,3 +126,51 @@ async def get_employee_adjustment_history(
     session: AsyncSession = Depends(get_session),
 ):
     return await salary_service.get_employee_adjustment_history(session, employee_id)
+
+
+# ── Summary endpoints ─────────────────────────────────────────────────────────
+
+@router.get(
+    "/summary",
+    response_model=SalarySummaryPage,
+    summary="Bảng tổng hợp lương BHXH theo tháng",
+)
+async def get_salary_summary(
+    year: int = Query(..., ge=2000, le=2100),
+    month: int = Query(..., ge=1, le=12),
+    department_id: Optional[int] = Query(None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(100, ge=1, le=500),
+    _: User = require_permission("insurance:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await salary_service.get_salary_summary(
+        session,
+        year=year,
+        month=month,
+        department_id=department_id,
+        page=page,
+        page_size=page_size,
+    )
+
+
+@router.get(
+    "/summary/export",
+    summary="Xuất Excel bảng tổng hợp lương BHXH",
+)
+async def export_salary_summary(
+    year: int = Query(..., ge=2000, le=2100),
+    month: int = Query(..., ge=1, le=12),
+    department_id: Optional[int] = Query(None),
+    _: User = require_permission("insurance:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    excel_bytes = await salary_export_service.export_salary_summary_excel(
+        session, year=year, month=month, department_id=department_id
+    )
+    filename = f"luong_bhxh_{year}_{month:02d}.xlsx"
+    return StreamingResponse(
+        io.BytesIO(excel_bytes),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
