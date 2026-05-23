@@ -1,13 +1,37 @@
 <template>
-  <div>
-    <div class="page-header"><h2>Lương BHXH</h2></div>
-    <div class="placeholder-card"><i class="pi pi-dollar" /><span>Tính năng đang phát triển</span></div>
+  <div class="salary-view">
+    <!-- Header -->
+    <div class="page-header insurance-header">
+      <div>
+        <h2 class="page-title">Lương BHXH</h2>
+        <span class="page-subtitle">Mức lương làm căn cứ đóng BHXH · Lịch sử điều chỉnh · Tổng hợp</span>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <Tabs v-model:value="activeTab">
+      <TabList>
+        <Tab value="basis">Mức lương BHXH</Tab>
+      </TabList>
+
+      <TabPanels>
+        <TabPanel value="basis">
+          <BhxhBasisTable />
+        </TabPanel>
+      </TabPanels>
+    </Tabs>
   </div>
 </template>
-<script setup lang="ts"></script>
-<style scoped>
-.page-header { margin-bottom: 1.5rem; }
-.page-header h2 { margin: 0; font-size: 1.5rem; font-weight: 700; }
-.placeholder-card { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.75rem; height: 200px; background: var(--p-surface-0); border: 1px dashed var(--p-surface-300); border-radius: 10px; color: var(--p-text-muted-color); }
-.placeholder-card i { font-size: 2rem; opacity: 0.4; }
-</style>
+
+<script setup lang="ts">
+import { ref } from 'vue'
+import Tab from 'primevue/tab'
+import TabList from 'primevue/tablist'
+import TabPanel from 'primevue/tabpanel'
+import TabPanels from 'primevue/tabpanels'
+import Tabs from 'primevue/tabs'
+
+import BhxhBasisTable from './components/BhxhBasisTable.vue'
+
+const activeTab = ref('basis')
+</script>

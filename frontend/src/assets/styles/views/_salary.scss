@@ -1,0 +1,115 @@
+.salary-view {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+// ── Basis table ───────────────────────────────────────────────────────────────
+
+.salary-basis-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.625rem;
+  margin-bottom: 0.75rem;
+}
+
+.salary-basis-amount {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.salary-basis-warn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: var(--p-orange-600);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+// ── Participation status badges ───────────────────────────────────────────────
+
+.salary-status-active {
+  color: var(--p-green-600);
+  font-weight: 600;
+}
+
+.salary-status-paused {
+  color: var(--p-orange-600);
+  font-weight: 600;
+}
+
+.salary-status-stopped {
+  color: var(--p-text-muted-color);
+}
+
+// ── Source badge ──────────────────────────────────────────────────────────────
+
+.salary-source-contract {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+  color: var(--p-text-muted-color);
+}
+
+.salary-source-manual {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+  color: var(--p-primary-color);
+  font-weight: 600;
+}
+
+// ── History dialog ────────────────────────────────────────────────────────────
+
+.salary-history-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 2rem;
+  padding: 0.625rem 0.75rem;
+  margin-bottom: 0.75rem;
+  background: var(--p-surface-100);
+  border-radius: 8px;
+  font-size: 0.875rem;
+
+  .dark-mode & {
+    background: var(--p-surface-800);
+  }
+
+  .salary-history-summary-item {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    color: var(--p-text-color);
+
+    strong {
+      color: var(--p-text-muted-color);
+      font-weight: 500;
+    }
+  }
+}
+
+.salary-history-source-contract {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: var(--p-blue-600);
+  font-size: 0.8rem;
+}
+
+.salary-history-source-adjustment {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: var(--p-orange-600);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.salary-history-current-row td {
+  background: color-mix(in srgb, var(--p-primary-50) 60%, transparent) !important;
+  font-weight: 600;
+}

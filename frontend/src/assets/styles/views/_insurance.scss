@@ -458,6 +458,10 @@ html.dark-mode {
   font-weight: 600;
   color: var(--p-text-color);
   border-bottom: 1px solid var(--p-content-border-color);
+
+  .dark-mode & {
+    background: var(--p-surface-800);
+  }
 }
 
 .ins-rates-group-header {
@@ -481,6 +485,10 @@ html.dark-mode {
   font-weight: 600;
   color: var(--p-text-muted-color);
   background: color-mix(in srgb, var(--p-surface-100) 50%, transparent);
+
+  .dark-mode & {
+    background: color-mix(in srgb, var(--p-surface-800) 50%, transparent);
+  }
 }
 
 .ins-rates-total {
@@ -658,6 +666,10 @@ html.dark-mode {
   font-weight: 600;
   color: var(--p-text-color);
   border-bottom: 1px solid var(--p-content-border-color);
+
+  .dark-mode & {
+    background: var(--p-surface-800);
+  }
 }
 
 .ins-contrib-row {
@@ -962,6 +974,10 @@ html.dark-mode {
   margin-bottom: 1rem;
   font-size: 0.875rem;
   line-height: 1.6;
+
+  .dark-mode & {
+    background: color-mix(in srgb, var(--p-surface-800) 80%, transparent);
+  }
 }
 
 .ins-adjust-form,

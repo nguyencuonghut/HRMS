@@ -4,13 +4,15 @@ from decimal import Decimal
 from typing import Optional
 
 from fastapi import HTTPException, status
-from sqlalchemy import and_, select
+from sqlalchemy import String, and_, func, or_, select
+from sqlalchemy import cast as sa_cast
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.employee import Employee
 from app.models.employee_contract import EmployeeContract
 from app.models.employee_insurance import EmployeeInsuranceProfile
 from app.models.employee_job import EmployeeJobRecord
+from app.models.employee_code import EmployeeCodeSequence
 from app.models.org import Department, JobPosition
 from app.schemas.salary import (
     BhxhSalaryHistoryItem,
@@ -19,6 +21,7 @@ from app.schemas.salary import (
     SalaryEmployeeRow,
 )
 from app.services import employee_code_service
+from app.services.administrative_import_service import normalize_text
 
 
 def _has_discrepancy(
@@ -80,12 +83,24 @@ async def list_salary_employees(
         )
         .outerjoin(Department, Department.id == EmployeeJobRecord.department_id)
         .outerjoin(JobPosition, JobPosition.id == EmployeeJobRecord.job_position_id)
+        .join(EmployeeCodeSequence, EmployeeCodeSequence.id == Employee.employee_code_sequence_id)
         .where(Employee.status != "resigned")
     )
 
     if search:
-        kw = f"%{search.strip().lower()}%"
-        stmt = stmt.where(Employee.normalized_name.ilike(kw))
+        kw_norm = f"%{normalize_text(search.strip())}%"
+        kw_raw = f"%{search.strip()}%"
+        generated_code = EmployeeCodeSequence.code + func.lpad(
+            sa_cast(Employee.employee_seq, String),
+            EmployeeCodeSequence.min_digits,
+            "0",
+        )
+        stmt = stmt.where(
+            or_(
+                Employee.normalized_name.ilike(kw_norm),
+                generated_code.ilike(kw_raw),
+            )
+        )
 
     if department_id is not None:
         stmt = stmt.where(EmployeeJobRecord.department_id == department_id)
@@ -93,7 +108,6 @@ async def list_salary_employees(
     if participation_status is not None:
         stmt = stmt.where(EmployeeInsuranceProfile.participation_status == participation_status)
 
-    from sqlalchemy import func
     total = (
         await session.execute(select(func.count()).select_from(stmt.subquery()))
     ).scalar_one()
@@ -140,8 +154,12 @@ async def list_salary_employees(
         profile: Optional[EmployeeInsuranceProfile] = row.EmployeeInsuranceProfile
         contract = active_contracts.get(emp.id)
         contract_salary = contract.insurance_salary if contract else None
-        basis_amount = profile.insurance_basis_amount if profile else None
         basis_source = profile.insurance_basis_source if profile else None
+        raw_basis_amount = profile.insurance_basis_amount if profile else None
+        # Khi source='contract', basis_amount lưu trong contract chứ không trong profile
+        basis_amount = raw_basis_amount if raw_basis_amount is not None else (
+            contract_salary if basis_source == "contract" else None
+        )
 
         items.append(SalaryEmployeeRow(
             employee_id=emp.id,
@@ -196,9 +214,12 @@ async def get_employee_bhxh_basis(
 
     contract = await _get_active_contract(session, employee_id)
 
-    basis_amount = profile.insurance_basis_amount if profile else None
     basis_source = profile.insurance_basis_source if profile else None
     contract_salary = contract.insurance_salary if contract else None
+    raw_basis_amount = profile.insurance_basis_amount if profile else None
+    basis_amount = raw_basis_amount if raw_basis_amount is not None else (
+        contract_salary if basis_source == "contract" else None
+    )
 
     employee_code = await employee_code_service.build_employee_display_code(session, emp)
 
