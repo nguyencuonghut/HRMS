@@ -162,3 +162,28 @@
     color: var(--p-red-400);
   }
 }
+
+// ── Discipline-specific ───────────────────────────────────────────────────────
+
+// "Cách chức" badge — dùng danger nhưng giảm độ đậm
+.disc-tag-cach-chuc {
+  opacity: 0.65;
+}
+
+// End-date preview (readonly, styled như input)
+.disc-end-date-preview {
+  display: flex;
+  align-items: center;
+  height: 2.25rem;
+  padding: 0 0.75rem;
+  border: 1px solid var(--p-inputtext-border-color);
+  border-radius: var(--p-inputtext-border-radius);
+  background: var(--p-surface-100);
+  color: var(--p-text-muted-color);
+  font-size: 0.9rem;
+
+  .dark-mode & {
+    background: var(--p-surface-800);
+    border-color: var(--p-surface-600);
+  }
+}

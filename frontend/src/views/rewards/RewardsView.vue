@@ -19,10 +19,7 @@
           <RewardListTab />
         </TabPanel>
         <TabPanel value="disciplines">
-          <div class="rewards-placeholder">
-            <i class="pi pi-gavel" />
-            <span>Kỷ luật — đang phát triển (Plan 8.2)</span>
-          </div>
+          <DisciplineListTab />
         </TabPanel>
         <TabPanel value="report">
           <div class="rewards-placeholder">
@@ -44,6 +41,7 @@ import TabPanels from 'primevue/tabpanels'
 import Tabs from 'primevue/tabs'
 
 import RewardListTab from './components/RewardListTab.vue'
+import DisciplineListTab from './components/DisciplineListTab.vue'
 
 const activeTab = ref('rewards')
 </script>
