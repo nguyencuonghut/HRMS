@@ -1,10 +1,11 @@
-"""Endpoints đào tạo (9.1 + 9.2)."""
+"""Endpoints đào tạo (9.1 + 9.2 + 9.4)."""
 from __future__ import annotations
 
 from datetime import date
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query, Request, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import require_permission
@@ -30,7 +31,15 @@ from app.schemas.training import (
     TrainingRecordRead,
     TrainingRecordUpdate,
 )
-from app.services import auth_service, training_course_service, training_plan_service, training_record_service
+from app.schemas.training_report import IncompleteMandatoryEmployee, TrainingReportSummary
+from app.services import (
+    auth_service,
+    training_course_service,
+    training_export_service,
+    training_plan_service,
+    training_record_service,
+    training_report_service,
+)
 
 router = APIRouter()
 _TAG = "Đào tạo"
@@ -513,3 +522,74 @@ async def get_training_passport(
     session: AsyncSession = Depends(get_session),
 ):
     return await training_record_service.get_training_passport(session, employee_id)
+
+
+# ── Report endpoints (9.4) ────────────────────────────────────────────────────
+
+
+@router.get(
+    "/report/summary",
+    response_model=TrainingReportSummary,
+    tags=[_TAG],
+    summary="Báo cáo tổng hợp đào tạo",
+)
+async def get_report_summary(
+    from_date:     date           = Query(...),
+    to_date:       date           = Query(...),
+    department_id: Optional[int]  = Query(None),
+    course_id:     Optional[int]  = Query(None),
+    _: User = require_permission("training:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await training_report_service.get_training_report_summary(
+        session,
+        from_date=from_date,
+        to_date=to_date,
+        department_id=department_id,
+        course_id=course_id,
+    )
+
+
+@router.get(
+    "/report/incomplete-mandatory",
+    response_model=list[IncompleteMandatoryEmployee],
+    tags=[_TAG],
+    summary="Danh sách NV chưa hoàn thành đào tạo bắt buộc",
+)
+async def get_incomplete_mandatory(
+    department_id: Optional[int] = Query(None),
+    _: User = require_permission("training:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await training_report_service.get_incomplete_mandatory_employees(
+        session,
+        department_id=department_id,
+    )
+
+
+@router.get(
+    "/report/export",
+    tags=[_TAG],
+    summary="Xuất Excel báo cáo đào tạo",
+)
+async def export_report(
+    from_date:     date           = Query(...),
+    to_date:       date           = Query(...),
+    department_id: Optional[int]  = Query(None),
+    course_id:     Optional[int]  = Query(None),
+    _: User = require_permission("training:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    content = await training_export_service.export_training_excel(
+        session,
+        from_date=from_date,
+        to_date=to_date,
+        department_id=department_id,
+        course_id=course_id,
+    )
+    filename = f"bao_cao_dao_tao_{from_date}_{to_date}.xlsx"
+    return StreamingResponse(
+        iter([content]),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
