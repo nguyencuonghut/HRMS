@@ -1,0 +1,116 @@
+// ── Training view ─────────────────────────────────────────────────────────────
+
+.training-view {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+// ── Toolbar ───────────────────────────────────────────────────────────────────
+
+.training-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.625rem;
+  margin-bottom: 0.75rem;
+}
+
+.training-search {
+  width: 240px;
+}
+
+// ── Table cells ───────────────────────────────────────────────────────────────
+
+.training-empty {
+  padding: 1rem;
+  color: var(--p-text-muted-color);
+}
+
+.training-type-tag {
+  font-size: 0.78rem;
+}
+
+.training-year-quarter {
+  font-size: 0.875rem;
+  color: var(--p-text-muted-color);
+}
+
+.training-course-count {
+  font-weight: 600;
+  color: var(--p-primary-color);
+}
+
+// ── Expand row (plan courses) ─────────────────────────────────────────────────
+
+.training-plan-courses {
+  padding: 0.75rem 1rem;
+  background: var(--p-surface-100);
+  border-radius: 6px;
+  margin: 0.25rem 0;
+
+  .dark-mode & {
+    background: var(--p-surface-800);
+  }
+}
+
+.training-plan-courses-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: var(--p-text-color);
+}
+
+// ── Form ──────────────────────────────────────────────────────────────────────
+
+.training-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.training-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.training-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.training-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--p-text-color);
+}
+
+.training-req {
+  color: var(--p-red-500);
+  margin-left: 0.1rem;
+}
+
+.training-error {
+  color: var(--p-red-500);
+  font-size: 0.8rem;
+}
+
+.training-api-error {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--p-red-500) 10%, transparent);
+  color: var(--p-red-600);
+  font-size: 0.85rem;
+
+  .dark-mode & {
+    color: var(--p-red-400);
+  }
+}

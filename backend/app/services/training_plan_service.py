@@ -135,7 +135,7 @@ async def list_plans(
 
     stmt = (
         stmt
-        .order_by(TrainingPlan.year.desc(), TrainingPlan.quarter.asc().nullslast())
+        .order_by(TrainingPlan.id.desc())
         .offset((page - 1) * page_size)
         .limit(page_size)
     )

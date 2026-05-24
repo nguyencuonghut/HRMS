@@ -1,13 +1,34 @@
 <template>
-  <div>
-    <div class="page-header"><h2>Đào tạo & Phát triển</h2></div>
-    <div class="placeholder-card"><i class="pi pi-graduation-cap" /><span>Tính năng đang phát triển</span></div>
+  <div class="training-view">
+    <div class="page-header insurance-header">
+      <div>
+        <h2 class="page-title">Đào tạo &amp; Phát triển</h2>
+        <span class="page-subtitle">Khóa học · Kế hoạch đào tạo · Theo dõi · Chứng chỉ</span>
+      </div>
+    </div>
+
+    <Tabs v-model:value="activeTab">
+      <TabList>
+        <Tab value="courses">Khóa học</Tab>
+        <Tab value="plans">Kế hoạch đào tạo</Tab>
+      </TabList>
+      <TabPanels>
+        <TabPanel value="courses"><CourseListTab /></TabPanel>
+        <TabPanel value="plans"><TrainingPlanTab /></TabPanel>
+      </TabPanels>
+    </Tabs>
   </div>
 </template>
-<script setup lang="ts"></script>
-<style scoped>
-.page-header { margin-bottom: 1.5rem; }
-.page-header h2 { margin: 0; font-size: 1.5rem; font-weight: 700; }
-.placeholder-card { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.75rem; height: 200px; background: var(--p-surface-0); border: 1px dashed var(--p-surface-300); border-radius: 10px; color: var(--p-text-muted-color); }
-.placeholder-card i { font-size: 2rem; opacity: 0.4; }
-</style>
+
+<script setup lang="ts">
+import { ref } from 'vue'
+import Tab from 'primevue/tab'
+import TabList from 'primevue/tablist'
+import TabPanel from 'primevue/tabpanel'
+import TabPanels from 'primevue/tabpanels'
+import Tabs from 'primevue/tabs'
+import CourseListTab from './components/CourseListTab.vue'
+import TrainingPlanTab from './components/TrainingPlanTab.vue'
+
+const activeTab = ref('courses')
+</script>

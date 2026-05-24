@@ -83,7 +83,7 @@ async def list_courses(
     total_stmt = select(func.count()).select_from(stmt.subquery())
     total = (await session.execute(total_stmt)).scalar_one()
 
-    stmt = stmt.order_by(TrainingCourse.name).offset((page - 1) * page_size).limit(page_size)
+    stmt = stmt.order_by(TrainingCourse.id.desc()).offset((page - 1) * page_size).limit(page_size)
     rows = (await session.execute(stmt)).scalars().all()
 
     return CourseListPage(
