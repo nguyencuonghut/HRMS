@@ -263,30 +263,23 @@
 
 ## 10. Đánh giá Hiệu suất / KPI (Performance Management)
 
-### 10.1. Cấu hình chu kỳ đánh giá
-- Cấu hình **chu kỳ đánh giá**: hàng tháng, hàng quý, 6 tháng, hàng năm
-- Thiết lập thang điểm đánh giá
-- Phân công người đánh giá (Line Manager)
+### 10.1. KPI tháng
+- Nhân sự nhập tay hoặc **import file Excel** điểm KPI hàng tháng cho từng nhân viên
+- Thông tin bao gồm: mã nhân viên, họ tên, năm, tháng, điểm KPI, ghi chú, người nhập
 
-### 10.2. Thiết lập KPI
-- Tạo **bộ KPI** theo phòng ban, vị trí công việc
-- KPI cá nhân và KPI nhóm
-- Trọng số từng chỉ tiêu
+### 10.2. Đánh giá cuối năm
+- **Điểm KPI trung bình** tự động tính từ các tháng đã nhập trong năm
+- Xếp loại tự động theo điểm: **Xuất sắc / Tốt / Đạt / Cần cải thiện**
+- Nhận xét – đánh giá cuối năm do nhân sự bổ sung
 
-### 10.3. Quy trình đánh giá
-- **Tự đánh giá** (Self Review): nhân viên tự chấm điểm
-- **Đánh giá của Quản lý** (Manager Review)
-- Tổng hợp điểm cuối kỳ
-- Xếp loại: Xuất sắc / Tốt / Đạt / Chưa đạt
-
-### 10.4. Liên kết kết quả đánh giá
+### 10.3. Liên kết kết quả đánh giá
 - Kết nối kết quả đánh giá với quyết định khen thưởng
 - Kết nối với kế hoạch đào tạo (cải thiện điểm yếu)
 - Lịch sử kết quả đánh giá trong hồ sơ nhân viên
 
-### 10.5. Báo cáo hiệu suất
-- Phân phối kết quả đánh giá toàn công ty
-- Báo cáo theo phòng ban, chu kỳ
+### 10.4. Báo cáo hiệu suất
+- Phân phối xếp loại toàn công ty theo năm
+- Báo cáo điểm KPI trung bình theo phòng ban
 
 ---
 
