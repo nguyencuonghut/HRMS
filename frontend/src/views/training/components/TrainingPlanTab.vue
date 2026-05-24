@@ -78,6 +78,7 @@
         current-page-report-template="{first}–{last} / {totalRecords}"
         :rows-per-page-options="[20, 50, 100]"
         v-model:expandedRows="expandedRows"
+        dataKey="id"
         @rowExpand="onRowExpand"
         @page="onPage"
       >
@@ -123,8 +124,15 @@
           </template>
         </Column>
 
-        <Column header="" style="width: 160px; text-align: right">
+        <Column header="" style="width: 190px; text-align: right">
           <template #body="{ data }: { data: PlanRead }">
+            <Button
+              v-if="data.status === 'draft'"
+              icon="pi pi-pencil"
+              text rounded size="small" severity="secondary"
+              v-tooltip.top="'Sửa tiêu đề / mô tả'"
+              @click="openEdit(data)"
+            />
             <Button
               v-if="data.status === 'draft'"
               icon="pi pi-check"
@@ -156,7 +164,7 @@
               <span>Danh sách khóa học trong kế hoạch</span>
               <Button
                 v-if="data.status !== 'cancelled'"
-                label="+ Thêm khóa học"
+                label="Thêm khóa học"
                 icon="pi pi-plus"
                 severity="secondary"
                 outlined
@@ -311,6 +319,35 @@
       </template>
     </Dialog>
 
+    <!-- Dialog sửa kế hoạch -->
+    <Dialog
+      v-model:visible="showEditDialog"
+      header="Sửa kế hoạch đào tạo"
+      modal
+      :style="{ width: '480px' }"
+      :closable="!savingEdit"
+    >
+      <div class="training-form">
+        <div class="training-field">
+          <label class="training-label">Tiêu đề <span class="training-req">*</span></label>
+          <InputText v-model="editForm.title" class="w-full" placeholder="Tiêu đề kế hoạch" />
+          <span v-if="editErrors.title" class="training-error">{{ editErrors.title }}</span>
+        </div>
+        <div class="training-field">
+          <label class="training-label">Mô tả</label>
+          <Textarea v-model="editForm.description" rows="3" class="w-full" auto-resize placeholder="Mô tả kế hoạch..." />
+        </div>
+        <p v-if="editError" class="training-api-error">
+          <i class="pi pi-exclamation-triangle" />
+          {{ editError }}
+        </p>
+      </div>
+      <template #footer>
+        <Button label="Hủy" severity="secondary" text :disabled="savingEdit" @click="showEditDialog = false" />
+        <Button label="Lưu thay đổi" :loading="savingEdit" @click="submitEdit" />
+      </template>
+    </Dialog>
+
     <!-- Dialog thêm khóa học vào kế hoạch -->
     <Dialog
       v-model:visible="showAddCourseDialog"
@@ -385,7 +422,6 @@
       </template>
     </Dialog>
 
-    <ConfirmDialog />
     <Toast />
   </div>
 </template>
@@ -394,7 +430,6 @@
 import { ref, onMounted } from 'vue'
 import Button from 'primevue/button'
 import Column from 'primevue/column'
-import ConfirmDialog from 'primevue/confirmdialog'
 import DataTable from 'primevue/datatable'
 import DatePicker from 'primevue/datepicker'
 import Dialog from 'primevue/dialog'
@@ -443,7 +478,7 @@ const filterDeptId  = ref<number | null>(null)
 const filterStatus  = ref<PlanStatusValue | null>(null)
 
 // Expand rows
-const expandedRows      = ref<Record<number, boolean>>({})
+const expandedRows      = ref<PlanRead[]>([])
 const planCoursesMap    = ref<Record<number, PlanCourseRead[]>>({})
 const planCoursesLoading = ref<Record<number, boolean>>({})
 
@@ -466,6 +501,14 @@ const planForm = ref<{
   department_id: null,
   description: '',
 })
+
+// Edit plan dialog
+const showEditDialog  = ref(false)
+const editingPlanId   = ref<number | null>(null)
+const savingEdit      = ref(false)
+const editError       = ref('')
+const editErrors      = ref<Record<string, string>>({})
+const editForm        = ref({ title: '', description: '' })
 
 // Add course dialog
 const showAddCourseDialog  = ref(false)
@@ -604,6 +647,41 @@ async function submitPlan() {
   }
 }
 
+// ── Edit plan ─────────────────────────────────────────────────────────────────
+
+function openEdit(plan: PlanRead) {
+  editingPlanId.value = plan.id
+  editError.value = ''
+  editErrors.value = {}
+  editForm.value = { title: plan.title, description: plan.description ?? '' }
+  showEditDialog.value = true
+}
+
+async function submitEdit() {
+  editErrors.value = {}
+  if (!editForm.value.title.trim()) {
+    editErrors.value.title = 'Vui lòng nhập tiêu đề'
+    return
+  }
+  savingEdit.value = true
+  editError.value = ''
+  try {
+    const updated = await trainingService.updatePlan(editingPlanId.value!, {
+      title: editForm.value.title.trim(),
+      description: editForm.value.description.trim() || null,
+    })
+    const idx = items.value.findIndex(p => p.id === editingPlanId.value)
+    if (idx !== -1) items.value[idx] = updated.data
+    toast.add({ severity: 'success', summary: 'Đã lưu', detail: 'Kế hoạch đã được cập nhật', life: 3000 })
+    showEditDialog.value = false
+  } catch (err: unknown) {
+    const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+    editError.value = typeof detail === 'string' ? detail : 'Có lỗi xảy ra, vui lòng thử lại'
+  } finally {
+    savingEdit.value = false
+  }
+}
+
 // ── Approve / Cancel / Delete ─────────────────────────────────────────────────
 
 function approvePlan(plan: PlanRead) {
@@ -614,17 +692,19 @@ function approvePlan(plan: PlanRead) {
     acceptSeverity: 'success',
     acceptLabel: 'Duyệt',
     rejectLabel: 'Hủy',
-    accept: async () => {
-      try {
-        await trainingService.approvePlan(plan.id)
-        toast.add({ severity: 'success', summary: 'Đã duyệt', detail: 'Kế hoạch đã được duyệt', life: 3000 })
-        delete planCoursesMap.value[plan.id]
-        load()
-      } catch {
-        toast.add({ severity: 'error', summary: 'Lỗi', detail: 'Không thể duyệt kế hoạch', life: 4000 })
-      }
-    },
+    accept: () => doApprovePlan(plan),
   })
+}
+
+async function doApprovePlan(plan: PlanRead) {
+  try {
+    await trainingService.approvePlan(plan.id)
+    toast.add({ severity: 'success', summary: 'Đã duyệt', detail: 'Kế hoạch đã được duyệt', life: 3000 })
+    delete planCoursesMap.value[plan.id]
+    load()
+  } catch {
+    toast.add({ severity: 'error', summary: 'Lỗi', detail: 'Không thể duyệt kế hoạch', life: 4000 })
+  }
 }
 
 function cancelPlan(plan: PlanRead) {
@@ -635,17 +715,19 @@ function cancelPlan(plan: PlanRead) {
     acceptSeverity: 'warn',
     acceptLabel: 'Hủy KH',
     rejectLabel: 'Đóng',
-    accept: async () => {
-      try {
-        await trainingService.cancelPlan(plan.id)
-        toast.add({ severity: 'success', summary: 'Đã hủy', detail: 'Kế hoạch đã được hủy', life: 3000 })
-        delete planCoursesMap.value[plan.id]
-        load()
-      } catch {
-        toast.add({ severity: 'error', summary: 'Lỗi', detail: 'Không thể hủy kế hoạch', life: 4000 })
-      }
-    },
+    accept: () => doCancelPlan(plan),
   })
+}
+
+async function doCancelPlan(plan: PlanRead) {
+  try {
+    await trainingService.cancelPlan(plan.id)
+    toast.add({ severity: 'success', summary: 'Đã hủy', detail: 'Kế hoạch đã được hủy', life: 3000 })
+    delete planCoursesMap.value[plan.id]
+    load()
+  } catch {
+    toast.add({ severity: 'error', summary: 'Lỗi', detail: 'Không thể hủy kế hoạch', life: 4000 })
+  }
 }
 
 function confirmDelete(plan: PlanRead) {
@@ -656,17 +738,19 @@ function confirmDelete(plan: PlanRead) {
     acceptSeverity: 'danger',
     acceptLabel: 'Xóa',
     rejectLabel: 'Hủy',
-    accept: async () => {
-      try {
-        await trainingService.deletePlan(plan.id)
-        toast.add({ severity: 'success', summary: 'Đã xóa', detail: 'Kế hoạch đã được xóa', life: 3000 })
-        delete planCoursesMap.value[plan.id]
-        load()
-      } catch {
-        toast.add({ severity: 'error', summary: 'Lỗi', detail: 'Không thể xóa kế hoạch', life: 4000 })
-      }
-    },
+    accept: () => doDeletePlan(plan),
   })
+}
+
+async function doDeletePlan(plan: PlanRead) {
+  try {
+    await trainingService.deletePlan(plan.id)
+    toast.add({ severity: 'success', summary: 'Đã xóa', detail: 'Kế hoạch đã được xóa', life: 3000 })
+    delete planCoursesMap.value[plan.id]
+    load()
+  } catch {
+    toast.add({ severity: 'error', summary: 'Lỗi', detail: 'Không thể xóa kế hoạch', life: 4000 })
+  }
 }
 
 // ── Add course to plan dialog ─────────────────────────────────────────────────

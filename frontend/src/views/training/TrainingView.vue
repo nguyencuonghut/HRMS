@@ -17,6 +17,7 @@
         <TabPanel value="plans"><TrainingPlanTab /></TabPanel>
       </TabPanels>
     </Tabs>
+
   </div>
 </template>
 

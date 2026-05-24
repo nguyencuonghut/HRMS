@@ -39,7 +39,7 @@ async def list_courses(
     is_mandatory: Optional[bool] = Query(None),
     is_active: Optional[bool] = Query(None),
     page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=200),
+    page_size: int = Query(20, ge=1, le=500),
     _: User = require_permission("training:view"),
     session: AsyncSession = Depends(get_session),
 ):
