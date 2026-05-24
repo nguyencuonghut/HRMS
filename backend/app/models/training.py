@@ -1,4 +1,4 @@
-"""Models đào tạo (9.1 + 9.2)."""
+"""Models đào tạo (9.1 + 9.2 + 9.3)."""
 from __future__ import annotations
 
 from datetime import date, datetime, timezone
@@ -141,3 +141,33 @@ class EmployeeTrainingRecord(SQLModel, table=True):
     )
     created_at:     datetime          = Field(default_factory=_utcnow)
     updated_at:     datetime          = Field(default_factory=_utcnow)
+
+
+class EmployeeTrainingCertificate(SQLModel, table=True):
+    """Chứng chỉ đào tạo nhân viên (9.3)."""
+
+    __tablename__ = "employee_training_certificates"
+
+    id:                   Optional[int]     = Field(default=None, primary_key=True)
+    employee_id:          int               = Field(
+        sa_column=Column(sa.Integer(), sa.ForeignKey("employees.id", ondelete="CASCADE"), nullable=False, index=True)
+    )
+    certificate_name:     str               = Field(sa_column=Column(sa.String(500), nullable=False))
+    issuing_organization: Optional[str]     = Field(default=None, sa_column=Column(sa.String(300), nullable=True))
+    issued_date:          date              = Field(sa_column=Column(sa.Date(), nullable=False))
+    expiry_date:          Optional[date]    = Field(default=None, sa_column=Column(sa.Date(), nullable=True, index=True))
+    related_course_id:    Optional[int]     = Field(
+        default=None,
+        sa_column=Column(sa.Integer(), sa.ForeignKey("training_courses.id", ondelete="SET NULL"), nullable=True)
+    )
+    note:                 Optional[str]     = Field(default=None, sa_column=Column(sa.Text(), nullable=True))
+    file_path:            Optional[str]     = Field(default=None, sa_column=Column(sa.Text(), nullable=True))
+    file_name:            Optional[str]     = Field(default=None, sa_column=Column(sa.String(300), nullable=True))
+    file_size:            Optional[int]     = Field(default=None, sa_column=Column(sa.Integer(), nullable=True))
+    mime_type:            Optional[str]     = Field(default=None, sa_column=Column(sa.String(100), nullable=True))
+    created_by_id:        Optional[int]     = Field(
+        default=None,
+        sa_column=Column(sa.Integer(), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    )
+    created_at:           datetime          = Field(default_factory=_utcnow)
+    updated_at:           datetime          = Field(default_factory=_utcnow)

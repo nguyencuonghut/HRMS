@@ -153,6 +153,22 @@ async def save_discipline_file(discipline_id: int, upload: UploadFile) -> tuple[
     return object_name, len(content)
 
 
+async def save_certificate_file(cert_id: int, upload: UploadFile) -> tuple[str, int]:
+    """Upload file chứng chỉ lên MinIO. Trả về (object_name, file_size)."""
+    content = await upload.read()
+    safe_name = Path(upload.filename or "file").name
+    object_name = f"certificates/{cert_id}/{uuid.uuid4().hex[:8]}_{safe_name}"
+    content_type = upload.content_type or "application/octet-stream"
+    _client().put_object(
+        bucket_name=settings.MINIO_BUCKET,
+        object_name=object_name,
+        data=BytesIO(content),
+        length=len(content),
+        content_type=content_type,
+    )
+    return object_name, len(content)
+
+
 def delete_attachment(object_name: str) -> None:
     """Xóa object khỏi MinIO; bỏ qua nếu không tồn tại."""
     try:

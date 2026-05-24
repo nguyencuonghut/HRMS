@@ -4,7 +4,10 @@ from __future__ import annotations
 from datetime import date
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Query, Request, status
+import json
+
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
+from pydantic import ValidationError
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -31,9 +34,17 @@ from app.schemas.training import (
     TrainingRecordRead,
     TrainingRecordUpdate,
 )
+from app.core import storage
+from app.schemas.training import (
+    CertificateCreate,
+    CertificateListPage,
+    CertificateRead,
+    CertificateUpdate,
+)
 from app.schemas.training_report import IncompleteMandatoryEmployee, TrainingReportSummary
 from app.services import (
     auth_service,
+    certificate_service,
     training_course_service,
     training_export_service,
     training_plan_service,
@@ -593,3 +604,142 @@ async def export_report(
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+# ── Certificate endpoints (9.3) ───────────────────────────────────────────────
+
+
+@router.get("/certificates", response_model=CertificateListPage, tags=[_TAG], summary="Danh sách chứng chỉ")
+async def list_certificates(
+    employee_id:   Optional[int]  = Query(None),
+    expiry_status: Optional[str]  = Query(None),
+    department_id: Optional[int]  = Query(None),
+    from_issued:   Optional[date] = Query(None),
+    to_issued:     Optional[date] = Query(None),
+    search:        Optional[str]  = Query(None),
+    page:          int            = Query(1, ge=1),
+    page_size:     int            = Query(20, ge=1, le=200),
+    _: User = require_permission("training:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await certificate_service.get_certificates(
+        session,
+        employee_id=employee_id,
+        expiry_status=expiry_status,
+        department_id=department_id,
+        from_issued=from_issued,
+        to_issued=to_issued,
+        search=search,
+        page=page,
+        page_size=page_size,
+    )
+
+
+@router.post(
+    "/certificates",
+    response_model=CertificateRead,
+    status_code=status.HTTP_201_CREATED,
+    tags=[_TAG],
+    summary="Tạo chứng chỉ",
+)
+async def create_certificate(
+    body: str = Form(..., description="JSON string của CertificateCreate"),
+    file: Optional[UploadFile] = File(None),
+    current_user: User = require_permission("training:manage_certificates"),
+    session: AsyncSession = Depends(get_session),
+):
+    try:
+        data = CertificateCreate.model_validate(json.loads(body))
+    except ValidationError as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
+    read = await certificate_service.create_certificate(session, data, current_user.id, file)
+    await session.commit()
+    return read
+
+
+@router.get(
+    "/certificates/{cert_id}",
+    response_model=CertificateRead,
+    tags=[_TAG],
+    summary="Chi tiết chứng chỉ",
+)
+async def get_certificate(
+    cert_id: int,
+    _: User = require_permission("training:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await certificate_service.get_certificate(session, cert_id)
+
+
+@router.put(
+    "/certificates/{cert_id}",
+    response_model=CertificateRead,
+    tags=[_TAG],
+    summary="Cập nhật chứng chỉ",
+)
+async def update_certificate(
+    cert_id: int,
+    body: str = Form(..., description="JSON string của CertificateUpdate"),
+    file: Optional[UploadFile] = File(None),
+    _: User = require_permission("training:manage_certificates"),
+    session: AsyncSession = Depends(get_session),
+):
+    try:
+        data = CertificateUpdate.model_validate(json.loads(body))
+    except ValidationError as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
+    read = await certificate_service.update_certificate(session, cert_id, data, file)
+    await session.commit()
+    return read
+
+
+@router.delete(
+    "/certificates/{cert_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    tags=[_TAG],
+    summary="Xóa chứng chỉ",
+)
+async def delete_certificate(
+    cert_id: int,
+    _: User = require_permission("training:manage_certificates"),
+    session: AsyncSession = Depends(get_session),
+):
+    await certificate_service.delete_certificate(session, cert_id)
+    await session.commit()
+
+
+@router.get(
+    "/certificates/{cert_id}/download",
+    tags=[_TAG],
+    summary="Tải file chứng chỉ",
+)
+async def download_certificate(
+    cert_id: int,
+    _: User = require_permission("training:manage_certificates"),
+    session: AsyncSession = Depends(get_session),
+):
+    file_path, file_name, mime_type = await certificate_service.download_certificate_file(session, cert_id)
+    return StreamingResponse(
+        storage.get_object_stream(file_path),
+        media_type=mime_type,
+        headers={"Content-Disposition": f'attachment; filename="{file_name}"'},
+    )
+
+
+# ── Employee certificate history sub-router ───────────────────────────────────
+
+employee_certificate_router = APIRouter()
+
+
+@employee_certificate_router.get(
+    "/{employee_id}/training/certificates",
+    response_model=list[CertificateRead],
+    tags=[_TAG],
+    summary="Lịch sử chứng chỉ của nhân viên",
+)
+async def get_employee_certificates(
+    employee_id: int,
+    _: User = require_permission("training:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await certificate_service.get_employee_certificates(session, employee_id)

@@ -1,7 +1,7 @@
-"""Schemas đào tạo (9.1 + 9.2)."""
+"""Schemas đào tạo (9.1 + 9.2 + 9.3)."""
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import List, Literal, Optional
 
@@ -247,3 +247,97 @@ class BulkAssignRequest(BaseModel):
 class BulkAssignResult(BaseModel):
     created: int
     skipped: int
+
+
+# ── Certificate schemas (9.3) ─────────────────────────────────────────────────
+
+EXPIRY_SOON_DAYS = 30
+
+ExpiryStatusValue = Literal["valid", "expiring_soon", "expired", "no_expiry"]
+
+
+def compute_expiry_status(expiry_date: Optional[date], today: date) -> str:
+    if expiry_date is None:
+        return "no_expiry"
+    if expiry_date < today:
+        return "expired"
+    if expiry_date <= today + timedelta(days=EXPIRY_SOON_DAYS):
+        return "expiring_soon"
+    return "valid"
+
+
+def compute_days_until_expiry(expiry_date: Optional[date], today: date) -> Optional[int]:
+    if expiry_date is None or expiry_date < today:
+        return None
+    return (expiry_date - today).days
+
+
+class CertificateRead(BaseModel):
+    model_config = {"from_attributes": True}
+
+    id:                   int
+    employee_id:          int
+    employee_code:        str
+    employee_name:        str
+    department_name:      Optional[str]
+
+    certificate_name:     str
+    issuing_organization: Optional[str]
+    issued_date:          date
+    expiry_date:          Optional[date]
+
+    expiry_status:        str
+    days_until_expiry:    Optional[int]
+
+    related_course_id:    Optional[int]
+    related_course_name:  Optional[str]
+
+    note:                 Optional[str]
+    has_file:             bool
+    file_name:            Optional[str]
+    file_size:            Optional[int]
+
+    created_by_name:      Optional[str]
+    created_at:           datetime
+
+
+class CertificateCreate(BaseModel):
+    employee_id:          int
+    certificate_name:     str              = Field(min_length=1, max_length=500)
+    issuing_organization: Optional[str]    = None
+    issued_date:          date
+    expiry_date:          Optional[date]   = None
+    related_course_id:    Optional[int]    = None
+    note:                 Optional[str]    = None
+
+    @model_validator(mode="after")
+    def validate_expiry_after_issued(self) -> "CertificateCreate":
+        if self.expiry_date is not None and self.expiry_date <= self.issued_date:
+            raise ValueError("expiry_date phải sau issued_date")
+        return self
+
+
+class CertificateUpdate(BaseModel):
+    certificate_name:     Optional[str]    = Field(default=None, min_length=1, max_length=500)
+    issuing_organization: Optional[str]    = None
+    issued_date:          Optional[date]   = None
+    expiry_date:          Optional[date]   = None
+    related_course_id:    Optional[int]    = None
+    note:                 Optional[str]    = None
+
+    @model_validator(mode="after")
+    def validate_expiry_after_issued(self) -> "CertificateUpdate":
+        if (
+            self.expiry_date is not None
+            and self.issued_date is not None
+            and self.expiry_date <= self.issued_date
+        ):
+            raise ValueError("expiry_date phải sau issued_date")
+        return self
+
+
+class CertificateListPage(BaseModel):
+    items:     List[CertificateRead]
+    total:     int
+    page:      int
+    page_size: int

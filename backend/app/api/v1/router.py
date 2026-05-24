@@ -70,3 +70,4 @@ router.include_router(rewards.employee_history_router, prefix="/employees",  tag
 router.include_router(disciplines.router,              prefix="/disciplines", tags=["Kỷ luật"])
 router.include_router(disciplines.employee_history_router, prefix="/employees", tags=["Kỷ luật"])
 router.include_router(training.router, prefix="/training", tags=["Đào tạo"])
+router.include_router(training.employee_certificate_router, prefix="/employees", tags=["Đào tạo"])

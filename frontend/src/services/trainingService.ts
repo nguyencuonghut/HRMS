@@ -190,6 +190,56 @@ export interface TrainingRecordListPage {
   page_size: number
 }
 
+export type ExpiryStatusValue = 'valid' | 'expiring_soon' | 'expired' | 'no_expiry'
+
+export interface CertificateRead {
+  id: number
+  employee_id: number
+  employee_code: string
+  employee_name: string
+  department_name: string | null
+  certificate_name: string
+  issuing_organization: string | null
+  issued_date: string
+  expiry_date: string | null
+  expiry_status: ExpiryStatusValue
+  days_until_expiry: number | null
+  related_course_id: number | null
+  related_course_name: string | null
+  note: string | null
+  has_file: boolean
+  file_name: string | null
+  file_size: number | null
+  created_by_name: string | null
+  created_at: string
+}
+
+export interface CertificateCreate {
+  employee_id: number
+  certificate_name: string
+  issuing_organization?: string | null
+  issued_date: string
+  expiry_date?: string | null
+  related_course_id?: number | null
+  note?: string | null
+}
+
+export interface CertificateUpdate {
+  certificate_name?: string | null
+  issuing_organization?: string | null
+  issued_date?: string | null
+  expiry_date?: string | null
+  related_course_id?: number | null
+  note?: string | null
+}
+
+export interface CertificateListPage {
+  items: CertificateRead[]
+  total: number
+  page: number
+  page_size: number
+}
+
 export interface BulkAssignRequest {
   employee_ids?: number[]
   department_ids?: number[]
@@ -257,4 +307,33 @@ export default {
     api.post<BulkAssignResult>(`/training/plans/${planId}/assign`, data),
   getPassport: (employeeId: number) =>
     api.get<TrainingRecordRead[]>(`/training/passport/${employeeId}`),
+
+  // Certificates (9.3)
+  getCertificates: (params?: Record<string, unknown>) =>
+    api.get<CertificateListPage>('/training/certificates', { params }),
+  getCertificate: (id: number) =>
+    api.get<CertificateRead>(`/training/certificates/${id}`),
+  createCertificate: (body: CertificateCreate, file?: File | null) => {
+    const fd = new FormData()
+    fd.append('body', JSON.stringify(body))
+    if (file) fd.append('file', file)
+    return api.post<CertificateRead>('/training/certificates', fd)
+  },
+  updateCertificate: (id: number, body: CertificateUpdate, file?: File | null) => {
+    const fd = new FormData()
+    fd.append('body', JSON.stringify(body))
+    if (file) fd.append('file', file)
+    return api.put<CertificateRead>(`/training/certificates/${id}`, fd)
+  },
+  deleteCertificate: (id: number) =>
+    api.delete(`/training/certificates/${id}`),
+  downloadCertificateFile: async (id: number, fileName: string): Promise<void> => {
+    const res = await api.get(`/training/certificates/${id}/download`, { responseType: 'blob' })
+    const url = URL.createObjectURL(new Blob([res.data]))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = fileName
+    a.click()
+    URL.revokeObjectURL(url)
+  },
 }

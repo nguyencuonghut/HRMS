@@ -204,3 +204,44 @@
   gap: 0.625rem;
   margin-bottom: 0.75rem;
 }
+
+// ── Certificate tab (9.3) ─────────────────────────────────────────────────────
+
+.cert-expiry-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1rem;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--p-orange-500) 12%, transparent);
+  color: var(--p-orange-700);
+  font-size: 0.875rem;
+  cursor: pointer;
+  margin-bottom: 0.75rem;
+
+  .dark-mode & {
+    color: var(--p-orange-300);
+  }
+}
+
+.cert-file-name {
+  font-size: 0.8rem;
+  color: var(--p-text-muted-color);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 120px;
+}
+
+.cert-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.8rem;
+  color: var(--p-primary-color);
+  cursor: pointer;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
