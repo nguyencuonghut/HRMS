@@ -1,7 +1,7 @@
-"""Endpoints hiệu suất KPI (10.1 + 10.2 + 10.4)."""
+"""Endpoints hiệu suất KPI (10.1 + 10.2 + 10.3)."""
 from __future__ import annotations
 
-from typing import Optional
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, File, Query, UploadFile, status
 from fastapi.responses import StreamingResponse
@@ -16,15 +16,20 @@ from app.schemas.performance import (
     KpiMonthlyListPage,
     KpiMonthlyRead,
     KpiMonthlyUpdate,
+    RewardFromReviewRequest,
+    TrainingFromReviewRequest,
     YearlyKpiSummary,
     YearlyReviewCreate,
     YearlyReviewListPage,
     YearlyReviewRead,
     YearlyReviewUpdate,
 )
-from app.services import kpi_service, yearly_review_service
+from app.schemas.reward import RewardRead
+from app.schemas.training import TrainingRecordRead
+from app.services import kpi_service, link_service, yearly_review_service
 
 router = APIRouter()
+employee_perf_router = APIRouter()
 
 _TAG = "Hiệu suất KPI"
 
@@ -259,3 +264,72 @@ async def delete_yearly_review(
 ):
     await yearly_review_service.delete_review(session, review_id)
     await session.commit()
+
+
+# ── Liên kết kết quả đánh giá (10.3) ─────────────────────────────────────────
+
+@router.post(
+    "/yearly-reviews/{review_id}/create-reward",
+    response_model=RewardRead,
+    status_code=status.HTTP_201_CREATED,
+    tags=[_TAG],
+    summary="Tạo khen thưởng từ kết quả đánh giá",
+)
+async def create_reward_from_review(
+    review_id: int,
+    body: RewardFromReviewRequest,
+    current_user: User = require_permission("performance:manage_kpi"),
+    session: AsyncSession = Depends(get_session),
+):
+    result = await link_service.create_reward_from_review(session, review_id, body, current_user.id)
+    await session.commit()
+    return result
+
+
+@router.post(
+    "/yearly-reviews/{review_id}/create-training",
+    response_model=TrainingRecordRead,
+    status_code=status.HTTP_201_CREATED,
+    tags=[_TAG],
+    summary="Đề xuất đào tạo từ kết quả đánh giá",
+)
+async def create_training_from_review(
+    review_id: int,
+    body: TrainingFromReviewRequest,
+    current_user: User = require_permission("performance:manage_kpi"),
+    session: AsyncSession = Depends(get_session),
+):
+    result = await link_service.create_training_from_review(session, review_id, body, current_user.id)
+    await session.commit()
+    return result
+
+
+# ── Lịch sử KPI / đánh giá theo nhân viên (10.3) ────────────────────────────
+
+@employee_perf_router.get(
+    "/{employee_id}/performance/kpi",
+    response_model=List[KpiMonthlyRead],
+    tags=[_TAG],
+    summary="Lịch sử KPI tháng của nhân viên",
+)
+async def get_employee_kpi_history(
+    employee_id: int,
+    year: Optional[int] = Query(None),
+    _: User = require_permission("performance:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await link_service.get_employee_kpi_history(session, employee_id, year)
+
+
+@employee_perf_router.get(
+    "/{employee_id}/performance/reviews",
+    response_model=List[YearlyReviewRead],
+    tags=[_TAG],
+    summary="Lịch sử đánh giá cuối năm của nhân viên",
+)
+async def get_employee_review_history(
+    employee_id: int,
+    _: User = require_permission("performance:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await link_service.get_employee_review_history(session, employee_id)

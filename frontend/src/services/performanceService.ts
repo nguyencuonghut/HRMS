@@ -1,4 +1,6 @@
 import api from './api'
+import type { RewardRead } from './rewardService'
+import type { TrainingRecordRead } from './trainingService'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -169,4 +171,17 @@ export default {
 
   deleteYearlyReview: (id: number) =>
     api.delete(`/performance/yearly-reviews/${id}`),
+
+  // Link (10.3)
+  createRewardFromReview: (reviewId: number, data: { reward_type_id: number; decision_date: string; amount?: number | null; note?: string | null }) =>
+    api.post<RewardRead>(`/performance/yearly-reviews/${reviewId}/create-reward`, data),
+
+  createTrainingFromReview: (reviewId: number, data: { course_id: number; plan_id?: number | null; note?: string | null }) =>
+    api.post<TrainingRecordRead>(`/performance/yearly-reviews/${reviewId}/create-training`, data),
+
+  getEmployeeKpiHistory: (employeeId: number, year?: number | null) =>
+    api.get<KpiMonthlyRead[]>(`/employees/${employeeId}/performance/kpi`, { params: year ? { year } : {} }),
+
+  getEmployeeReviewHistory: (employeeId: number) =>
+    api.get<YearlyReviewRead[]>(`/employees/${employeeId}/performance/reviews`),
 }

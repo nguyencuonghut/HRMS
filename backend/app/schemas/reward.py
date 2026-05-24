@@ -61,6 +61,7 @@ class RewardRead(BaseModel):
     has_file: bool
     file_name: Optional[str]
     file_size: Optional[int]
+    source_review_id: Optional[int]
     created_by_id: Optional[int]
     created_by_name: Optional[str]
     created_at: datetime

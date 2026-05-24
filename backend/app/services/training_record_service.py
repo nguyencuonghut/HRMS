@@ -83,6 +83,7 @@ async def _build_read(session: AsyncSession, rec: EmployeeTrainingRecord) -> Tra
         start_date=rec.start_date,
         end_date=rec.end_date,
         note=rec.note,
+        source_review_id=rec.source_review_id,
         created_by_name=getattr(creator, "full_name", None) or (creator.email if creator else None),
         created_at=rec.created_at,
     )

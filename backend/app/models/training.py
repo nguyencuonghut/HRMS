@@ -131,6 +131,15 @@ class EmployeeTrainingRecord(SQLModel, table=True):
     start_date:     Optional[date]    = Field(default=None)
     end_date:       Optional[date]    = Field(default=None)
     note:           Optional[str]     = Field(default=None, sa_column=Column(sa.Text(), nullable=True))
+    source_review_id: Optional[int]  = Field(
+        default=None,
+        sa_column=Column(
+            sa.Integer(),
+            sa.ForeignKey("employee_yearly_reviews.id", ondelete="SET NULL"),
+            nullable=True,
+            index=True,
+        ),
+    )
     created_by_id:  Optional[int]     = Field(
         default=None,
         sa_column=Column(

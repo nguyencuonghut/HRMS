@@ -42,6 +42,7 @@ export interface RewardRead {
   has_file: boolean
   file_name: string | null
   file_size: number | null
+  source_review_id: number | null
   created_by_id: number | null
   created_by_name: string | null
   created_at: string

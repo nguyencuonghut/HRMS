@@ -1,7 +1,7 @@
-"""Schemas hiệu suất KPI (10.1 + 10.2)."""
+"""Schemas hiệu suất KPI (10.1 + 10.2 + 10.3)."""
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import List, Optional
 
@@ -113,3 +113,18 @@ class YearlyReviewListPage(BaseModel):
     total:     int
     page:      int
     page_size: int
+
+
+# ── Liên kết kết quả đánh giá (10.3) ─────────────────────────────────────────
+
+class RewardFromReviewRequest(BaseModel):
+    reward_type_id: int
+    decision_date:  date
+    amount:         Optional[Decimal] = None
+    note:           Optional[str]     = None
+
+
+class TrainingFromReviewRequest(BaseModel):
+    course_id: int
+    plan_id:   Optional[int] = None
+    note:      Optional[str] = None

@@ -176,6 +176,35 @@ html.dark-mode .perf-discipline-warn {
   color: var(--p-orange-400);
 }
 
+// KPI History Tab (employee detail)
+.kpi-history-tab {
+  padding: 0.25rem 0;
+}
+
+.kpi-section-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--p-text-muted-color);
+  margin-bottom: 0.5rem;
+}
+
+.kpi-ht-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.kpi-ht-year-select {
+  width: 130px;
+}
+
+.kpi-ht-table {
+  font-size: 0.875rem;
+}
+
 // Import dialog
 .perf-import-body {
   display: flex;

@@ -96,6 +96,7 @@ async def _build_reward_read(
         has_file=record.file_path is not None,
         file_name=record.file_name,
         file_size=record.file_size,
+        source_review_id=record.source_review_id,
         created_by_id=record.created_by_id,
         created_by_name=creator.full_name if creator else None,
         created_at=record.created_at,

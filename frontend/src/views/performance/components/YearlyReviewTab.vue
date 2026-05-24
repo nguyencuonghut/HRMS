@@ -132,8 +132,20 @@
           </template>
         </Column>
 
-        <Column header="" style="width: 90px; text-align: right">
+        <Column header="" style="width: 160px; text-align: right">
           <template #body="{ data }: { data: YearlyReviewRead }">
+            <Button
+              icon="pi pi-trophy"
+              text rounded size="small" severity="warn"
+              v-tooltip.top="'Tạo khen thưởng'"
+              @click="openRewardDialog(data)"
+            />
+            <Button
+              icon="pi pi-graduation-cap"
+              text rounded size="small" severity="info"
+              v-tooltip.top="'Đề xuất đào tạo'"
+              @click="openTrainingDialog(data)"
+            />
             <Button
               icon="pi pi-pencil"
               text rounded size="small" severity="secondary"
@@ -263,14 +275,152 @@
         <Button :label="editingId ? 'Lưu thay đổi' : 'Lưu'" :loading="saving" @click="submit" />
       </template>
     </Dialog>
+    <!-- Dialog: Tạo khen thưởng từ đánh giá -->
+    <Dialog
+      v-model:visible="showRewardDialog"
+      header="Tạo khen thưởng từ đánh giá"
+      modal
+      :style="{ width: '480px' }"
+      :closable="!rewardSaving"
+    >
+      <div v-if="linkReviewRow" class="perf-form">
+        <div class="perf-summary-box" style="margin-bottom:0">
+          <div class="perf-summary-row">
+            <span class="perf-summary-label">Nhân viên:</span>
+            <strong>{{ linkReviewRow.employee_name }}</strong>
+          </div>
+          <div class="perf-summary-row">
+            <span class="perf-summary-label">Năm / Xếp loại:</span>
+            <span>{{ linkReviewRow.year }}</span>
+            <Tag :value="linkReviewRow.rating_label" :severity="ratingSeverity(linkReviewRow.rating)" class="ml-1" />
+          </div>
+        </div>
+
+        <div class="perf-field">
+          <label class="perf-label">Loại khen thưởng <span class="perf-req">*</span></label>
+          <Select
+            v-model="rewardForm.reward_type_id"
+            :options="rewardTypes"
+            option-label="name"
+            option-value="id"
+            placeholder="Chọn loại khen thưởng..."
+            filter
+            class="w-full"
+            @change="onRewardTypeChange"
+          />
+          <span v-if="rewardErrors.reward_type_id" class="perf-error">{{ rewardErrors.reward_type_id }}</span>
+        </div>
+
+        <div class="perf-field">
+          <label class="perf-label">Ngày quyết định <span class="perf-req">*</span></label>
+          <DatePicker
+            v-model="rewardForm.decision_date"
+            date-format="dd/mm/yy"
+            :show-icon="true"
+            class="w-full"
+          />
+          <span v-if="rewardErrors.decision_date" class="perf-error">{{ rewardErrors.decision_date }}</span>
+        </div>
+
+        <div v-if="selectedRewardTypeIsMonetary" class="perf-field">
+          <label class="perf-label">Giá trị (VNĐ) <span class="perf-req">*</span></label>
+          <InputNumber
+            v-model="rewardForm.amount"
+            :min="0"
+            :use-grouping="true"
+            class="w-full"
+            placeholder="Nhập giá trị khen thưởng..."
+          />
+          <span v-if="rewardErrors.amount" class="perf-error">{{ rewardErrors.amount }}</span>
+        </div>
+
+        <div class="perf-field">
+          <label class="perf-label">Ghi chú <span class="perf-optional">(tùy chọn)</span></label>
+          <Textarea v-model="rewardForm.note" rows="2" class="w-full" auto-resize />
+        </div>
+
+        <p v-if="rewardError" class="perf-api-error">
+          <i class="pi pi-exclamation-triangle" />{{ rewardError }}
+        </p>
+      </div>
+      <template #footer>
+        <Button label="Hủy" severity="secondary" text :disabled="rewardSaving" @click="showRewardDialog = false" />
+        <Button label="Tạo khen thưởng" icon="pi pi-trophy" :loading="rewardSaving" @click="submitReward" />
+      </template>
+    </Dialog>
+
+    <!-- Dialog: Đề xuất đào tạo từ đánh giá -->
+    <Dialog
+      v-model:visible="showTrainingDialog"
+      header="Đề xuất đào tạo từ đánh giá"
+      modal
+      :style="{ width: '480px' }"
+      :closable="!trainingSaving"
+    >
+      <div v-if="linkReviewRow" class="perf-form">
+        <div class="perf-summary-box" style="margin-bottom:0">
+          <div class="perf-summary-row">
+            <span class="perf-summary-label">Nhân viên:</span>
+            <strong>{{ linkReviewRow.employee_name }}</strong>
+          </div>
+          <div class="perf-summary-row">
+            <span class="perf-summary-label">Năm / Xếp loại:</span>
+            <span>{{ linkReviewRow.year }}</span>
+            <Tag :value="linkReviewRow.rating_label" :severity="ratingSeverity(linkReviewRow.rating)" class="ml-1" />
+          </div>
+        </div>
+
+        <div class="perf-field">
+          <label class="perf-label">Khóa đào tạo <span class="perf-req">*</span></label>
+          <Select
+            v-model="trainingForm.course_id"
+            :options="courses"
+            option-label="name"
+            option-value="id"
+            placeholder="Chọn khóa đào tạo..."
+            filter
+            class="w-full"
+          />
+          <span v-if="trainingErrors.course_id" class="perf-error">{{ trainingErrors.course_id }}</span>
+        </div>
+
+        <div class="perf-field">
+          <label class="perf-label">Kế hoạch đào tạo <span class="perf-optional">(tùy chọn)</span></label>
+          <Select
+            v-model="trainingForm.plan_id"
+            :options="trainingPlans"
+            option-label="title"
+            option-value="id"
+            placeholder="Không gắn vào kế hoạch"
+            :show-clear="true"
+            filter
+            class="w-full"
+          />
+        </div>
+
+        <div class="perf-field">
+          <label class="perf-label">Ghi chú <span class="perf-optional">(tùy chọn)</span></label>
+          <Textarea v-model="trainingForm.note" rows="2" class="w-full" auto-resize />
+        </div>
+
+        <p v-if="trainingError" class="perf-api-error">
+          <i class="pi pi-exclamation-triangle" />{{ trainingError }}
+        </p>
+      </div>
+      <template #footer>
+        <Button label="Hủy" severity="secondary" text :disabled="trainingSaving" @click="showTrainingDialog = false" />
+        <Button label="Đề xuất đào tạo" icon="pi pi-graduation-cap" :loading="trainingSaving" @click="submitTraining" />
+      </template>
+    </Dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import Button from 'primevue/button'
 import Column from 'primevue/column'
 import DataTable from 'primevue/datatable'
+import DatePicker from 'primevue/datepicker'
 import Dialog from 'primevue/dialog'
 import IconField from 'primevue/iconfield'
 import InputIcon from 'primevue/inputicon'
@@ -288,6 +438,8 @@ import performanceService, {
 } from '@/services/performanceService'
 import departmentService, { type DepartmentRead } from '@/services/departmentService'
 import employeeService, { type EmployeeLookupItem } from '@/services/employeeService'
+import rewardService, { type RewardTypeRead } from '@/services/rewardService'
+import trainingService, { type CourseRead, type PlanRead } from '@/services/trainingService'
 
 const confirm = useConfirm()
 const toast   = useToast()
@@ -530,16 +682,143 @@ async function doDelete(id: number) {
   }
 }
 
+// ── Reward from review ────────────────────────────────────────────────────────
+
+const showRewardDialog = ref(false)
+const rewardSaving     = ref(false)
+const rewardError      = ref('')
+const rewardErrors     = ref<Record<string, string>>({})
+const linkReviewRow    = ref<YearlyReviewRead | null>(null)
+const rewardTypes      = ref<RewardTypeRead[]>([])
+const rewardForm       = ref<{
+  reward_type_id: number | null
+  decision_date: Date | null
+  amount: number | null
+  note: string
+}>({ reward_type_id: null, decision_date: new Date(), amount: null, note: '' })
+
+const selectedRewardTypeIsMonetary = computed(() => {
+  if (!rewardForm.value.reward_type_id) return false
+  return rewardTypes.value.find(t => t.id === rewardForm.value.reward_type_id)?.is_monetary ?? false
+})
+
+function onRewardTypeChange() {
+  if (!selectedRewardTypeIsMonetary.value) rewardForm.value.amount = null
+}
+
+function openRewardDialog(row: YearlyReviewRead) {
+  linkReviewRow.value = row
+  rewardError.value   = ''
+  rewardErrors.value  = {}
+  rewardForm.value = {
+    reward_type_id: null,
+    decision_date: new Date(),
+    amount: null,
+    note: `Khen thưởng theo kết quả đánh giá năm ${row.year} — ${row.rating_label}`,
+  }
+  showRewardDialog.value = true
+}
+
+function validateReward(): boolean {
+  rewardErrors.value = {}
+  if (!rewardForm.value.reward_type_id) rewardErrors.value.reward_type_id = 'Vui lòng chọn loại khen thưởng'
+  if (!rewardForm.value.decision_date)  rewardErrors.value.decision_date  = 'Vui lòng chọn ngày quyết định'
+  if (selectedRewardTypeIsMonetary.value && !rewardForm.value.amount)
+    rewardErrors.value.amount = 'Vui lòng nhập giá trị khen thưởng'
+  return Object.keys(rewardErrors.value).length === 0
+}
+
+async function submitReward() {
+  if (!validateReward() || !linkReviewRow.value) return
+  rewardSaving.value = true
+  rewardError.value  = ''
+  try {
+    const d = rewardForm.value.decision_date!
+    const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    await performanceService.createRewardFromReview(linkReviewRow.value.id, {
+      reward_type_id: rewardForm.value.reward_type_id!,
+      decision_date:  dateStr,
+      amount:         rewardForm.value.amount ?? null,
+      note:           rewardForm.value.note.trim() || null,
+    })
+    toast.add({ severity: 'success', summary: 'Đã tạo', detail: 'Khen thưởng đã được tạo thành công', life: 3000 })
+    showRewardDialog.value = false
+  } catch (err: unknown) {
+    const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+    rewardError.value = typeof detail === 'string' ? detail : 'Có lỗi xảy ra, vui lòng thử lại'
+  } finally {
+    rewardSaving.value = false
+  }
+}
+
+// ── Training from review ──────────────────────────────────────────────────────
+
+const showTrainingDialog = ref(false)
+const trainingSaving     = ref(false)
+const trainingError      = ref('')
+const trainingErrors     = ref<Record<string, string>>({})
+const courses            = ref<CourseRead[]>([])
+const trainingPlans      = ref<PlanRead[]>([])
+const trainingForm       = ref<{
+  course_id: number | null
+  plan_id: number | null
+  note: string
+}>({ course_id: null, plan_id: null, note: '' })
+
+function openTrainingDialog(row: YearlyReviewRead) {
+  linkReviewRow.value  = row
+  trainingError.value  = ''
+  trainingErrors.value = {}
+  trainingForm.value = {
+    course_id: null,
+    plan_id: null,
+    note: `Cải thiện điểm yếu từ đánh giá năm ${row.year}`,
+  }
+  showTrainingDialog.value = true
+}
+
+function validateTraining(): boolean {
+  trainingErrors.value = {}
+  if (!trainingForm.value.course_id) trainingErrors.value.course_id = 'Vui lòng chọn khóa đào tạo'
+  return Object.keys(trainingErrors.value).length === 0
+}
+
+async function submitTraining() {
+  if (!validateTraining() || !linkReviewRow.value) return
+  trainingSaving.value = true
+  trainingError.value  = ''
+  try {
+    await performanceService.createTrainingFromReview(linkReviewRow.value.id, {
+      course_id: trainingForm.value.course_id!,
+      plan_id:   trainingForm.value.plan_id ?? null,
+      note:      trainingForm.value.note.trim() || null,
+    })
+    toast.add({ severity: 'success', summary: 'Đã tạo', detail: 'Đề xuất đào tạo đã được tạo thành công', life: 3000 })
+    showTrainingDialog.value = false
+  } catch (err: unknown) {
+    const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+    trainingError.value = typeof detail === 'string' ? detail : 'Có lỗi xảy ra, vui lòng thử lại'
+  } finally {
+    trainingSaving.value = false
+  }
+}
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 
 onMounted(async () => {
   try {
-    const [deptsRes, empsRes] = await Promise.all([
+    const [deptsRes, empsRes, rewardTypesRes, coursesRes, plansRes] = await Promise.all([
       departmentService.getList(true),
       employeeService.lookup({ limit: 500 }),
+      rewardService.listTypes(),
+      trainingService.listCourses({ page_size: 500, is_active: true }),
+      trainingService.listPlans({ page_size: 200 }),
     ])
-    departments.value = deptsRes.data
-    employees.value   = empsRes.data
+    departments.value  = deptsRes.data
+    employees.value    = empsRes.data
+    rewardTypes.value  = rewardTypesRes.data.filter((t: RewardTypeRead) => t.is_active)
+    courses.value      = coursesRes.data.items
+    trainingPlans.value = plansRes.data.items
   } catch {
     toast.add({ severity: 'error', summary: 'Lỗi khởi tạo', detail: 'Không thể tải danh mục dữ liệu', life: 5000 })
   }

@@ -160,6 +160,7 @@ export interface TrainingRecordRead {
   start_date: string | null
   end_date: string | null
   note: string | null
+  source_review_id: number | null
   created_by_name: string | null
   created_at: string
 }

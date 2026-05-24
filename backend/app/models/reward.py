@@ -56,6 +56,16 @@ class EmployeeReward(SQLModel, table=True):
     file_size:  Optional[int] = Field(default=None)
     mime_type:  Optional[str] = Field(default=None, sa_column=Column(sa.String(100), nullable=True))
 
+    source_review_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(
+            sa.Integer(),
+            sa.ForeignKey("employee_yearly_reviews.id", ondelete="SET NULL"),
+            nullable=True,
+            index=True,
+        ),
+    )
+
     created_by_id: Optional[int]      = Field(
         default=None,
         sa_column=Column(sa.Integer(), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True)

@@ -73,3 +73,4 @@ router.include_router(disciplines.employee_history_router, prefix="/employees", 
 router.include_router(training.router, prefix="/training", tags=["Đào tạo"])
 router.include_router(training.employee_certificate_router, prefix="/employees", tags=["Đào tạo"])
 router.include_router(performance.router, prefix="/performance", tags=["Hiệu suất KPI"])
+router.include_router(performance.employee_perf_router, prefix="/employees", tags=["Hiệu suất KPI"])

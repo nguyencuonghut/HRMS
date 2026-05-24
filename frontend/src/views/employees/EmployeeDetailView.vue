@@ -64,6 +64,7 @@
           <Tab value="attachments" :disabled="isNew">Tài liệu</Tab>
           <Tab value="contracts" :disabled="isNew">Hợp đồng</Tab>
           <Tab value="insurance" :disabled="isNew">Bảo hiểm</Tab>
+          <Tab value="kpi" :disabled="isNew">Đánh giá KPI</Tab>
         </TabList>
 
         <TabPanels>
@@ -433,6 +434,14 @@
               @refresh="loadEmployee"
             />
           </TabPanel>
+
+          <!-- ── TAB: Đánh giá KPI ───────────────────────────────────────── -->
+          <TabPanel value="kpi">
+            <KpiHistoryTab
+              v-if="!isNew && employeeId"
+              :employee-id="employeeId"
+            />
+          </TabPanel>
         </TabPanels>
       </Tabs>
     </template>
@@ -508,6 +517,7 @@ import EducationTab from './EducationTab.vue'
 import AttachmentsTab from './AttachmentsTab.vue'
 import ContractTab from './ContractTab.vue'
 import InsuranceTab from './InsuranceTab.vue'
+import KpiHistoryTab from './KpiHistoryTab.vue'
 import departmentService, { type DepartmentRead } from '@/services/departmentService'
 import jobTitleService, { type JobTitleRead } from '@/services/jobTitleService'
 import jobPositionService, { type JobPositionListItem } from '@/services/jobPositionService'

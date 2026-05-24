@@ -186,6 +186,7 @@ class TrainingRecordRead(BaseModel):
     start_date:       Optional[date]
     end_date:         Optional[date]
     note:             Optional[str]
+    source_review_id: Optional[int]
     created_by_name:  Optional[str]
     created_at:       datetime
 
