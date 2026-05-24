@@ -1,13 +1,45 @@
 <template>
-  <div>
-    <div class="page-header"><h2>Đánh giá KPI</h2></div>
-    <div class="placeholder-card"><i class="pi pi-chart-bar" /><span>Tính năng đang phát triển</span></div>
+  <div class="performance-view">
+    <div class="page-header insurance-header">
+      <div>
+        <h2 class="page-title">Đánh giá Hiệu suất</h2>
+        <span class="page-subtitle">KPI Tháng · Đánh giá Cuối năm · Báo cáo</span>
+      </div>
+    </div>
+
+    <Tabs v-model:value="activeTab">
+      <TabList>
+        <Tab value="kpi">KPI Tháng</Tab>
+        <Tab value="yearly">Đánh giá Cuối năm</Tab>
+        <Tab value="report">Báo cáo</Tab>
+      </TabList>
+      <TabPanels>
+        <TabPanel value="kpi"><KpiMonthlyTab /></TabPanel>
+        <TabPanel value="yearly">
+          <div class="perf-placeholder">
+            <i class="pi pi-chart-line" />
+            <span>Đánh giá cuối năm — đang phát triển (10.2)</span>
+          </div>
+        </TabPanel>
+        <TabPanel value="report">
+          <div class="perf-placeholder">
+            <i class="pi pi-file-excel" />
+            <span>Báo cáo hiệu suất — đang phát triển (10.4)</span>
+          </div>
+        </TabPanel>
+      </TabPanels>
+    </Tabs>
   </div>
 </template>
-<script setup lang="ts"></script>
-<style scoped>
-.page-header { margin-bottom: 1.5rem; }
-.page-header h2 { margin: 0; font-size: 1.5rem; font-weight: 700; }
-.placeholder-card { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.75rem; height: 200px; background: var(--p-surface-0); border: 1px dashed var(--p-surface-300); border-radius: 10px; color: var(--p-text-muted-color); }
-.placeholder-card i { font-size: 2rem; opacity: 0.4; }
-</style>
+
+<script setup lang="ts">
+import { ref } from 'vue'
+import Tab from 'primevue/tab'
+import TabList from 'primevue/tablist'
+import TabPanel from 'primevue/tabpanel'
+import TabPanels from 'primevue/tabpanels'
+import Tabs from 'primevue/tabs'
+import KpiMonthlyTab from './components/KpiMonthlyTab.vue'
+
+const activeTab = ref('kpi')
+</script>

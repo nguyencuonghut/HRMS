@@ -1,0 +1,206 @@
+// ── Performance / KPI module ──────────────────────────────────────────────────
+
+.performance-view {
+  padding: 0;
+}
+
+.perf-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  height: 200px;
+  background: var(--p-surface-0);
+  border: 1px dashed var(--p-surface-300);
+  border-radius: 10px;
+  color: var(--p-text-muted-color);
+
+  i { font-size: 2rem; opacity: 0.4; }
+}
+
+// Toolbar
+.perf-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.perf-search {
+  width: 220px;
+}
+
+// Table cells
+.perf-emp-code {
+  font-family: monospace;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--p-primary-color);
+}
+
+.perf-dept-name {
+  font-size: 0.75rem;
+  color: var(--p-text-muted-color);
+  margin-top: 2px;
+}
+
+.perf-sep {
+  margin: 0 0.3rem;
+  color: var(--p-text-muted-color);
+}
+
+.perf-score {
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.perf-score-high { color: var(--p-green-600); }
+.perf-score-mid  { color: var(--p-primary-color); }
+.perf-score-low  { color: var(--p-red-500); }
+
+html.dark-mode .perf-score-high { color: var(--p-green-400); }
+html.dark-mode .perf-score-mid  { color: var(--p-primary-300); }
+html.dark-mode .perf-score-low  { color: var(--p-red-400); }
+
+.perf-note {
+  font-size: 0.85rem;
+  color: var(--p-text-color);
+}
+
+.perf-muted {
+  font-size: 0.82rem;
+  color: var(--p-text-muted-color);
+}
+
+.perf-empty {
+  text-align: center;
+  color: var(--p-text-muted-color);
+  padding: 2rem;
+}
+
+// Dialog form
+.perf-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding-top: 0.25rem;
+}
+
+.perf-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.perf-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.perf-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.perf-req {
+  color: var(--p-red-500);
+  margin-left: 2px;
+}
+
+.perf-optional {
+  font-size: 0.78rem;
+  color: var(--p-text-muted-color);
+  font-weight: 400;
+}
+
+.perf-error {
+  font-size: 0.78rem;
+  color: var(--p-red-500);
+}
+
+.perf-api-error {
+  color: var(--p-red-500);
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+}
+
+// Import dialog
+.perf-import-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.perf-import-hint {
+  font-size: 0.875rem;
+  color: var(--p-text-muted-color);
+  margin: 0;
+}
+
+.perf-import-file-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.perf-import-filename {
+  font-size: 0.85rem;
+  color: var(--p-text-color);
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.perf-import-result {
+  border: 1px solid var(--p-surface-200);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  background: var(--p-surface-50);
+}
+
+html.dark-mode .perf-import-result {
+  background: var(--p-surface-800);
+  border-color: var(--p-surface-700);
+}
+
+.perf-import-counts {
+  display: flex;
+  gap: 1.5rem;
+  font-size: 0.875rem;
+  margin-bottom: 0.5rem;
+}
+
+.perf-import-created { color: var(--p-green-600); }
+.perf-import-updated { color: var(--p-primary-color); }
+.perf-import-skipped { color: var(--p-orange-600); }
+
+html.dark-mode .perf-import-created { color: var(--p-green-400); }
+html.dark-mode .perf-import-updated { color: var(--p-primary-300); }
+html.dark-mode .perf-import-skipped { color: var(--p-orange-400); }
+
+.perf-import-errors {
+  margin-top: 0.5rem;
+  font-size: 0.82rem;
+  color: var(--p-red-500);
+
+  .perf-import-errors-title {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-weight: 600;
+    margin-bottom: 0.35rem;
+  }
+
+  ul {
+    margin: 0;
+    padding-left: 1.2rem;
+    li { margin-bottom: 0.2rem; }
+  }
+}
