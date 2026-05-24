@@ -122,6 +122,46 @@ export interface YearlyReviewListParams {
   page_size?: number
 }
 
+// ── Report types (10.4) ───────────────────────────────────────────────────────
+
+export interface RatingCount {
+  rating: string
+  rating_label: string
+  count: number
+  percentage: number
+}
+
+export interface RatingDistributionReport {
+  year: number
+  total_reviewed: number
+  total_employees: number
+  coverage_rate: number
+  distribution: RatingCount[]
+}
+
+export interface DepartmentKpiStat {
+  department_id: number | null
+  department_name: string | null
+  employee_count: number
+  avg_score: string | null
+  min_score: string | null
+  max_score: string | null
+  months_data_count: number
+}
+
+export interface MonthlyPoint {
+  month: number
+  avg_score: string | null
+  employee_count: number
+}
+
+export interface MonthlyKpiTrend {
+  year: number
+  department_id: number | null
+  department_name: string | null
+  points: MonthlyPoint[]
+}
+
 // ── API ───────────────────────────────────────────────────────────────────────
 
 const BASE = '/performance/kpi'
@@ -184,4 +224,21 @@ export default {
 
   getEmployeeReviewHistory: (employeeId: number) =>
     api.get<YearlyReviewRead[]>(`/employees/${employeeId}/performance/reviews`),
+
+  // Reports (10.4)
+  getRatingDistribution: (year: number) =>
+    api.get<RatingDistributionReport>('/performance/report/rating-distribution', { params: { year } }),
+
+  getDepartmentKpi: (year: number, month?: number | null, department_id?: number | null) =>
+    api.get<DepartmentKpiStat[]>('/performance/report/department-kpi', {
+      params: { year, ...(month ? { month } : {}), ...(department_id ? { department_id } : {}) },
+    }),
+
+  getMonthlyTrend: (year: number, department_id?: number | null) =>
+    api.get<MonthlyKpiTrend>('/performance/report/monthly-trend', {
+      params: { year, ...(department_id ? { department_id } : {}) },
+    }),
+
+  exportReport: (year: number) =>
+    api.get('/performance/report/export', { params: { year }, responseType: 'blob' }),
 }

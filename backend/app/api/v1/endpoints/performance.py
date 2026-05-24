@@ -11,11 +11,14 @@ from app.api.v1.deps import require_permission
 from app.core.database import get_session
 from app.models.auth import User
 from app.schemas.performance import (
+    DepartmentKpiStat,
     KpiImportResult,
     KpiMonthlyCreate,
     KpiMonthlyListPage,
     KpiMonthlyRead,
     KpiMonthlyUpdate,
+    MonthlyKpiTrend,
+    RatingDistributionReport,
     RewardFromReviewRequest,
     TrainingFromReviewRequest,
     YearlyKpiSummary,
@@ -26,7 +29,8 @@ from app.schemas.performance import (
 )
 from app.schemas.reward import RewardRead
 from app.schemas.training import TrainingRecordRead
-from app.services import kpi_service, link_service, yearly_review_service
+from app.services import kpi_service, link_service, performance_report_service, yearly_review_service
+from app.services.performance_export_service import export_performance_excel
 
 router = APIRouter()
 employee_perf_router = APIRouter()
@@ -333,3 +337,72 @@ async def get_employee_review_history(
     session: AsyncSession = Depends(get_session),
 ):
     return await link_service.get_employee_review_history(session, employee_id)
+
+
+# ── Báo cáo hiệu suất (10.4) ─────────────────────────────────────────────────
+
+@router.get(
+    "/report/rating-distribution",
+    response_model=RatingDistributionReport,
+    tags=[_TAG],
+    summary="Phân phối xếp loại toàn công ty theo năm",
+)
+async def get_rating_distribution(
+    year: int = Query(..., ge=2000, le=2100),
+    _: User = require_permission("performance:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await performance_report_service.get_rating_distribution(session, year)
+
+
+@router.get(
+    "/report/department-kpi",
+    response_model=List[DepartmentKpiStat],
+    tags=[_TAG],
+    summary="Điểm KPI trung bình theo phòng ban",
+)
+async def get_department_kpi(
+    year:          int           = Query(..., ge=2000, le=2100),
+    month:         Optional[int] = Query(None, ge=1, le=12),
+    department_id: Optional[int] = Query(None),
+    _: User = require_permission("performance:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await performance_report_service.get_department_kpi_stats(
+        session, year, month=month, department_id=department_id
+    )
+
+
+@router.get(
+    "/report/monthly-trend",
+    response_model=MonthlyKpiTrend,
+    tags=[_TAG],
+    summary="Xu hướng KPI theo tháng trong năm",
+)
+async def get_monthly_trend(
+    year:          int           = Query(..., ge=2000, le=2100),
+    department_id: Optional[int] = Query(None),
+    _: User = require_permission("performance:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await performance_report_service.get_monthly_trend(
+        session, year, department_id=department_id
+    )
+
+
+@router.get(
+    "/report/export",
+    tags=[_TAG],
+    summary="Xuất báo cáo hiệu suất ra Excel",
+)
+async def export_report(
+    year: int = Query(..., ge=2000, le=2100),
+    _: User = require_permission("performance:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    content = await export_performance_excel(session, year)
+    return StreamingResponse(
+        iter([content]),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="bao_cao_hieu_suat_{year}.xlsx"'},
+    )

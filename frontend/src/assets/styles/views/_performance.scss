@@ -279,3 +279,85 @@ html.dark-mode .perf-import-skipped { color: var(--p-orange-400); }
     li { margin-bottom: 0.2rem; }
   }
 }
+
+// ── Report Tab (10.4) ─────────────────────────────────────────────────────────
+
+.rpt-tab { padding: 1rem 0; }
+
+.rpt-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.rpt-filters { display: flex; gap: 0.6rem; flex-wrap: wrap; align-items: center; }
+.rpt-actions { display: flex; gap: 0.5rem; }
+.rpt-year-select { width: 155px; }
+.rpt-dept-select { width: 210px; }
+
+.rpt-cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.rpt-card {
+  background: var(--p-surface-card);
+  border: 1px solid var(--p-surface-border);
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  text-align: center;
+}
+.rpt-card-value { font-size: 1.75rem; font-weight: 700; color: var(--p-primary-color); }
+.rpt-card-label { font-size: 0.8rem; color: var(--p-text-muted-color); margin-top: 0.25rem; }
+.rpt-card-good .rpt-card-value { color: var(--p-green-600); }
+.rpt-card-warn .rpt-card-value { color: var(--p-red-500); }
+
+html.dark-mode .rpt-card-good .rpt-card-value { color: var(--p-green-400); }
+html.dark-mode .rpt-card-warn .rpt-card-value { color: var(--p-red-400); }
+
+.rpt-body { display: flex; flex-direction: column; gap: 1.5rem; }
+
+.rpt-section { }
+
+.rpt-section-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--p-text-color);
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 2px solid var(--p-primary-color);
+  display: inline-block;
+}
+
+.rpt-section-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+.rpt-trend-dept { width: 210px; }
+
+.rpt-table { width: 100%; }
+
+.rpt-trend-table {
+  .p-datatable-header-cell,
+  .p-datatable-body-cell { text-align: center !important; }
+}
+
+.rpt-muted { color: var(--p-text-muted-color); }
+
+.rpt-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 3rem 0;
+  color: var(--p-text-muted-color);
+  i { font-size: 2.5rem; }
+  span { font-size: 0.95rem; }
+}
