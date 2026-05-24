@@ -1,6 +1,7 @@
-"""Endpoints đào tạo (9.1)."""
+"""Endpoints đào tạo (9.1 + 9.2)."""
 from __future__ import annotations
 
+from datetime import date
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query, Request, status
@@ -10,6 +11,8 @@ from app.api.v1.deps import require_permission
 from app.core.database import get_session
 from app.models.auth import User
 from app.schemas.training import (
+    BulkAssignRequest,
+    BulkAssignResult,
     CourseCreate,
     CourseListPage,
     CourseRead,
@@ -22,8 +25,12 @@ from app.schemas.training import (
     PlanRead,
     PlanReadDetail,
     PlanUpdate,
+    TrainingRecordCreate,
+    TrainingRecordListPage,
+    TrainingRecordRead,
+    TrainingRecordUpdate,
 )
-from app.services import auth_service, training_course_service, training_plan_service
+from app.services import auth_service, training_course_service, training_plan_service, training_record_service
 
 router = APIRouter()
 _TAG = "Đào tạo"
@@ -375,3 +382,134 @@ async def remove_course_from_plan(
         entity_name=f"plan:{plan_id},course:{course_id}",
     )
     await session.commit()
+
+
+# ── Record endpoints (9.2) ────────────────────────────────────────────────────
+
+
+@router.get("/records", response_model=TrainingRecordListPage, tags=[_TAG], summary="Danh sách bản ghi đào tạo")
+async def list_records(
+    employee_id:   Optional[int]  = Query(None),
+    course_id:     Optional[int]  = Query(None),
+    plan_id:       Optional[int]  = Query(None),
+    rec_status:    Optional[str]  = Query(None, alias="status"),
+    result:        Optional[str]  = Query(None),
+    department_id: Optional[int]  = Query(None),
+    from_date:     Optional[date] = Query(None),
+    to_date:       Optional[date] = Query(None),
+    search:        Optional[str]  = Query(None),
+    page:          int            = Query(1, ge=1),
+    page_size:     int            = Query(20, ge=1, le=200),
+    _: User = require_permission("training:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await training_record_service.get_records(
+        session,
+        employee_id=employee_id,
+        course_id=course_id,
+        plan_id=plan_id,
+        status=rec_status,
+        result=result,
+        department_id=department_id,
+        from_date=from_date,
+        to_date=to_date,
+        search=search,
+        page=page,
+        page_size=page_size,
+    )
+
+
+@router.post(
+    "/records",
+    response_model=TrainingRecordRead,
+    status_code=status.HTTP_201_CREATED,
+    tags=[_TAG],
+    summary="Tạo bản ghi đào tạo",
+)
+async def create_record(
+    body: TrainingRecordCreate,
+    current_user: User = require_permission("training:manage_records"),
+    session: AsyncSession = Depends(get_session),
+):
+    read = await training_record_service.create_record(session, body, current_user.id)
+    await session.commit()
+    return read
+
+
+@router.get(
+    "/records/{record_id}",
+    response_model=TrainingRecordRead,
+    tags=[_TAG],
+    summary="Chi tiết bản ghi đào tạo",
+)
+async def get_record(
+    record_id: int,
+    _: User = require_permission("training:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await training_record_service.get_record(session, record_id)
+
+
+@router.put(
+    "/records/{record_id}",
+    response_model=TrainingRecordRead,
+    tags=[_TAG],
+    summary="Cập nhật bản ghi đào tạo",
+)
+async def update_record(
+    record_id: int,
+    body: TrainingRecordUpdate,
+    _: User = require_permission("training:manage_records"),
+    session: AsyncSession = Depends(get_session),
+):
+    read = await training_record_service.update_record(session, record_id, body)
+    await session.commit()
+    return read
+
+
+@router.delete(
+    "/records/{record_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    tags=[_TAG],
+    summary="Xóa bản ghi đào tạo",
+)
+async def delete_record(
+    record_id: int,
+    _: User = require_permission("training:manage_records"),
+    session: AsyncSession = Depends(get_session),
+):
+    await training_record_service.delete_record(session, record_id)
+    await session.commit()
+
+
+@router.post(
+    "/plans/{plan_id}/assign",
+    response_model=BulkAssignResult,
+    tags=[_TAG],
+    summary="Gán nhân viên vào khóa học trong kế hoạch",
+)
+async def bulk_assign(
+    plan_id: int,
+    body: BulkAssignRequest,
+    current_user: User = require_permission("training:manage_records"),
+    session: AsyncSession = Depends(get_session),
+):
+    if body.plan_id != plan_id:
+        body = body.model_copy(update={"plan_id": plan_id})
+    result_obj = await training_record_service.bulk_assign(session, body, current_user.id)
+    await session.commit()
+    return result_obj
+
+
+@router.get(
+    "/passport/{employee_id}",
+    response_model=list[TrainingRecordRead],
+    tags=[_TAG],
+    summary="Training Passport — toàn bộ lịch sử đào tạo của nhân viên",
+)
+async def get_training_passport(
+    employee_id: int,
+    _: User = require_permission("training:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await training_record_service.get_training_passport(session, employee_id)

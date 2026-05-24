@@ -1,11 +1,11 @@
-"""Schemas đào tạo (9.1)."""
+"""Schemas đào tạo (9.1 + 9.2)."""
 from __future__ import annotations
 
 from datetime import date, datetime
 from decimal import Decimal
 from typing import List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 COURSE_TYPES: dict[str, str] = {
     "noi_bo":    "Nội bộ",
@@ -143,3 +143,107 @@ class PlanListPage(BaseModel):
     total:     int
     page:      int
     page_size: int
+
+
+# ── Training record schemas (9.2) ─────────────────────────────────────────────
+
+RECORD_STATUSES: dict[str, str] = {
+    "chua_bat_dau":     "Chưa bắt đầu",
+    "dang_hoc":         "Đang học",
+    "hoan_thanh":       "Hoàn thành",
+    "khong_hoan_thanh": "Không hoàn thành",
+    "vang_mat":         "Vắng mặt",
+}
+
+RECORD_RESULTS: dict[str, str] = {
+    "dat":      "Đạt",
+    "khong_dat": "Không đạt",
+}
+
+RecordStatusValue = Literal["chua_bat_dau", "dang_hoc", "hoan_thanh", "khong_hoan_thanh", "vang_mat"]
+RecordResultValue = Literal["dat", "khong_dat"]
+
+
+class TrainingRecordRead(BaseModel):
+    model_config = {"from_attributes": True}
+
+    id:               int
+    employee_id:      int
+    employee_code:    str
+    employee_name:    str
+    department_name:  Optional[str]
+    course_id:        int
+    course_name:      str
+    course_type:      str
+    course_type_label: str
+    plan_id:          Optional[int]
+    plan_title:       Optional[str]
+    status:           str
+    status_label:     str
+    result:           Optional[str]
+    result_label:     Optional[str]
+    score:            Optional[Decimal]
+    start_date:       Optional[date]
+    end_date:         Optional[date]
+    note:             Optional[str]
+    created_by_name:  Optional[str]
+    created_at:       datetime
+
+
+class TrainingRecordCreate(BaseModel):
+    employee_id: int
+    course_id:   int
+    plan_id:     Optional[int]   = None
+    status:      RecordStatusValue = "chua_bat_dau"
+    start_date:  Optional[date]  = None
+    end_date:    Optional[date]  = None
+    note:        Optional[str]   = None
+
+    @model_validator(mode="after")
+    def validate_dates(self) -> "TrainingRecordCreate":
+        if self.start_date and self.end_date and self.end_date < self.start_date:
+            raise ValueError("end_date phải >= start_date")
+        return self
+
+
+class TrainingRecordUpdate(BaseModel):
+    status:     Optional[RecordStatusValue] = None
+    result:     Optional[RecordResultValue] = None
+    score:      Optional[Decimal]           = Field(default=None, ge=0, le=100)
+    start_date: Optional[date]              = None
+    end_date:   Optional[date]              = None
+    note:       Optional[str]               = None
+
+    @model_validator(mode="after")
+    def validate_dates(self) -> "TrainingRecordUpdate":
+        if self.start_date and self.end_date and self.end_date < self.start_date:
+            raise ValueError("end_date phải >= start_date")
+        return self
+
+
+class TrainingRecordListPage(BaseModel):
+    items:     List[TrainingRecordRead]
+    total:     int
+    page:      int
+    page_size: int
+
+
+class BulkAssignRequest(BaseModel):
+    employee_ids:   List[int]     = Field(default=[], max_length=200)
+    department_ids: List[int]     = Field(default=[])   # thay thế employee_ids — assign toàn bộ NV của các phòng ban
+    plan_id:        int
+    course_id:      int
+    note:           Optional[str] = None
+
+    @model_validator(mode="after")
+    def validate_ids(self) -> "BulkAssignRequest":
+        if not self.employee_ids and not self.department_ids:
+            raise ValueError("Cần chọn ít nhất 1 nhân viên hoặc 1 phòng ban")
+        if self.employee_ids and self.department_ids:
+            raise ValueError("Chỉ được chọn một trong hai: employee_ids hoặc department_ids")
+        return self
+
+
+class BulkAssignResult(BaseModel):
+    created: int
+    skipped: int

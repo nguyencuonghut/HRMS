@@ -1,4 +1,4 @@
-"""Models đào tạo (9.1)."""
+"""Models đào tạo (9.1 + 9.2)."""
 from __future__ import annotations
 
 from datetime import date, datetime, timezone
@@ -90,3 +90,54 @@ class TrainingPlanCourse(SQLModel, table=True):
     scheduled_date: Optional[date] = Field(default=None)
     note:           Optional[str]  = Field(default=None, sa_column=Column(sa.Text(), nullable=True))
     created_at:     datetime       = Field(default_factory=_utcnow)
+
+
+class EmployeeTrainingRecord(SQLModel, table=True):
+    """Bản ghi đào tạo nhân viên."""
+
+    __tablename__ = "employee_training_records"
+
+    id:             Optional[int]     = Field(default=None, primary_key=True)
+    employee_id:    int               = Field(
+        sa_column=Column(
+            sa.Integer(),
+            sa.ForeignKey("employees.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        )
+    )
+    course_id:      int               = Field(
+        sa_column=Column(
+            sa.Integer(),
+            sa.ForeignKey("training_courses.id", ondelete="RESTRICT"),
+            nullable=False,
+            index=True,
+        )
+    )
+    plan_id:        Optional[int]     = Field(
+        default=None,
+        sa_column=Column(
+            sa.Integer(),
+            sa.ForeignKey("training_plans.id", ondelete="SET NULL"),
+            nullable=True,
+            index=True,
+        )
+    )
+    status:         str               = Field(
+        sa_column=Column(sa.String(20), nullable=False, server_default=sa.text("'chua_bat_dau'"), index=True)
+    )
+    result:         Optional[str]     = Field(default=None, sa_column=Column(sa.String(20), nullable=True))
+    score:          Optional[Decimal] = Field(default=None, sa_column=Column(sa.Numeric(5, 2), nullable=True))
+    start_date:     Optional[date]    = Field(default=None)
+    end_date:       Optional[date]    = Field(default=None)
+    note:           Optional[str]     = Field(default=None, sa_column=Column(sa.Text(), nullable=True))
+    created_by_id:  Optional[int]     = Field(
+        default=None,
+        sa_column=Column(
+            sa.Integer(),
+            sa.ForeignKey("users.id", ondelete="SET NULL"),
+            nullable=True,
+        )
+    )
+    created_at:     datetime          = Field(default_factory=_utcnow)
+    updated_at:     datetime          = Field(default_factory=_utcnow)

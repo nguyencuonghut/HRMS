@@ -114,3 +114,15 @@
     color: var(--p-red-400);
   }
 }
+
+// ── Record tab (9.2) ──────────────────────────────────────────────────────────
+
+.record-score {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  display: block;
+}
+
+.assign-dialog-multiselect {
+  width: 100%;
+}

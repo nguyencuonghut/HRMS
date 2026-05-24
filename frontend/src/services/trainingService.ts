@@ -12,8 +12,23 @@ export const PLAN_STATUSES = [
   { value: 'cancelled', label: 'Đã hủy' },
 ] as const
 
+export const RECORD_STATUSES = [
+  { value: 'chua_bat_dau',     label: 'Chưa bắt đầu' },
+  { value: 'dang_hoc',         label: 'Đang học' },
+  { value: 'hoan_thanh',       label: 'Hoàn thành' },
+  { value: 'khong_hoan_thanh', label: 'Không hoàn thành' },
+  { value: 'vang_mat',         label: 'Vắng mặt' },
+] as const
+
+export const RECORD_RESULTS = [
+  { value: 'dat',      label: 'Đạt' },
+  { value: 'khong_dat', label: 'Không đạt' },
+] as const
+
 export type CourseTypeValue = 'noi_bo' | 'ben_ngoai' | 'online'
 export type PlanStatusValue = 'draft' | 'approved' | 'cancelled'
+export type RecordStatusValue = 'chua_bat_dau' | 'dang_hoc' | 'hoan_thanh' | 'khong_hoan_thanh' | 'vang_mat'
+export type RecordResultValue = 'dat' | 'khong_dat'
 
 export interface CourseRead {
   id: number
@@ -125,6 +140,69 @@ export interface PlanListPage {
   page_size: number
 }
 
+export interface TrainingRecordRead {
+  id: number
+  employee_id: number
+  employee_code: string
+  employee_name: string
+  department_name: string | null
+  course_id: number
+  course_name: string
+  course_type: string
+  course_type_label: string
+  plan_id: number | null
+  plan_title: string | null
+  status: RecordStatusValue
+  status_label: string
+  result: RecordResultValue | null
+  result_label: string | null
+  score: string | null   // Decimal as string
+  start_date: string | null
+  end_date: string | null
+  note: string | null
+  created_by_name: string | null
+  created_at: string
+}
+
+export interface TrainingRecordCreate {
+  employee_id: number
+  course_id: number
+  plan_id?: number | null
+  status?: RecordStatusValue
+  start_date?: string | null
+  end_date?: string | null
+  note?: string | null
+}
+
+export interface TrainingRecordUpdate {
+  status?: RecordStatusValue | null
+  result?: RecordResultValue | null
+  score?: number | null
+  start_date?: string | null
+  end_date?: string | null
+  note?: string | null
+}
+
+export interface TrainingRecordListPage {
+  items: TrainingRecordRead[]
+  total: number
+  page: number
+  page_size: number
+}
+
+export interface BulkAssignRequest {
+  employee_ids?: number[]
+  department_ids?: number[]
+  plan_id: number
+  course_id: number
+  note?: string | null
+}
+
+export interface BulkAssignResult {
+  created: number
+  skipped: number
+}
+
 export default {
   // Courses
   listCourses: (params?: Record<string, unknown>) =>
@@ -163,4 +241,20 @@ export default {
     api.put<PlanCourseRead>(`/training/plans/${planId}/courses/${courseId}`, data),
   removeFromPlan: (planId: number, courseId: number) =>
     api.delete(`/training/plans/${planId}/courses/${courseId}`),
+
+  // Training records (9.2)
+  getRecords: (params?: Record<string, unknown>) =>
+    api.get<TrainingRecordListPage>('/training/records', { params }),
+  getRecord: (id: number) =>
+    api.get<TrainingRecordRead>(`/training/records/${id}`),
+  createRecord: (data: TrainingRecordCreate) =>
+    api.post<TrainingRecordRead>('/training/records', data),
+  updateRecord: (id: number, data: TrainingRecordUpdate) =>
+    api.put<TrainingRecordRead>(`/training/records/${id}`, data),
+  deleteRecord: (id: number) =>
+    api.delete(`/training/records/${id}`),
+  bulkAssign: (planId: number, data: BulkAssignRequest) =>
+    api.post<BulkAssignResult>(`/training/plans/${planId}/assign`, data),
+  getPassport: (employeeId: number) =>
+    api.get<TrainingRecordRead[]>(`/training/passport/${employeeId}`),
 }

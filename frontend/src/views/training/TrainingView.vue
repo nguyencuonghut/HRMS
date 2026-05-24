@@ -11,10 +11,12 @@
       <TabList>
         <Tab value="courses">Khóa học</Tab>
         <Tab value="plans">Kế hoạch đào tạo</Tab>
+        <Tab value="records">Theo dõi</Tab>
       </TabList>
       <TabPanels>
         <TabPanel value="courses"><CourseListTab /></TabPanel>
         <TabPanel value="plans"><TrainingPlanTab /></TabPanel>
+        <TabPanel value="records"><TrainingRecordTab /></TabPanel>
       </TabPanels>
     </Tabs>
 
@@ -30,6 +32,7 @@ import TabPanels from 'primevue/tabpanels'
 import Tabs from 'primevue/tabs'
 import CourseListTab from './components/CourseListTab.vue'
 import TrainingPlanTab from './components/TrainingPlanTab.vue'
+import TrainingRecordTab from './components/TrainingRecordTab.vue'
 
 const activeTab = ref('courses')
 </script>
