@@ -53,6 +53,73 @@ export interface KpiListParams {
   page_size?: number
 }
 
+// ── Yearly Review types ───────────────────────────────────────────────────────
+
+export interface MonthlyScore {
+  month: number
+  score: string
+}
+
+export interface YearlyKpiSummary {
+  employee_id: number
+  employee_code: string
+  employee_name: string
+  department_name: string | null
+  year: number
+  monthly_scores: MonthlyScore[]
+  months_count: number
+  avg_score: string | null
+  has_discipline: boolean
+  suggested_rating: string | null
+  has_review: boolean
+  review_id: number | null
+}
+
+export interface YearlyReviewRead {
+  id: number
+  employee_id: number
+  employee_code: string
+  employee_name: string
+  department_name: string | null
+  year: number
+  months_count: number
+  avg_score: string | null
+  rating: string
+  rating_label: string
+  review_note: string | null
+  created_by_name: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface YearlyReviewCreate {
+  employee_id: number
+  year: number
+  rating: string
+  review_note?: string | null
+}
+
+export interface YearlyReviewUpdate {
+  rating?: string | null
+  review_note?: string | null
+}
+
+export interface YearlyReviewListPage {
+  items: YearlyReviewRead[]
+  total: number
+  page: number
+  page_size: number
+}
+
+export interface YearlyReviewListParams {
+  year?: number | null
+  department_id?: number | null
+  rating?: string | null
+  search?: string | null
+  page?: number
+  page_size?: number
+}
+
 // ── API ───────────────────────────────────────────────────────────────────────
 
 const BASE = '/performance/kpi'
@@ -83,4 +150,23 @@ export default {
 
   downloadTemplate: () =>
     api.get(`${BASE}/template`, { responseType: 'blob' }),
+
+  // Yearly Reviews (10.2)
+  getYearlySummary: (employee_id: number, year: number) =>
+    api.get<YearlyKpiSummary>(`/performance/yearly-summary/${employee_id}`, { params: { year } }),
+
+  listYearlyReviews: (params: YearlyReviewListParams = {}) =>
+    api.get<YearlyReviewListPage>('/performance/yearly-reviews', { params }),
+
+  getYearlyReview: (id: number) =>
+    api.get<YearlyReviewRead>(`/performance/yearly-reviews/${id}`),
+
+  createYearlyReview: (data: YearlyReviewCreate) =>
+    api.post<YearlyReviewRead>('/performance/yearly-reviews', data),
+
+  updateYearlyReview: (id: number, data: YearlyReviewUpdate) =>
+    api.put<YearlyReviewRead>(`/performance/yearly-reviews/${id}`, data),
+
+  deleteYearlyReview: (id: number) =>
+    api.delete(`/performance/yearly-reviews/${id}`),
 }

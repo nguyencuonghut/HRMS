@@ -15,12 +15,7 @@
       </TabList>
       <TabPanels>
         <TabPanel value="kpi"><KpiMonthlyTab /></TabPanel>
-        <TabPanel value="yearly">
-          <div class="perf-placeholder">
-            <i class="pi pi-chart-line" />
-            <span>Đánh giá cuối năm — đang phát triển (10.2)</span>
-          </div>
-        </TabPanel>
+        <TabPanel value="yearly"><YearlyReviewTab /></TabPanel>
         <TabPanel value="report">
           <div class="perf-placeholder">
             <i class="pi pi-file-excel" />
@@ -40,6 +35,7 @@ import TabPanel from 'primevue/tabpanel'
 import TabPanels from 'primevue/tabpanels'
 import Tabs from 'primevue/tabs'
 import KpiMonthlyTab from './components/KpiMonthlyTab.vue'
+import YearlyReviewTab from './components/YearlyReviewTab.vue'
 
 const activeTab = ref('kpi')
 </script>

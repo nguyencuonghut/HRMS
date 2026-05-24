@@ -16,8 +16,13 @@ from app.schemas.performance import (
     KpiMonthlyListPage,
     KpiMonthlyRead,
     KpiMonthlyUpdate,
+    YearlyKpiSummary,
+    YearlyReviewCreate,
+    YearlyReviewListPage,
+    YearlyReviewRead,
+    YearlyReviewUpdate,
 )
-from app.services import kpi_service
+from app.services import kpi_service, yearly_review_service
 
 router = APIRouter()
 
@@ -146,4 +151,111 @@ async def delete_kpi(
     session: AsyncSession = Depends(get_session),
 ):
     await kpi_service.delete_kpi(session, kpi_id)
+    await session.commit()
+
+
+# ── Đánh giá cuối năm (10.2) ─────────────────────────────────────────────────
+
+@router.get(
+    "/yearly-summary/{employee_id}",
+    response_model=YearlyKpiSummary,
+    tags=[_TAG],
+    summary="Tổng hợp KPI năm của nhân viên (on-the-fly)",
+)
+async def get_yearly_summary(
+    employee_id: int,
+    year: int = Query(..., ge=2000, le=2100),
+    _: User = require_permission("performance:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await yearly_review_service.get_yearly_kpi_summary(session, employee_id, year)
+
+
+@router.get(
+    "/yearly-reviews",
+    response_model=YearlyReviewListPage,
+    tags=[_TAG],
+    summary="Danh sách đánh giá cuối năm",
+)
+async def list_yearly_reviews(
+    year:          Optional[int] = Query(None),
+    department_id: Optional[int] = Query(None),
+    rating:        Optional[str] = Query(None),
+    search:        Optional[str] = Query(None),
+    page:          int           = Query(1, ge=1),
+    page_size:     int           = Query(20, ge=1, le=200),
+    _: User = require_permission("performance:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await yearly_review_service.get_yearly_reviews(
+        session,
+        year=year,
+        department_id=department_id,
+        rating=rating,
+        search=search,
+        page=page,
+        page_size=page_size,
+    )
+
+
+@router.post(
+    "/yearly-reviews",
+    response_model=YearlyReviewRead,
+    status_code=status.HTTP_201_CREATED,
+    tags=[_TAG],
+    summary="Lưu đánh giá cuối năm",
+)
+async def create_yearly_review(
+    body: YearlyReviewCreate,
+    current_user: User = require_permission("performance:manage_kpi"),
+    session: AsyncSession = Depends(get_session),
+):
+    result = await yearly_review_service.create_review(session, body, current_user.id)
+    await session.commit()
+    return result
+
+
+@router.get(
+    "/yearly-reviews/{review_id}",
+    response_model=YearlyReviewRead,
+    tags=[_TAG],
+    summary="Chi tiết đánh giá cuối năm",
+)
+async def get_yearly_review(
+    review_id: int,
+    _: User = require_permission("performance:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await yearly_review_service.get_yearly_review(session, review_id)
+
+
+@router.put(
+    "/yearly-reviews/{review_id}",
+    response_model=YearlyReviewRead,
+    tags=[_TAG],
+    summary="Cập nhật đánh giá cuối năm",
+)
+async def update_yearly_review(
+    review_id: int,
+    body: YearlyReviewUpdate,
+    _: User = require_permission("performance:manage_kpi"),
+    session: AsyncSession = Depends(get_session),
+):
+    result = await yearly_review_service.update_review(session, review_id, body)
+    await session.commit()
+    return result
+
+
+@router.delete(
+    "/yearly-reviews/{review_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    tags=[_TAG],
+    summary="Xóa đánh giá cuối năm",
+)
+async def delete_yearly_review(
+    review_id: int,
+    _: User = require_permission("performance:manage_kpi"),
+    session: AsyncSession = Depends(get_session),
+):
+    await yearly_review_service.delete_review(session, review_id)
     await session.commit()

@@ -80,4 +80,4 @@ from app.models.salary_adjustment import BhxhSalaryAdjustment  # noqa: F401
 from app.models.reward import RewardType, EmployeeReward  # noqa: F401
 from app.models.discipline import EmployeeDiscipline  # noqa: F401
 from app.models.training import TrainingCourse, TrainingPlan, TrainingPlanCourse, EmployeeTrainingRecord, EmployeeTrainingCertificate  # noqa: F401
-from app.models.performance import EmployeeKpiMonthly  # noqa: F401
+from app.models.performance import EmployeeKpiMonthly, EmployeeYearlyReview  # noqa: F401
