@@ -26,6 +26,7 @@ from app.api.v1.endpoints import salary
 from app.api.v1.endpoints import rewards
 from app.api.v1.endpoints import disciplines
 from app.api.v1.endpoints import training
+from app.api.v1.endpoints import performance
 
 router = APIRouter()
 router.include_router(auth.router,          prefix="/auth",          tags=["Xác thực"])
@@ -71,3 +72,4 @@ router.include_router(disciplines.router,              prefix="/disciplines", ta
 router.include_router(disciplines.employee_history_router, prefix="/employees", tags=["Kỷ luật"])
 router.include_router(training.router, prefix="/training", tags=["Đào tạo"])
 router.include_router(training.employee_certificate_router, prefix="/employees", tags=["Đào tạo"])
+router.include_router(performance.router, prefix="/performance", tags=["Hiệu suất KPI"])

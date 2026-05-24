@@ -1,0 +1,149 @@
+"""Endpoints hiệu suất KPI (10.1 + 10.2 + 10.4)."""
+from __future__ import annotations
+
+from typing import Optional
+
+from fastapi import APIRouter, Depends, File, Query, UploadFile, status
+from fastapi.responses import StreamingResponse
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.api.v1.deps import require_permission
+from app.core.database import get_session
+from app.models.auth import User
+from app.schemas.performance import (
+    KpiImportResult,
+    KpiMonthlyCreate,
+    KpiMonthlyListPage,
+    KpiMonthlyRead,
+    KpiMonthlyUpdate,
+)
+from app.services import kpi_service
+
+router = APIRouter()
+
+_TAG = "Hiệu suất KPI"
+
+
+# ── KPI Tháng (10.1) ─────────────────────────────────────────────────────────
+
+@router.get(
+    "/kpi",
+    response_model=KpiMonthlyListPage,
+    tags=[_TAG],
+    summary="Danh sách KPI tháng",
+)
+async def list_kpi(
+    year:          Optional[int] = Query(None),
+    month:         Optional[int] = Query(None, ge=1, le=12),
+    department_id: Optional[int] = Query(None),
+    search:        Optional[str] = Query(None),
+    page:          int           = Query(1, ge=1),
+    page_size:     int           = Query(20, ge=1, le=200),
+    _: User = require_permission("performance:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await kpi_service.get_kpi_list(
+        session,
+        year=year,
+        month=month,
+        department_id=department_id,
+        search=search,
+        page=page,
+        page_size=page_size,
+    )
+
+
+@router.post(
+    "/kpi",
+    response_model=KpiMonthlyRead,
+    status_code=status.HTTP_201_CREATED,
+    tags=[_TAG],
+    summary="Tạo bản ghi KPI tháng",
+)
+async def create_kpi(
+    body: KpiMonthlyCreate,
+    current_user: User = require_permission("performance:manage_kpi"),
+    session: AsyncSession = Depends(get_session),
+):
+    result = await kpi_service.create_kpi(session, body, current_user.id)
+    await session.commit()
+    return result
+
+
+@router.post(
+    "/kpi/import",
+    response_model=KpiImportResult,
+    tags=[_TAG],
+    summary="Import KPI tháng từ file Excel",
+)
+async def import_kpi(
+    file: UploadFile = File(...),
+    current_user: User = require_permission("performance:manage_kpi"),
+    session: AsyncSession = Depends(get_session),
+):
+    content = await file.read()
+    result = await kpi_service.import_kpi_excel(session, content, current_user.id)
+    await session.commit()
+    return result
+
+
+@router.get(
+    "/kpi/template",
+    tags=[_TAG],
+    summary="Tải file mẫu import KPI",
+)
+async def download_kpi_template(
+    _: User = require_permission("performance:view"),
+):
+    content = kpi_service.get_kpi_template()
+    return StreamingResponse(
+        iter([content]),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=\"mau_import_kpi.xlsx\""},
+    )
+
+
+@router.get(
+    "/kpi/{kpi_id}",
+    response_model=KpiMonthlyRead,
+    tags=[_TAG],
+    summary="Chi tiết KPI tháng",
+)
+async def get_kpi(
+    kpi_id: int,
+    _: User = require_permission("performance:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await kpi_service.get_kpi(session, kpi_id)
+
+
+@router.put(
+    "/kpi/{kpi_id}",
+    response_model=KpiMonthlyRead,
+    tags=[_TAG],
+    summary="Cập nhật KPI tháng",
+)
+async def update_kpi(
+    kpi_id: int,
+    body: KpiMonthlyUpdate,
+    _: User = require_permission("performance:manage_kpi"),
+    session: AsyncSession = Depends(get_session),
+):
+    result = await kpi_service.update_kpi(session, kpi_id, body)
+    await session.commit()
+    return result
+
+
+@router.delete(
+    "/kpi/{kpi_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    tags=[_TAG],
+    summary="Xóa KPI tháng",
+)
+async def delete_kpi(
+    kpi_id: int,
+    _: User = require_permission("performance:manage_kpi"),
+    session: AsyncSession = Depends(get_session),
+):
+    await kpi_service.delete_kpi(session, kpi_id)
+    await session.commit()

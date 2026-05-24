@@ -12,10 +12,10 @@
 |---|---|---|
 | `employees` table | ✅ Hoàn thành (3.1) | |
 | `departments` table | ✅ Hoàn thành (1.1) | |
-| `employee_kpi_monthly` table | ❌ Chưa có | |
-| API CRUD KPI tháng | ❌ Chưa có | |
-| API import Excel KPI | ❌ Chưa có | |
-| Tab KPI trong `PerformanceView.vue` | ❌ Chưa có | |
+| `employee_kpi_monthly` table | ✅ Hoàn thành (10.1 Slice 1) | migration 0030 |
+| API CRUD KPI tháng | ✅ Hoàn thành (10.1 Slice 1) | GET/POST/PUT/DELETE /performance/kpi |
+| API import Excel KPI | ❌ Chưa có | Slice 2 |
+| Tab KPI trong `PerformanceView.vue` | ❌ Chưa có | Slice 3 |
 
 ---
 
