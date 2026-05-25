@@ -110,9 +110,15 @@ def upgrade() -> None:
             sa.ForeignKey("candidates.id", ondelete="CASCADE"),
             nullable=False,
         ),
+        sa.Column(
+            "skill_id", sa.Integer(),
+            sa.ForeignKey("skills.id", ondelete="RESTRICT"),
+            nullable=True,
+        ),
         sa.Column("skill_name", sa.String(200), nullable=False),
         sa.Column("proficiency_level", sa.String(20), nullable=True),
-        sa.UniqueConstraint("candidate_id", "skill_name", name="uq_candidate_skill"),
+        sa.Column("note", sa.Text(), nullable=True),
+        sa.UniqueConstraint("candidate_id", "skill_id", name="uq_candidate_skill"),
     )
 
     op.create_table(

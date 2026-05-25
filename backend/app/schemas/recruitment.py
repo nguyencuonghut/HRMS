@@ -401,8 +401,9 @@ class CandidateWorkExpRead(BaseModel):
 
 
 class CandidateSkillCreate(BaseModel):
-    skill_name: str = Field(min_length=1, max_length=200)
+    skill_id: int
     proficiency_level: Optional[ProficiencyLevel] = None
+    note: Optional[str] = None
 
 
 class CandidateSkillRead(BaseModel):
@@ -410,8 +411,11 @@ class CandidateSkillRead(BaseModel):
 
     id: int
     candidate_id: int
+    skill_id: Optional[int]
     skill_name: str
+    skill_group: Optional[str]
     proficiency_level: Optional[str]
+    note: Optional[str]
 
 
 class CandidateAttachmentRead(BaseModel):

@@ -145,11 +145,16 @@ CREATE TABLE candidate_work_experiences (
 CREATE TABLE candidate_skills (
     id              SERIAL PRIMARY KEY,
     candidate_id    INTEGER NOT NULL REFERENCES candidates(id) ON DELETE CASCADE,
-    skill_name      VARCHAR(200) NOT NULL,
+    skill_id        INTEGER REFERENCES skills(id) ON DELETE RESTRICT,
+    skill_name      VARCHAR(200) NOT NULL,      -- denormalized / raw fallback
     proficiency_level VARCHAR(20),      -- beginner | intermediate | advanced | expert
-    UNIQUE (candidate_id, skill_name)
+    note            TEXT,
+    UNIQUE (candidate_id, skill_id)
 );
 ```
+
+**Nguyên tắc thiết kế:** modal thêm kỹ năng của `Candidate` phải dùng lại catalog `skills` từ `2.3`.
+`skill_name` chỉ giữ vai trò denormalized hoặc raw fallback cho dữ liệu cũ/import; create flow chuẩn phải ghi `skill_id`.
 
 ### Bảng `candidate_attachments`
 

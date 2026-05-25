@@ -642,7 +642,7 @@
                 text
                 rounded
                 size="small"
-                @click="showSkillDialog = true"
+                @click="openAddSkill"
                 v-tooltip.top="'Thêm kỹ năng'"
               />
             </div>
@@ -658,6 +658,7 @@
                 v-for="sk in candidate.skills"
                 :key="sk.id"
                 class="cand-skill-chip"
+                :title="sk.note || ''"
               >
                 <span>{{ sk.skill_name }}</span>
                 <span
@@ -665,6 +666,12 @@
                   class="rc-muted"
                   style="font-size: 0.75rem"
                   >·{{ proficiencyLabel(sk.proficiency_level) }}</span
+                >
+                <span
+                  v-if="sk.skill_group"
+                  class="rc-muted"
+                  style="font-size: 0.75rem"
+                  >·{{ sk.skill_group }}</span
                 >
                 <Button
                   icon="pi pi-times"
@@ -695,23 +702,42 @@
             <div class="rc-form">
               <div class="rc-field">
                 <label class="rc-label"
-                  >Tên kỹ năng <span class="rc-req">*</span></label
+                  >Kỹ năng <span class="rc-req">*</span></label
                 >
-                <InputText
-                  v-model="skillForm.skill_name"
-                  placeholder="Python, Excel, Quản lý nhân sự..."
+                <Select
+                  v-model="skillForm.skill_id"
+                  :options="skillOptions"
+                  option-label="label"
+                  option-value="value"
+                  placeholder="Chọn kỹ năng"
+                  filter
+                  :invalid="!!skillErrors.skill_id"
                 />
+                <small v-if="skillErrors.skill_id" class="rc-api-error">{{
+                  skillErrors.skill_id
+                }}</small>
               </div>
               <div class="rc-field">
-                <label class="rc-label">Mức độ</label>
+                <label class="rc-label"
+                  >Mức độ <span class="rc-req">*</span></label
+                >
                 <Select
                   v-model="skillForm.proficiency_level"
                   :options="proficiencyOptions"
                   option-label="label"
                   option-value="value"
                   placeholder="Chọn mức độ"
-                  show-clear
+                  :invalid="!!skillErrors.proficiency_level"
                 />
+                <small
+                  v-if="skillErrors.proficiency_level"
+                  class="rc-api-error"
+                  >{{ skillErrors.proficiency_level }}</small
+                >
+              </div>
+              <div class="rc-field">
+                <label class="rc-label">Ghi chú</label>
+                <Textarea v-model="skillForm.note" rows="2" auto-resize />
               </div>
             </div>
             <template #footer>
@@ -1015,11 +1041,13 @@ import educationCatalogService, {
   type EducationalInstitutionRead,
   type EducationMajorRead,
 } from "@/services/educationCatalogService";
+import otherBusinessCatalogService from "@/services/otherBusinessCatalogService";
 import recruitmentService, {
   type ApplicationRead,
   type CandidateAttachmentRead,
   type CandidateEducationRead,
   type CandidateRead,
+  type CandidateSkillCreate,
   type CandidateSkillRead,
   type CandidateWorkExpRead,
   type RecruitmentChannelRead,
@@ -1072,9 +1100,12 @@ const expEndDate = ref<Date | null>(null);
 // ── Skills ────────────────────────────────────────────────────────────────────
 const showSkillDialog = ref(false);
 const skillForm = ref({
-  skill_name: "",
+  skill_id: null as number | null,
   proficiency_level: null as string | null,
+  note: "",
 });
+const skillErrors = ref<Record<string, string>>({});
+const skillOptions = ref<{ label: string; value: number }[]>([]);
 
 const proficiencyOptions = [
   { label: "Cơ bản", value: "beginner" },
@@ -1240,17 +1271,28 @@ async function loadChannelsAndJRs() {
 }
 
 async function loadEducationCatalogs() {
-  try {
-    const response = await educationCatalogService.lookupEducationLevels({
+  const [levelsResult, skillsResult] = await Promise.allSettled([
+    educationCatalogService.lookupEducationLevels({
       limit: 100,
-    });
-    educationLevelOptions.value = response.data.map((level) => ({
-      value: level.id,
-      label: `${level.rank_no}. ${level.name}`,
-    }));
-  } catch {
-    educationLevelOptions.value = [];
-  }
+    }),
+    otherBusinessCatalogService.lookupSkills({ limit: 100 }),
+  ]);
+
+  educationLevelOptions.value =
+    levelsResult.status === "fulfilled"
+      ? levelsResult.value.data.map((level) => ({
+          value: level.id,
+          label: `${level.rank_no}. ${level.name}`,
+        }))
+      : [];
+
+  skillOptions.value =
+    skillsResult.status === "fulfilled"
+      ? skillsResult.value.data.map((skill) => ({
+          value: skill.id,
+          label: skill.name,
+        }))
+      : [];
 }
 
 async function searchInstitutions(event: { query: string }) {
@@ -1445,15 +1487,26 @@ function confirmDeleteExp(exp: CandidateWorkExpRead) {
 // ── Skill ops ─────────────────────────────────────────────────────────────────
 
 async function saveSkill() {
-  if (!skillForm.value.skill_name.trim()) return;
+  const errors: Record<string, string> = {};
+  if (!skillForm.value.skill_id) {
+    errors.skill_id = "Chọn kỹ năng";
+  }
+  if (!skillForm.value.proficiency_level) {
+    errors.proficiency_level = "Chọn mức độ thành thạo";
+  }
+  skillErrors.value = errors;
+  if (Object.keys(errors).length) return;
   saving.value = true;
   try {
-    await recruitmentService.addSkill(candidateId.value, {
-      skill_name: skillForm.value.skill_name,
-      proficiency_level: skillForm.value.proficiency_level ?? undefined,
-    });
+    const payload: CandidateSkillCreate = {
+      skill_id: skillForm.value.skill_id!,
+      proficiency_level: skillForm.value.proficiency_level,
+      note: skillForm.value.note || null,
+    };
+    await recruitmentService.addSkill(candidateId.value, payload);
     showSkillDialog.value = false;
-    skillForm.value = { skill_name: "", proficiency_level: null };
+    skillForm.value = { skill_id: null, proficiency_level: null, note: "" };
+    skillErrors.value = {};
     await load();
   } catch (err: unknown) {
     const detail = (err as { response?: { data?: { detail?: string } } })
@@ -1468,6 +1521,13 @@ async function saveSkill() {
     saving.value = false;
   }
 }
+
+function openAddSkill() {
+  skillForm.value = { skill_id: null, proficiency_level: null, note: "" };
+  skillErrors.value = {};
+  showSkillDialog.value = true;
+}
+
 function confirmDeleteSkill(sk: CandidateSkillRead) {
   confirm.require({
     message: `Xóa kỹ năng "${sk.skill_name}"?`,

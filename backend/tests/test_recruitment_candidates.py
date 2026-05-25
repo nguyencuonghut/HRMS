@@ -88,6 +88,12 @@ def _get_major_id(client: TestClient, h: dict) -> int:
     return rows[0]["id"]
 
 
+def _get_skill_id(client: TestClient, h: dict) -> int:
+    rows = client.get("/api/v1/lookups/skills", headers=h, params={"limit": 20}).json()
+    assert rows, "Cần ít nhất 1 kỹ năng"
+    return rows[0]["id"]
+
+
 # ── TestCandidateCRUD ─────────────────────────────────────────────────────────
 
 
@@ -374,18 +380,22 @@ class TestCandidateSubResources:
     def test_add_skill(self, client: TestClient) -> None:
         h = _admin(client)
         c = _create_candidate(client, h, "skill01")
+        skill_id = _get_skill_id(client, h)
         res = client.post(
             f"{BASE_CAND}/{c['id']}/skills",
-            json={"skill_name": "Python", "proficiency_level": "advanced"},
+            json={"skill_id": skill_id, "proficiency_level": "advanced", "note": "Từ hồ sơ năng lực"},
             headers=h,
         )
         assert res.status_code == 201
-        assert res.json()["skill_name"] == "Python"
+        data = res.json()
+        assert data["skill_id"] == skill_id
+        assert data["skill_name"] != ""
+        assert data["note"] == "Từ hồ sơ năng lực"
 
     def test_add_duplicate_skill_returns_409(self, client: TestClient) -> None:
         h = _admin(client)
         c = _create_candidate(client, h, "skill02")
-        payload = {"skill_name": "Java"}
+        payload = {"skill_id": _get_skill_id(client, h), "proficiency_level": "beginner"}
         client.post(f"{BASE_CAND}/{c['id']}/skills", json=payload, headers=h)
         res = client.post(f"{BASE_CAND}/{c['id']}/skills", json=payload, headers=h)
         assert res.status_code == 409
@@ -393,9 +403,10 @@ class TestCandidateSubResources:
     def test_delete_skill(self, client: TestClient) -> None:
         h = _admin(client)
         c = _create_candidate(client, h, "skill03")
+        skill_id = _get_skill_id(client, h)
         sk = client.post(
             f"{BASE_CAND}/{c['id']}/skills",
-            json={"skill_name": "Go"},
+            json={"skill_id": skill_id, "proficiency_level": "advanced"},
             headers=h,
         ).json()
         res = client.delete(f"{BASE_CAND}/{c['id']}/skills/{sk['id']}", headers=h)

@@ -308,7 +308,8 @@ class ConvertToEmployeeResult(BaseModel):
      `institution_id`, `institution_name`, `major_id`, `major_name`, `education_level_id`,
      `graduation_year`, `diploma_type`, `is_main_education`, `note`)
    - candidate_work_experiences → employee_work_experiences
-   - candidate_skills → employee_skills (nếu skill tồn tại trong catalog)
+   - candidate_skills → employee_skills (copy gần như 1:1 các field
+     `skill_id`, `skill_name`, `proficiency_level`, `note`)
 5. Cập nhật hiring_decision:
    - employee_id = new_employee.id
    - status = 'converted'

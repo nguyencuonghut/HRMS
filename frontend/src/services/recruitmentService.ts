@@ -410,10 +410,7 @@ export default {
       `/recruitment/candidates/${candidateId}/work-experiences/${expId}`,
     ),
 
-  addSkill: (
-    candidateId: number,
-    data: { skill_name: string; proficiency_level?: string },
-  ) =>
+  addSkill: (candidateId: number, data: CandidateSkillCreate) =>
     api.post<CandidateSkillRead>(
       `/recruitment/candidates/${candidateId}/skills`,
       data,
@@ -632,8 +629,17 @@ export interface CandidateWorkExpCreate {
 export interface CandidateSkillRead {
   id: number;
   candidate_id: number;
+  skill_id: number | null;
   skill_name: string;
+  skill_group: string | null;
   proficiency_level: string | null;
+  note: string | null;
+}
+
+export interface CandidateSkillCreate {
+  skill_id: number;
+  proficiency_level?: string | null;
+  note?: string | null;
 }
 
 export interface CandidateAttachmentRead {

@@ -348,13 +348,18 @@ class CandidateSkill(SQLModel, table=True):
     candidate_id: int = Field(
         sa_column=Column(sa.Integer(), sa.ForeignKey("candidates.id", ondelete="CASCADE"), nullable=False)
     )
+    skill_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(sa.Integer(), sa.ForeignKey("skills.id", ondelete="RESTRICT"), nullable=True),
+    )
     skill_name: str = Field(sa_column=Column(sa.String(200), nullable=False))
     proficiency_level: Optional[str] = Field(
         default=None, sa_column=Column(sa.String(20), nullable=True)
     )
+    note: Optional[str] = Field(default=None, sa_column=Column(sa.Text(), nullable=True))
 
     __table_args__ = (
-        sa.UniqueConstraint("candidate_id", "skill_name", name="uq_candidate_skill"),
+        sa.UniqueConstraint("candidate_id", "skill_id", name="uq_candidate_skill"),
     )
 
 

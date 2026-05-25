@@ -16,6 +16,7 @@ from app.models.catalog import (
     Ethnicity,
     Nationality,
     Religion,
+    Skill,
 )
 from app.models.auth import User
 from app.models.org import Department, JobPosition
@@ -160,6 +161,25 @@ def _edu_read(
         diploma_type=edu.diploma_type,
         is_main_education=edu.is_main_education,
         note=edu.note,
+    )
+
+
+async def _skill_read(session: AsyncSession, sk: CandidateSkill) -> CandidateSkillRead:
+    skill_name = sk.skill_name
+    skill_group = None
+    if sk.skill_id:
+        skill_cat = await session.get(Skill, sk.skill_id)
+        if skill_cat:
+            skill_name = skill_cat.name
+            skill_group = skill_cat.skill_group
+    return CandidateSkillRead(
+        id=sk.id,
+        candidate_id=sk.candidate_id,
+        skill_id=sk.skill_id,
+        skill_name=skill_name,
+        skill_group=skill_group,
+        proficiency_level=sk.proficiency_level,
+        note=sk.note,
     )
 
 
@@ -391,13 +411,7 @@ async def _build_read(session: AsyncSession, c: Candidate) -> CandidateRead:
             for e in exps
         ],
         skills=[
-            CandidateSkillRead(
-                id=s.id,
-                candidate_id=s.candidate_id,
-                skill_name=s.skill_name,
-                proficiency_level=s.proficiency_level,
-            )
-            for s in skills
+            await _skill_read(session, s) for s in skills
         ],
         attachments=[_att_read(a) for a in atts],
         active_applications=active_apps,
@@ -721,24 +735,31 @@ async def add_skill(
     session: AsyncSession, candidate_id: int, data: CandidateSkillCreate
 ) -> CandidateSkillRead:
     await _get_candidate_or_404(session, candidate_id)
+    skill = await session.get(Skill, data.skill_id)
+    if not skill or not skill.is_active:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Kỹ năng không hợp lệ")
     # Check duplicate
     existing = await session.execute(
         select(CandidateSkill).where(
             CandidateSkill.candidate_id == candidate_id,
-            CandidateSkill.skill_name == data.skill_name,
+            or_(
+                CandidateSkill.skill_id == data.skill_id,
+                CandidateSkill.skill_name == skill.name,
+            ),
         )
     )
     if existing.scalars().first():
         raise HTTPException(status.HTTP_409_CONFLICT, detail="Kỹ năng đã tồn tại")
-    sk = CandidateSkill(candidate_id=candidate_id, **data.model_dump())
+    sk = CandidateSkill(
+        candidate_id=candidate_id,
+        skill_id=skill.id,
+        skill_name=skill.name,
+        proficiency_level=data.proficiency_level,
+        note=data.note,
+    )
     session.add(sk)
     await session.flush()
-    return CandidateSkillRead(
-        id=sk.id,
-        candidate_id=sk.candidate_id,
-        skill_name=sk.skill_name,
-        proficiency_level=sk.proficiency_level,
-    )
+    return await _skill_read(session, sk)
 
 
 async def delete_skill(session: AsyncSession, candidate_id: int, skill_id: int) -> None:
