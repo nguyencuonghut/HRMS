@@ -149,6 +149,19 @@ const router = createRouter({
           component: () => import('@/views/performance/PerformanceView.vue'),
           meta: { title: 'Đánh giá KPI' },
         },
+        // Tuyển dụng
+        {
+          path: 'recruitment',
+          name: 'recruitment',
+          component: () => import('@/views/recruitment/RecruitmentView.vue'),
+          meta: { title: 'Tuyển dụng' },
+        },
+        {
+          path: 'recruitment/jr/:id',
+          name: 'jr-detail',
+          component: () => import('@/views/recruitment/JRDetailView.vue'),
+          meta: { title: 'Chi tiết yêu cầu tuyển dụng' },
+        },
         // Báo cáo
         {
           path: 'reports',

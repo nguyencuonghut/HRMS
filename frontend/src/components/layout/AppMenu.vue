@@ -117,6 +117,7 @@ const menu: MenuItem[] = [
   { to: '/rewards', label: 'Khen thưởng & Kỷ luật', icon: 'pi-star' },
   { to: '/training', label: 'Đào tạo', icon: 'pi-graduation-cap' },
   { to: '/performance', label: 'Đánh giá KPI', icon: 'pi-chart-bar' },
+  { to: '/recruitment', label: 'Tuyển dụng', icon: 'pi-briefcase' },
   { section: true, label: 'Phân tích' },
   { to: '/reports', label: 'Báo cáo', icon: 'pi-chart-pie' },
   { section: true, label: 'Hệ thống' },
