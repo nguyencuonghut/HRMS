@@ -1,7 +1,7 @@
-"""Endpoints tuyển dụng ATS — 13.1 Kế hoạch & Yêu cầu tuyển dụng."""
+"""Endpoints tuyển dụng ATS — 13.1 Kế hoạch & Yêu cầu tuyển dụng / 13.2 Đăng tin."""
 from __future__ import annotations
 
-from typing import Optional
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,13 +19,22 @@ from app.schemas.recruitment import (
     HeadcountPlanListPage,
     HeadcountPlanRead,
     HeadcountPlanUpdate,
+    JobPostingCreate,
+    JobPostingListPage,
+    JobPostingRead,
+    JobPostingUpdate,
     JobRequisitionCreate,
     JobRequisitionListPage,
     JobRequisitionRead,
     JobRequisitionUpdate,
+    LanguageValidationRequest,
+    LanguageValidationResult,
+    RecruitmentChannelCreate,
+    RecruitmentChannelRead,
+    RecruitmentChannelUpdate,
     RejectRequest,
 )
-from app.services import auth_service, headcount_plan_service, jr_service
+from app.services import auth_service, headcount_plan_service, jr_service, job_posting_service
 
 router = APIRouter()
 
@@ -415,3 +424,220 @@ async def delete_budget_item(
 ):
     await jr_service.delete_budget_item(session, jr_id, item_id)
     await session.commit()
+
+
+# ── Recruitment Channels ──────────────────────────────────────────────────────
+
+
+@router.get(
+    "/channels",
+    response_model=List[RecruitmentChannelRead],
+    tags=[_TAG],
+    summary="Danh sách kênh tuyển dụng",
+)
+async def list_channels(
+    _: User = require_permission("recruitment:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await job_posting_service.list_channels(session)
+
+
+@router.post(
+    "/channels",
+    response_model=RecruitmentChannelRead,
+    status_code=status.HTTP_201_CREATED,
+    tags=[_TAG],
+    summary="Thêm kênh tuyển dụng",
+)
+async def create_channel(
+    body: RecruitmentChannelCreate,
+    current_user: User = require_permission("recruitment:manage"),
+    session: AsyncSession = Depends(get_session),
+):
+    result = await job_posting_service.create_channel(session, body)
+    await session.commit()
+    return result
+
+
+@router.put(
+    "/channels/{channel_id}",
+    response_model=RecruitmentChannelRead,
+    tags=[_TAG],
+    summary="Cập nhật kênh tuyển dụng",
+)
+async def update_channel(
+    channel_id: int,
+    body: RecruitmentChannelUpdate,
+    current_user: User = require_permission("recruitment:manage"),
+    session: AsyncSession = Depends(get_session),
+):
+    result = await job_posting_service.update_channel(session, channel_id, body)
+    await session.commit()
+    return result
+
+
+@router.delete(
+    "/channels/{channel_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    tags=[_TAG],
+    summary="Xóa kênh tuyển dụng",
+)
+async def delete_channel(
+    channel_id: int,
+    current_user: User = require_permission("recruitment:manage"),
+    session: AsyncSession = Depends(get_session),
+):
+    await job_posting_service.delete_channel(session, channel_id)
+    await session.commit()
+
+
+# ── Job Postings ──────────────────────────────────────────────────────────────
+
+
+@router.get(
+    "/job-postings",
+    response_model=JobPostingListPage,
+    tags=[_TAG],
+    summary="Danh sách tin tuyển dụng",
+)
+async def list_job_postings(
+    status: Optional[str] = Query(None),
+    job_requisition_id: Optional[int] = Query(None),
+    posting_type: Optional[str] = Query(None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=200),
+    _: User = require_permission("recruitment:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await job_posting_service.list_postings(
+        session,
+        status=status,
+        job_requisition_id=job_requisition_id,
+        posting_type=posting_type,
+        page=page,
+        page_size=page_size,
+    )
+
+
+@router.post(
+    "/job-postings/validate-language",
+    response_model=LanguageValidationResult,
+    tags=[_TAG],
+    summary="Kiểm tra ngôn ngữ phân biệt đối xử trong tin tuyển dụng",
+)
+async def validate_language(
+    body: LanguageValidationRequest,
+    _: User = require_permission("recruitment:manage"),
+):
+    return job_posting_service.validate_language(body.text)
+
+
+@router.post(
+    "/job-postings",
+    response_model=JobPostingRead,
+    status_code=status.HTTP_201_CREATED,
+    tags=[_TAG],
+    summary="Tạo tin tuyển dụng (từ JR đã duyệt)",
+)
+async def create_job_posting(
+    body: JobPostingCreate,
+    current_user: User = require_permission("recruitment:manage"),
+    session: AsyncSession = Depends(get_session),
+):
+    result = await job_posting_service.create_posting(session, body, current_user.id)
+    await session.commit()
+    return result
+
+
+@router.get(
+    "/job-postings/{posting_id}",
+    response_model=JobPostingRead,
+    tags=[_TAG],
+    summary="Chi tiết tin tuyển dụng",
+)
+async def get_job_posting(
+    posting_id: int,
+    _: User = require_permission("recruitment:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await job_posting_service.get_posting(session, posting_id)
+
+
+@router.put(
+    "/job-postings/{posting_id}",
+    response_model=JobPostingRead,
+    tags=[_TAG],
+    summary="Cập nhật tin tuyển dụng (chỉ khi draft/active)",
+)
+async def update_job_posting(
+    posting_id: int,
+    body: JobPostingUpdate,
+    current_user: User = require_permission("recruitment:manage"),
+    session: AsyncSession = Depends(get_session),
+):
+    result = await job_posting_service.update_posting(session, posting_id, body)
+    await session.commit()
+    return result
+
+
+@router.post(
+    "/job-postings/{posting_id}/publish",
+    response_model=JobPostingRead,
+    tags=[_TAG],
+    summary="Đăng tin (draft → active)",
+)
+async def publish_job_posting(
+    posting_id: int,
+    current_user: User = require_permission("recruitment:manage"),
+    session: AsyncSession = Depends(get_session),
+):
+    result = await job_posting_service.publish_posting(session, posting_id)
+    await auth_service.log_audit(
+        session, current_user.id, "UPDATE",
+        entity_type="job_posting", entity_id=posting_id,
+        entity_name=f"posting#{posting_id} → active",
+    )
+    await session.commit()
+    return result
+
+
+@router.post(
+    "/job-postings/{posting_id}/close",
+    response_model=JobPostingRead,
+    tags=[_TAG],
+    summary="Đóng tin tuyển dụng (active → closed)",
+)
+async def close_job_posting(
+    posting_id: int,
+    current_user: User = require_permission("recruitment:manage"),
+    session: AsyncSession = Depends(get_session),
+):
+    result = await job_posting_service.close_posting(session, posting_id)
+    await auth_service.log_audit(
+        session, current_user.id, "UPDATE",
+        entity_type="job_posting", entity_id=posting_id,
+        entity_name=f"posting#{posting_id} → closed",
+    )
+    await session.commit()
+    return result
+
+
+@router.post(
+    "/job-postings/{posting_id}/reopen",
+    response_model=JobPostingRead,
+    tags=[_TAG],
+    summary="Mở lại tin tuyển dụng (closed → active)",
+)
+async def reopen_job_posting(
+    posting_id: int,
+    current_user: User = require_permission("recruitment:manage"),
+    session: AsyncSession = Depends(get_session),
+):
+    result = await job_posting_service.reopen_posting(session, posting_id)
+    await auth_service.log_audit(
+        session, current_user.id, "UPDATE",
+        entity_type="job_posting", entity_id=posting_id,
+        entity_name=f"posting#{posting_id} → active (reopened)",
+    )
+    await session.commit()
+    return result

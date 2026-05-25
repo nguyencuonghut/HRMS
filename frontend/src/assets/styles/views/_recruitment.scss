@@ -198,6 +198,34 @@ html.dark-mode .rc-rejection-note { color: var(--p-red-400); }
   font-weight: 700;
 }
 
+// Language warning
+.rc-lang-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: color-mix(in srgb, var(--p-yellow-400) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--p-yellow-400) 35%, transparent);
+  border-radius: 8px;
+  color: var(--p-yellow-700);
+  font-size: 0.875rem;
+  line-height: 1.5;
+
+  .pi { margin-top: 0.1rem; flex-shrink: 0; }
+}
+
+html.dark-mode .rc-lang-warning { color: var(--p-yellow-300); }
+
+.rc-lang-chip {
+  display: inline-block;
+  margin: 0.15rem 0.25rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--p-yellow-400) 20%, transparent);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
 // Fulfillment (Headcount)
 .rc-fulfillment {
   display: flex;

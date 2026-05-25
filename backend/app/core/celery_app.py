@@ -26,5 +26,9 @@ celery_app.conf.update(
             "task": "app.workers.tasks.reset_expired_carryover",
             "schedule": crontab(hour=0, minute=5, day_of_month=1, month_of_year=4),  # 00:05 ngày 01/04
         },
+        "expire-stale-postings": {
+            "task": "app.workers.tasks.expire_stale_postings",
+            "schedule": crontab(hour=0, minute=10),  # 00:10 hàng ngày
+        },
     },
 )

@@ -1,9 +1,9 @@
-"""Schemas tuyển dụng ATS (13.1 — Kế hoạch & Yêu cầu tuyển dụng)."""
+"""Schemas tuyển dụng ATS (13.1 — Kế hoạch & Yêu cầu tuyển dụng / 13.2 — Đăng tin)."""
 from __future__ import annotations
 
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Literal, Optional
+from typing import List, Literal, Optional
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -206,3 +206,116 @@ class BudgetSummary(BaseModel):
     items: list[BudgetItemRead]
     total_estimated: Decimal
     total_actual: Decimal
+
+
+# ── Recruitment Channel (13.2) ────────────────────────────────────────────────
+
+
+class RecruitmentChannelCreate(BaseModel):
+    code: str = Field(min_length=1, max_length=50)
+    name: str = Field(min_length=1, max_length=200)
+    sort_order: int = Field(default=0, ge=0)
+
+
+class RecruitmentChannelUpdate(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=1, max_length=200)
+    is_active: Optional[bool] = None
+    sort_order: Optional[int] = Field(default=None, ge=0)
+
+
+class RecruitmentChannelRead(BaseModel):
+    model_config = {"from_attributes": True}
+
+    id: int
+    code: str
+    name: str
+    is_active: bool
+    sort_order: int
+
+
+# ── Job Posting (13.2) ────────────────────────────────────────────────────────
+
+PostingStatus = Literal["draft", "active", "closed", "expired"]
+PostingStatusLabels: dict[str, str] = {
+    "draft":   "Nháp",
+    "active":  "Đang tuyển",
+    "closed":  "Đã đóng",
+    "expired": "Hết hạn",
+}
+
+PostingType = Literal["internal", "external"]
+PostingTypeLabels: dict[str, str] = {
+    "internal": "Nội bộ",
+    "external": "Bên ngoài",
+}
+
+
+class JobPostingCreate(BaseModel):
+    job_requisition_id: int
+    title: str = Field(min_length=1, max_length=300)
+    description: str = Field(min_length=1)
+    requirements: Optional[str] = None
+    benefits: Optional[str] = None
+    work_location: Optional[str] = Field(default=None, max_length=300)
+    deadline: Optional[date] = None
+    salary_display: Optional[str] = Field(default=None, max_length=100)
+    posting_type: PostingType = "external"
+    channels: List[int] = Field(default_factory=list)
+    note: Optional[str] = None
+
+
+class JobPostingUpdate(BaseModel):
+    title: Optional[str] = Field(default=None, min_length=1, max_length=300)
+    description: Optional[str] = Field(default=None, min_length=1)
+    requirements: Optional[str] = None
+    benefits: Optional[str] = None
+    work_location: Optional[str] = Field(default=None, max_length=300)
+    deadline: Optional[date] = None
+    salary_display: Optional[str] = Field(default=None, max_length=100)
+    posting_type: Optional[PostingType] = None
+    channels: Optional[List[int]] = None
+    note: Optional[str] = None
+
+
+class JobPostingRead(BaseModel):
+    model_config = {"from_attributes": True}
+
+    id: int
+    job_requisition_id: int
+    job_requisition_code: str
+    job_position_name: str
+    department_name: str
+    title: str
+    description: str
+    requirements: Optional[str]
+    benefits: Optional[str]
+    work_location: Optional[str]
+    deadline: Optional[date]
+    salary_display: Optional[str]
+    posting_type: str
+    posting_type_label: str
+    channels: List[RecruitmentChannelRead]
+    status: str
+    status_label: str
+    opened_at: Optional[datetime]
+    closed_at: Optional[datetime]
+    candidate_count: int
+    note: Optional[str]
+    created_by_name: Optional[str]
+    created_at: datetime
+    updated_at: datetime
+
+
+class JobPostingListPage(BaseModel):
+    items: List[JobPostingRead]
+    total: int
+    page: int
+    page_size: int
+
+
+class LanguageValidationRequest(BaseModel):
+    text: str
+
+
+class LanguageValidationResult(BaseModel):
+    warnings: List[str]

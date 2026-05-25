@@ -162,6 +162,12 @@ const router = createRouter({
           component: () => import('@/views/recruitment/JRDetailView.vue'),
           meta: { title: 'Chi tiết yêu cầu tuyển dụng' },
         },
+        {
+          path: 'recruitment/postings/:id',
+          name: 'posting-detail',
+          component: () => import('@/views/recruitment/JobPostingDetailView.vue'),
+          meta: { title: 'Chi tiết tin tuyển dụng' },
+        },
         // Báo cáo
         {
           path: 'reports',

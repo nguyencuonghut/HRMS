@@ -1,11 +1,12 @@
-"""Models tuyển dụng ATS (13.1 — Kế hoạch & Yêu cầu tuyển dụng)."""
+"""Models tuyển dụng ATS (13.1 — Kế hoạch & Yêu cầu tuyển dụng / 13.2 — Đăng tin)."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from decimal import Decimal
-from typing import Optional
+from typing import List, Optional
 
 import sqlalchemy as sa
+from sqlalchemy.dialects.postgresql import ARRAY as PgARRAY
 from sqlmodel import Column, Field, SQLModel
 
 
@@ -138,4 +139,76 @@ class RecruitmentBudgetItem(SQLModel, table=True):
 
     __table_args__ = (
         sa.Index("ix_budget_items_jr_id", "job_requisition_id"),
+    )
+
+
+# ── Recruitment Channel (13.2) ────────────────────────────────────────────────
+
+
+class RecruitmentChannel(SQLModel, table=True):
+    """Danh mục kênh tuyển dụng (TopCV, VietnamWorks, nội bộ…)."""
+
+    __tablename__ = "recruitment_channels"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    code: str = Field(sa_column=Column(sa.String(50), nullable=False, unique=True))
+    name: str = Field(sa_column=Column(sa.String(200), nullable=False))
+    is_active: bool = Field(sa_column=Column(sa.Boolean(), nullable=False, server_default="true"))
+    sort_order: int = Field(sa_column=Column(sa.SmallInteger(), nullable=False, server_default="0"))
+
+
+# ── Job Posting (13.2) ────────────────────────────────────────────────────────
+
+
+class JobPosting(SQLModel, table=True):
+    """Tin tuyển dụng — tạo từ JR đã duyệt."""
+
+    __tablename__ = "job_postings"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    job_requisition_id: int = Field(
+        sa_column=Column(
+            sa.Integer(), sa.ForeignKey("job_requisitions.id", ondelete="RESTRICT"), nullable=False
+        )
+    )
+    title: str = Field(sa_column=Column(sa.String(300), nullable=False))
+    description: str = Field(sa_column=Column(sa.Text(), nullable=False))
+    requirements: Optional[str] = Field(default=None, sa_column=Column(sa.Text(), nullable=True))
+    benefits: Optional[str] = Field(default=None, sa_column=Column(sa.Text(), nullable=True))
+    work_location: Optional[str] = Field(
+        default=None, sa_column=Column(sa.String(300), nullable=True)
+    )
+    deadline: Optional[date] = Field(default=None, sa_column=Column(sa.Date(), nullable=True))
+    salary_display: Optional[str] = Field(
+        default=None, sa_column=Column(sa.String(100), nullable=True)
+    )
+    posting_type: str = Field(
+        sa_column=Column(sa.String(20), nullable=False, server_default="external")
+    )
+    # Mảng channel_id đã đăng
+    channels: List[int] = Field(
+        default_factory=list,
+        sa_column=Column(PgARRAY(sa.Integer()), nullable=False, server_default="{}"),
+    )
+    status: str = Field(
+        sa_column=Column(sa.String(20), nullable=False, server_default="draft")
+    )
+    # draft | active | closed | expired
+
+    opened_at: Optional[datetime] = Field(default=None, sa_column=Column(sa.DateTime(), nullable=True))
+    closed_at: Optional[datetime] = Field(default=None, sa_column=Column(sa.DateTime(), nullable=True))
+    expires_at: Optional[datetime] = Field(default=None, sa_column=Column(sa.DateTime(), nullable=True))
+
+    note: Optional[str] = Field(default=None, sa_column=Column(sa.Text(), nullable=True))
+    created_by_id: int = Field(
+        sa_column=Column(
+            sa.Integer(), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=False
+        )
+    )
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: datetime = Field(default_factory=_utcnow)
+
+    __table_args__ = (
+        sa.Index("ix_job_postings_jr", "job_requisition_id"),
+        sa.Index("ix_job_postings_status", "status"),
     )

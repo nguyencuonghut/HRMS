@@ -156,6 +156,79 @@ export interface BudgetSummary {
   total_actual: string
 }
 
+// ── Recruitment Channel ───────────────────────────────────────────────────────
+
+export interface RecruitmentChannelRead {
+  id: number
+  code: string
+  name: string
+  is_active: boolean
+  sort_order: number
+}
+
+// ── Job Posting ───────────────────────────────────────────────────────────────
+
+export interface JobPostingRead {
+  id: number
+  job_requisition_id: number
+  job_requisition_code: string
+  job_position_name: string
+  department_name: string
+  title: string
+  description: string
+  requirements: string | null
+  benefits: string | null
+  work_location: string | null
+  deadline: string | null
+  salary_display: string | null
+  posting_type: string
+  posting_type_label: string
+  channels: RecruitmentChannelRead[]
+  status: string
+  status_label: string
+  opened_at: string | null
+  closed_at: string | null
+  candidate_count: number
+  note: string | null
+  created_by_name: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface JobPostingCreate {
+  job_requisition_id: number
+  title: string
+  description: string
+  requirements?: string | null
+  benefits?: string | null
+  work_location?: string | null
+  deadline?: string | null
+  salary_display?: string | null
+  posting_type?: 'internal' | 'external'
+  channels?: number[]
+  note?: string | null
+}
+
+export interface JobPostingUpdate {
+  title?: string
+  description?: string
+  requirements?: string | null
+  benefits?: string | null
+  work_location?: string | null
+  deadline?: string | null
+  salary_display?: string | null
+  posting_type?: 'internal' | 'external'
+  channels?: number[]
+  note?: string | null
+}
+
+export interface JobPostingListPage {
+  items: JobPostingRead[]
+  total: number
+  page: number
+  page_size: number
+}
+
 // ── Service ───────────────────────────────────────────────────────────────────
 
 export default {
@@ -218,4 +291,42 @@ export default {
 
   deleteBudgetItem: (jr_id: number, item_id: number) =>
     api.delete(`/recruitment/job-requisitions/${jr_id}/budget/${item_id}`),
+
+  // Channels
+  listChannels: () =>
+    api.get<RecruitmentChannelRead[]>('/recruitment/channels'),
+
+  createChannel: (data: { code: string; name: string; sort_order?: number }) =>
+    api.post<RecruitmentChannelRead>('/recruitment/channels', data),
+
+  updateChannel: (id: number, data: { name?: string; is_active?: boolean; sort_order?: number }) =>
+    api.put<RecruitmentChannelRead>(`/recruitment/channels/${id}`, data),
+
+  deleteChannel: (id: number) =>
+    api.delete(`/recruitment/channels/${id}`),
+
+  // Job Postings
+  listPostings: (params?: Record<string, unknown>) =>
+    api.get<JobPostingListPage>('/recruitment/job-postings', { params }),
+
+  getPosting: (id: number) =>
+    api.get<JobPostingRead>(`/recruitment/job-postings/${id}`),
+
+  createPosting: (data: JobPostingCreate) =>
+    api.post<JobPostingRead>('/recruitment/job-postings', data),
+
+  updatePosting: (id: number, data: JobPostingUpdate) =>
+    api.put<JobPostingRead>(`/recruitment/job-postings/${id}`, data),
+
+  publishPosting: (id: number) =>
+    api.post<JobPostingRead>(`/recruitment/job-postings/${id}/publish`),
+
+  closePosting: (id: number) =>
+    api.post<JobPostingRead>(`/recruitment/job-postings/${id}/close`),
+
+  reopenPosting: (id: number) =>
+    api.post<JobPostingRead>(`/recruitment/job-postings/${id}/reopen`),
+
+  validateLanguage: (text: string) =>
+    api.post<{ warnings: string[] }>('/recruitment/job-postings/validate-language', { text }),
 }

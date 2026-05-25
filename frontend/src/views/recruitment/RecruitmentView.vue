@@ -10,10 +10,12 @@
     <Tabs v-model:value="activeTab">
       <TabList>
         <Tab value="jr">Yêu cầu tuyển dụng</Tab>
+        <Tab value="postings">Tin tuyển dụng</Tab>
         <Tab value="headcount">Kế hoạch nhân sự</Tab>
       </TabList>
       <TabPanels>
         <TabPanel value="jr"><JRListTab /></TabPanel>
+        <TabPanel value="postings"><JobPostingTab /></TabPanel>
         <TabPanel value="headcount"><HeadcountPlanTab /></TabPanel>
       </TabPanels>
     </Tabs>
@@ -28,6 +30,7 @@ import TabPanel from 'primevue/tabpanel'
 import TabPanels from 'primevue/tabpanels'
 import Tabs from 'primevue/tabs'
 import JRListTab from './components/JRListTab.vue'
+import JobPostingTab from './components/JobPostingTab.vue'
 import HeadcountPlanTab from './components/HeadcountPlanTab.vue'
 
 const activeTab = ref('jr')
