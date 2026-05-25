@@ -560,13 +560,54 @@ export default {
       data,
     ),
 
+  listPipelineTemplates: () =>
+    api.get<PipelineStageTemplateRead[]>("/recruitment/pipeline-templates"),
+
+  createPipelineTemplate: (data: PipelineStageTemplateCreate) =>
+    api.post<PipelineStageTemplateRead>("/recruitment/pipeline-templates", data),
+
+  updatePipelineTemplate: (id: number, data: PipelineStageTemplateUpdate) =>
+    api.put<PipelineStageTemplateRead>(
+      `/recruitment/pipeline-templates/${id}`,
+      data,
+    ),
+
+  deletePipelineTemplate: (id: number) =>
+    api.delete(`/recruitment/pipeline-templates/${id}`),
+
+  setupPipelineForJR: (jrId: number, data: PipelineSetupPayload) =>
+    api.post<PipelineStageRead[]>(
+      `/recruitment/job-requisitions/${jrId}/pipeline`,
+      data,
+    ),
+
   listQuestions: (params?: Record<string, unknown>) =>
     api.get<InterviewQuestionRead[]>("/recruitment/questions", { params }),
+
+  createQuestion: (data: InterviewQuestionCreate) =>
+    api.post<InterviewQuestionRead>("/recruitment/questions", data),
+
+  updateQuestion: (id: number, data: InterviewQuestionUpdate) =>
+    api.put<InterviewQuestionRead>(`/recruitment/questions/${id}`, data),
+
+  deleteQuestion: (id: number) => api.delete(`/recruitment/questions/${id}`),
 
   listScorecardCriteria: (params?: Record<string, unknown>) =>
     api.get<ScorecardCriterionRead[]>("/recruitment/scorecard-criteria", {
       params,
     }),
+
+  createScorecardCriterion: (data: ScorecardCriterionCreate) =>
+    api.post<ScorecardCriterionRead>("/recruitment/scorecard-criteria", data),
+
+  updateScorecardCriterion: (id: number, data: ScorecardCriterionUpdate) =>
+    api.put<ScorecardCriterionRead>(
+      `/recruitment/scorecard-criteria/${id}`,
+      data,
+    ),
+
+  deleteScorecardCriterion: (id: number) =>
+    api.delete(`/recruitment/scorecard-criteria/${id}`),
 
   downloadImportTemplate: () =>
     api.get("/recruitment/candidates/import-template", {
@@ -994,4 +1035,91 @@ export interface ScorecardCriterionRead {
   max_score: number;
   sort_order: number;
   is_active: boolean;
+}
+
+export interface PipelineStageTemplateItemRead {
+  id: number;
+  template_id: number;
+  stage_order: number;
+  stage_name: string;
+  stage_type: string;
+  is_required: boolean;
+}
+
+export interface PipelineStageTemplateRead {
+  id: number;
+  name: string;
+  job_position_id: number | null;
+  is_default: boolean;
+  items: PipelineStageTemplateItemRead[];
+  created_at: string;
+}
+
+export interface PipelineStageTemplateItemInput {
+  stage_order: number;
+  stage_name: string;
+  stage_type: "screening" | "test" | "interview" | "final";
+  is_required?: boolean;
+}
+
+export interface PipelineStageTemplateCreate {
+  name: string;
+  job_position_id?: number | null;
+  is_default?: boolean;
+  items: PipelineStageTemplateItemInput[];
+}
+
+export interface PipelineStageTemplateUpdate {
+  name?: string;
+  job_position_id?: number | null;
+  is_default?: boolean;
+  items?: PipelineStageTemplateItemInput[];
+}
+
+export interface PipelineStageCreate {
+  stage_order: number;
+  stage_name: string;
+  stage_type: "screening" | "test" | "interview" | "final";
+  is_active?: boolean;
+}
+
+export interface PipelineSetupPayload {
+  template_id?: number | null;
+  stages?: PipelineStageCreate[] | null;
+}
+
+export interface InterviewQuestionCreate {
+  question_text: string;
+  category?: string | null;
+  difficulty?: "easy" | "medium" | "hard" | null;
+  job_position_id?: number | null;
+  stage_type?: string | null;
+  is_active?: boolean;
+}
+
+export interface InterviewQuestionUpdate {
+  question_text?: string;
+  category?: string | null;
+  difficulty?: "easy" | "medium" | "hard" | null;
+  job_position_id?: number | null;
+  stage_type?: string | null;
+  is_active?: boolean;
+}
+
+export interface ScorecardCriterionCreate {
+  name: string;
+  job_position_id?: number | null;
+  stage_type?: string | null;
+  max_score?: number;
+  sort_order?: number;
+  is_active?: boolean;
+}
+
+export interface ScorecardCriterionUpdate {
+  name?: string;
+  job_position_id?: number | null;
+  stage_type?: string | null;
+  max_score?: number;
+  sort_order?: number;
+  is_active?: boolean;
 }

@@ -30,6 +30,7 @@ from app.schemas.recruitment import (
     PanelistScoreSubmit,
     ScorecardCriterionCreate,
     ScorecardCriterionRead,
+    ScorecardCriterionUpdate,
     StageResultUpsert,
 )
 from app.services import pipeline_service
@@ -399,3 +400,28 @@ async def create_scorecard_criterion(
     session.add(criterion)
     await session.flush()
     return ScorecardCriterionRead.model_validate(criterion)
+
+
+async def update_scorecard_criterion(
+    session: AsyncSession,
+    criterion_id: int,
+    data: ScorecardCriterionUpdate,
+) -> ScorecardCriterionRead:
+    criterion = await session.get(ScorecardCriterion, criterion_id)
+    if not criterion:
+        raise HTTPException(status_code=404, detail="Không tìm thấy tiêu chí")
+    for field, value in data.model_dump(exclude_unset=True).items():
+        setattr(criterion, field, value)
+    await session.flush()
+    return ScorecardCriterionRead.model_validate(criterion)
+
+
+async def delete_scorecard_criterion(
+    session: AsyncSession,
+    criterion_id: int,
+) -> None:
+    criterion = await session.get(ScorecardCriterion, criterion_id)
+    if not criterion:
+        raise HTTPException(status_code=404, detail="Không tìm thấy tiêu chí")
+    await session.delete(criterion)
+    await session.flush()

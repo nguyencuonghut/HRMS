@@ -10,13 +10,17 @@
 
 | Thành phần | Trạng thái | Ghi chú |
 |---|---|---|
-| `candidate_applications` | ❌ Xây ở 13.3 | Có trường `current_stage` |
-| `pipeline_stages` | ❌ Chưa có | |
-| `candidate_stage_results` | ❌ Chưa có | |
-| `interview_sessions` | ❌ Chưa có | |
-| `interview_interviewers` | ❌ Chưa có | |
-| `interview_questions` | ❌ Chưa có | |
-| API + Frontend | ❌ Chưa có | |
+| `candidate_applications` | ✅ Hoàn thành | Xây ở 13.3, có trường `current_stage` |
+| `pipeline_stage_templates` + items | ✅ Hoàn thành | Migration 0037 |
+| `pipeline_stages` | ✅ Hoàn thành | Migration 0037 |
+| `candidate_stage_results` | ✅ Hoàn thành | Migration 0037 |
+| `interview_sessions` | ✅ Hoàn thành | Migration 0037 |
+| `interview_panelists` | ✅ Hoàn thành | Migration 0037 |
+| `interview_questions` | ✅ Hoàn thành | Migration 0037 |
+| `scorecard_criteria` | ✅ Hoàn thành | Migration 0037 |
+| Backend API | ✅ Hoàn thành | Tất cả endpoints đã có |
+| Frontend Kanban + Application Detail | ✅ Hoàn thành | Slice 5 + 6 |
+| Danh mục tuyển dụng (Catalog) | ✅ Hoàn thành | `RecruitmentCatalogView.vue` |
 
 ---
 
@@ -266,6 +270,8 @@ DELETE /recruitment/questions/{id}
 
 GET    /recruitment/scorecard-criteria?job_position_id=&stage_type=
 POST   /recruitment/scorecard-criteria
+PUT    /recruitment/scorecard-criteria/{id}      ← thêm sau khi triển khai Catalog UI
+DELETE /recruitment/scorecard-criteria/{id}      ← thêm sau khi triển khai Catalog UI
 ```
 
 ### Permissions
@@ -368,31 +374,49 @@ class PanelistScoreSubmit(BaseModel):
 
 ## Thiết kế Frontend
 
-### `PipelineSetupDialog.vue` / `JRPipelineConfigPanel.vue`
+### `RecruitmentCatalogView.vue` *(Danh mục tuyển dụng — thêm mới)*
 
-- Điểm vào:
-  - từ `JRDetailView.vue`: button `Cấu hình pipeline`
-  - hoặc từ `KanbanPipelineView.vue` khi JR chưa có pipeline
+Nằm tại `src/views/catalog/RecruitmentCatalogView.vue`, truy cập qua `/catalog/recruitment` và mục “Danh mục tuyển dụng” trong sidebar.
+
+**3 tab quản trị:**
+
+| Tab | Nội dung | CRUD |
+|---|---|---|
+| Mẫu quy trình | Danh sách `pipeline_stage_templates` kèm các bước | Tạo / Sửa / Xóa |
+| Câu hỏi phỏng vấn | `interview_questions` lọc theo bước và độ khó | Tạo / Sửa / Xóa |
+| Tiêu chí chấm điểm | `scorecard_criteria` lọc theo bước | Tạo / Sửa / Xóa |
+
+**Dialog tạo/sửa mẫu quy trình:**
+- Nhập tên mẫu, tuỳ chọn đặt làm mặc định
+- Thêm/xóa/sắp xếp các bước (`stage_name`, `stage_type`)
+- Lưu qua `POST/PUT /recruitment/pipeline-templates`
+
+> **Lưu ý thuật ngữ UI:** Từ “pipeline” và “template” (tiếng Anh) đã được chuyển sang tiếng Việt trong toàn bộ giao diện:
+> - “pipeline template” → **”mẫu quy trình”**
+> - “Cấu hình pipeline” → **”Cấu hình quy trình”**
+> - “Scorecard Criteria” → **”Tiêu chí chấm điểm”**
+
+---
+
+### `PipelineSetupDialog.vue`
+
+- Điểm vào: từ `KanbanPipelineView.vue` khi JR chưa có quy trình
 - Chức năng chính:
-  - chọn nhanh 1 `pipeline_template`
-  - hoặc nhập tay danh sách bước cho JR
-  - reorder bước theo `stage_order`
-  - sửa `stage_name`, `stage_type`, `is_active`
+  - chọn nhanh 1 mẫu quy trình (`pipeline_template`) — hiển thị tên và danh sách bước
+  - hoặc tạo thủ công danh sách bước cho JR
   - lưu bằng `POST /recruitment/job-requisitions/{jr_id}/pipeline`
-- Rule UI:
-  - nếu JR đã có `candidate_stage_results` hoặc `interview_sessions` thì chỉ cho xem, không cho cấu hình lại
-  - nếu JR chưa có pipeline thì Kanban không chỉ hiển thị empty state, mà phải có CTA `Tạo pipeline`
+- Nguồn cấu hình:
+  - **”Từ mẫu có sẵn”**: chọn template → backend tự clone các bước
+  - **”Tạo thủ công”**: nhập tên và loại từng bước
 
 ### `KanbanPipelineView.vue`
 
-- Chọn JR → hiển thị Kanban board
-- Nếu JR chưa có pipeline:
-  - hiển thị empty state phân biệt với trạng thái “có pipeline nhưng chưa có ứng viên”
-  - có button `Cấu hình pipeline`
-- Mỗi cột = 1 bước pipeline
+- Chọn JR → hiển thị Kanban board (nhúng trong tab “Tuyển chọn” của `RecruitmentView.vue`)
+- Nếu JR chưa có quy trình:
+  - hiển thị empty state với button **”Cấu hình quy trình”** → mở `PipelineSetupDialog`
+- Mỗi cột = 1 bước quy trình
 - Card ứng viên: tên, ngày apply, nguồn, kết quả bước gần nhất
-- Drag card sang cột kế tiếp → mở dialog ghi nhận kết quả (advance)
-- Button "Loại" trên card → mở dialog ghi lý do
+- Click card → chuyển sang `ApplicationDetailView`
 
 ### `ApplicationDetailView.vue`
 
@@ -423,57 +447,69 @@ class PanelistScoreSubmit(BaseModel):
 
 ```
 backend/
-  alembic/versions/0036_add_recruitment_pipeline.py    (NEW)
-  app/models/recruitment.py                             (EDIT: thêm pipeline models)
-  app/schemas/recruitment.py                            (EDIT: thêm pipeline schemas)
-  app/services/pipeline_service.py                     (NEW)
-  app/services/interview_service.py                    (NEW)
-  app/api/v1/endpoints/recruitment.py                  (EDIT: thêm pipeline endpoints)
-  tests/test_recruitment_pipeline.py                   (NEW)
+  alembic/versions/0037_add_recruitment_pipeline.py    ✅ (NEW)
+  app/models/recruitment.py                             ✅ (EDIT: thêm pipeline models)
+  app/schemas/recruitment.py                            ✅ (EDIT: thêm pipeline schemas
+                                                              + ScorecardCriterionUpdate)
+  app/services/pipeline_service.py                     ✅ (NEW)
+  app/services/interview_service.py                    ✅ (NEW — bao gồm update/delete
+                                                              scorecard criterion)
+  app/api/v1/endpoints/recruitment.py                  ✅ (EDIT: tất cả pipeline endpoints
+                                                              + PUT/DELETE scorecard-criteria)
 
 frontend/
-  src/services/recruitmentService.ts                   (EDIT: thêm pipeline + interview API)
-  src/views/recruitment/components/PipelineSetupDialog.vue (NEW)
-  src/views/recruitment/KanbanPipelineView.vue         (NEW)
-  src/views/recruitment/ApplicationDetailView.vue      (NEW)
-  src/views/recruitment/components/InterviewScheduleDialog.vue (NEW)
-  src/views/recruitment/components/ScorecardDialog.vue (NEW)
-  src/views/recruitment/components/InterviewKitPanel.vue (NEW)
-  src/router/index.ts                                  (EDIT)
+  src/services/recruitmentService.ts                   ✅ (EDIT: thêm pipeline + interview API
+                                                              + template/question/criteria CRUD)
+  src/views/recruitment/components/PipelineSetupDialog.vue ✅ (NEW)
+  src/views/recruitment/KanbanPipelineView.vue         ✅ (NEW)
+  src/views/recruitment/ApplicationDetailView.vue      ✅ (NEW)
+  src/views/recruitment/components/InterviewScheduleDialog.vue ✅ (NEW)
+  src/views/recruitment/components/ScorecardDialog.vue ✅ (NEW)
+  src/views/recruitment/components/InterviewKitPanel.vue ✅ (NEW)
+  src/views/catalog/RecruitmentCatalogView.vue         ✅ (NEW — quản lý mẫu quy trình,
+                                                              câu hỏi PV, tiêu chí chấm điểm)
+  src/router/index.ts                                  ✅ (EDIT: thêm route catalog/recruitment
+                                                              và recruitment/applications/:id)
+  src/components/layout/AppMenu.vue                    ✅ (EDIT: thêm "Danh mục tuyển dụng")
+  src/assets/styles/views/_recruitment.scss            ✅ (EDIT: thêm styles cho Kanban,
+                                                              PipelineSetup, template picker)
 ```
 
 ---
 
 ## Kế hoạch theo Slice
 
-### Slice 1 — Backend: Models + Migration
-- Migration 0036
-- Models: PipelineStageTemplate, PipelineStage, CandidateStageResult, InterviewSession, InterviewPanelist, InterviewQuestion, ScorecardCriteria
+### Slice 1 — Backend: Models + Migration ✅
+- Migration 0037
+- Models: PipelineStageTemplate, PipelineStageTemplateItem, PipelineStage, CandidateStageResult, InterviewSession, InterviewPanelist, InterviewQuestion, ScorecardCriterion
 
-### Slice 2 — Backend: Pipeline Setup + Advance/Reject
-- `pipeline_service.py`: setup, advance, reject, hold, get_kanban
+### Slice 2 — Backend: Pipeline Setup + Advance/Reject ✅
+- `pipeline_service.py`: setup_pipeline_for_jr, advance_application, reject_application, hold_application, get_kanban
 - Endpoints: pipeline config + advance/reject/hold
 
-### Slice 3 — Backend: Interview + Scorecard
-- `interview_service.py`: create_interview, submit_score, complete_interview
+### Slice 3 — Backend: Interview + Scorecard ✅
+- `interview_service.py`: create_interview, submit_panelist_score, complete_interview, cancel_interview
 - Interview endpoints
 
-### Slice 4 — Backend: Interview Kit endpoints + Tests
+### Slice 4 — Backend: Interview Kit endpoints ✅
+- Endpoints: GET/POST/PUT/DELETE cho `interview_questions` và `scorecard_criteria`
+- Schema `ScorecardCriterionUpdate` (bổ sung khi làm Catalog UI)
+- Service `update_scorecard_criterion`, `delete_scorecard_criterion` (bổ sung khi làm Catalog UI)
 
-### Slice 5 — Frontend: Pipeline Setup + Kanban
-- `PipelineSetupDialog.vue` hoặc panel cấu hình pipeline trong JR detail
-- CTA cấu hình pipeline từ `JRDetailView` / `KanbanPipelineView`
-- Clone từ template hoặc nhập tay stage list
-- Empty state rõ ràng cho JR chưa có pipeline
+### Slice 5 — Frontend: Quy trình + Kanban ✅
+- `PipelineSetupDialog.vue`: chọn mẫu có sẵn hoặc tạo thủ công
+- `KanbanPipelineView.vue`: nhúng trong tab “Tuyển chọn”, empty state có CTA “Cấu hình quy trình”
+- `JRDetailView.vue`: button “Tuyển chọn” dẫn tới Kanban với `jr_id` pre-selected
 
-### Slice 6 — Frontend: Application Detail + Interview Schedule + Scorecard
-- `ApplicationDetailView.vue`
-- `InterviewScheduleDialog.vue`
+### Slice 6 — Frontend: Chi tiết tuyển chọn + Phỏng vấn + Scorecard ✅
+- `ApplicationDetailView.vue` (4 tab: Hồ sơ / Pipeline / Phỏng vấn / Ghi chú)
+- `InterviewScheduleDialog.vue` + `InterviewKitPanel.vue`
 - `ScorecardDialog.vue`
 
-**Lưu ý thiết kế:** không được coi `KanbanPipelineView` là đủ cho phạm vi “cấu hình pipeline cho từng JR”.
-Nếu chỉ có Kanban đọc dữ liệu mà không có UI gọi `POST /recruitment/job-requisitions/{jr_id}/pipeline`,
-thì implementation vẫn chưa hoàn tất phạm vi của `13.4`.
+### Ngoài kế hoạch gốc — Danh mục tuyển dụng ✅
+- `RecruitmentCatalogView.vue`: quản lý mẫu quy trình, câu hỏi phỏng vấn, tiêu chí chấm điểm
+- Route `catalog/recruitment`, menu sidebar “Danh mục tuyển dụng”
+- Thuật ngữ UI đã Việt hoá: “pipeline” → “quy trình tuyển chọn”, “template” → “mẫu quy trình”
 
 ---
 

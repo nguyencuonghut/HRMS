@@ -33,6 +33,12 @@
             @click="router.push('/catalog/other-business')"
           />
           <Button
+            label="Mở danh mục tuyển dụng"
+            icon="pi pi-sitemap"
+            severity="secondary"
+            @click="router.push('/catalog/recruitment')"
+          />
+          <Button
             label="Mở danh mục bệnh viện KCB"
             icon="pi pi-heart"
             severity="secondary"

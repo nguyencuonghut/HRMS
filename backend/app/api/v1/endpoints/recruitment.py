@@ -72,6 +72,7 @@ from app.schemas.recruitment import (
     RejectRequest,
     ScorecardCriterionCreate,
     ScorecardCriterionRead,
+    ScorecardCriterionUpdate,
     StageResultUpsert,
 )
 from app.services import (
@@ -1407,3 +1408,25 @@ async def create_scorecard_criterion(
     result = await interview_service.create_scorecard_criterion(session, data)
     await session.commit()
     return result
+
+
+@router.put("/scorecard-criteria/{criterion_id}", response_model=ScorecardCriterionRead, tags=[_TAG])
+async def update_scorecard_criterion(
+    criterion_id: int,
+    data: ScorecardCriterionUpdate,
+    current_user: User = require_permission("recruitment:manage"),
+    session: AsyncSession = Depends(get_session),
+):
+    result = await interview_service.update_scorecard_criterion(session, criterion_id, data)
+    await session.commit()
+    return result
+
+
+@router.delete("/scorecard-criteria/{criterion_id}", status_code=status.HTTP_204_NO_CONTENT, tags=[_TAG])
+async def delete_scorecard_criterion(
+    criterion_id: int,
+    _: User = require_permission("recruitment:manage"),
+    session: AsyncSession = Depends(get_session),
+):
+    await interview_service.delete_scorecard_criterion(session, criterion_id)
+    await session.commit()

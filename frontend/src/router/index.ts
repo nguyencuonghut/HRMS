@@ -238,6 +238,13 @@ const router = createRouter({
           component: () => import("@/views/catalog/BhytClinicView.vue"),
           meta: { title: "Danh mục bệnh viện KCB" },
         },
+        {
+          path: "catalog/recruitment",
+          name: "catalog-recruitment",
+          component: () =>
+            import("@/views/catalog/RecruitmentCatalogView.vue"),
+          meta: { title: "Danh mục tuyển dụng" },
+        },
         // Cài đặt
         {
           path: "settings",

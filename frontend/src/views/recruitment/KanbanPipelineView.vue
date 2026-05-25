@@ -8,7 +8,7 @@
         option-value="value"
         filter
         show-clear
-        placeholder="Chọn JR để xem pipeline"
+        placeholder="Chọn JR để xem quy trình tuyển chọn"
         style="width: 340px"
         @change="onJrChange"
       />
@@ -85,10 +85,25 @@
     </div>
 
     <div v-else-if="selectedJrId && !loading" class="card">
-      <div class="rc-empty">
-        JR này chưa cấu hình pipeline hoặc chưa có ứng viên.
+      <div
+        class="rc-empty"
+        style="display: flex; flex-direction: column; gap: 1rem; align-items: center"
+      >
+        <span>JR này chưa có quy trình tuyển chọn.</span>
+        <Button
+          label="Cấu hình quy trình"
+          icon="pi pi-sliders-h"
+          severity="info"
+          @click="showSetupDialog = true"
+        />
       </div>
     </div>
+
+    <PipelineSetupDialog
+      v-model:visible="showSetupDialog"
+      :jr-id="selectedJrId"
+      @saved="void loadBoard()"
+    />
   </div>
 </template>
 
@@ -104,6 +119,7 @@ import recruitmentService, {
   type JobRequisitionListItem,
   type KanbanBoard,
 } from "@/services/recruitmentService";
+import PipelineSetupDialog from "./components/PipelineSetupDialog.vue";
 
 const route = useRoute();
 const router = useRouter();
@@ -113,6 +129,7 @@ const loading = ref(false);
 const jrOptions = ref<Array<{ label: string; value: number }>>([]);
 const selectedJrId = ref<number | null>(null);
 const board = ref<KanbanBoard | null>(null);
+const showSetupDialog = ref(false);
 
 function formatDate(value: string) {
   return new Date(value).toLocaleDateString("vi-VN");
@@ -155,7 +172,7 @@ function applicationLink(applicationId: number) {
 async function loadJR() {
   try {
     const response = await recruitmentService.listJR({ page_size: 200 });
-    const items = response.data.items.filter((item) =>
+    const items = response.data.items.filter((item: JobRequisitionListItem) =>
       ["approved", "in_progress", "completed"].includes(item.status),
     );
     jrOptions.value = items.map((item: JobRequisitionListItem) => ({
@@ -186,7 +203,7 @@ async function loadBoard() {
     toast.add({
       severity: "error",
       summary: "Lỗi",
-      detail: "Không thể tải Kanban pipeline",
+      detail: "Không thể tải bảng Kanban",
       life: 3000,
     });
   } finally {
@@ -206,7 +223,7 @@ function onJrChange() {
 
 watch(
   () => route.query.jr_id,
-  (value) => {
+  (value: string | string[] | undefined) => {
     const next = typeof value === "string" ? Number(value) : null;
     if (selectedJrId.value !== next) {
       selectedJrId.value = Number.isFinite(next) ? next : null;
@@ -216,7 +233,7 @@ watch(
 
 watch(
   () => selectedJrId.value,
-  (value) => {
+  (value: number | null) => {
     if (!value) {
       board.value = null;
     }

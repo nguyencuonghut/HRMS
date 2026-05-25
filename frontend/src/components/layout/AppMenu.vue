@@ -130,6 +130,7 @@ const menu: MenuItem[] = [
       { to: '/catalog/administrative-units', label: 'Danh mục hành chính', icon: 'pi-map' },
       { to: '/catalog/education', label: 'Danh mục học vấn', icon: 'pi-graduation-cap' },
       { to: '/catalog/other-business', label: 'Danh mục nghiệp vụ khác', icon: 'pi-briefcase' },
+      { to: '/catalog/recruitment', label: 'Danh mục tuyển dụng', icon: 'pi-sitemap' },
       { to: '/catalog/bhyt-clinics', label: 'Danh mục bệnh viện KCB', icon: 'pi-heart' },
       { to: '/catalog/administrative-imports', label: 'Lịch sử import', icon: 'pi-download' },
     ],

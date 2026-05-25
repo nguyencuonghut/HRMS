@@ -987,6 +987,15 @@ class ScorecardCriterionCreate(BaseModel):
     is_active: bool = True
 
 
+class ScorecardCriterionUpdate(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=1, max_length=200)
+    job_position_id: Optional[int] = None
+    stage_type: Optional[PipelineStageType] = None
+    max_score: Optional[int] = Field(default=None, ge=1, le=10)
+    sort_order: Optional[int] = Field(default=None, ge=0, le=1000)
+    is_active: Optional[bool] = None
+
+
 class ScorecardCriterionRead(BaseModel):
     model_config = {"from_attributes": True}
 
