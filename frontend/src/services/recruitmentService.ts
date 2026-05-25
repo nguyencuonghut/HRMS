@@ -1020,7 +1020,7 @@ export interface InterviewQuestionRead {
   question_text: string;
   category: string | null;
   difficulty: "easy" | "medium" | "hard" | null;
-  job_position_id: number | null;
+  job_position_ids: number[];
   stage_type: string | null;
   is_active: boolean;
   created_by_id: number | null;
@@ -1030,7 +1030,7 @@ export interface InterviewQuestionRead {
 export interface ScorecardCriterionRead {
   id: number;
   name: string;
-  job_position_id: number | null;
+  job_position_ids: number[];
   stage_type: string | null;
   max_score: number;
   sort_order: number;
@@ -1092,7 +1092,7 @@ export interface InterviewQuestionCreate {
   question_text: string;
   category?: string | null;
   difficulty?: "easy" | "medium" | "hard" | null;
-  job_position_id?: number | null;
+  job_position_ids?: number[];
   stage_type?: string | null;
   is_active?: boolean;
 }
@@ -1101,14 +1101,14 @@ export interface InterviewQuestionUpdate {
   question_text?: string;
   category?: string | null;
   difficulty?: "easy" | "medium" | "hard" | null;
-  job_position_id?: number | null;
+  job_position_ids?: number[];
   stage_type?: string | null;
   is_active?: boolean;
 }
 
 export interface ScorecardCriterionCreate {
   name: string;
-  job_position_id?: number | null;
+  job_position_ids?: number[];
   stage_type?: string | null;
   max_score?: number;
   sort_order?: number;
@@ -1117,7 +1117,7 @@ export interface ScorecardCriterionCreate {
 
 export interface ScorecardCriterionUpdate {
   name?: string;
-  job_position_id?: number | null;
+  job_position_ids?: number[];
   stage_type?: string | null;
   max_score?: number;
   sort_order?: number;

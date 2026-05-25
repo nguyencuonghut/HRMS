@@ -950,7 +950,7 @@ class InterviewQuestionCreate(BaseModel):
     question_text: str = Field(min_length=1)
     category: Optional[str] = Field(default=None, max_length=100)
     difficulty: Optional[QuestionDifficulty] = None
-    job_position_id: Optional[int] = None
+    job_position_ids: list[int] = Field(default_factory=list)
     stage_type: Optional[PipelineStageType] = None
     is_active: bool = True
 
@@ -959,7 +959,7 @@ class InterviewQuestionUpdate(BaseModel):
     question_text: Optional[str] = Field(default=None, min_length=1)
     category: Optional[str] = Field(default=None, max_length=100)
     difficulty: Optional[QuestionDifficulty] = None
-    job_position_id: Optional[int] = None
+    job_position_ids: Optional[list[int]] = None
     stage_type: Optional[PipelineStageType] = None
     is_active: Optional[bool] = None
 
@@ -971,7 +971,7 @@ class InterviewQuestionRead(BaseModel):
     question_text: str
     category: Optional[str]
     difficulty: Optional[str]
-    job_position_id: Optional[int]
+    job_position_ids: list[int] = Field(default_factory=list)
     stage_type: Optional[str]
     is_active: bool
     created_by_id: Optional[int]
@@ -980,7 +980,7 @@ class InterviewQuestionRead(BaseModel):
 
 class ScorecardCriterionCreate(BaseModel):
     name: str = Field(min_length=1, max_length=200)
-    job_position_id: Optional[int] = None
+    job_position_ids: list[int] = Field(default_factory=list)
     stage_type: Optional[PipelineStageType] = None
     max_score: int = Field(default=5, ge=1, le=10)
     sort_order: int = Field(default=0, ge=0, le=1000)
@@ -989,7 +989,7 @@ class ScorecardCriterionCreate(BaseModel):
 
 class ScorecardCriterionUpdate(BaseModel):
     name: Optional[str] = Field(default=None, min_length=1, max_length=200)
-    job_position_id: Optional[int] = None
+    job_position_ids: Optional[list[int]] = None
     stage_type: Optional[PipelineStageType] = None
     max_score: Optional[int] = Field(default=None, ge=1, le=10)
     sort_order: Optional[int] = Field(default=None, ge=0, le=1000)
@@ -1001,7 +1001,7 @@ class ScorecardCriterionRead(BaseModel):
 
     id: int
     name: str
-    job_position_id: Optional[int]
+    job_position_ids: list[int] = Field(default_factory=list)
     stage_type: Optional[str]
     max_score: int
     sort_order: int

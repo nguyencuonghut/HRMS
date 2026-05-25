@@ -580,6 +580,17 @@ class InterviewPanelist(SQLModel, table=True):
     )
 
 
+class InterviewQuestionJobPosition(SQLModel, table=True):
+    __tablename__ = "interview_question_job_positions"
+
+    question_id: int = Field(
+        sa_column=Column(sa.Integer(), sa.ForeignKey("interview_questions.id", ondelete="CASCADE"), primary_key=True)
+    )
+    job_position_id: int = Field(
+        sa_column=Column(sa.Integer(), sa.ForeignKey("job_positions.id", ondelete="CASCADE"), primary_key=True)
+    )
+
+
 class InterviewQuestion(SQLModel, table=True):
     __tablename__ = "interview_questions"
 
@@ -587,10 +598,6 @@ class InterviewQuestion(SQLModel, table=True):
     question_text: str = Field(sa_column=Column(sa.Text(), nullable=False))
     category: Optional[str] = Field(default=None, sa_column=Column(sa.String(100), nullable=True))
     difficulty: Optional[str] = Field(default=None, sa_column=Column(sa.String(20), nullable=True))
-    job_position_id: Optional[int] = Field(
-        default=None,
-        sa_column=Column(sa.Integer(), sa.ForeignKey("job_positions.id", ondelete="SET NULL"), nullable=True),
-    )
     stage_type: Optional[str] = Field(default=None, sa_column=Column(sa.String(30), nullable=True))
     is_active: bool = Field(sa_column=Column(sa.Boolean(), nullable=False, server_default="true"))
     created_by_id: Optional[int] = Field(
@@ -599,8 +606,15 @@ class InterviewQuestion(SQLModel, table=True):
     )
     created_at: datetime = Field(default_factory=_utcnow)
 
-    __table_args__ = (
-        sa.Index("ix_interview_questions_position", "job_position_id"),
+
+class ScorecardCriterionJobPosition(SQLModel, table=True):
+    __tablename__ = "scorecard_criterion_job_positions"
+
+    criterion_id: int = Field(
+        sa_column=Column(sa.Integer(), sa.ForeignKey("scorecard_criteria.id", ondelete="CASCADE"), primary_key=True)
+    )
+    job_position_id: int = Field(
+        sa_column=Column(sa.Integer(), sa.ForeignKey("job_positions.id", ondelete="CASCADE"), primary_key=True)
     )
 
 
@@ -609,15 +623,7 @@ class ScorecardCriterion(SQLModel, table=True):
 
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(sa_column=Column(sa.String(200), nullable=False))
-    job_position_id: Optional[int] = Field(
-        default=None,
-        sa_column=Column(sa.Integer(), sa.ForeignKey("job_positions.id", ondelete="SET NULL"), nullable=True),
-    )
     stage_type: Optional[str] = Field(default=None, sa_column=Column(sa.String(30), nullable=True))
     max_score: int = Field(sa_column=Column(sa.SmallInteger(), nullable=False, server_default="5"))
     sort_order: int = Field(sa_column=Column(sa.SmallInteger(), nullable=False, server_default="0"))
     is_active: bool = Field(sa_column=Column(sa.Boolean(), nullable=False, server_default="true"))
-
-    __table_args__ = (
-        sa.Index("ix_scorecard_criteria_position", "job_position_id"),
-    )

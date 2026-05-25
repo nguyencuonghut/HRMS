@@ -6,7 +6,7 @@ from decimal import Decimal
 from typing import Optional
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.auth import User
@@ -14,9 +14,11 @@ from app.models.recruitment import (
     CandidateApplication,
     InterviewPanelist,
     InterviewQuestion,
+    InterviewQuestionJobPosition,
     InterviewSession,
     PipelineStage,
     ScorecardCriterion,
+    ScorecardCriterionJobPosition,
 )
 from app.schemas.recruitment import (
     InterviewCancelRequest,
@@ -311,6 +313,25 @@ async def cancel_interview(
     return await _interview_read(session, interview)
 
 
+async def _get_question_job_position_ids(session: AsyncSession, question_id: int) -> list[int]:
+    rows = await session.execute(
+        select(InterviewQuestionJobPosition.job_position_id).where(
+            InterviewQuestionJobPosition.question_id == question_id
+        )
+    )
+    return list(rows.scalars().all())
+
+
+async def _set_question_job_positions(session: AsyncSession, question_id: int, ids: list[int]) -> None:
+    await session.execute(
+        InterviewQuestionJobPosition.__table__.delete().where(
+            InterviewQuestionJobPosition.__table__.c.question_id == question_id
+        )
+    )
+    for jp_id in ids:
+        session.add(InterviewQuestionJobPosition(question_id=question_id, job_position_id=jp_id))
+
+
 async def list_questions(
     session: AsyncSession,
     job_position_id: Optional[int],
@@ -319,27 +340,35 @@ async def list_questions(
 ) -> list[InterviewQuestionRead]:
     query = select(InterviewQuestion).where(InterviewQuestion.is_active == True)  # noqa: E712
     if job_position_id:
-        query = query.where(InterviewQuestion.job_position_id == job_position_id)
+        # Return questions linked to this position OR questions with no position links (shared)
+        linked = select(InterviewQuestionJobPosition.question_id).where(
+            InterviewQuestionJobPosition.job_position_id == job_position_id
+        )
+        has_any_link = select(InterviewQuestionJobPosition.question_id).distinct()
+        query = query.where(
+            or_(InterviewQuestion.id.in_(linked), InterviewQuestion.id.not_in(has_any_link))
+        )
     if category:
         query = query.where(InterviewQuestion.category == category)
     if stage_type:
         query = query.where(InterviewQuestion.stage_type == stage_type)
     rows_q = await session.execute(query.order_by(InterviewQuestion.id.desc()))
     rows = rows_q.scalars().all()
-    return [
-        InterviewQuestionRead(
+    result = []
+    for row in rows:
+        jp_ids = await _get_question_job_position_ids(session, row.id)
+        result.append(InterviewQuestionRead(
             id=row.id,
             question_text=row.question_text,
             category=row.category,
             difficulty=row.difficulty,
-            job_position_id=row.job_position_id,
+            job_position_ids=jp_ids,
             stage_type=row.stage_type,
             is_active=row.is_active,
             created_by_id=row.created_by_id,
             created_at=row.created_at,
-        )
-        for row in rows
-    ]
+        ))
+    return result
 
 
 async def create_question(
@@ -347,10 +376,30 @@ async def create_question(
     data: InterviewQuestionCreate,
     created_by_id: int,
 ) -> InterviewQuestionRead:
-    question = InterviewQuestion(**data.model_dump(), created_by_id=created_by_id)
+    question = InterviewQuestion(
+        question_text=data.question_text,
+        category=data.category,
+        difficulty=data.difficulty,
+        stage_type=data.stage_type,
+        is_active=data.is_active,
+        created_by_id=created_by_id,
+    )
     session.add(question)
     await session.flush()
-    return InterviewQuestionRead.model_validate(question)
+    await _set_question_job_positions(session, question.id, data.job_position_ids)
+    await session.flush()
+    jp_ids = await _get_question_job_position_ids(session, question.id)
+    return InterviewQuestionRead(
+        id=question.id,
+        question_text=question.question_text,
+        category=question.category,
+        difficulty=question.difficulty,
+        job_position_ids=jp_ids,
+        stage_type=question.stage_type,
+        is_active=question.is_active,
+        created_by_id=question.created_by_id,
+        created_at=question.created_at,
+    )
 
 
 async def update_question(
@@ -361,10 +410,26 @@ async def update_question(
     question = await session.get(InterviewQuestion, question_id)
     if not question:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Không tìm thấy câu hỏi phỏng vấn")
-    for key, value in data.model_dump(exclude_unset=True).items():
+    update_data = data.model_dump(exclude_unset=True)
+    job_position_ids = update_data.pop("job_position_ids", None)
+    for key, value in update_data.items():
         setattr(question, key, value)
     await session.flush()
-    return InterviewQuestionRead.model_validate(question)
+    if job_position_ids is not None:
+        await _set_question_job_positions(session, question.id, job_position_ids)
+        await session.flush()
+    jp_ids = await _get_question_job_position_ids(session, question.id)
+    return InterviewQuestionRead(
+        id=question.id,
+        question_text=question.question_text,
+        category=question.category,
+        difficulty=question.difficulty,
+        job_position_ids=jp_ids,
+        stage_type=question.stage_type,
+        is_active=question.is_active,
+        created_by_id=question.created_by_id,
+        created_at=question.created_at,
+    )
 
 
 async def delete_question(session: AsyncSession, question_id: int) -> None:
@@ -375,6 +440,25 @@ async def delete_question(session: AsyncSession, question_id: int) -> None:
     await session.flush()
 
 
+async def _get_criterion_job_position_ids(session: AsyncSession, criterion_id: int) -> list[int]:
+    rows = await session.execute(
+        select(ScorecardCriterionJobPosition.job_position_id).where(
+            ScorecardCriterionJobPosition.criterion_id == criterion_id
+        )
+    )
+    return list(rows.scalars().all())
+
+
+async def _set_criterion_job_positions(session: AsyncSession, criterion_id: int, ids: list[int]) -> None:
+    await session.execute(
+        ScorecardCriterionJobPosition.__table__.delete().where(
+            ScorecardCriterionJobPosition.__table__.c.criterion_id == criterion_id
+        )
+    )
+    for jp_id in ids:
+        session.add(ScorecardCriterionJobPosition(criterion_id=criterion_id, job_position_id=jp_id))
+
+
 async def list_scorecard_criteria(
     session: AsyncSession,
     job_position_id: Optional[int],
@@ -382,24 +466,60 @@ async def list_scorecard_criteria(
 ) -> list[ScorecardCriterionRead]:
     query = select(ScorecardCriterion).where(ScorecardCriterion.is_active == True)  # noqa: E712
     if job_position_id:
-        query = query.where(ScorecardCriterion.job_position_id == job_position_id)
+        # Return criteria linked to this position OR criteria with no position links (shared)
+        linked = select(ScorecardCriterionJobPosition.criterion_id).where(
+            ScorecardCriterionJobPosition.job_position_id == job_position_id
+        )
+        has_any_link = select(ScorecardCriterionJobPosition.criterion_id).distinct()
+        query = query.where(
+            or_(ScorecardCriterion.id.in_(linked), ScorecardCriterion.id.not_in(has_any_link))
+        )
     if stage_type:
         query = query.where(ScorecardCriterion.stage_type == stage_type)
     rows_q = await session.execute(
         query.order_by(ScorecardCriterion.sort_order, ScorecardCriterion.id)
     )
     rows = rows_q.scalars().all()
-    return [ScorecardCriterionRead.model_validate(row) for row in rows]
+    result = []
+    for row in rows:
+        jp_ids = await _get_criterion_job_position_ids(session, row.id)
+        result.append(ScorecardCriterionRead(
+            id=row.id,
+            name=row.name,
+            job_position_ids=jp_ids,
+            stage_type=row.stage_type,
+            max_score=row.max_score,
+            sort_order=row.sort_order,
+            is_active=row.is_active,
+        ))
+    return result
 
 
 async def create_scorecard_criterion(
     session: AsyncSession,
     data: ScorecardCriterionCreate,
 ) -> ScorecardCriterionRead:
-    criterion = ScorecardCriterion(**data.model_dump())
+    criterion = ScorecardCriterion(
+        name=data.name,
+        stage_type=data.stage_type,
+        max_score=data.max_score,
+        sort_order=data.sort_order,
+        is_active=data.is_active,
+    )
     session.add(criterion)
     await session.flush()
-    return ScorecardCriterionRead.model_validate(criterion)
+    await _set_criterion_job_positions(session, criterion.id, data.job_position_ids)
+    await session.flush()
+    jp_ids = await _get_criterion_job_position_ids(session, criterion.id)
+    return ScorecardCriterionRead(
+        id=criterion.id,
+        name=criterion.name,
+        job_position_ids=jp_ids,
+        stage_type=criterion.stage_type,
+        max_score=criterion.max_score,
+        sort_order=criterion.sort_order,
+        is_active=criterion.is_active,
+    )
 
 
 async def update_scorecard_criterion(
@@ -410,10 +530,24 @@ async def update_scorecard_criterion(
     criterion = await session.get(ScorecardCriterion, criterion_id)
     if not criterion:
         raise HTTPException(status_code=404, detail="Không tìm thấy tiêu chí")
-    for field, value in data.model_dump(exclude_unset=True).items():
+    update_data = data.model_dump(exclude_unset=True)
+    job_position_ids = update_data.pop("job_position_ids", None)
+    for field, value in update_data.items():
         setattr(criterion, field, value)
     await session.flush()
-    return ScorecardCriterionRead.model_validate(criterion)
+    if job_position_ids is not None:
+        await _set_criterion_job_positions(session, criterion.id, job_position_ids)
+        await session.flush()
+    jp_ids = await _get_criterion_job_position_ids(session, criterion.id)
+    return ScorecardCriterionRead(
+        id=criterion.id,
+        name=criterion.name,
+        job_position_ids=jp_ids,
+        stage_type=criterion.stage_type,
+        max_score=criterion.max_score,
+        sort_order=criterion.sort_order,
+        is_active=criterion.is_active,
+    )
 
 
 async def delete_scorecard_criterion(

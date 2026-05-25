@@ -413,6 +413,19 @@
           <label class="rc-label">Câu hỏi <span class="rc-req">*</span></label>
           <Textarea v-model="questionDialog.question_text" rows="3" class="w-full" auto-resize />
         </div>
+        <div class="rc-field">
+          <label class="rc-label">Vị trí tuyển dụng</label>
+          <MultiSelect
+            v-model="questionDialog.job_position_ids"
+            :options="jobPositionOptions"
+            option-label="label"
+            option-value="value"
+            filter
+            display="chip"
+            class="w-full"
+            placeholder="Dùng chung (tất cả vị trí)"
+          />
+        </div>
         <div class="rc-row">
           <div class="rc-field">
             <label class="rc-label">Bước</label>
@@ -485,6 +498,19 @@
           <label class="rc-label">Tên tiêu chí <span class="rc-req">*</span></label>
           <InputText v-model="criterionDialog.name" class="w-full" />
         </div>
+        <div class="rc-field">
+          <label class="rc-label">Vị trí tuyển dụng</label>
+          <MultiSelect
+            v-model="criterionDialog.job_position_ids"
+            :options="jobPositionOptions"
+            option-label="label"
+            option-value="value"
+            filter
+            display="chip"
+            class="w-full"
+            placeholder="Dùng chung (tất cả vị trí)"
+          />
+        </div>
         <div class="rc-row">
           <div class="rc-field">
             <label class="rc-label">Bước</label>
@@ -549,6 +575,7 @@ import DataTable from "primevue/datatable";
 import Dialog from "primevue/dialog";
 import InputNumber from "primevue/inputnumber";
 import InputText from "primevue/inputtext";
+import MultiSelect from "primevue/multiselect";
 import Select from "primevue/select";
 import Tab from "primevue/tab";
 import TabList from "primevue/tablist";
@@ -560,6 +587,7 @@ import Textarea from "primevue/textarea";
 import { useConfirm } from "primevue/useconfirm";
 import { useToast } from "primevue/usetoast";
 
+import jobPositionService from "@/services/jobPositionService";
 import recruitmentService, {
   type InterviewQuestionRead,
   type PipelineStageTemplateItemInput,
@@ -573,6 +601,20 @@ const confirm = useConfirm();
 
 const activeTab = ref("templates");
 const errorBanner = ref("");
+
+const jobPositionOptions = ref<Array<{ label: string; value: number }>>([]);
+
+async function loadJobPositions() {
+  try {
+    const res = await jobPositionService.getList({ is_active: true });
+    jobPositionOptions.value = res.data.map((jp) => ({
+      label: jp.name,
+      value: jp.id,
+    }));
+  } catch {
+    // silent — job positions are optional filter
+  }
+}
 
 // ── Label helpers ──────────────────────────────────────────────────────────────
 
@@ -809,6 +851,7 @@ const questionDialog = ref({
   editing: null as InterviewQuestionRead | null,
   question_text: "",
   category: "",
+  job_position_ids: [] as number[],
   stage_type: null as string | null,
   difficulty: null as string | null,
   is_active: true,
@@ -837,6 +880,7 @@ function openCreateQuestion() {
     editing: null,
     question_text: "",
     category: "",
+    job_position_ids: [],
     stage_type: null,
     difficulty: null,
     is_active: true,
@@ -851,6 +895,7 @@ function openEditQuestion(q: InterviewQuestionRead) {
     editing: q,
     question_text: q.question_text,
     category: q.category ?? "",
+    job_position_ids: q.job_position_ids ?? [],
     stage_type: q.stage_type ?? null,
     difficulty: q.difficulty ?? null,
     is_active: q.is_active,
@@ -866,6 +911,7 @@ async function submitQuestion() {
   const payload = {
     question_text: questionDialog.value.question_text.trim(),
     category: questionDialog.value.category.trim() || null,
+    job_position_ids: questionDialog.value.job_position_ids,
     stage_type: questionDialog.value.stage_type || null,
     difficulty: (questionDialog.value.difficulty as "easy" | "medium" | "hard" | null) || null,
     is_active: questionDialog.value.is_active,
@@ -925,6 +971,7 @@ const criterionDialog = ref({
   error: "",
   editing: null as ScorecardCriterionRead | null,
   name: "",
+  job_position_ids: [] as number[],
   stage_type: null as string | null,
   max_score: 5,
   sort_order: 0,
@@ -952,6 +999,7 @@ function openCreateCriterion() {
     error: "",
     editing: null,
     name: "",
+    job_position_ids: [],
     stage_type: null,
     max_score: 5,
     sort_order: 0,
@@ -966,6 +1014,7 @@ function openEditCriterion(c: ScorecardCriterionRead) {
     error: "",
     editing: c,
     name: c.name,
+    job_position_ids: c.job_position_ids ?? [],
     stage_type: c.stage_type ?? null,
     max_score: c.max_score,
     sort_order: c.sort_order,
@@ -981,6 +1030,7 @@ async function submitCriterion() {
   }
   const payload = {
     name: criterionDialog.value.name.trim(),
+    job_position_ids: criterionDialog.value.job_position_ids,
     stage_type: criterionDialog.value.stage_type || null,
     max_score: criterionDialog.value.max_score,
     sort_order: criterionDialog.value.sort_order,
@@ -1035,6 +1085,7 @@ watch(activeTab, (tab) => {
 });
 
 onMounted(() => {
+  void loadJobPositions();
   loadTemplates();
 });
 </script>
