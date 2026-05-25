@@ -224,12 +224,41 @@ class Candidate(SQLModel, table=True):
 
     id: Optional[int] = Field(default=None, primary_key=True)
     full_name: str = Field(sa_column=Column(sa.String(200), nullable=False))
+    last_name: Optional[str] = Field(default=None, sa_column=Column(sa.String(100), nullable=True))
+    first_name: Optional[str] = Field(default=None, sa_column=Column(sa.String(100), nullable=True))
     date_of_birth: Optional[date] = Field(default=None, sa_column=Column(sa.Date(), nullable=True))
     gender: Optional[str] = Field(default=None, sa_column=Column(sa.String(10), nullable=True))
-    nationality: Optional[str] = Field(default=None, sa_column=Column(sa.String(100), nullable=True))
+    nationality_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(sa.Integer(), sa.ForeignKey("nationalities.id", ondelete="SET NULL"), nullable=True),
+    )
+    # Giữ lại dữ liệu text thô để import/backfill catalog, không dùng làm nguồn convert sang employee.
+    raw_nationality_text: Optional[str] = Field(
+        default=None,
+        sa_column=Column("nationality", sa.String(100), nullable=True),
+    )
+    ethnicity_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(sa.Integer(), sa.ForeignKey("ethnicities.id", ondelete="SET NULL"), nullable=True),
+    )
+    religion_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(sa.Integer(), sa.ForeignKey("religions.id", ondelete="SET NULL"), nullable=True),
+    )
     id_number: Optional[str] = Field(default=None, sa_column=Column(sa.String(30), nullable=True))
-    phone: Optional[str] = Field(default=None, sa_column=Column(sa.String(30), nullable=True))
-    email: Optional[str] = Field(default=None, sa_column=Column(sa.String(200), nullable=True))
+    id_issued_on: Optional[date] = Field(default=None, sa_column=Column(sa.Date(), nullable=True))
+    id_issued_by: Optional[str] = Field(default=None, sa_column=Column(sa.String(200), nullable=True))
+    id_expires_on: Optional[date] = Field(default=None, sa_column=Column(sa.Date(), nullable=True))
+    passport_number: Optional[str] = Field(default=None, sa_column=Column(sa.String(50), nullable=True))
+    passport_issued_on: Optional[date] = Field(default=None, sa_column=Column(sa.Date(), nullable=True))
+    passport_expires_on: Optional[date] = Field(default=None, sa_column=Column(sa.Date(), nullable=True))
+    work_permit_number: Optional[str] = Field(default=None, sa_column=Column(sa.String(50), nullable=True))
+    work_permit_issued_on: Optional[date] = Field(default=None, sa_column=Column(sa.Date(), nullable=True))
+    work_permit_expires_on: Optional[date] = Field(default=None, sa_column=Column(sa.Date(), nullable=True))
+    phone_number: Optional[str] = Field(default=None, sa_column=Column(sa.String(20), nullable=True))
+    personal_email: Optional[str] = Field(default=None, sa_column=Column(sa.String(200), nullable=True))
+    personal_tax_code: Optional[str] = Field(default=None, sa_column=Column(sa.String(20), nullable=True))
+    bhxh_code: Optional[str] = Field(default=None, sa_column=Column(sa.String(20), nullable=True))
     address: Optional[str] = Field(default=None, sa_column=Column(sa.Text(), nullable=True))
     current_company: Optional[str] = Field(default=None, sa_column=Column(sa.String(200), nullable=True))
     current_position: Optional[str] = Field(default=None, sa_column=Column(sa.String(200), nullable=True))
@@ -259,7 +288,7 @@ class Candidate(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=_utcnow)
 
     __table_args__ = (
-        sa.Index("ix_candidates_email", "email"),
+        sa.Index("ix_candidates_personal_email", "personal_email"),
     )
 
 

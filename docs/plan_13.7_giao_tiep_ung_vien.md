@@ -247,13 +247,13 @@ class CommunicationRead(BaseModel):
 **`send_email(candidate_id, template_id, application_id?, user_id, custom_override?) → CommunicationRead`**
 1. Build context từ application/candidate
 2. Render template → subject + body
-3. Gọi SMTP service gửi đến `candidate.email`
+3. Gọi SMTP service gửi đến `candidate.personal_email`
 4. Tạo `CandidateCommunication` record với status = sent/failed
 5. Ghi `sent_by_id = user_id`
 
 **`auto_send_on_stage_change(application_id, new_stage, triggered_by_user_id)`**
 - Tìm template có `trigger_event = f"stage_moved:{new_stage}"`
-- Nếu tìm được và `candidate.email` không rỗng → gọi `send_email` với `sent_by_id = None` (auto)
+- Nếu tìm được và `candidate.personal_email` không rỗng → gọi `send_email` với `sent_by_id = None` (auto)
 - Lỗi gửi mail KHÔNG rollback pipeline transition — log error, tiếp tục
 
 **`detect_merge_fields(body_html: str) → List[str]`**
@@ -356,7 +356,7 @@ frontend/
 
 | Rủi ro | Mức độ | Cách xử lý |
 |---|---|---|
-| Ứng viên không có email | Trung bình | Kiểm tra `candidate.email` trước khi send; bỏ qua auto-send nếu thiếu, cảnh báo nếu thủ công |
+| Ứng viên không có email | Trung bình | Kiểm tra `candidate.personal_email` trước khi send; bỏ qua auto-send nếu thiếu, cảnh báo nếu thủ công |
 | SMTP fail làm rollback pipeline | Cao | Email service fail ≠ rollback pipeline; log lỗi, status = failed trong communication log |
 | Merge field sai (thiếu data) | Trung bình | Render giữ nguyên `{{field}}` nếu thiếu → HR thấy ngay khi preview |
 | Spam / gửi trùng | Thấp | Check: cùng template + cùng application, trong vòng 1 giờ → warn trước khi gửi lại |

@@ -91,6 +91,76 @@
   border-radius: 6px;
 }
 
+.rc-dup-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  background: color-mix(in srgb, var(--p-yellow-400) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--p-yellow-400) 35%, transparent);
+  border-radius: 8px;
+}
+
+.rc-dup-panel--loading {
+  flex-direction: row;
+  align-items: center;
+  color: var(--p-yellow-700);
+}
+
+.rc-dup-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--p-yellow-700);
+  font-weight: 600;
+}
+
+.rc-dup-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.rc-dup-section-title {
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--l-text-muted);
+}
+
+.rc-dup-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.75rem;
+  background: var(--l-surface);
+  border: 1px solid var(--l-border);
+  border-radius: 8px;
+}
+
+.rc-dup-item--exact {
+  border-color: color-mix(in srgb, var(--p-red-500) 35%, var(--l-border));
+}
+
+.rc-dup-item-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.rc-dup-item-meta {
+  font-size: 0.82rem;
+  color: var(--l-text-muted);
+}
+
+.rc-dup-reasons {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
 // Detail view
 .rc-detail {
   display: flex;
@@ -255,4 +325,66 @@ html.dark-mode .rc-lang-warning { color: var(--p-yellow-300); }
 .rc-fulfillment-label {
   font-size: 0.82rem;
   color: var(--l-text-muted);
+}
+
+// Candidate detail
+.cand-sub-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: flex-start;
+  padding: 0.75rem 0;
+  border-top: 1px solid var(--l-border);
+}
+
+.cand-sub-row:first-of-type {
+  border-top: none;
+}
+
+.cand-sub-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.cand-sub-title {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.cand-sub-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  flex-shrink: 0;
+}
+
+.cand-skill-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.55rem;
+  border: 1px solid var(--l-border);
+  border-radius: 999px;
+  background: var(--l-surface);
+  font-size: 0.85rem;
+}
+
+.rc-conversion-ready,
+.rc-conversion-missing {
+  padding: 0.85rem 1rem;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.rc-conversion-ready {
+  background: color-mix(in srgb, var(--p-green-500) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--p-green-500) 25%, transparent);
+  color: var(--p-green-700);
+}
+
+.rc-conversion-missing {
+  background: color-mix(in srgb, var(--p-orange-500) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--p-orange-500) 25%, transparent);
+  color: var(--p-orange-700);
 }

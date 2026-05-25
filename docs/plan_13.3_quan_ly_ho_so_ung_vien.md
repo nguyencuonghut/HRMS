@@ -1,9 +1,11 @@
 # Kế hoạch triển khai — 13.3. Quản lý hồ sơ ứng viên
 
 **Phạm vi:** Candidate profile · Talent Pool · Tiếp nhận hồ sơ · Đính kèm file  
-**Phụ thuộc:** `13.1 JR` · `13.2 Job Postings` · `education_levels` ✅ · MinIO ✅  
+**Phụ thuộc:** `13.1 JR` · `13.2 Job Postings` · `education_levels` ✅ · `nationalities / ethnicities / religions` ✅ · MinIO ✅  
 **Căn cứ nghiệp vụ:** FEATURES.md §13.3  
 **Lưu ý kiến trúc:** Bảng `candidates` **độc lập** với `employees` — chỉ migrate sang employees sau khi có Quyết định tuyển dụng (13.5)
+
+**Nguyên tắc thiết kế cập nhật:** `Candidate` phải là một **Employee Draft + Recruitment Metadata**. Các trường nhân thân và giấy tờ cần bám sát shape của `Employee` để bước convert ở 13.5 là copy/validate, không phải transform nhiều lớp.
 
 ---
 
@@ -47,12 +49,32 @@ CREATE TABLE candidates (
 
     -- Thông tin cá nhân
     full_name       VARCHAR(200) NOT NULL,
+    last_name       VARCHAR(100),         -- ưu tiên lưu cùng shape với employees
+    first_name      VARCHAR(100),
     date_of_birth   DATE,
     gender          VARCHAR(10),          -- male | female | other
-    nationality     VARCHAR(100),
+    nationality_id  INTEGER REFERENCES nationalities(id),
+    raw_nationality_text VARCHAR(100),    -- dữ liệu thô khi import, dùng để map catalog
+    ethnicity_id    INTEGER REFERENCES ethnicities(id),
+    religion_id     INTEGER REFERENCES religions(id),
+
+    -- Giấy tờ nhận dạng — align với employees
     id_number       VARCHAR(30),          -- CCCD/CMND/Hộ chiếu
-    phone           VARCHAR(30),
-    email           VARCHAR(200),
+    id_issued_on    DATE,
+    id_issued_by    VARCHAR(200),
+    id_expires_on   DATE,
+    passport_number VARCHAR(50),
+    passport_issued_on DATE,
+    passport_expires_on DATE,
+    work_permit_number VARCHAR(50),
+    work_permit_issued_on DATE,
+    work_permit_expires_on DATE,
+
+    -- Liên lạc / mã số cá nhân — align với employees
+    phone_number    VARCHAR(20),
+    personal_email  VARCHAR(200),
+    personal_tax_code VARCHAR(20),
+    bhxh_code       VARCHAR(20),
 
     -- Địa chỉ (text tự do — không normalize như Employee)
     address         TEXT,
@@ -76,7 +98,7 @@ CREATE TABLE candidates (
     updated_at      TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX ix_candidates_email ON candidates(email);
+CREATE INDEX ix_candidates_personal_email ON candidates(personal_email);
 CREATE INDEX ix_candidates_name  ON candidates USING gin(to_tsvector('simple', full_name));
 ```
 
@@ -172,7 +194,9 @@ CREATE INDEX ix_applications_stage ON candidate_applications(current_stage);
 
 ### Alembic migration
 
-File: `0035_add_candidates.py`
+Files:
+- `0035_add_candidates.py`
+- `0036_align_candidate_personal_fields.py`
 
 ---
 
@@ -183,6 +207,7 @@ File: `0035_add_candidates.py`
 ```
 GET    /recruitment/candidates?search=&source_channel_id=&page=&page_size=
 POST   /recruitment/candidates
+POST   /recruitment/candidates/check-duplicates
 GET    /recruitment/candidates/{id}
 PUT    /recruitment/candidates/{id}
 DELETE /recruitment/candidates/{id}   -- soft delete (is_active=false)
@@ -235,12 +260,28 @@ GET    /recruitment/candidates/import-template         -- tải file mẫu
 ```python
 class CandidateCreate(BaseModel):
     full_name: str
+    last_name: Optional[str] = None
+    first_name: Optional[str] = None
     date_of_birth: Optional[date] = None
     gender: Optional[str] = None
-    nationality: Optional[str] = None
+    nationality_id: Optional[int] = None
+    raw_nationality_text: Optional[str] = None
+    ethnicity_id: Optional[int] = None
+    religion_id: Optional[int] = None
     id_number: Optional[str] = None
-    phone: Optional[str] = None
-    email: Optional[str] = None
+    id_issued_on: Optional[date] = None
+    id_issued_by: Optional[str] = None
+    id_expires_on: Optional[date] = None
+    passport_number: Optional[str] = None
+    passport_issued_on: Optional[date] = None
+    passport_expires_on: Optional[date] = None
+    work_permit_number: Optional[str] = None
+    work_permit_issued_on: Optional[date] = None
+    work_permit_expires_on: Optional[date] = None
+    phone_number: Optional[str] = None
+    personal_email: Optional[str] = None
+    personal_tax_code: Optional[str] = None
+    bhxh_code: Optional[str] = None
     address: Optional[str] = None
     current_company: Optional[str] = None
     current_position: Optional[str] = None
@@ -252,12 +293,19 @@ class CandidateCreate(BaseModel):
 
 class CandidateRead(CandidateCreate):
     id: int
+    nationality_name: Optional[str]
+    ethnicity_name: Optional[str]
+    religion_name: Optional[str]
     source_channel_name: Optional[str]
     educations: List[CandidateEducationRead]
     work_experiences: List[CandidateWorkExpRead]
     skills: List[CandidateSkillRead]
     attachments: List[CandidateAttachmentRead]
     active_applications: int   -- số JR đang xét
+    identity_strength: Literal["weak", "medium", "strong"]
+    identity_strength_label: str
+    conversion_ready: bool
+    conversion_missing_fields: List[str]
     created_by_name: Optional[str]
     created_at: datetime
     updated_at: datetime
@@ -265,11 +313,14 @@ class CandidateRead(CandidateCreate):
 class CandidateListItem(BaseModel):
     id: int
     full_name: str
-    phone: Optional[str]
-    email: Optional[str]
+    phone_number: Optional[str]
+    personal_email: Optional[str]
     current_position: Optional[str]
+    nationality_name: Optional[str]
     source_channel_name: Optional[str]
     active_applications: int
+    identity_strength: Literal["weak", "medium", "strong"]
+    identity_strength_label: str
     created_at: datetime
 
 class CandidateListPage(BaseModel):
@@ -277,6 +328,33 @@ class CandidateListPage(BaseModel):
     total: int
     page: int
     page_size: int
+
+class CandidateDuplicateCheck(BaseModel):
+    full_name: Optional[str] = None
+    date_of_birth: Optional[date] = None
+    id_number: Optional[str] = None
+    passport_number: Optional[str] = None
+    phone_number: Optional[str] = None
+    personal_email: Optional[str] = None
+    exclude_candidate_id: Optional[int] = None
+
+class CandidateDuplicateMatch(BaseModel):
+    candidate_id: int
+    full_name: str
+    date_of_birth: Optional[date]
+    id_number: Optional[str]
+    passport_number: Optional[str]
+    phone_number: Optional[str]
+    personal_email: Optional[str]
+    current_company: Optional[str]
+    current_position: Optional[str]
+    match_level: Literal["exact", "possible"]
+    reason_codes: List[str]
+    reason_labels: List[str]
+
+class CandidateDuplicateCheckResult(BaseModel):
+    exact_matches: List[CandidateDuplicateMatch]
+    possible_matches: List[CandidateDuplicateMatch]
 
 class ApplicationCreate(BaseModel):
     job_requisition_id: int
@@ -307,12 +385,42 @@ class ApplicationRead(BaseModel):
 ### `candidate_service.py`
 
 **`create_candidate(session, data, created_by_id) → CandidateRead`**
-- Kiểm tra trùng email (warning, không block — ứng viên có thể dùng email cũ)
+- Bắt buộc `full_name`
+- Bắt buộc có ít nhất 1 identity anchor: `personal_email` hoặc `phone_number` hoặc `id_number` hoặc `passport_number`
+- Nếu `last_name` / `first_name` không truyền → auto tách từ `full_name`
+- Nếu `raw_nationality_text` có giá trị → cố gắng map sang `nationality_id`
 - Tạo candidate record
 
+**`get_candidate_identity_strength(candidate) → weak | medium | strong`**
+- `strong`: có `id_number` hoặc `passport_number`
+- `medium`: có `personal_email` hoặc `phone_number` hoặc `full_name + date_of_birth`
+- `weak`: chỉ có `full_name` hoặc dữ liệu nhận diện quá ít
+- Dùng để hiển thị badge trên danh sách/chi tiết, giúp HR biết hồ sơ nào khó đối chiếu trùng
+
+**`check_candidate_duplicates(session, data) → CandidateDuplicateCheckResult`**
+- Mục tiêu: cảnh báo sớm candidate có thể đã tồn tại trước khi HR bấm "Tạo"
+- Rule `exact`:
+  - trùng `id_number`
+  - hoặc trùng `passport_number`
+  - hoặc trùng `personal_email`
+  - hoặc trùng `phone_number`
+- Rule `possible`:
+  - trùng `full_name + date_of_birth`
+  - hoặc trùng `full_name` đơn thuần
+- `exclude_candidate_id` dùng cho mode edit để không tự match chính record đang sửa
+- Endpoint chỉ trả warning/mức độ nghi ngờ, không tự merge và không block cứng việc tạo mới
+
 **`search_candidates(session, search, source_channel_id, page, page_size)`**
-- Full-text search trên `full_name` (GIN index), `email`, `phone`
+- Full-text search trên `full_name` (GIN index), `personal_email`, `phone_number`
 - Lọc theo `source_channel_id`
+
+**`get_candidate_conversion_readiness(candidate) → {ready, missing_fields}`**
+- Kiểm tra các field tối thiểu để tạo `Employee` ở 13.5:
+  - `last_name`, `first_name`
+  - `date_of_birth`, `gender`
+  - `nationality_id`
+  - `id_number`, `id_issued_on`, `id_issued_by`
+- Dùng để hiển thị cảnh báo sớm trên hồ sơ ứng viên, thay vì fail muộn ở bước convert
 
 **`apply_candidate(session, candidate_id, jr_id, data, created_by_id)`**
 - Kiểm tra unique `(candidate_id, jr_id)` — cùng ứng viên không apply 2 lần cùng 1 JR
@@ -328,7 +436,7 @@ class ApplicationRead(BaseModel):
 **`import_candidates_excel(session, content, created_by_id) → ImportResult`**
 - Đọc file Excel theo mẫu
 - Validate từng dòng
-- Upsert theo email (nếu email đã có → update, chưa có → insert)
+- Upsert theo `personal_email` (nếu email cá nhân đã có → update, chưa có → insert)
 - Trả về `created`, `updated`, `skipped`, `errors`
 
 ---
@@ -340,8 +448,9 @@ class ApplicationRead(BaseModel):
 **Toolbar:**
 - Button "Thêm ứng viên" → `CandidateFormDialog.vue`
 - Button "Import Excel" → `CandidateImportDialog.vue`
-- Search input (full-name, email, phone)
+- Search input (`full_name`, `personal_email`, `phone_number`)
 - Filter: Kênh nguồn, Trạng thái ứng tuyển
+- Hiển thị badge `identity_strength` ngay trong danh sách
 
 **DataTable:**
 
@@ -369,10 +478,21 @@ class ApplicationRead(BaseModel):
 
 ### `CandidateFormDialog.vue`
 
-- Thông tin cá nhân cơ bản
+- Thông tin cá nhân bám theo shape `Employee`:
+  - `full_name`, `last_name`, `first_name`
+  - `date_of_birth`, `gender`
+  - `nationality_id`, `ethnicity_id`, `religion_id`
+  - `id_number`, `id_issued_on`, `id_issued_by`
+  - `phone_number`, `personal_email`, `personal_tax_code`, `bhxh_code`
 - Chọn nguồn kênh
 - Tags (chip input)
 - Ghi chú nội bộ
+- Gọi `POST /recruitment/candidates/check-duplicates` khi user nhập các field nhận diện
+- Trước khi submit create: validate phải có ít nhất 1 identity anchor (`personal_email` / `phone_number` / `id_number` / `passport_number`)
+- Nếu có match:
+  - hiển thị panel cảnh báo trong modal
+  - tách rõ `Trùng mạnh` (`exact_matches`) và `Có thể trùng` (`possible_matches`)
+  - mỗi item hiển thị lý do match + thông tin nhận diện chính để HR quyết định mở hồ sơ cũ hay vẫn tạo mới
 
 ---
 
@@ -423,14 +543,19 @@ frontend/
 - `CandidateDetailView.vue` với đầy đủ tabs
 - `CandidateImportDialog.vue`
 
+### Ghi chú triển khai mới
+- Dù `Candidate` vẫn cho phép tạo nhanh với dữ liệu chưa đủ, shape dữ liệu phải bám `Employee`
+- Convert ở 13.5 chỉ được phép fail do dữ liệu thiếu bắt buộc, không được fail do lệch type/text-vs-FK
+
 ---
 
 ## Rủi ro và cách xử lý
 
 | Rủi ro | Mức độ | Cách xử lý |
 |---|---|---|
-| Trùng ứng viên (cùng người apply nhiều lần) | Trung bình | Kiểm tra email khi tạo, warning nếu trùng; unique constraint `(candidate_id, jr_id)` |
+| Trùng ứng viên (cùng người apply nhiều lần) | Trung bình | Dùng `check-duplicates` trước khi tạo: exact theo `id_number` / `passport_number` / `personal_email` / `phone_number`, possible theo `full_name(+date_of_birth)`; HR quyết định mở hồ sơ cũ hay vẫn tạo mới |
+| Hồ sơ định danh quá yếu, khó đối chiếu trùng | Trung bình | Rule create mới yêu cầu ít nhất 1 identity anchor; đồng thời hiển thị badge `identity_strength` để HR ưu tiên bổ sung dữ liệu |
 | File CV lớn (nhiều trang, scan chất lượng cao) | Trung bình | Giới hạn 20MB/file; MinIO xử lý async |
 | GDPR / quyền riêng tư | Trung bình | `is_active = false` khi ứng viên yêu cầu xóa; không xóa cứng để tránh orphan records |
 | Talent pool quá lớn, search chậm | Thấp | GIN index full-text; pagination bắt buộc |
-| Import trùng email | Thấp | Upsert theo email — update nếu đã có, insert nếu chưa |
+| Import trùng email | Thấp | Upsert theo `personal_email` — update nếu đã có, insert nếu chưa |

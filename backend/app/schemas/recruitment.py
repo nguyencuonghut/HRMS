@@ -5,7 +5,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import List, Literal, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import AliasChoices, BaseModel, Field, field_validator, model_validator
 
 JRReasonType = Literal["new", "replacement", "expansion"]
 JRReasonLabels: dict[str, str] = {
@@ -249,6 +249,13 @@ PostingTypeLabels: dict[str, str] = {
     "external": "Bên ngoài",
 }
 
+IdentityStrength = Literal["weak", "medium", "strong"]
+IdentityStrengthLabels: dict[str, str] = {
+    "weak": "Định danh yếu",
+    "medium": "Định danh trung bình",
+    "strong": "Định danh mạnh",
+}
+
 
 class JobPostingCreate(BaseModel):
     job_requisition_id: int
@@ -415,12 +422,40 @@ class CandidateAttachmentRead(BaseModel):
 
 class CandidateCreate(BaseModel):
     full_name: str = Field(min_length=1, max_length=200)
+    last_name: Optional[str] = Field(default=None, max_length=100)
+    first_name: Optional[str] = Field(default=None, max_length=100)
     date_of_birth: Optional[date] = None
     gender: Optional[CandidateGender] = None
-    nationality: Optional[str] = Field(default=None, max_length=100)
+    nationality_id: Optional[int] = None
+    raw_nationality_text: Optional[str] = Field(
+        default=None,
+        max_length=100,
+        validation_alias=AliasChoices("raw_nationality_text", "nationality"),
+    )
+    ethnicity_id: Optional[int] = None
+    religion_id: Optional[int] = None
     id_number: Optional[str] = Field(default=None, max_length=30)
-    phone: Optional[str] = Field(default=None, max_length=30)
-    email: Optional[str] = Field(default=None, max_length=200)
+    id_issued_on: Optional[date] = None
+    id_issued_by: Optional[str] = Field(default=None, max_length=200)
+    id_expires_on: Optional[date] = None
+    passport_number: Optional[str] = Field(default=None, max_length=50)
+    passport_issued_on: Optional[date] = None
+    passport_expires_on: Optional[date] = None
+    work_permit_number: Optional[str] = Field(default=None, max_length=50)
+    work_permit_issued_on: Optional[date] = None
+    work_permit_expires_on: Optional[date] = None
+    phone_number: Optional[str] = Field(
+        default=None,
+        max_length=20,
+        validation_alias=AliasChoices("phone_number", "phone"),
+    )
+    personal_email: Optional[str] = Field(
+        default=None,
+        max_length=200,
+        validation_alias=AliasChoices("personal_email", "email"),
+    )
+    personal_tax_code: Optional[str] = Field(default=None, max_length=20)
+    bhxh_code: Optional[str] = Field(default=None, max_length=20)
     address: Optional[str] = None
     current_company: Optional[str] = Field(default=None, max_length=200)
     current_position: Optional[str] = Field(default=None, max_length=200)
@@ -430,15 +465,77 @@ class CandidateCreate(BaseModel):
     internal_note: Optional[str] = None
     tags: List[str] = Field(default_factory=list)
 
+    @field_validator(
+        "full_name",
+        "last_name",
+        "first_name",
+        "raw_nationality_text",
+        "id_number",
+        "id_issued_by",
+        "passport_number",
+        "work_permit_number",
+        "phone_number",
+        "personal_email",
+        "personal_tax_code",
+        "bhxh_code",
+        "current_company",
+        "current_position",
+        "source_note",
+        "internal_note",
+        mode="before",
+    )
+    @classmethod
+    def strip_string_fields(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        stripped = value.strip()
+        return stripped or None
+
+    @model_validator(mode="after")
+    def validate_identity_anchor(self) -> "CandidateCreate":
+        if any((self.personal_email, self.phone_number, self.id_number, self.passport_number)):
+            return self
+        raise ValueError(
+            "Cần nhập ít nhất một thông tin định danh: email cá nhân, số điện thoại, CCCD/CMND hoặc hộ chiếu"
+        )
+
 
 class CandidateUpdate(BaseModel):
     full_name: Optional[str] = Field(default=None, min_length=1, max_length=200)
+    last_name: Optional[str] = Field(default=None, max_length=100)
+    first_name: Optional[str] = Field(default=None, max_length=100)
     date_of_birth: Optional[date] = None
     gender: Optional[CandidateGender] = None
-    nationality: Optional[str] = Field(default=None, max_length=100)
+    nationality_id: Optional[int] = None
+    raw_nationality_text: Optional[str] = Field(
+        default=None,
+        max_length=100,
+        validation_alias=AliasChoices("raw_nationality_text", "nationality"),
+    )
+    ethnicity_id: Optional[int] = None
+    religion_id: Optional[int] = None
     id_number: Optional[str] = Field(default=None, max_length=30)
-    phone: Optional[str] = Field(default=None, max_length=30)
-    email: Optional[str] = Field(default=None, max_length=200)
+    id_issued_on: Optional[date] = None
+    id_issued_by: Optional[str] = Field(default=None, max_length=200)
+    id_expires_on: Optional[date] = None
+    passport_number: Optional[str] = Field(default=None, max_length=50)
+    passport_issued_on: Optional[date] = None
+    passport_expires_on: Optional[date] = None
+    work_permit_number: Optional[str] = Field(default=None, max_length=50)
+    work_permit_issued_on: Optional[date] = None
+    work_permit_expires_on: Optional[date] = None
+    phone_number: Optional[str] = Field(
+        default=None,
+        max_length=20,
+        validation_alias=AliasChoices("phone_number", "phone"),
+    )
+    personal_email: Optional[str] = Field(
+        default=None,
+        max_length=200,
+        validation_alias=AliasChoices("personal_email", "email"),
+    )
+    personal_tax_code: Optional[str] = Field(default=None, max_length=20)
+    bhxh_code: Optional[str] = Field(default=None, max_length=20)
     address: Optional[str] = None
     current_company: Optional[str] = Field(default=None, max_length=200)
     current_position: Optional[str] = Field(default=None, max_length=200)
@@ -448,19 +545,64 @@ class CandidateUpdate(BaseModel):
     internal_note: Optional[str] = None
     tags: Optional[List[str]] = None
 
+    @field_validator(
+        "full_name",
+        "last_name",
+        "first_name",
+        "raw_nationality_text",
+        "id_number",
+        "id_issued_by",
+        "passport_number",
+        "work_permit_number",
+        "phone_number",
+        "personal_email",
+        "personal_tax_code",
+        "bhxh_code",
+        "current_company",
+        "current_position",
+        "source_note",
+        "internal_note",
+        mode="before",
+    )
+    @classmethod
+    def strip_string_fields(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        stripped = value.strip()
+        return stripped or None
+
 
 class CandidateRead(BaseModel):
     model_config = {"from_attributes": True}
 
     id: int
     full_name: str
+    last_name: Optional[str]
+    first_name: Optional[str]
     date_of_birth: Optional[date]
     gender: Optional[str]
     gender_label: Optional[str]
-    nationality: Optional[str]
+    nationality_id: Optional[int]
+    nationality_name: Optional[str]
+    raw_nationality_text: Optional[str]
+    ethnicity_id: Optional[int]
+    ethnicity_name: Optional[str]
+    religion_id: Optional[int]
+    religion_name: Optional[str]
     id_number: Optional[str]
-    phone: Optional[str]
-    email: Optional[str]
+    id_issued_on: Optional[date]
+    id_issued_by: Optional[str]
+    id_expires_on: Optional[date]
+    passport_number: Optional[str]
+    passport_issued_on: Optional[date]
+    passport_expires_on: Optional[date]
+    work_permit_number: Optional[str]
+    work_permit_issued_on: Optional[date]
+    work_permit_expires_on: Optional[date]
+    phone_number: Optional[str]
+    personal_email: Optional[str]
+    personal_tax_code: Optional[str]
+    bhxh_code: Optional[str]
     address: Optional[str]
     current_company: Optional[str]
     current_position: Optional[str]
@@ -476,6 +618,10 @@ class CandidateRead(BaseModel):
     skills: List[CandidateSkillRead]
     attachments: List[CandidateAttachmentRead]
     active_applications: int
+    identity_strength: IdentityStrength
+    identity_strength_label: str
+    conversion_ready: bool
+    conversion_missing_fields: List[str]
     created_by_name: Optional[str]
     created_at: datetime
     updated_at: datetime
@@ -486,12 +632,15 @@ class CandidateListItem(BaseModel):
 
     id: int
     full_name: str
-    phone: Optional[str]
-    email: Optional[str]
+    phone_number: Optional[str]
+    personal_email: Optional[str]
     current_position: Optional[str]
     current_company: Optional[str]
+    nationality_name: Optional[str]
     source_channel_name: Optional[str]
     active_applications: int
+    identity_strength: IdentityStrength
+    identity_strength_label: str
     created_at: datetime
 
 
@@ -500,6 +649,70 @@ class CandidateListPage(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+DuplicateMatchLevel = Literal["exact", "possible"]
+CandidateDuplicateReasonLabels: dict[str, str] = {
+    "same_id_number": "Trùng số CCCD / CMND",
+    "same_passport_number": "Trùng số hộ chiếu",
+    "same_personal_email": "Trùng email cá nhân",
+    "same_phone_number": "Trùng số điện thoại",
+    "same_full_name_and_date_of_birth": "Trùng họ tên và ngày sinh",
+    "same_full_name": "Trùng họ tên",
+}
+
+
+class CandidateDuplicateCheck(BaseModel):
+    full_name: Optional[str] = Field(default=None, min_length=1, max_length=200)
+    date_of_birth: Optional[date] = None
+    id_number: Optional[str] = Field(default=None, max_length=30)
+    passport_number: Optional[str] = Field(default=None, max_length=50)
+    phone_number: Optional[str] = Field(
+        default=None,
+        max_length=20,
+        validation_alias=AliasChoices("phone_number", "phone"),
+    )
+    personal_email: Optional[str] = Field(
+        default=None,
+        max_length=200,
+        validation_alias=AliasChoices("personal_email", "email"),
+    )
+    exclude_candidate_id: Optional[int] = None
+
+    @field_validator(
+        "full_name",
+        "id_number",
+        "passport_number",
+        "phone_number",
+        "personal_email",
+        mode="before",
+    )
+    @classmethod
+    def strip_duplicate_check_strings(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        stripped = value.strip()
+        return stripped or None
+
+
+class CandidateDuplicateMatch(BaseModel):
+    candidate_id: int
+    full_name: str
+    date_of_birth: Optional[date]
+    id_number: Optional[str]
+    passport_number: Optional[str]
+    phone_number: Optional[str]
+    personal_email: Optional[str]
+    current_company: Optional[str]
+    current_position: Optional[str]
+    match_level: DuplicateMatchLevel
+    reason_codes: List[str]
+    reason_labels: List[str]
+
+
+class CandidateDuplicateCheckResult(BaseModel):
+    exact_matches: List[CandidateDuplicateMatch]
+    possible_matches: List[CandidateDuplicateMatch]
 
 
 class ApplicationCreate(BaseModel):
@@ -526,6 +739,13 @@ class ApplicationRead(BaseModel):
     internal_note: Optional[str]
     created_at: datetime
     updated_at: datetime
+
+
+class ApplicationListPage(BaseModel):
+    items: List[ApplicationRead]
+    total: int
+    page: int
+    page_size: int
 
 
 class ImportResult(BaseModel):

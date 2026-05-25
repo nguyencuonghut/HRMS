@@ -292,7 +292,10 @@ class ConvertToEmployeeResult(BaseModel):
 ```
 1. Lấy candidate từ hiring_decision
 2. Tạo Employee:
-   - full_name, date_of_birth, gender, nationality, id_number, phone, personal_email
+   - copy gần như 1:1 từ Candidate: `full_name`, `last_name`, `first_name`, `date_of_birth`, `gender`,
+     `nationality_id`, `ethnicity_id`, `religion_id`, `id_number`, `id_issued_on`, `id_issued_by`,
+     `id_expires_on`, `passport_*`, `work_permit_*`, `phone_number`, `personal_email`,
+     `personal_tax_code`, `bhxh_code`
    - status = 'probation'
    - Sinh employee_code (tái dụng employee_code_service)
 3. Tạo EmployeeJobRecord:
@@ -312,6 +315,10 @@ class ConvertToEmployeeResult(BaseModel):
    - Nếu quantity_remaining = 0: status → completed
 7. Ghi AuditLog
 ```
+
+**Lưu ý contract:** bước convert không được làm normalize text cho các field catalog cốt lõi như quốc tịch.
+Việc map `Candidate.raw_nationality_text -> nationality_id` phải được xử lý từ 13.3. Khi tới 13.5,
+`Candidate` được xem là một `Employee Draft`, và convert chỉ còn là copy + validate readiness.
 
 ---
 

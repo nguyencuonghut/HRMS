@@ -12,6 +12,7 @@ from app.core.database import get_session
 from app.models.auth import User
 from app.schemas.recruitment import (
     ApplicationCreate,
+    ApplicationListPage,
     ApplicationRead,
     BudgetItemCreate,
     BudgetItemRead,
@@ -20,6 +21,8 @@ from app.schemas.recruitment import (
     CancelRequest,
     CandidateAttachmentRead,
     CandidateCreate,
+    CandidateDuplicateCheck,
+    CandidateDuplicateCheckResult,
     CandidateEducationCreate,
     CandidateEducationRead,
     CandidateListPage,
@@ -706,6 +709,15 @@ async def list_candidates(
     return await candidate_service.list_candidates(session, search, source_channel_id, page, page_size)
 
 
+@router.post("/candidates/check-duplicates", response_model=CandidateDuplicateCheckResult, tags=[_TAG])
+async def check_candidate_duplicates(
+    data: CandidateDuplicateCheck,
+    _: User = require_permission("recruitment:manage"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await candidate_service.check_candidate_duplicates(session, data)
+
+
 @router.post("/candidates", response_model=CandidateRead, status_code=status.HTTP_201_CREATED, tags=[_TAG])
 async def create_candidate(
     data: CandidateCreate,
@@ -981,6 +993,7 @@ async def apply_candidate(
 
 @router.get(
     "/job-requisitions/{jr_id}/applications",
+    response_model=ApplicationListPage,
     tags=[_TAG],
 )
 async def list_applications(
@@ -992,3 +1005,18 @@ async def list_applications(
     session: AsyncSession = Depends(get_session),
 ):
     return await candidate_service.list_applications(session, jr_id, stage, page, page_size)
+
+
+@router.get(
+    "/candidates/{candidate_id}/applications",
+    response_model=ApplicationListPage,
+    tags=[_TAG],
+)
+async def list_candidate_applications(
+    candidate_id: int,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    current_user: User = require_permission("recruitment:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await candidate_service.list_candidate_applications(session, candidate_id, page, page_size)

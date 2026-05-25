@@ -329,4 +329,320 @@ export default {
 
   validateLanguage: (text: string) =>
     api.post<{ warnings: string[] }>('/recruitment/job-postings/validate-language', { text }),
+
+  // ── Candidates (13.3) ──────────────────────────────────────────────────────
+
+  listCandidates: (params?: Record<string, unknown>) =>
+    api.get<CandidateListPage>('/recruitment/candidates', { params }),
+
+  getCandidate: (id: number) =>
+    api.get<CandidateRead>(`/recruitment/candidates/${id}`),
+
+  checkCandidateDuplicates: (data: CandidateDuplicateCheck) =>
+    api.post<CandidateDuplicateCheckResult>('/recruitment/candidates/check-duplicates', data),
+
+  createCandidate: (data: CandidateCreate) =>
+    api.post<CandidateRead>('/recruitment/candidates', data),
+
+  updateCandidate: (id: number, data: CandidateUpdate) =>
+    api.put<CandidateRead>(`/recruitment/candidates/${id}`, data),
+
+  deleteCandidate: (id: number) =>
+    api.delete(`/recruitment/candidates/${id}`),
+
+  addEducation: (candidateId: number, data: CandidateEducationCreate) =>
+    api.post<CandidateEducationRead>(`/recruitment/candidates/${candidateId}/educations`, data),
+
+  updateEducation: (candidateId: number, eduId: number, data: CandidateEducationCreate) =>
+    api.put<CandidateEducationRead>(`/recruitment/candidates/${candidateId}/educations/${eduId}`, data),
+
+  deleteEducation: (candidateId: number, eduId: number) =>
+    api.delete(`/recruitment/candidates/${candidateId}/educations/${eduId}`),
+
+  addWorkExperience: (candidateId: number, data: CandidateWorkExpCreate) =>
+    api.post<CandidateWorkExpRead>(`/recruitment/candidates/${candidateId}/work-experiences`, data),
+
+  updateWorkExperience: (candidateId: number, expId: number, data: CandidateWorkExpCreate) =>
+    api.put<CandidateWorkExpRead>(`/recruitment/candidates/${candidateId}/work-experiences/${expId}`, data),
+
+  deleteWorkExperience: (candidateId: number, expId: number) =>
+    api.delete(`/recruitment/candidates/${candidateId}/work-experiences/${expId}`),
+
+  addSkill: (candidateId: number, data: { skill_name: string; proficiency_level?: string }) =>
+    api.post<CandidateSkillRead>(`/recruitment/candidates/${candidateId}/skills`, data),
+
+  deleteSkill: (candidateId: number, skillId: number) =>
+    api.delete(`/recruitment/candidates/${candidateId}/skills/${skillId}`),
+
+  uploadAttachment: (candidateId: number, formData: FormData) =>
+    api.post<CandidateAttachmentRead>(`/recruitment/candidates/${candidateId}/attachments`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }),
+
+  deleteAttachment: (candidateId: number, attId: number) =>
+    api.delete(`/recruitment/candidates/${candidateId}/attachments/${attId}`),
+
+  getAttachmentDownloadUrl: (candidateId: number, attId: number) =>
+    `/api/v1/recruitment/candidates/${candidateId}/attachments/${attId}/download`,
+
+  applyCandidate: (candidateId: number, data: ApplicationCreate) =>
+    api.post<ApplicationRead>(`/recruitment/candidates/${candidateId}/apply`, data),
+
+  listApplications: (jrId: number, params?: Record<string, unknown>) =>
+    api.get<ApplicationListPage>(
+      `/recruitment/job-requisitions/${jrId}/applications`, { params }
+    ),
+
+  listCandidateApplications: (candidateId: number, params?: Record<string, unknown>) =>
+    api.get<ApplicationListPage>(`/recruitment/candidates/${candidateId}/applications`, { params }),
+
+  downloadImportTemplate: () =>
+    api.get('/recruitment/candidates/import-template', { responseType: 'blob' }),
+
+  importCandidates: (formData: FormData) =>
+    api.post<ImportResult>('/recruitment/candidates/import', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }),
+}
+
+// ── Candidate interfaces ──────────────────────────────────────────────────────
+
+export interface CandidateEducationRead {
+  id: number
+  candidate_id: number
+  education_level_id: number | null
+  education_level_name: string | null
+  institution_name: string | null
+  major_name: string | null
+  graduation_year: number | null
+  is_main: boolean
+  note: string | null
+}
+
+export interface CandidateEducationCreate {
+  education_level_id?: number | null
+  institution_name?: string | null
+  major_name?: string | null
+  graduation_year?: number | null
+  is_main?: boolean
+  note?: string | null
+}
+
+export interface CandidateWorkExpRead {
+  id: number
+  candidate_id: number
+  company_name: string
+  position_name: string | null
+  start_date: string | null
+  end_date: string | null
+  description: string | null
+  sort_order: number
+}
+
+export interface CandidateWorkExpCreate {
+  company_name: string
+  position_name?: string | null
+  start_date?: string | null
+  end_date?: string | null
+  description?: string | null
+  sort_order?: number
+}
+
+export interface CandidateSkillRead {
+  id: number
+  candidate_id: number
+  skill_name: string
+  proficiency_level: string | null
+}
+
+export interface CandidateAttachmentRead {
+  id: number
+  candidate_id: number
+  attachment_type: string
+  attachment_type_label: string
+  file_name: string
+  file_size: number | null
+  mime_type: string | null
+  note: string | null
+  uploaded_at: string
+  download_url: string
+}
+
+export interface CandidateRead {
+  id: number
+  full_name: string
+  last_name: string | null
+  first_name: string | null
+  date_of_birth: string | null
+  gender: string | null
+  gender_label: string | null
+  nationality_id: number | null
+  nationality_name: string | null
+  raw_nationality_text: string | null
+  ethnicity_id: number | null
+  ethnicity_name: string | null
+  religion_id: number | null
+  religion_name: string | null
+  id_number: string | null
+  id_issued_on: string | null
+  id_issued_by: string | null
+  id_expires_on: string | null
+  passport_number: string | null
+  passport_issued_on: string | null
+  passport_expires_on: string | null
+  work_permit_number: string | null
+  work_permit_issued_on: string | null
+  work_permit_expires_on: string | null
+  phone_number: string | null
+  personal_email: string | null
+  personal_tax_code: string | null
+  bhxh_code: string | null
+  address: string | null
+  current_company: string | null
+  current_position: string | null
+  expected_salary: number | null
+  source_channel_id: number | null
+  source_channel_name: string | null
+  source_note: string | null
+  internal_note: string | null
+  tags: string[]
+  is_active: boolean
+  educations: CandidateEducationRead[]
+  work_experiences: CandidateWorkExpRead[]
+  skills: CandidateSkillRead[]
+  attachments: CandidateAttachmentRead[]
+  active_applications: number
+  identity_strength: 'weak' | 'medium' | 'strong'
+  identity_strength_label: string
+  conversion_ready: boolean
+  conversion_missing_fields: string[]
+  created_by_name: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface CandidateListItem {
+  id: number
+  full_name: string
+  phone_number: string | null
+  personal_email: string | null
+  current_position: string | null
+  current_company: string | null
+  nationality_name: string | null
+  source_channel_name: string | null
+  active_applications: number
+  identity_strength: 'weak' | 'medium' | 'strong'
+  identity_strength_label: string
+  created_at: string
+}
+
+export interface CandidateListPage {
+  items: CandidateListItem[]
+  total: number
+  page: number
+  page_size: number
+}
+
+export interface CandidateDuplicateCheck {
+  full_name?: string | null
+  date_of_birth?: string | null
+  id_number?: string | null
+  passport_number?: string | null
+  phone_number?: string | null
+  personal_email?: string | null
+  exclude_candidate_id?: number | null
+}
+
+export interface CandidateDuplicateMatch {
+  candidate_id: number
+  full_name: string
+  date_of_birth: string | null
+  id_number: string | null
+  passport_number: string | null
+  phone_number: string | null
+  personal_email: string | null
+  current_company: string | null
+  current_position: string | null
+  match_level: 'exact' | 'possible'
+  reason_codes: string[]
+  reason_labels: string[]
+}
+
+export interface CandidateDuplicateCheckResult {
+  exact_matches: CandidateDuplicateMatch[]
+  possible_matches: CandidateDuplicateMatch[]
+}
+
+export interface CandidateCreate {
+  full_name: string
+  last_name?: string | null
+  first_name?: string | null
+  date_of_birth?: string | null
+  gender?: string | null
+  nationality_id?: number | null
+  raw_nationality_text?: string | null
+  ethnicity_id?: number | null
+  religion_id?: number | null
+  id_number?: string | null
+  id_issued_on?: string | null
+  id_issued_by?: string | null
+  id_expires_on?: string | null
+  passport_number?: string | null
+  passport_issued_on?: string | null
+  passport_expires_on?: string | null
+  work_permit_number?: string | null
+  work_permit_issued_on?: string | null
+  work_permit_expires_on?: string | null
+  phone_number?: string | null
+  personal_email?: string | null
+  personal_tax_code?: string | null
+  bhxh_code?: string | null
+  address?: string | null
+  current_company?: string | null
+  current_position?: string | null
+  expected_salary?: number | null
+  source_channel_id?: number | null
+  source_note?: string | null
+  internal_note?: string | null
+  tags?: string[]
+}
+
+export interface CandidateUpdate extends Partial<CandidateCreate> {}
+
+export interface ApplicationCreate {
+  job_requisition_id: number
+  applied_date?: string
+  source_channel_id?: number | null
+  internal_note?: string | null
+}
+
+export interface ApplicationRead {
+  id: number
+  candidate_id: number
+  candidate_name: string
+  job_requisition_id: number
+  job_requisition_code: string
+  job_position_name: string
+  department_name: string
+  applied_date: string
+  source_channel_name: string | null
+  current_stage: string
+  rejection_reason: string | null
+  internal_note: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface ApplicationListPage {
+  items: ApplicationRead[]
+  total: number
+  page: number
+  page_size: number
+}
+
+export interface ImportResult {
+  created: number
+  updated: number
+  skipped: number
+  errors: string[]
 }

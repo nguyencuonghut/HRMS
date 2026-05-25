@@ -133,13 +133,14 @@ _IMPORT_COLUMNS = [
     "Giới tính (male/female/other)",
     "Số CCCD/Hộ chiếu",
     "Điện thoại",
-    "Email",
+    "Email cá nhân",
     "Địa chỉ",
     "Công ty hiện tại",
     "Vị trí hiện tại",
     "Lương kỳ vọng",
     "Ghi chú nguồn",
     "Ghi chú nội bộ",
+    "Quốc tịch (text)",
 ]
 
 
@@ -162,12 +163,12 @@ def generate_template() -> bytes:
     sample = [
         "Nguyễn Văn A", "01/01/1995", "male", "012345678901",
         "0901234567", "vana@example.com", "123 Đường ABC, Hà Nội",
-        "Công ty XYZ", "Kỹ sư phần mềm", "15000000", "", "",
+        "Công ty XYZ", "Kỹ sư phần mềm", "15000000", "", "", "Việt Nam",
     ]
     for col_idx, val in enumerate(sample, start=1):
         ws.cell(row=2, column=col_idx, value=val)
 
-    widths = [22, 18, 18, 18, 14, 24, 28, 22, 22, 14, 22, 22]
+    widths = [22, 18, 18, 18, 14, 24, 28, 22, 22, 14, 22, 22, 18]
     for i, w in enumerate(widths, start=1):
         ws.column_dimensions[ws.cell(row=1, column=i).column_letter].width = w
     ws.row_dimensions[1].height = 36
@@ -180,13 +181,14 @@ def generate_template() -> bytes:
         ["Giới tính", "", "male | female | other", "male"],
         ["Số CCCD/Hộ chiếu", "", "Số định danh cá nhân", "012345678901"],
         ["Điện thoại", "", "Số điện thoại", "0901234567"],
-        ["Email", "", "Địa chỉ email", "vana@example.com"],
+        ["Email cá nhân", "", "Địa chỉ email cá nhân", "vana@example.com"],
         ["Địa chỉ", "", "Địa chỉ thường trú", "123 Đường ABC, Hà Nội"],
         ["Công ty hiện tại", "", "Nơi đang công tác", "Công ty XYZ"],
         ["Vị trí hiện tại", "", "Chức danh hiện tại", "Kỹ sư phần mềm"],
         ["Lương kỳ vọng", "", "Số tiền (VNĐ)", "15000000"],
         ["Ghi chú nguồn", "", "Nguồn tiếp nhận hồ sơ", ""],
         ["Ghi chú nội bộ", "", "Ghi chú nội bộ", ""],
+        ["Quốc tịch (text)", "", "Dùng để auto-map sang catalog quốc tịch", "Việt Nam"],
     ]
     for row_data in guide_data:
         guide.append(row_data)
@@ -245,13 +247,14 @@ async def import_candidates_excel(
         gender_raw = str(_col(2)).strip().lower() if _col(2) else None
         id_number = str(_col(3)).strip() if _col(3) else None
         phone = str(_col(4)).strip() if _col(4) else None
-        email = str(_col(5)).strip().lower() if _col(5) else None
+        personal_email = str(_col(5)).strip().lower() if _col(5) else None
         address = str(_col(6)).strip() if _col(6) else None
         current_company = str(_col(7)).strip() if _col(7) else None
         current_position = str(_col(8)).strip() if _col(8) else None
         salary_raw = _col(9)
         source_note = str(_col(10)).strip() if _col(10) else None
         internal_note = str(_col(11)).strip() if _col(11) else None
+        raw_nationality_text = str(_col(12)).strip() if _col(12) else None
 
         dob = _parse_date(dob_raw)
         gender = gender_raw if gender_raw in ("male", "female", "other") else None
@@ -263,16 +266,20 @@ async def import_candidates_excel(
             except Exception:
                 pass
 
-        # Upsert by email
+        # Upsert by personal_email
         existing = None
-        if email:
+        if personal_email:
             q = await session.execute(
-                select(Candidate).where(Candidate.email == email, Candidate.is_active == True)  # noqa: E712
+                select(Candidate).where(Candidate.personal_email == personal_email, Candidate.is_active == True)  # noqa: E712
             )
             existing = q.scalars().first()
 
         if existing:
             existing.full_name = full_name
+            if not existing.last_name or not existing.first_name:
+                last_name, first_name = candidate_service._split_full_name(full_name)
+                existing.last_name = existing.last_name or last_name
+                existing.first_name = existing.first_name or first_name
             if dob:
                 existing.date_of_birth = dob
             if gender:
@@ -280,13 +287,22 @@ async def import_candidates_excel(
             if id_number:
                 existing.id_number = id_number
             if phone:
-                existing.phone = phone
+                existing.phone_number = phone
+            if personal_email:
+                existing.personal_email = personal_email
             if address:
                 existing.address = address
             if current_company:
                 existing.current_company = current_company
             if current_position:
                 existing.current_position = current_position
+            if raw_nationality_text:
+                existing.raw_nationality_text = raw_nationality_text
+                existing.nationality_id = await candidate_service._resolve_nationality_id(
+                    session,
+                    existing.nationality_id,
+                    raw_nationality_text,
+                )
             if expected_salary is not None:
                 existing.expected_salary = expected_salary
             if source_note:
@@ -298,13 +314,18 @@ async def import_candidates_excel(
             await session.flush()
             updated += 1
         else:
+            last_name, first_name = candidate_service._split_full_name(full_name)
             c = Candidate(
                 full_name=full_name,
+                last_name=last_name,
+                first_name=first_name,
                 date_of_birth=dob,
                 gender=gender,
                 id_number=id_number,
-                phone=phone,
-                email=email or None,
+                phone_number=phone,
+                personal_email=personal_email or None,
+                raw_nationality_text=raw_nationality_text,
+                nationality_id=await candidate_service._resolve_nationality_id(session, None, raw_nationality_text),
                 address=address,
                 current_company=current_company,
                 current_position=current_position,

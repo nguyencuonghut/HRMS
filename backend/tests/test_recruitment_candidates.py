@@ -61,8 +61,8 @@ def _create_candidate(client: TestClient, h: dict, suffix: str = "") -> dict:
         BASE_CAND,
         json={
             "full_name": f"Nguyễn Test {suffix}",
-            "email": f"test_{suffix}_{_TEST_YEAR}@example.com",
-            "phone": f"090000{suffix[:4] if suffix else '0000'}",
+            "personal_email": f"test_{suffix}_{_TEST_YEAR}@example.com",
+            "phone_number": f"090000{suffix[:4] if suffix else '0000'}",
         },
         headers=h,
     )
@@ -84,6 +84,56 @@ class TestCandidateCRUD:
         assert c["skills"] == []
         assert c["attachments"] == []
         assert c["active_applications"] == 0
+        assert c["identity_strength"] == "medium"
+        assert c["conversion_ready"] is False
+
+    def test_create_candidate_requires_identity_anchor(self, client: TestClient) -> None:
+        h = _admin(client)
+        res = client.post(
+            BASE_CAND,
+            json={"full_name": "Chỉ Có Họ Tên"},
+            headers=h,
+        )
+        assert res.status_code == 422, res.text
+        detail = res.json()["detail"]
+        assert any("ít nhất một thông tin định danh" in item["msg"] for item in detail)
+
+    def test_create_candidate_with_id_number_is_strong_identity(self, client: TestClient) -> None:
+        h = _admin(client)
+        res = client.post(
+            BASE_CAND,
+            json={
+                "full_name": "Nguyễn Strong Identity",
+                "id_number": "012345678901",
+            },
+            headers=h,
+        )
+        assert res.status_code == 201, res.text
+        data = res.json()
+        assert data["identity_strength"] == "strong"
+        assert data["identity_strength_label"] == "Định danh mạnh"
+
+    def test_create_candidate_accepts_legacy_contact_and_normalizes_nationality(self, client: TestClient) -> None:
+        h = _admin(client)
+        res = client.post(
+            BASE_CAND,
+            json={
+                "full_name": "Nguyễn Văn Legacy",
+                "email": f"legacy_{_TEST_YEAR}@example.com",
+                "phone": "0912345678",
+                "nationality": "VN",
+            },
+            headers=h,
+        )
+        assert res.status_code == 201, res.text
+        data = res.json()
+        assert data["last_name"] == "Nguyễn Văn"
+        assert data["first_name"] == "Legacy"
+        assert data["personal_email"] == f"legacy_{_TEST_YEAR}@example.com"
+        assert data["phone_number"] == "0912345678"
+        assert data["raw_nationality_text"] == "VN"
+        assert data["nationality_id"] is not None
+        assert data["nationality_name"] == "Việt Nam"
 
     def test_get_candidate(self, client: TestClient) -> None:
         h = _admin(client)
@@ -131,6 +181,91 @@ class TestCandidateCRUD:
         assert res.status_code == 200
         body = res.json()
         assert any("search01" in item["full_name"] for item in body["items"])
+
+
+class TestCandidateDuplicateCheck:
+    def test_check_duplicates_returns_exact_match(self, client: TestClient) -> None:
+        import uuid
+        h = _admin(client)
+        token = uuid.uuid4().hex[:8]
+        email = f"dup_exact_{token}_{_TEST_YEAR}@example.com"
+        phone = f"09{token[:8]}"
+        existing = client.post(
+            BASE_CAND,
+            json={
+                "full_name": f"Nguyễn Văn Trùng {token}",
+                "personal_email": email,
+                "phone_number": phone,
+                "id_number": "012345678999",
+            },
+            headers=h,
+        ).json()
+
+        res = client.post(
+            f"{BASE_CAND}/check-duplicates",
+            json={
+                "full_name": f"Ứng viên mới {token}",
+                "personal_email": email,
+                "phone_number": phone,
+            },
+            headers=h,
+        )
+        assert res.status_code == 200, res.text
+        body = res.json()
+        assert body["exact_matches"]
+        match = next(item for item in body["exact_matches"] if item["candidate_id"] == existing["id"])
+        assert "same_personal_email" in match["reason_codes"]
+        assert "same_phone_number" in match["reason_codes"]
+
+    def test_check_duplicates_returns_possible_match_for_same_full_name(self, client: TestClient) -> None:
+        import uuid
+        h = _admin(client)
+        token = uuid.uuid4().hex[:8]
+        full_name = f"Trần Thị Trùng Tên {token}"
+        existing = client.post(
+            BASE_CAND,
+            json={
+                "full_name": full_name,
+                "date_of_birth": "1995-05-20",
+                "phone_number": f"08{token[:8]}",
+            },
+            headers=h,
+        ).json()
+
+        res = client.post(
+            f"{BASE_CAND}/check-duplicates",
+            json={
+                "full_name": full_name,
+                "date_of_birth": "1995-05-20",
+            },
+            headers=h,
+        )
+        assert res.status_code == 200, res.text
+        body = res.json()
+        assert body["exact_matches"] == []
+        assert body["possible_matches"]
+        match = next(item for item in body["possible_matches"] if item["candidate_id"] == existing["id"])
+        assert match["reason_codes"] == ["same_full_name_and_date_of_birth"]
+
+    def test_check_duplicates_excludes_current_candidate(self, client: TestClient) -> None:
+        import uuid
+        h = _admin(client)
+        suffix = f"dup_exclude_{uuid.uuid4().hex[:6]}"
+        existing = _create_candidate(client, h, suffix)
+
+        res = client.post(
+            f"{BASE_CAND}/check-duplicates",
+            json={
+                "full_name": existing["full_name"],
+                "personal_email": existing["personal_email"],
+                "exclude_candidate_id": existing["id"],
+            },
+            headers=h,
+        )
+        assert res.status_code == 200, res.text
+        body = res.json()
+        assert body["exact_matches"] == []
+        assert body["possible_matches"] == []
 
 
 # ── TestCandidateSubResources ─────────────────────────────────────────────────
@@ -290,6 +425,21 @@ class TestCandidateApplication:
         body = res.json()
         assert body["total"] >= 1
         assert any(item["candidate_id"] == c["id"] for item in body["items"])
+
+    def test_list_applications_for_candidate(self, client: TestClient) -> None:
+        h = _admin(client)
+        c = _create_candidate(client, h, "apply06")
+        jr_id = _create_approved_jr(client, h)
+        client.post(
+            f"{BASE_CAND}/{c['id']}/apply",
+            json={"job_requisition_id": jr_id, "applied_date": str(date.today())},
+            headers=h,
+        )
+        res = client.get(f"{BASE_CAND}/{c['id']}/applications", headers=h)
+        assert res.status_code == 200
+        body = res.json()
+        assert body["total"] >= 1
+        assert any(item["job_requisition_id"] == jr_id for item in body["items"])
 
 
 # ── TestImportTemplate ────────────────────────────────────────────────────────

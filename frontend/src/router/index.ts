@@ -168,6 +168,12 @@ const router = createRouter({
           component: () => import('@/views/recruitment/JobPostingDetailView.vue'),
           meta: { title: 'Chi tiết tin tuyển dụng' },
         },
+        {
+          path: 'recruitment/candidates/:id',
+          name: 'candidate-detail',
+          component: () => import('@/views/recruitment/CandidateDetailView.vue'),
+          meta: { title: 'Chi tiết ứng viên' },
+        },
         // Báo cáo
         {
           path: 'reports',
