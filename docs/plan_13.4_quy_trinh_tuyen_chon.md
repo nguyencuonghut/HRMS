@@ -368,9 +368,27 @@ class PanelistScoreSubmit(BaseModel):
 
 ## Thiết kế Frontend
 
+### `PipelineSetupDialog.vue` / `JRPipelineConfigPanel.vue`
+
+- Điểm vào:
+  - từ `JRDetailView.vue`: button `Cấu hình pipeline`
+  - hoặc từ `KanbanPipelineView.vue` khi JR chưa có pipeline
+- Chức năng chính:
+  - chọn nhanh 1 `pipeline_template`
+  - hoặc nhập tay danh sách bước cho JR
+  - reorder bước theo `stage_order`
+  - sửa `stage_name`, `stage_type`, `is_active`
+  - lưu bằng `POST /recruitment/job-requisitions/{jr_id}/pipeline`
+- Rule UI:
+  - nếu JR đã có `candidate_stage_results` hoặc `interview_sessions` thì chỉ cho xem, không cho cấu hình lại
+  - nếu JR chưa có pipeline thì Kanban không chỉ hiển thị empty state, mà phải có CTA `Tạo pipeline`
+
 ### `KanbanPipelineView.vue`
 
 - Chọn JR → hiển thị Kanban board
+- Nếu JR chưa có pipeline:
+  - hiển thị empty state phân biệt với trạng thái “có pipeline nhưng chưa có ứng viên”
+  - có button `Cấu hình pipeline`
 - Mỗi cột = 1 bước pipeline
 - Card ứng viên: tên, ngày apply, nguồn, kết quả bước gần nhất
 - Drag card sang cột kế tiếp → mở dialog ghi nhận kết quả (advance)
@@ -415,6 +433,7 @@ backend/
 
 frontend/
   src/services/recruitmentService.ts                   (EDIT: thêm pipeline + interview API)
+  src/views/recruitment/components/PipelineSetupDialog.vue (NEW)
   src/views/recruitment/KanbanPipelineView.vue         (NEW)
   src/views/recruitment/ApplicationDetailView.vue      (NEW)
   src/views/recruitment/components/InterviewScheduleDialog.vue (NEW)
@@ -441,9 +460,20 @@ frontend/
 
 ### Slice 4 — Backend: Interview Kit endpoints + Tests
 
-### Slice 5 — Frontend: Kanban + Application Detail
+### Slice 5 — Frontend: Pipeline Setup + Kanban
+- `PipelineSetupDialog.vue` hoặc panel cấu hình pipeline trong JR detail
+- CTA cấu hình pipeline từ `JRDetailView` / `KanbanPipelineView`
+- Clone từ template hoặc nhập tay stage list
+- Empty state rõ ràng cho JR chưa có pipeline
 
-### Slice 6 — Frontend: Interview Schedule + Scorecard
+### Slice 6 — Frontend: Application Detail + Interview Schedule + Scorecard
+- `ApplicationDetailView.vue`
+- `InterviewScheduleDialog.vue`
+- `ScorecardDialog.vue`
+
+**Lưu ý thiết kế:** không được coi `KanbanPipelineView` là đủ cho phạm vi “cấu hình pipeline cho từng JR”.
+Nếu chỉ có Kanban đọc dữ liệu mà không có UI gọi `POST /recruitment/job-requisitions/{jr_id}/pipeline`,
+thì implementation vẫn chưa hoàn tất phạm vi của `13.4`.
 
 ---
 
