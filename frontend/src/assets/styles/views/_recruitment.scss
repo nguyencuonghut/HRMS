@@ -22,7 +22,9 @@
   text-decoration: none;
   font-family: monospace;
   font-size: 0.9rem;
-  &:hover { text-decoration: underline; }
+  &:hover {
+    text-decoration: underline;
+  }
 }
 
 .rc-muted {
@@ -30,8 +32,13 @@
   font-size: 0.875rem;
 }
 
-.rc-deadline-past { color: var(--p-red-500); font-weight: 600; }
-.rc-deadline-near { color: var(--p-orange-500); }
+.rc-deadline-past {
+  color: var(--p-red-500);
+  font-weight: 600;
+}
+.rc-deadline-near {
+  color: var(--p-orange-500);
+}
 
 // Form (dialog)
 .rc-form {
@@ -237,7 +244,9 @@
   line-height: 1.5;
 }
 
-html.dark-mode .rc-rejection-note { color: var(--p-red-400); }
+html.dark-mode .rc-rejection-note {
+  color: var(--p-red-400);
+}
 
 // Budget
 .rc-budget-summary {
@@ -281,10 +290,15 @@ html.dark-mode .rc-rejection-note { color: var(--p-red-400); }
   font-size: 0.875rem;
   line-height: 1.5;
 
-  .pi { margin-top: 0.1rem; flex-shrink: 0; }
+  .pi {
+    margin-top: 0.1rem;
+    flex-shrink: 0;
+  }
 }
 
-html.dark-mode .rc-lang-warning { color: var(--p-yellow-300); }
+html.dark-mode .rc-lang-warning {
+  color: var(--p-yellow-300);
+}
 
 .rc-lang-chip {
   display: inline-block;
@@ -387,4 +401,251 @@ html.dark-mode .rc-lang-warning { color: var(--p-yellow-300); }
   background: color-mix(in srgb, var(--p-orange-500) 10%, transparent);
   border: 1px solid color-mix(in srgb, var(--p-orange-500) 25%, transparent);
   color: var(--p-orange-700);
+}
+
+.rc-form--wide {
+  gap: 1rem;
+}
+
+.rc-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.rc-chip-list {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.rc-stage-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.rc-stage-item {
+  border: 1px solid var(--l-border);
+  border-radius: 10px;
+  padding: 0.9rem 1rem;
+  background: color-mix(in srgb, var(--l-surface) 84%, var(--l-bg));
+}
+
+.rc-stage-item--current {
+  border-color: color-mix(in srgb, var(--p-primary-color) 35%, var(--l-border));
+  box-shadow: 0 0 0 1px
+    color-mix(in srgb, var(--p-primary-color) 12%, transparent);
+}
+
+.rc-stage-item-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.rc-stage-item-name {
+  font-weight: 700;
+  margin-bottom: 0.2rem;
+}
+
+.rc-stage-result {
+  margin-top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.88rem;
+}
+
+.rc-kanban-board {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1rem;
+  align-items: start;
+}
+
+.rc-kanban-column {
+  min-height: 280px;
+  border: 1px solid var(--l-border);
+  border-radius: 14px;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--p-primary-color) 8%, var(--l-surface)) 0%,
+    var(--l-surface) 100%
+  );
+  padding: 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.rc-kanban-column-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.rc-kanban-column-title {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.rc-kanban-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.rc-kanban-card-link {
+  text-decoration: none;
+  color: inherit;
+}
+
+.rc-kanban-card {
+  border: 1px solid var(--l-border);
+  border-radius: 12px;
+  background: var(--l-surface);
+  padding: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    border-color 0.18s ease;
+
+  &:hover {
+    transform: translateY(-1px);
+    border-color: color-mix(
+      in srgb,
+      var(--p-primary-color) 28%,
+      var(--l-border)
+    );
+    box-shadow: 0 10px 20px color-mix(in srgb, var(--l-text) 8%, transparent);
+  }
+}
+
+.rc-kanban-card-title {
+  font-weight: 700;
+}
+
+.rc-kanban-card-result {
+  padding-top: 0.2rem;
+}
+
+.rc-kanban-empty {
+  border: 1px dashed var(--l-border);
+  border-radius: 12px;
+  padding: 1rem;
+  color: var(--l-text-muted);
+  text-align: center;
+  background: color-mix(in srgb, var(--l-bg) 55%, var(--l-surface));
+}
+
+.rc-kit-panel {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 1rem;
+  padding: 1rem;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--p-blue-400) 7%, var(--l-surface));
+  border: 1px solid color-mix(in srgb, var(--p-blue-400) 18%, var(--l-border));
+}
+
+.rc-kit-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  min-width: 0;
+}
+
+.rc-kit-title {
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--l-text-muted);
+}
+
+.rc-kit-list,
+.rc-kit-criteria {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.rc-kit-item,
+.rc-kit-criterion {
+  border: 1px solid var(--l-border);
+  border-radius: 10px;
+  background: var(--l-surface);
+  padding: 0.75rem;
+}
+
+.rc-kit-item-top,
+.rc-kit-criterion {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.rc-kit-question {
+  margin-top: 0.45rem;
+  line-height: 1.55;
+  font-size: 0.88rem;
+}
+
+.rc-scorecard-banner {
+  padding: 0.85rem 1rem;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--p-green-500) 12%, transparent);
+  color: var(--p-green-800);
+  font-weight: 600;
+}
+
+.rc-scorecard-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.rc-scorecard-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 120px;
+  gap: 0.75rem;
+  align-items: center;
+  border: 1px solid var(--l-border);
+  border-radius: 10px;
+  padding: 0.75rem 0.85rem;
+  background: var(--l-surface);
+}
+
+.rc-scorecard-name {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.rc-scorecard-input {
+  width: 100%;
+  text-align: right;
+}
+
+.rc-scorecard-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 0.25rem;
+}
+
+@media (max-width: 768px) {
+  .rc-row,
+  .rc-kit-panel,
+  .rc-scorecard-row {
+    grid-template-columns: 1fr;
+  }
 }

@@ -108,14 +108,21 @@ CREATE INDEX ix_candidates_name  ON candidates USING gin(to_tsvector('simple', f
 CREATE TABLE candidate_educations (
     id                  SERIAL PRIMARY KEY,
     candidate_id        INTEGER NOT NULL REFERENCES candidates(id) ON DELETE CASCADE,
-    education_level_id  INTEGER REFERENCES education_levels(id),
-    institution_name    VARCHAR(300),
-    major_name          VARCHAR(300),
+    institution_id      INTEGER REFERENCES educational_institutions(id) ON DELETE SET NULL,
+    institution_name    VARCHAR(300),   -- denormalized / raw fallback
+    major_id            INTEGER REFERENCES education_majors(id) ON DELETE SET NULL,
+    major_name          VARCHAR(300),   -- denormalized / raw fallback
+    education_level_id  INTEGER REFERENCES education_levels(id) ON DELETE SET NULL,
     graduation_year     SMALLINT,
-    is_main             BOOLEAN DEFAULT FALSE,
+    diploma_type        VARCHAR(100),
+    is_main_education   BOOLEAN DEFAULT FALSE,
     note                TEXT
 );
 ```
+
+**Nguyên tắc thiết kế:** `candidate_educations` phải bám gần `employee_education_histories` để giảm chi phí convert ở `13.5`.
+Form nhập tay của ATS dùng catalog `educational_institutions`, `education_majors`, `education_levels`; các cột
+`institution_name` / `major_name` chỉ giữ vai trò denormalized hoặc raw fallback cho dữ liệu import/cũ.
 
 ### Bảng `candidate_work_experiences`
 

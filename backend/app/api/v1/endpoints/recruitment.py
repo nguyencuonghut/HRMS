@@ -1032,6 +1032,19 @@ async def list_applications(
 
 
 @router.get(
+    "/applications/{application_id}",
+    response_model=ApplicationRead,
+    tags=[_TAG],
+)
+async def get_application(
+    application_id: int,
+    current_user: User = require_permission("recruitment:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await candidate_service.get_application(session, application_id)
+
+
+@router.get(
     "/candidates/{candidate_id}/applications",
     response_model=ApplicationListPage,
     tags=[_TAG],

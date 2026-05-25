@@ -300,18 +300,29 @@ class CandidateEducation(SQLModel, table=True):
     candidate_id: int = Field(
         sa_column=Column(sa.Integer(), sa.ForeignKey("candidates.id", ondelete="CASCADE"), nullable=False)
     )
+    institution_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(
+            sa.Integer(), sa.ForeignKey("educational_institutions.id", ondelete="SET NULL"), nullable=True
+        ),
+    )
+    institution_name: Optional[str] = Field(default=None, sa_column=Column(sa.String(300), nullable=True))
+    major_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(sa.Integer(), sa.ForeignKey("education_majors.id", ondelete="SET NULL"), nullable=True),
+    )
+    major_name: Optional[str] = Field(default=None, sa_column=Column(sa.String(300), nullable=True))
     education_level_id: Optional[int] = Field(
         default=None,
         sa_column=Column(
             sa.Integer(), sa.ForeignKey("education_levels.id", ondelete="SET NULL"), nullable=True
         ),
     )
-    institution_name: Optional[str] = Field(default=None, sa_column=Column(sa.String(300), nullable=True))
-    major_name: Optional[str] = Field(default=None, sa_column=Column(sa.String(300), nullable=True))
     graduation_year: Optional[int] = Field(
         default=None, sa_column=Column(sa.SmallInteger(), nullable=True)
     )
-    is_main: bool = Field(sa_column=Column(sa.Boolean(), nullable=False, server_default="false"))
+    diploma_type: Optional[str] = Field(default=None, sa_column=Column(sa.String(100), nullable=True))
+    is_main_education: bool = Field(sa_column=Column(sa.Boolean(), nullable=False, server_default="false"))
     note: Optional[str] = Field(default=None, sa_column=Column(sa.Text(), nullable=True))
 
 

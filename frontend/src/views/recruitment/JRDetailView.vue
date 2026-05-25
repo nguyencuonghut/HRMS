@@ -3,18 +3,34 @@
     <!-- Header -->
     <div class="rc-detail-header">
       <div class="rc-header-left">
-        <Button icon="pi pi-arrow-left" text rounded severity="secondary" @click="$router.push('/recruitment')" />
+        <Button
+          icon="pi pi-arrow-left"
+          text
+          rounded
+          severity="secondary"
+          @click="$router.push('/recruitment')"
+        />
         <div>
-          <div style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap">
+          <div
+            style="
+              display: flex;
+              align-items: center;
+              gap: 0.6rem;
+              flex-wrap: wrap;
+            "
+          >
             <span class="rc-jr-code">{{ jr.code }}</span>
-            <Tag :value="jr.status_label" :severity="statusSeverity(jr.status)" />
+            <Tag
+              :value="jr.status_label"
+              :severity="statusSeverity(jr.status)"
+            />
           </div>
           <div class="rc-meta-row" style="margin-top: 0.2rem">
             <span>{{ jr.job_position_name }}</span>
             <span>·</span>
             <span>{{ jr.department_name }}</span>
             <span>·</span>
-            <span>Tạo bởi {{ jr.created_by_name ?? '—' }}</span>
+            <span>Tạo bởi {{ jr.created_by_name ?? "—" }}</span>
             <span>·</span>
             <span>{{ formatDate(jr.created_at) }}</span>
           </div>
@@ -29,6 +45,14 @@
           severity="secondary"
           outlined
           @click="openEdit"
+        />
+        <Button
+          v-if="['approved', 'in_progress', 'completed'].includes(jr.status)"
+          label="Tuyển chọn"
+          icon="pi pi-sitemap"
+          severity="warn"
+          outlined
+          @click="$router.push(`/recruitment?tab=selection&jr_id=${jr.id}`)"
         />
         <Button
           v-if="jr.status === 'draft'"
@@ -53,7 +77,11 @@
           @click="openReject"
         />
         <Button
-          v-if="['draft','pending_review','approved','in_progress'].includes(jr.status)"
+          v-if="
+            ['draft', 'pending_review', 'approved', 'in_progress'].includes(
+              jr.status,
+            )
+          "
           label="Hủy JR"
           icon="pi pi-ban"
           severity="secondary"
@@ -65,7 +93,10 @@
 
     <!-- Rejection note banner -->
     <div v-if="jr.rejection_note" class="rc-rejection-note">
-      <i class="pi pi-times-circle" style="flex-shrink: 0; margin-top: 0.1rem" />
+      <i
+        class="pi pi-times-circle"
+        style="flex-shrink: 0; margin-top: 0.1rem"
+      />
       <div>
         <strong>Lý do từ chối:</strong> {{ jr.rejection_note }}
         <span v-if="jr.approved_by_name"> — {{ jr.approved_by_name }}</span>
@@ -98,7 +129,9 @@
                 </div>
                 <div class="info-row">
                   <span class="info-label">Số lượng cần tuyển</span>
-                  <span class="info-value">{{ jr.quantity }} (còn {{ jr.quantity_remaining }})</span>
+                  <span class="info-value"
+                    >{{ jr.quantity }} (còn {{ jr.quantity_remaining }})</span
+                  >
                 </div>
                 <div class="info-row">
                   <span class="info-label">Lý do tuyển</span>
@@ -107,7 +140,7 @@
                 <div class="info-row">
                   <span class="info-label">Hạn cần người</span>
                   <span class="info-value" :class="deadlineClass(jr.deadline)">
-                    {{ jr.deadline ? formatDateShort(jr.deadline) : '—' }}
+                    {{ jr.deadline ? formatDateShort(jr.deadline) : "—" }}
                   </span>
                 </div>
                 <div class="info-row">
@@ -116,15 +149,27 @@
                 </div>
                 <div class="info-row" v-if="jr.submitted_at">
                   <span class="info-label">Gửi duyệt lúc</span>
-                  <span class="info-value">{{ formatDate(jr.submitted_at) }}<span v-if="jr.submitted_by_name"> — {{ jr.submitted_by_name }}</span></span>
+                  <span class="info-value"
+                    >{{ formatDate(jr.submitted_at)
+                    }}<span v-if="jr.submitted_by_name">
+                      — {{ jr.submitted_by_name }}</span
+                    ></span
+                  >
                 </div>
                 <div class="info-row" v-if="jr.approved_at">
                   <span class="info-label">Duyệt lúc</span>
-                  <span class="info-value">{{ formatDate(jr.approved_at) }}<span v-if="jr.approved_by_name"> — {{ jr.approved_by_name }}</span></span>
+                  <span class="info-value"
+                    >{{ formatDate(jr.approved_at)
+                    }}<span v-if="jr.approved_by_name">
+                      — {{ jr.approved_by_name }}</span
+                    ></span
+                  >
                 </div>
                 <div class="info-row" v-if="jr.internal_note">
                   <span class="info-label">Ghi chú nội bộ</span>
-                  <span class="info-value" style="white-space: pre-wrap">{{ jr.internal_note }}</span>
+                  <span class="info-value" style="white-space: pre-wrap">{{
+                    jr.internal_note
+                  }}</span>
                 </div>
               </div>
             </div>
@@ -134,13 +179,17 @@
               <div class="section-header">
                 <span class="section-title">Mô tả công việc</span>
               </div>
-              <div v-if="jr.effective_description" class="rc-jd-block">{{ jr.effective_description }}</div>
+              <div v-if="jr.effective_description" class="rc-jd-block">
+                {{ jr.effective_description }}
+              </div>
               <div v-else class="rc-jd-empty">Chưa có mô tả công việc</div>
 
               <div class="section-header" style="margin-top: 1.25rem">
                 <span class="section-title">Yêu cầu ứng viên</span>
               </div>
-              <div v-if="jr.effective_requirements" class="rc-jd-block">{{ jr.effective_requirements }}</div>
+              <div v-if="jr.effective_requirements" class="rc-jd-block">
+                {{ jr.effective_requirements }}
+              </div>
               <div v-else class="rc-jd-empty">Chưa có yêu cầu ứng viên</div>
             </div>
           </div>
@@ -153,20 +202,40 @@
             <div v-if="budget" class="rc-budget-summary">
               <div class="rc-budget-stat">
                 <span class="rc-budget-stat-label">Dự kiến</span>
-                <span class="rc-budget-stat-value">{{ formatCurrency(budget.total_estimated) }}</span>
+                <span class="rc-budget-stat-value">{{
+                  formatCurrency(budget.total_estimated)
+                }}</span>
               </div>
               <div class="rc-budget-stat">
                 <span class="rc-budget-stat-label">Thực tế</span>
-                <span class="rc-budget-stat-value">{{ formatCurrency(budget.total_actual) }}</span>
+                <span class="rc-budget-stat-value">{{
+                  formatCurrency(budget.total_actual)
+                }}</span>
               </div>
             </div>
 
-            <div style="display: flex; justify-content: flex-end; margin-bottom: 0.75rem">
-              <Button label="Thêm khoản" icon="pi pi-plus" size="small" @click="openAddBudget" />
+            <div
+              style="
+                display: flex;
+                justify-content: flex-end;
+                margin-bottom: 0.75rem;
+              "
+            >
+              <Button
+                label="Thêm khoản"
+                icon="pi pi-plus"
+                size="small"
+                @click="openAddBudget"
+              />
             </div>
 
             <div class="card">
-              <DataTable :value="budget?.items ?? []" :loading="budgetLoading" size="small" striped-rows>
+              <DataTable
+                :value="budget?.items ?? []"
+                :loading="budgetLoading"
+                size="small"
+                striped-rows
+              >
                 <template #empty>
                   <div class="rc-empty">Chưa có khoản chi phí nào</div>
                 </template>
@@ -175,29 +244,59 @@
                     {{ data.item_name }}
                   </template>
                 </Column>
-                <Column header="Dự kiến (VND)" style="width: 150px; text-align: right">
+                <Column
+                  header="Dự kiến (VND)"
+                  style="width: 150px; text-align: right"
+                >
                   <template #body="{ data }: { data: BudgetItemRead }">
                     <span style="font-variant-numeric: tabular-nums">
-                      {{ data.estimated_amount ? Number(data.estimated_amount).toLocaleString('vi-VN') : '—' }}
+                      {{
+                        data.estimated_amount
+                          ? Number(data.estimated_amount).toLocaleString(
+                              "vi-VN",
+                            )
+                          : "—"
+                      }}
                     </span>
                   </template>
                 </Column>
-                <Column header="Thực tế (VND)" style="width: 150px; text-align: right">
+                <Column
+                  header="Thực tế (VND)"
+                  style="width: 150px; text-align: right"
+                >
                   <template #body="{ data }: { data: BudgetItemRead }">
                     <span style="font-variant-numeric: tabular-nums">
-                      {{ data.actual_amount ? Number(data.actual_amount).toLocaleString('vi-VN') : '—' }}
+                      {{
+                        data.actual_amount
+                          ? Number(data.actual_amount).toLocaleString("vi-VN")
+                          : "—"
+                      }}
                     </span>
                   </template>
                 </Column>
                 <Column header="Ghi chú" style="min-width: 160px">
                   <template #body="{ data }: { data: BudgetItemRead }">
-                    <span class="rc-muted">{{ data.note ?? '—' }}</span>
+                    <span class="rc-muted">{{ data.note ?? "—" }}</span>
                   </template>
                 </Column>
                 <Column header="" style="width: 80px; text-align: right">
                   <template #body="{ data }: { data: BudgetItemRead }">
-                    <Button icon="pi pi-pencil" text rounded size="small" severity="secondary" @click="openEditBudget(data)" />
-                    <Button icon="pi pi-trash" text rounded size="small" severity="danger" @click="confirmDeleteBudget(data)" />
+                    <Button
+                      icon="pi pi-pencil"
+                      text
+                      rounded
+                      size="small"
+                      severity="secondary"
+                      @click="openEditBudget(data)"
+                    />
+                    <Button
+                      icon="pi pi-trash"
+                      text
+                      rounded
+                      size="small"
+                      severity="danger"
+                      @click="confirmDeleteBudget(data)"
+                    />
                   </template>
                 </Column>
               </DataTable>
@@ -224,14 +323,33 @@
     >
       <div class="rc-form">
         <div class="rc-field">
-          <label class="rc-label">Lý do từ chối <span class="rc-req">*</span></label>
-          <Textarea v-model="rejectNote" rows="3" class="w-full" auto-resize placeholder="Nhập lý do từ chối..." />
+          <label class="rc-label"
+            >Lý do từ chối <span class="rc-req">*</span></label
+          >
+          <Textarea
+            v-model="rejectNote"
+            rows="3"
+            class="w-full"
+            auto-resize
+            placeholder="Nhập lý do từ chối..."
+          />
           <span v-if="rejectError" class="rc-error">{{ rejectError }}</span>
         </div>
       </div>
       <template #footer>
-        <Button label="Hủy" severity="secondary" text :disabled="actionLoading" @click="showRejectDialog = false" />
-        <Button label="Xác nhận từ chối" severity="danger" :loading="actionLoading" @click="doReject" />
+        <Button
+          label="Hủy"
+          severity="secondary"
+          text
+          :disabled="actionLoading"
+          @click="showRejectDialog = false"
+        />
+        <Button
+          label="Xác nhận từ chối"
+          severity="danger"
+          :loading="actionLoading"
+          @click="doReject"
+        />
       </template>
     </Dialog>
 
@@ -245,28 +363,63 @@
     >
       <div class="rc-form">
         <div class="rc-field">
-          <label class="rc-label">Khoản mục <span class="rc-req">*</span></label>
-          <InputText v-model="budgetForm.item_name" class="w-full" placeholder="VD: Phí đăng tuyển..." />
-          <span v-if="budgetErrors.item_name" class="rc-error">{{ budgetErrors.item_name }}</span>
+          <label class="rc-label"
+            >Khoản mục <span class="rc-req">*</span></label
+          >
+          <InputText
+            v-model="budgetForm.item_name"
+            class="w-full"
+            placeholder="VD: Phí đăng tuyển..."
+          />
+          <span v-if="budgetErrors.item_name" class="rc-error">{{
+            budgetErrors.item_name
+          }}</span>
         </div>
         <div class="rc-row">
           <div class="rc-field">
             <label class="rc-label">Dự kiến (VND)</label>
-            <InputNumber v-model="budgetForm.estimated_amount" :min="0" :use-grouping="true" locale="vi-VN" class="w-full" />
+            <InputNumber
+              v-model="budgetForm.estimated_amount"
+              :min="0"
+              :use-grouping="true"
+              locale="vi-VN"
+              class="w-full"
+            />
           </div>
           <div class="rc-field">
             <label class="rc-label">Thực tế (VND)</label>
-            <InputNumber v-model="budgetForm.actual_amount" :min="0" :use-grouping="true" locale="vi-VN" class="w-full" />
+            <InputNumber
+              v-model="budgetForm.actual_amount"
+              :min="0"
+              :use-grouping="true"
+              locale="vi-VN"
+              class="w-full"
+            />
           </div>
         </div>
         <div class="rc-field">
           <label class="rc-label">Ghi chú</label>
-          <Textarea v-model="budgetForm.note" rows="2" class="w-full" auto-resize />
+          <Textarea
+            v-model="budgetForm.note"
+            rows="2"
+            class="w-full"
+            auto-resize
+          />
         </div>
       </div>
       <template #footer>
-        <Button label="Hủy" severity="secondary" text :disabled="budgetSaving" @click="showBudgetDialog = false" />
-        <Button :label="editingBudget ? 'Lưu' : 'Thêm'" :loading="budgetSaving" @click="submitBudget" />
+        <Button
+          label="Hủy"
+          severity="secondary"
+          text
+          :disabled="budgetSaving"
+          @click="showBudgetDialog = false"
+        />
+        <Button
+          :label="editingBudget ? 'Lưu' : 'Thêm'"
+          :loading="budgetSaving"
+          @click="submitBudget"
+        />
       </template>
     </Dialog>
   </div>
@@ -283,293 +436,358 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import Button from 'primevue/button'
-import Column from 'primevue/column'
-import DataTable from 'primevue/datatable'
-import Dialog from 'primevue/dialog'
-import InputNumber from 'primevue/inputnumber'
-import InputText from 'primevue/inputtext'
-import Tab from 'primevue/tab'
-import TabList from 'primevue/tablist'
-import TabPanel from 'primevue/tabpanel'
-import TabPanels from 'primevue/tabpanels'
-import Tabs from 'primevue/tabs'
-import Tag from 'primevue/tag'
-import Textarea from 'primevue/textarea'
-import { useConfirm } from 'primevue/useconfirm'
-import { useToast } from 'primevue/usetoast'
+import { ref, computed, onMounted } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import Button from "primevue/button";
+import Column from "primevue/column";
+import DataTable from "primevue/datatable";
+import Dialog from "primevue/dialog";
+import InputNumber from "primevue/inputnumber";
+import InputText from "primevue/inputtext";
+import Tab from "primevue/tab";
+import TabList from "primevue/tablist";
+import TabPanel from "primevue/tabpanel";
+import TabPanels from "primevue/tabpanels";
+import Tabs from "primevue/tabs";
+import Tag from "primevue/tag";
+import Textarea from "primevue/textarea";
+import { useConfirm } from "primevue/useconfirm";
+import { useToast } from "primevue/usetoast";
 
 import recruitmentService, {
   type JobRequisitionRead,
   type BudgetSummary,
   type BudgetItemRead,
-} from '@/services/recruitmentService'
-import JRFormDialog from './components/JRFormDialog.vue'
+} from "@/services/recruitmentService";
+import JRFormDialog from "./components/JRFormDialog.vue";
 
-const route   = useRoute()
-const router  = useRouter()
-const confirm = useConfirm()
-const toast   = useToast()
+const route = useRoute();
+const router = useRouter();
+const confirm = useConfirm();
+const toast = useToast();
 
-const jr          = ref<JobRequisitionRead | null>(null)
-const pageLoading = ref(true)
-const activeTab   = ref('info')
+const jr = ref<JobRequisitionRead | null>(null);
+const pageLoading = ref(true);
+const activeTab = ref("info");
 
-const budget        = ref<BudgetSummary | null>(null)
-const budgetLoading = ref(false)
+const budget = ref<BudgetSummary | null>(null);
+const budgetLoading = ref(false);
 
 // Edit JR
-const showEditDialog = ref(false)
+const showEditDialog = ref(false);
 
 // Reject dialog
-const showRejectDialog = ref(false)
-const rejectNote       = ref('')
-const rejectError      = ref('')
-const actionLoading    = ref(false)
+const showRejectDialog = ref(false);
+const rejectNote = ref("");
+const rejectError = ref("");
+const actionLoading = ref(false);
 
 // Budget dialog
-const showBudgetDialog = ref(false)
-const budgetSaving     = ref(false)
-const budgetErrors     = ref<Record<string, string>>({})
-const editingBudget    = ref<BudgetItemRead | null>(null)
-const budgetForm       = ref({ item_name: '', estimated_amount: null as number | null, actual_amount: null as number | null, note: '' })
+const showBudgetDialog = ref(false);
+const budgetSaving = ref(false);
+const budgetErrors = ref<Record<string, string>>({});
+const editingBudget = ref<BudgetItemRead | null>(null);
+const budgetForm = ref({
+  item_name: "",
+  estimated_amount: null as number | null,
+  actual_amount: null as number | null,
+  note: "",
+});
 
-const jrId = computed(() => Number(route.params.id))
+const jrId = computed(() => Number(route.params.id));
 
 function statusSeverity(st: string): string {
   const map: Record<string, string> = {
-    draft: 'secondary', pending_review: 'warn', approved: 'info',
-    in_progress: 'contrast', completed: 'success', cancelled: 'danger',
-  }
-  return map[st] ?? 'secondary'
+    draft: "secondary",
+    pending_review: "warn",
+    approved: "info",
+    in_progress: "contrast",
+    completed: "success",
+    cancelled: "danger",
+  };
+  return map[st] ?? "secondary";
 }
 
 function formatDate(d: string) {
-  return new Date(d).toLocaleString('vi-VN', { dateStyle: 'short', timeStyle: 'short' })
+  return new Date(d).toLocaleString("vi-VN", {
+    dateStyle: "short",
+    timeStyle: "short",
+  });
 }
 
 function formatDateShort(d: string) {
-  return new Date(d).toLocaleDateString('vi-VN')
+  return new Date(d).toLocaleDateString("vi-VN");
 }
 
 function deadlineClass(d: string | null) {
-  if (!d) return ''
-  const diff = (new Date(d).getTime() - Date.now()) / 86400000
-  if (diff < 0) return 'rc-deadline-past'
-  if (diff < 7) return 'rc-deadline-near'
-  return ''
+  if (!d) return "";
+  const diff = (new Date(d).getTime() - Date.now()) / 86400000;
+  if (diff < 0) return "rc-deadline-past";
+  if (diff < 7) return "rc-deadline-near";
+  return "";
 }
 
 function formatCurrency(v: string | number) {
-  const n = Number(v)
-  if (!n && n !== 0) return '—'
-  return n.toLocaleString('vi-VN') + ' ₫'
+  const n = Number(v);
+  if (!n && n !== 0) return "—";
+  return n.toLocaleString("vi-VN") + " ₫";
 }
 
 const salaryRange = computed(() => {
-  if (!jr.value) return '—'
-  const min = jr.value.salary_min ? Number(jr.value.salary_min).toLocaleString('vi-VN') : null
-  const max = jr.value.salary_max ? Number(jr.value.salary_max).toLocaleString('vi-VN') : null
-  if (min && max) return `${min} – ${max} VND`
-  if (min) return `Từ ${min} VND`
-  if (max) return `Đến ${max} VND`
-  return 'Thương lượng'
-})
+  if (!jr.value) return "—";
+  const min = jr.value.salary_min
+    ? Number(jr.value.salary_min).toLocaleString("vi-VN")
+    : null;
+  const max = jr.value.salary_max
+    ? Number(jr.value.salary_max).toLocaleString("vi-VN")
+    : null;
+  if (min && max) return `${min} – ${max} VND`;
+  if (min) return `Từ ${min} VND`;
+  if (max) return `Đến ${max} VND`;
+  return "Thương lượng";
+});
 
 async function loadJr() {
-  pageLoading.value = true
+  pageLoading.value = true;
   try {
-    const res = await recruitmentService.getJR(jrId.value)
-    jr.value = res.data
+    const res = await recruitmentService.getJR(jrId.value);
+    jr.value = res.data;
   } catch {
-    jr.value = null
+    jr.value = null;
   } finally {
-    pageLoading.value = false
+    pageLoading.value = false;
   }
 }
 
 async function loadBudget() {
-  budgetLoading.value = true
+  budgetLoading.value = true;
   try {
-    const res = await recruitmentService.getBudget(jrId.value)
-    budget.value = res.data
-  } catch { /* ignore */ } finally {
-    budgetLoading.value = false
+    const res = await recruitmentService.getBudget(jrId.value);
+    budget.value = res.data;
+  } catch {
+    /* ignore */
+  } finally {
+    budgetLoading.value = false;
   }
 }
 
 // JR actions
-function openEdit() { showEditDialog.value = true }
+function openEdit() {
+  showEditDialog.value = true;
+}
 
 async function onJrSaved() {
-  showEditDialog.value = false
-  await loadJr()
-  toast.add({ severity: 'success', summary: 'Đã cập nhật', life: 3000 })
+  showEditDialog.value = false;
+  await loadJr();
+  toast.add({ severity: "success", summary: "Đã cập nhật", life: 3000 });
 }
 
 function confirmSubmit() {
   confirm.require({
-    message:     `Gửi duyệt yêu cầu ${jr.value?.code}?`,
-    header:      'Xác nhận gửi duyệt',
-    icon:        'pi pi-send',
-    acceptLabel: 'Gửi duyệt',
-    rejectLabel: 'Hủy',
-    accept:      doSubmit,
-  })
+    message: `Gửi duyệt yêu cầu ${jr.value?.code}?`,
+    header: "Xác nhận gửi duyệt",
+    icon: "pi pi-send",
+    acceptLabel: "Gửi duyệt",
+    rejectLabel: "Hủy",
+    accept: doSubmit,
+  });
 }
 
 async function doSubmit() {
   try {
-    await recruitmentService.submitJR(jrId.value)
-    await loadJr()
-    toast.add({ severity: 'success', summary: 'Đã gửi duyệt', life: 3000 })
+    await recruitmentService.submitJR(jrId.value);
+    await loadJr();
+    toast.add({ severity: "success", summary: "Đã gửi duyệt", life: 3000 });
   } catch {
-    toast.add({ severity: 'error', summary: 'Lỗi', detail: 'Không thể gửi duyệt', life: 4000 })
+    toast.add({
+      severity: "error",
+      summary: "Lỗi",
+      detail: "Không thể gửi duyệt",
+      life: 4000,
+    });
   }
 }
 
 function confirmApprove() {
   confirm.require({
-    message:     `Duyệt yêu cầu ${jr.value?.code}?`,
-    header:      'Xác nhận duyệt',
-    icon:        'pi pi-check',
-    acceptLabel: 'Duyệt',
-    rejectLabel: 'Hủy',
-    accept:      doApprove,
-  })
+    message: `Duyệt yêu cầu ${jr.value?.code}?`,
+    header: "Xác nhận duyệt",
+    icon: "pi pi-check",
+    acceptLabel: "Duyệt",
+    rejectLabel: "Hủy",
+    accept: doApprove,
+  });
 }
 
 async function doApprove() {
   try {
-    await recruitmentService.approveJR(jrId.value)
-    await loadJr()
-    toast.add({ severity: 'success', summary: 'Đã duyệt', life: 3000 })
+    await recruitmentService.approveJR(jrId.value);
+    await loadJr();
+    toast.add({ severity: "success", summary: "Đã duyệt", life: 3000 });
   } catch {
-    toast.add({ severity: 'error', summary: 'Lỗi', detail: 'Không thể duyệt', life: 4000 })
+    toast.add({
+      severity: "error",
+      summary: "Lỗi",
+      detail: "Không thể duyệt",
+      life: 4000,
+    });
   }
 }
 
 function openReject() {
-  rejectNote.value  = ''
-  rejectError.value = ''
-  showRejectDialog.value = true
+  rejectNote.value = "";
+  rejectError.value = "";
+  showRejectDialog.value = true;
 }
 
 async function doReject() {
   if (!rejectNote.value.trim()) {
-    rejectError.value = 'Vui lòng nhập lý do'
-    return
+    rejectError.value = "Vui lòng nhập lý do";
+    return;
   }
-  actionLoading.value = true
+  actionLoading.value = true;
   try {
-    await recruitmentService.rejectJR(jrId.value, rejectNote.value.trim())
-    showRejectDialog.value = false
-    await loadJr()
-    toast.add({ severity: 'warn', summary: 'Đã từ chối', life: 3000 })
+    await recruitmentService.rejectJR(jrId.value, rejectNote.value.trim());
+    showRejectDialog.value = false;
+    await loadJr();
+    toast.add({ severity: "warn", summary: "Đã từ chối", life: 3000 });
   } catch {
-    toast.add({ severity: 'error', summary: 'Lỗi', detail: 'Không thể từ chối', life: 4000 })
+    toast.add({
+      severity: "error",
+      summary: "Lỗi",
+      detail: "Không thể từ chối",
+      life: 4000,
+    });
   } finally {
-    actionLoading.value = false
+    actionLoading.value = false;
   }
 }
 
 function confirmCancel() {
   confirm.require({
-    message:     `Hủy yêu cầu ${jr.value?.code}?`,
-    header:      'Xác nhận hủy',
-    icon:        'pi pi-ban',
-    acceptLabel: 'Hủy JR',
-    rejectLabel: 'Đóng',
-    acceptClass: 'p-button-danger',
-    accept:      doCancel,
-  })
+    message: `Hủy yêu cầu ${jr.value?.code}?`,
+    header: "Xác nhận hủy",
+    icon: "pi pi-ban",
+    acceptLabel: "Hủy JR",
+    rejectLabel: "Đóng",
+    acceptClass: "p-button-danger",
+    accept: doCancel,
+  });
 }
 
 async function doCancel() {
   try {
-    await recruitmentService.cancelJR(jrId.value)
-    await loadJr()
-    toast.add({ severity: 'info', summary: 'Đã hủy JR', life: 3000 })
+    await recruitmentService.cancelJR(jrId.value);
+    await loadJr();
+    toast.add({ severity: "info", summary: "Đã hủy JR", life: 3000 });
   } catch {
-    toast.add({ severity: 'error', summary: 'Lỗi', detail: 'Không thể hủy', life: 4000 })
+    toast.add({
+      severity: "error",
+      summary: "Lỗi",
+      detail: "Không thể hủy",
+      life: 4000,
+    });
   }
 }
 
 // Budget
 function openAddBudget() {
-  editingBudget.value = null
-  budgetErrors.value  = {}
-  budgetForm.value    = { item_name: '', estimated_amount: null, actual_amount: null, note: '' }
-  showBudgetDialog.value = true
+  editingBudget.value = null;
+  budgetErrors.value = {};
+  budgetForm.value = {
+    item_name: "",
+    estimated_amount: null,
+    actual_amount: null,
+    note: "",
+  };
+  showBudgetDialog.value = true;
 }
 
 function openEditBudget(item: BudgetItemRead) {
-  editingBudget.value = item
-  budgetErrors.value  = {}
-  budgetForm.value    = {
-    item_name:        item.item_name,
-    estimated_amount: item.estimated_amount ? Number(item.estimated_amount) : null,
-    actual_amount:    item.actual_amount    ? Number(item.actual_amount)    : null,
-    note:             item.note ?? '',
-  }
-  showBudgetDialog.value = true
+  editingBudget.value = item;
+  budgetErrors.value = {};
+  budgetForm.value = {
+    item_name: item.item_name,
+    estimated_amount: item.estimated_amount
+      ? Number(item.estimated_amount)
+      : null,
+    actual_amount: item.actual_amount ? Number(item.actual_amount) : null,
+    note: item.note ?? "",
+  };
+  showBudgetDialog.value = true;
 }
 
 async function submitBudget() {
-  budgetErrors.value = {}
+  budgetErrors.value = {};
   if (!budgetForm.value.item_name.trim()) {
-    budgetErrors.value.item_name = 'Vui lòng nhập tên khoản mục'
-    return
+    budgetErrors.value.item_name = "Vui lòng nhập tên khoản mục";
+    return;
   }
-  budgetSaving.value = true
+  budgetSaving.value = true;
   try {
     const payload = {
-      item_name:        budgetForm.value.item_name.trim(),
+      item_name: budgetForm.value.item_name.trim(),
       estimated_amount: budgetForm.value.estimated_amount,
-      actual_amount:    budgetForm.value.actual_amount,
-      note:             budgetForm.value.note.trim() || null,
-    }
+      actual_amount: budgetForm.value.actual_amount,
+      note: budgetForm.value.note.trim() || null,
+    };
     if (editingBudget.value) {
-      await recruitmentService.updateBudgetItem(jrId.value, editingBudget.value.id, payload)
+      await recruitmentService.updateBudgetItem(
+        jrId.value,
+        editingBudget.value.id,
+        payload,
+      );
     } else {
-      await recruitmentService.addBudgetItem(jrId.value, payload)
+      await recruitmentService.addBudgetItem(jrId.value, payload);
     }
-    showBudgetDialog.value = false
-    await loadBudget()
-    toast.add({ severity: 'success', summary: editingBudget.value ? 'Đã cập nhật' : 'Đã thêm', life: 3000 })
+    showBudgetDialog.value = false;
+    await loadBudget();
+    toast.add({
+      severity: "success",
+      summary: editingBudget.value ? "Đã cập nhật" : "Đã thêm",
+      life: 3000,
+    });
   } catch {
-    toast.add({ severity: 'error', summary: 'Lỗi', detail: 'Không thể lưu khoản chi phí', life: 4000 })
+    toast.add({
+      severity: "error",
+      summary: "Lỗi",
+      detail: "Không thể lưu khoản chi phí",
+      life: 4000,
+    });
   } finally {
-    budgetSaving.value = false
+    budgetSaving.value = false;
   }
 }
 
 function confirmDeleteBudget(item: BudgetItemRead) {
   confirm.require({
-    message:     `Xóa khoản "${item.item_name}"?`,
-    header:      'Xác nhận xóa',
-    icon:        'pi pi-trash',
-    acceptLabel: 'Xóa',
-    rejectLabel: 'Hủy',
-    acceptClass: 'p-button-danger',
-    accept:      () => doDeleteBudget(item.id),
-  })
+    message: `Xóa khoản "${item.item_name}"?`,
+    header: "Xác nhận xóa",
+    icon: "pi pi-trash",
+    acceptLabel: "Xóa",
+    rejectLabel: "Hủy",
+    acceptClass: "p-button-danger",
+    accept: () => doDeleteBudget(item.id),
+  });
 }
 
 async function doDeleteBudget(itemId: number) {
   try {
-    await recruitmentService.deleteBudgetItem(jrId.value, itemId)
-    await loadBudget()
-    toast.add({ severity: 'success', summary: 'Đã xóa', life: 3000 })
+    await recruitmentService.deleteBudgetItem(jrId.value, itemId);
+    await loadBudget();
+    toast.add({ severity: "success", summary: "Đã xóa", life: 3000 });
   } catch {
-    toast.add({ severity: 'error', summary: 'Lỗi', detail: 'Không thể xóa', life: 4000 })
+    toast.add({
+      severity: "error",
+      summary: "Lỗi",
+      detail: "Không thể xóa",
+      life: 4000,
+    });
   }
 }
 
 onMounted(async () => {
-  await loadJr()
-  await loadBudget()
-})
+  await loadJr();
+  await loadBudget();
+});
 </script>

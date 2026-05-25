@@ -352,11 +352,12 @@ QuestionDifficulty = Literal["easy", "medium", "hard"]
 
 
 class CandidateEducationCreate(BaseModel):
-    education_level_id: Optional[int] = None
-    institution_name: Optional[str] = Field(default=None, max_length=300)
-    major_name: Optional[str] = Field(default=None, max_length=300)
+    institution_id: int
+    major_id: Optional[int] = None
+    education_level_id: int
     graduation_year: Optional[int] = Field(default=None, ge=1950, le=2100)
-    is_main: bool = False
+    diploma_type: Optional[str] = Field(default=None, max_length=100)
+    is_main_education: bool = False
     note: Optional[str] = None
 
 
@@ -365,12 +366,15 @@ class CandidateEducationRead(BaseModel):
 
     id: int
     candidate_id: int
+    institution_id: Optional[int]
+    institution_name: Optional[str]
+    major_id: Optional[int]
+    major_name: Optional[str]
     education_level_id: Optional[int]
     education_level_name: Optional[str]
-    institution_name: Optional[str]
-    major_name: Optional[str]
     graduation_year: Optional[int]
-    is_main: bool
+    diploma_type: Optional[str]
+    is_main_education: bool
     note: Optional[str]
 
 

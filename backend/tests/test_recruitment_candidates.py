@@ -70,6 +70,24 @@ def _create_candidate(client: TestClient, h: dict, suffix: str = "") -> dict:
     return res.json()
 
 
+def _get_education_level_id(client: TestClient, h: dict) -> int:
+    rows = client.get("/api/v1/lookups/education-levels", headers=h, params={"limit": 20}).json()
+    assert rows, "Cần ít nhất 1 trình độ học vấn"
+    return rows[0]["id"]
+
+
+def _get_institution_id(client: TestClient, h: dict) -> int:
+    rows = client.get("/api/v1/lookups/educational-institutions", headers=h, params={"limit": 20}).json()
+    assert rows, "Cần ít nhất 1 trường học"
+    return rows[0]["id"]
+
+
+def _get_major_id(client: TestClient, h: dict) -> int:
+    rows = client.get("/api/v1/lookups/education-majors", headers=h, params={"limit": 20}).json()
+    assert rows, "Cần ít nhất 1 chuyên ngành"
+    return rows[0]["id"]
+
+
 # ── TestCandidateCRUD ─────────────────────────────────────────────────────────
 
 
@@ -275,38 +293,68 @@ class TestCandidateSubResources:
     def test_add_education(self, client: TestClient) -> None:
         h = _admin(client)
         c = _create_candidate(client, h, "edu01")
+        institution_id = _get_institution_id(client, h)
+        major_id = _get_major_id(client, h)
+        education_level_id = _get_education_level_id(client, h)
         res = client.post(
             f"{BASE_CAND}/{c['id']}/educations",
-            json={"institution_name": "Đại học Bách Khoa", "major_name": "CNTT", "graduation_year": 2018, "is_main": True},
+            json={
+                "institution_id": institution_id,
+                "major_id": major_id,
+                "education_level_id": education_level_id,
+                "graduation_year": 2018,
+                "diploma_type": "Kỹ sư",
+                "is_main_education": True,
+            },
             headers=h,
         )
         assert res.status_code == 201
         data = res.json()
-        assert data["institution_name"] == "Đại học Bách Khoa"
-        assert data["is_main"] is True
+        assert data["institution_id"] == institution_id
+        assert data["major_id"] == major_id
+        assert data["education_level_id"] == education_level_id
+        assert data["diploma_type"] == "Kỹ sư"
+        assert data["is_main_education"] is True
 
     def test_update_education(self, client: TestClient) -> None:
         h = _admin(client)
         c = _create_candidate(client, h, "edu02")
+        institution_id = _get_institution_id(client, h)
+        education_level_id = _get_education_level_id(client, h)
         edu = client.post(
             f"{BASE_CAND}/{c['id']}/educations",
-            json={"institution_name": "ĐH Cũ"},
+            json={
+                "institution_id": institution_id,
+                "education_level_id": education_level_id,
+            },
             headers=h,
         ).json()
+        major_id = _get_major_id(client, h)
         res = client.put(
             f"{BASE_CAND}/{c['id']}/educations/{edu['id']}",
-            json={"institution_name": "ĐH Mới"},
+            json={
+                "institution_id": institution_id,
+                "major_id": major_id,
+                "education_level_id": education_level_id,
+                "graduation_year": 2020,
+            },
             headers=h,
         )
         assert res.status_code == 200
-        assert res.json()["institution_name"] == "ĐH Mới"
+        assert res.json()["major_id"] == major_id
+        assert res.json()["graduation_year"] == 2020
 
     def test_delete_education(self, client: TestClient) -> None:
         h = _admin(client)
         c = _create_candidate(client, h, "edu03")
+        institution_id = _get_institution_id(client, h)
+        education_level_id = _get_education_level_id(client, h)
         edu = client.post(
             f"{BASE_CAND}/{c['id']}/educations",
-            json={"institution_name": "ĐH Xóa"},
+            json={
+                "institution_id": institution_id,
+                "education_level_id": education_level_id,
+            },
             headers=h,
         ).json()
         res = client.delete(f"{BASE_CAND}/{c['id']}/educations/{edu['id']}", headers=h)

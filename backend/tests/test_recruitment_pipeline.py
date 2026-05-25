@@ -115,7 +115,15 @@ class TestRecruitmentPipeline:
             headers=h,
         )
         assert app_res.status_code == 201, app_res.text
-        assert app_res.json()["current_stage"] == "screening"
+        application = app_res.json()
+        assert application["current_stage"] == "screening"
+
+        app_detail_res = client.get(
+            f"/api/v1/recruitment/applications/{application['id']}",
+            headers=h,
+        )
+        assert app_detail_res.status_code == 200, app_detail_res.text
+        assert app_detail_res.json()["id"] == application["id"]
 
     def test_update_pipeline_template_replaces_stage_items(self, client: TestClient) -> None:
         h = _admin(client)

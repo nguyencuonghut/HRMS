@@ -9,7 +9,14 @@ from fastapi import HTTPException, status
 from sqlalchemy import func, or_, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.catalog import EducationLevel, Ethnicity, Nationality, Religion
+from app.models.catalog import (
+    EducationLevel,
+    EducationMajor,
+    EducationalInstitution,
+    Ethnicity,
+    Nationality,
+    Religion,
+)
 from app.models.auth import User
 from app.models.org import Department, JobPosition
 from app.models.recruitment import (
@@ -113,6 +120,47 @@ def _normalize_document(value: Optional[str]) -> Optional[str]:
         return None
     normalized = re.sub(r"[\s.\-]", "", value).upper()
     return normalized or None
+
+
+async def _resolve_education_refs(
+    session: AsyncSession,
+    payload: CandidateEducationCreate,
+) -> tuple[EducationalInstitution, Optional[EducationMajor], EducationLevel]:
+    institution = await session.get(EducationalInstitution, payload.institution_id)
+    if not institution or not institution.is_active:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Trường học không hợp lệ")
+
+    major = None
+    if payload.major_id is not None:
+        major = await session.get(EducationMajor, payload.major_id)
+        if not major or not major.is_active:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Chuyên ngành không hợp lệ")
+
+    level = await session.get(EducationLevel, payload.education_level_id)
+    if not level or not level.is_active:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Trình độ học vấn không hợp lệ")
+
+    return institution, major, level
+
+
+def _edu_read(
+    edu: CandidateEducation,
+    level_name: Optional[str],
+) -> CandidateEducationRead:
+    return CandidateEducationRead(
+        id=edu.id,
+        candidate_id=edu.candidate_id,
+        institution_id=edu.institution_id,
+        institution_name=edu.institution_name,
+        major_id=edu.major_id,
+        major_name=edu.major_name,
+        education_level_id=edu.education_level_id,
+        education_level_name=level_name,
+        graduation_year=edu.graduation_year,
+        diploma_type=edu.diploma_type,
+        is_main_education=edu.is_main_education,
+        note=edu.note,
+    )
 
 
 async def _resolve_nationality_id(
@@ -261,19 +309,7 @@ async def _build_read(session: AsyncSession, c: Candidate) -> CandidateRead:
         if edu.education_level_id:
             lv = await session.get(EducationLevel, edu.education_level_id)
             level_name = lv.name if lv else None
-        edu_reads.append(
-            CandidateEducationRead(
-                id=edu.id,
-                candidate_id=edu.candidate_id,
-                education_level_id=edu.education_level_id,
-                education_level_name=level_name,
-                institution_name=edu.institution_name,
-                major_name=edu.major_name,
-                graduation_year=edu.graduation_year,
-                is_main=edu.is_main,
-                note=edu.note,
-            )
-        )
+        edu_reads.append(_edu_read(edu, level_name))
 
     nationality_name = ethnicity_name = religion_name = None
     if c.nationality_id:
@@ -577,26 +613,22 @@ async def add_education(
     session: AsyncSession, candidate_id: int, data: CandidateEducationCreate
 ) -> CandidateEducationRead:
     await _get_candidate_or_404(session, candidate_id)
-    edu = CandidateEducation(candidate_id=candidate_id, **data.model_dump())
+    institution, major, level = await _resolve_education_refs(session, data)
+    edu = CandidateEducation(
+        candidate_id=candidate_id,
+        institution_id=institution.id,
+        institution_name=institution.name,
+        major_id=major.id if major else None,
+        major_name=major.name if major else None,
+        education_level_id=level.id,
+        graduation_year=data.graduation_year,
+        diploma_type=data.diploma_type,
+        is_main_education=data.is_main_education,
+        note=data.note,
+    )
     session.add(edu)
     await session.flush()
-
-    level_name = None
-    if edu.education_level_id:
-        lv = await session.get(EducationLevel, edu.education_level_id)
-        level_name = lv.name if lv else None
-
-    return CandidateEducationRead(
-        id=edu.id,
-        candidate_id=edu.candidate_id,
-        education_level_id=edu.education_level_id,
-        education_level_name=level_name,
-        institution_name=edu.institution_name,
-        major_name=edu.major_name,
-        graduation_year=edu.graduation_year,
-        is_main=edu.is_main,
-        note=edu.note,
-    )
+    return _edu_read(edu, level.name)
 
 
 async def update_education(
@@ -606,26 +638,18 @@ async def update_education(
     edu = await session.get(CandidateEducation, edu_id)
     if not edu or edu.candidate_id != candidate_id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Không tìm thấy học vấn")
-    for k, v in data.model_dump().items():
-        setattr(edu, k, v)
+    institution, major, level = await _resolve_education_refs(session, data)
+    edu.institution_id = institution.id
+    edu.institution_name = institution.name
+    edu.major_id = major.id if major else None
+    edu.major_name = major.name if major else None
+    edu.education_level_id = level.id
+    edu.graduation_year = data.graduation_year
+    edu.diploma_type = data.diploma_type
+    edu.is_main_education = data.is_main_education
+    edu.note = data.note
     await session.flush()
-
-    level_name = None
-    if edu.education_level_id:
-        lv = await session.get(EducationLevel, edu.education_level_id)
-        level_name = lv.name if lv else None
-
-    return CandidateEducationRead(
-        id=edu.id,
-        candidate_id=edu.candidate_id,
-        education_level_id=edu.education_level_id,
-        education_level_name=level_name,
-        institution_name=edu.institution_name,
-        major_name=edu.major_name,
-        graduation_year=edu.graduation_year,
-        is_main=edu.is_main,
-        note=edu.note,
-    )
+    return _edu_read(edu, level.name)
 
 
 async def delete_education(session: AsyncSession, candidate_id: int, edu_id: int) -> None:
@@ -839,6 +863,16 @@ async def list_candidate_applications(
     items = [await _build_application_read(session, r) for r in rows]
 
     return ApplicationListPage(items=items, total=total, page=page, page_size=page_size)
+
+
+async def get_application(
+    session: AsyncSession,
+    application_id: int,
+) -> ApplicationRead:
+    app = await session.get(CandidateApplication, application_id)
+    if not app:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Không tìm thấy hồ sơ ứng tuyển")
+    return await _build_application_read(session, app)
 
 
 async def _build_application_read(

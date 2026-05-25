@@ -304,7 +304,9 @@ class ConvertToEmployeeResult(BaseModel):
    - probation_end_date = start_date + probation_days
    - is_current = True
 4. Migrate dữ liệu phụ từ candidate:
-   - candidate_educations → employee_education_histories
+   - candidate_educations → employee_education_histories (copy gần như 1:1 các field
+     `institution_id`, `institution_name`, `major_id`, `major_name`, `education_level_id`,
+     `graduation_year`, `diploma_type`, `is_main_education`, `note`)
    - candidate_work_experiences → employee_work_experiences
    - candidate_skills → employee_skills (nếu skill tồn tại trong catalog)
 5. Cập nhật hiring_decision:

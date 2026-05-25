@@ -62,14 +62,25 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.Column(
+            "institution_id", sa.Integer(),
+            sa.ForeignKey("educational_institutions.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
+        sa.Column("institution_name", sa.String(300), nullable=True),
+        sa.Column(
+            "major_id", sa.Integer(),
+            sa.ForeignKey("education_majors.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
+        sa.Column("major_name", sa.String(300), nullable=True),
+        sa.Column(
             "education_level_id", sa.Integer(),
             sa.ForeignKey("education_levels.id", ondelete="SET NULL"),
             nullable=True,
         ),
-        sa.Column("institution_name", sa.String(300), nullable=True),
-        sa.Column("major_name", sa.String(300), nullable=True),
         sa.Column("graduation_year", sa.SmallInteger(), nullable=True),
-        sa.Column("is_main", sa.Boolean(), nullable=False, server_default="false"),
+        sa.Column("diploma_type", sa.String(100), nullable=True),
+        sa.Column("is_main_education", sa.Boolean(), nullable=False, server_default="false"),
         sa.Column("note", sa.Text(), nullable=True),
     )
     op.create_index("ix_candidate_educations_candidate", "candidate_educations", ["candidate_id"])
