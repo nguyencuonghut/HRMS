@@ -345,55 +345,243 @@
 
 ## 13. Tuyển dụng & Ứng viên (ATS)
 
-> **Lưu ý:** Module này sẽ được phát triển sau. Chưa nằm trong phạm vi triển khai hiện tại.
+> **Lưu ý:** Module này sẽ được phát triển sau. Chưa nằm trong phạm vi triển khai hiện tại.  
+> **Căn cứ pháp lý:** Bộ luật Lao động 2019 (Luật 45/2019/QH14), Luật Việc làm 2013, Nghị định 145/2020/NĐ-CP, Thông tư 23/2014/TT-BLĐTBXH.  
+> **Lưu ý kiến trúc:** Module ATS sử dụng bảng `candidates` **riêng biệt** với `employees`. Ứng viên chỉ được chuyển sang `employees` sau khi có Quyết định tuyển dụng (xem 13.5). Hồ sơ ứng viên (`học vấn`, `kinh nghiệm`, `kỹ năng`) lưu trong bảng riêng song song với cấu trúc tương ứng bên nhân viên; khi chuyển đổi mới migrate sang `employee_education_histories`, `employee_work_experiences`, `employee_skills`.
 
-### 13.1. Kế hoạch tuyển dụng
-- Tạo **Yêu cầu tuyển dụng** (Job Requisition): vị trí, số lượng, lý do, thời hạn
-- Phê duyệt kế hoạch tuyển dụng (HR Manager)
-- Theo dõi ngân sách tuyển dụng
-- Liên kết với vị trí công việc trong cơ cấu tổ chức
+### 13.1. Kế hoạch & Yêu cầu tuyển dụng
 
-### 13.2. Quản lý ứng viên
-- Hồ sơ ứng viên: thông tin cá nhân, CV, kinh nghiệm, học vấn
-- Trạng thái ứng viên trong pipeline: Mới → Đang xét → Phỏng vấn → Offer → Đã tuyển / Từ chối
-- Upload và lưu trữ CV, hồ sơ đính kèm
-- Tìm kiếm & lọc ứng viên đa tiêu chí
+#### Kế hoạch nhân sự (Headcount Planning)
+- Lập **kế hoạch nhân sự theo năm** theo từng phòng ban: số lượng hiện tại, nhu cầu bổ sung, lý do
+- Theo dõi **tỷ lệ thực hiện** kế hoạch tuyển dụng theo kỳ
+- Liên kết cơ cấu tổ chức: tham chiếu trực tiếp `departments`, `job_titles`, `job_positions` đã có
 
-### 13.3. Quy trình phỏng vấn
-- Cấu hình **vòng phỏng vấn** (Vòng 1: HR, Vòng 2: Chuyên môn,...)
-- Lập lịch phỏng vấn, phân công người phỏng vấn
-- Ghi nhận **đánh giá & điểm số** từng vòng
-- Ghi chú, nhận xét của từng người phỏng vấn
-- Kết quả cuối: Đậu / Trượt / Hold
+#### Yêu cầu tuyển dụng (Job Requisition — JR)
+- Tạo JR **độc lập**, không bắt buộc phải có kế hoạch nhân sự trước — đáp ứng cả tuyển theo kế hoạch lẫn phát sinh đột xuất (thay thế nghỉ việc, mở rộng giữa năm, dự án mới,...)
+- Thông tin JR: liên kết `job_position_id` (vị trí công việc đã có trong hệ thống), phòng ban, số lượng cần tuyển, lý do tuyển (mới/thay thế/bổ sung), thời hạn cần người, mức lương dự kiến
+- **Nội dung JD**: mặc định kế thừa `description` và `requirements` từ `JobPosition` được chọn; cho phép ghi đè (override) nếu JR này có yêu cầu khác tiêu chuẩn vị trí
+- **Liên kết kế hoạch nhân sự** (tuỳ chọn — không bắt buộc): nếu công ty có lập kế hoạch thì gắn vào để theo dõi thực hiện; nếu không có kế hoạch vẫn tạo JR bình thường
+- Trạng thái JR: **Nháp → Chờ duyệt → Đã duyệt → Đang tuyển → Hoàn thành / Hủy**
+- **Phê duyệt JR** theo phân quyền: Trưởng bộ phận → HR Manager → (Ban giám đốc nếu cần)
+- Lịch sử thay đổi, ghi chú nội bộ trên từng JR
 
-### 13.4. Giao tiếp ứng viên
-- Gửi **email mời phỏng vấn** theo mẫu
-- Gửi **email thông báo kết quả** (đậu/trượt)
-- Gửi **thư mời nhận việc** (Offer Letter)
-- Log lịch sử gửi email
+#### Ngân sách tuyển dụng
+- Dự toán chi phí tuyển dụng cho từng JR: phí đăng tin, phí headhunter, chi phí phỏng vấn,...
+- Theo dõi chi phí thực tế vs. dự toán
+- Báo cáo **chi phí tuyển dụng mỗi vị trí** (Cost per Hire)
 
-### 13.5. Báo cáo tuyển dụng
-- Báo cáo **funnel tuyển dụng** (số ứng viên từng bước)
-- Báo cáo tỷ lệ chuyển đổi, thời gian tuyển dụng
-- Báo cáo theo vị trí, phòng ban, thời gian
+---
+
+### 13.2. Đăng tin tuyển dụng (Job Posting)
+
+#### Quản lý tin đăng
+- Tạo **tin tuyển dụng** từ JR đã duyệt: tên vị trí, mô tả, yêu cầu, quyền lợi, địa điểm làm việc, thời hạn nộp hồ sơ
+- Phân loại: **Tuyển nội bộ** (ưu tiên xét dịch chuyển nội bộ trước) / **Tuyển bên ngoài**
+- Trạng thái tin: Nháp / Đang đăng / Đã đóng / Hết hạn
+- Tự động đóng tin khi đủ số lượng hoặc hết thời hạn
+
+#### Đa kênh tuyển dụng
+- Quản lý danh sách **kênh tuyển dụng**: website công ty, LinkedIn, TopCV, VietnamWorks, VietnamJobs, headhunter, giới thiệu nội bộ (referral),...
+- Ghi nhận **nguồn ứng viên** (source) để phân tích hiệu quả kênh
+- *(Tính năng nâng cao — tùy chọn)* Tích hợp form nộp hồ sơ online (Career Page) nhúng vào website công ty
+
+#### Tuân thủ pháp lý khi đăng tin
+- *(Điều 10, 11 Luật Việc làm 2013; Điều 8 BLLĐ 2019)* Tin tuyển dụng **không được** chứa nội dung phân biệt đối xử về giới tính, độ tuổi, tình trạng hôn nhân, dân tộc, tôn giáo, khuyết tật
+- Cảnh báo khi tin đăng chứa ngôn ngữ có dấu hiệu vi phạm nguyên tắc bình đẳng
+- Lưu log toàn bộ lần đăng/sửa/đóng tin theo yêu cầu lưu trữ hồ sơ
+
+---
+
+### 13.3. Quản lý hồ sơ ứng viên (Candidate Management)
+
+#### Hồ sơ ứng viên
+- **Bảng `candidates` độc lập** — không phải `employees`; chỉ migrate sang nhân viên khi có quyết định tuyển dụng
+- Thông tin cá nhân: họ tên, ngày sinh, giới tính, quốc tịch, CCCD/hộ chiếu, địa chỉ, SĐT, email
+- Học vấn: trường, chuyên ngành, trình độ, năm tốt nghiệp
+- Kinh nghiệm làm việc: công ty, vị trí, thời gian, mô tả
+- Kỹ năng, chứng chỉ, ngoại ngữ
+- Upload và lưu trữ file đính kèm: **CV (PDF/Word), bằng cấp, CCCD scan, ảnh thẻ** — lưu trên MinIO theo cùng cơ chế file đính kèm hiện có
+- Ghi chú nội bộ (không hiển thị với ứng viên)
+- **Tái sử dụng hồ sơ**: ứng viên cũ có thể được gắn vào JR mới (talent pool)
+
+#### Tiếp nhận hồ sơ
+- Nhập thủ công bởi HR (luồng chính)
+- Import hàng loạt từ **file Excel theo mẫu**
+- *(Tính năng nâng cao — tùy chọn)* Form online (Career Page): ứng viên tự điền, đính kèm CV
+- **Lưu ý**: Tự động parse nội dung CV từ PDF/Word đòi hỏi NLP/AI — nằm ngoài phạm vi triển khai cơ bản; file CV chỉ được lưu đính kèm, HR tự đọc và điền thông tin
+
+#### Ngân hàng ứng viên (Talent Pool)
+- Lưu trữ hồ sơ ứng viên **chưa tuyển nhưng tiềm năng** cho các đợt tuyển dụng sau
+- Phân loại ứng viên theo kỹ năng, kinh nghiệm, vị trí phù hợp
+- Tìm kiếm và lọc đa tiêu chí trên toàn bộ talent pool
+- Cảnh báo khi hồ sơ ứng viên **chưa được xử lý** quá số ngày quy định
+
+---
+
+### 13.4. Quy trình tuyển chọn (Recruitment Pipeline)
+
+#### Cấu hình pipeline
+- HR cấu hình các **bước tuyển chọn** linh hoạt cho từng vị trí/JR:
+  - Sàng lọc hồ sơ → Test năng lực → Phỏng vấn HR → Phỏng vấn chuyên môn → Phỏng vấn BGĐ → Offer
+- Mỗi bước có thể bật/tắt tùy vị trí
+- Bảng **Kanban pipeline**: xem và cập nhật trạng thái ứng viên theo từng bước
+
+#### Sàng lọc hồ sơ
+- Đánh dấu hồ sơ: **Phù hợp / Không phù hợp / Cần xem lại**
+- Ghi lý do loại hồ sơ (lưu lại để báo cáo và tránh phân biệt đối xử)
+- Gửi email thông báo **không phù hợp** tự động theo mẫu
+
+#### Bài kiểm tra / Đánh giá năng lực
+- Ghi nhận kết quả **bài test chuyên môn, tính cách** (nhập tay hoặc upload file kết quả)
+- Liên kết kết quả test với hồ sơ ứng viên
+- Cấu hình điểm đạt/không đạt cho từng bài test
+
+#### Quản lý phỏng vấn
+- **Lập lịch phỏng vấn**: ngày giờ, hình thức (trực tiếp/online), địa điểm/link
+- Phân công **người phỏng vấn** (interviewer panel) — người phỏng vấn tham chiếu `users` hiện có trong hệ thống
+- Gửi **email xác nhận lịch phỏng vấn** cho ứng viên và người phỏng vấn tự động
+- Ghi nhận **kết quả & điểm số** từng vòng theo bộ tiêu chí: thái độ, kỹ năng chuyên môn, kỹ năng mềm, ngoại ngữ, lương kỳ vọng,...
+- Nhận xét chi tiết của từng người phỏng vấn (private notes)
+- Kết quả vòng: **Đậu / Trượt / Đưa vào Hold**
+- Lịch sử tất cả vòng phỏng vấn theo từng ứng viên
+
+#### Bộ câu hỏi phỏng vấn (Interview Kit)
+- Thư viện câu hỏi phỏng vấn theo vị trí/nhóm kỹ năng
+- Gắn bộ câu hỏi gợi ý vào từng vòng phỏng vấn
+- Scorecard tiêu chuẩn hóa để so sánh khách quan giữa các ứng viên
+
+---
+
+### 13.5. Offer & Quyết định tuyển dụng
+
+#### Thư mời nhận việc (Offer Letter)
+- Soạn **Offer Letter** từ mẫu: vị trí, phòng ban, ngày bắt đầu dự kiến, mức lương, phúc lợi
+- **Tái dụng cơ chế template hiện có** (`contract_templates` + `contract_generate_service`): Offer Letter là một loại document mới trong hệ thống template Word/PDF hiện hành — không cần xây dựng từ đầu
+- Gửi email offer kèm file PDF đính kèm
+- Theo dõi trạng thái offer: **Đã gửi / Chờ phản hồi / Chấp nhận / Từ chối / Đàm phán lại**
+- Ghi nhận lý do ứng viên từ chối offer (để phân tích cải thiện)
+- Lưu lịch sử offer (kể cả offer bị từ chối) để kiểm toán
+
+#### Quyết định tuyển dụng & Chuyển đổi sang nhân viên
+- Sau khi ứng viên chấp nhận offer → tạo **Quyết định tuyển dụng** chính thức:
+  - Số quyết định, ngày ký, vị trí, phòng ban, ngày bắt đầu làm việc, mức lương thử việc, thời gian thử việc
+- *(Điều 24 BLLĐ 2019)* Cảnh báo nếu thời gian thử việc **vượt giới hạn pháp lý**:
+  - ≤ 180 ngày cho chức danh quản lý doanh nghiệp
+  - ≤ 60 ngày cho công việc yêu cầu trình độ CĐ trở lên
+  - ≤ 30 ngày cho công việc yêu cầu TC/CNKT/nhân viên chuyên môn
+  - ≤ 6 ngày cho các trường hợp còn lại
+- *(Điều 26 BLLĐ 2019)* Cảnh báo nếu lương thử việc nhập vào **thấp hơn 85%** mức lương chính thức
+- Upload file quyết định tuyển dụng scan/PDF
+- **Chuyển đổi ứng viên → nhân viên**: tự động tạo bản ghi `Employee` + `EmployeeJobRecord` (trạng thái `probation`, điền `probation_start_date`, `probation_end_date`) + migrate học vấn/kinh nghiệm/kỹ năng từ `candidates` sang các bảng tương ứng của nhân viên — Module 14 tiếp nhận từ đây
+
+---
+
+### 13.6. Hồ sơ pháp lý & Tuân thủ
+
+#### Checklist hồ sơ nhân viên mới *(theo quy định VN)*
+- Danh sách giấy tờ cần thu thập khi tiếp nhận:
+  - CCCD/CMND (bản sao công chứng)
+  - Sổ hộ khẩu / KT3 (bản sao)
+  - Giấy khai sinh (bản sao)
+  - Bằng cấp, chứng chỉ (bản sao công chứng)
+  - Lý lịch tư pháp số 1 *(đối với vị trí nhạy cảm)*
+  - Giấy chứng nhận sức khỏe *(Điều 35, Nghị định 145/2020/NĐ-CP)*
+  - Mã số thuế cá nhân
+  - Thông tin tài khoản ngân hàng
+  - Ảnh thẻ 3×4
+  - Sổ BHXH (nếu đã tham gia trước)
+  - Giấy phép lao động *(đối với người nước ngoài)*
+- Theo dõi trạng thái từng giấy tờ: **Chưa nộp / Đã nộp / Hết hạn**
+- File scan giấy tờ lưu trên MinIO theo cùng cơ chế `employee_attachments` hiện có
+- Cảnh báo giấy tờ còn thiếu hoặc sắp hết hạn
+
+#### Đăng ký lao động với cơ quan Nhà nước
+- *(Thông tư 23/2014/TT-BLĐTBXH)* Nhắc nhở HR **báo cáo biến động lao động** định kỳ (quý/năm) lên Sở LĐTBXH
+- Xuất danh sách lao động mới theo mẫu biểu báo cáo Nhà nước
+- *(Luật Việc làm 2013, Điều 16)* Cảnh báo khi cần đăng ký nhu cầu tuyển dụng với **Trung tâm Dịch vụ Việc làm** (đối với doanh nghiệp có nghĩa vụ thông báo)
+
+---
+
+### 13.7. Giao tiếp ứng viên
+
+- Thư viện **mẫu email** theo từng bước: xác nhận nhận hồ sơ, mời phỏng vấn, thông báo trượt, gửi offer, xác nhận ngày bắt đầu
+- Biến merge field: tên ứng viên, vị trí, ngày giờ phỏng vấn, địa điểm, tên người liên hệ HR
+- Gửi email **tự động** khi ứng viên chuyển trạng thái (cấu hình bật/tắt từng loại) — tái dụng `reminder_service` và log email hiện có
+- Gửi email **thủ công** bất kỳ lúc nào với nội dung tùy chỉnh
+- **Log lịch sử giao tiếp** đầy đủ: ngày giờ, loại email, nội dung, trạng thái gửi (thành công/lỗi)
+
+---
+
+### 13.8. Báo cáo & Phân tích tuyển dụng
+
+- **Funnel tuyển dụng**: số ứng viên từng bước → tỷ lệ chuyển đổi giữa các bước
+- **Thời gian tuyển dụng** (Time to Hire / Time to Fill): từ mở JR đến khi ứng viên nhận việc
+- **Chi phí mỗi lần tuyển** (Cost per Hire) theo vị trí, phòng ban
+- **Tỷ lệ chấp nhận offer** (Offer Acceptance Rate)
+- **Hiệu quả kênh tuyển dụng**: số ứng viên, số tuyển thành công theo từng nguồn
+- **Tỷ lệ vượt qua thử việc** (Probation Pass Rate) liên kết ngược từ Module 14
+- Báo cáo lọc theo: vị trí, phòng ban, khoảng thời gian, kênh tuyển dụng
+- Xuất tất cả báo cáo ra Excel/PDF
 
 ---
 
 ## 14. Tiếp nhận & Thử việc (Onboarding/Probation)
 
-> **Lưu ý:** Module này sẽ được phát triển sau. Chưa nằm trong phạm vi triển khai hiện tại.
+> **Lưu ý:** Module này sẽ được phát triển sau. Chưa nằm trong phạm vi triển khai hiện tại.  
+> **Căn cứ pháp lý:** Điều 24–27 BLLĐ 2019; Nghị định 145/2020/NĐ-CP Điều 35 (khám sức khỏe); Thông tư 23/2014/TT-BLĐTBXH (báo cáo lao động).  
+> **Lưu ý kiến trúc:** Module 14 tiếp nhận nhân viên **đã được tạo** từ Module 13 (bản ghi `Employee` + `EmployeeJobRecord` trạng thái `probation` đã tồn tại). Phần lớn dữ liệu thử việc (ngày thử việc, hợp đồng, nhắc nhở) tái dụng hạ tầng hiện có; phần cần xây mới chủ yếu là **checklist onboarding** và **form đánh giá thử việc**.
 
-### 14.1. Tiếp nhận nhân viên mới
-- Hồ sơ tiếp nhận: chuyển thông tin từ ứng viên sang nhân viên
-- **Checklist onboarding** theo phòng ban (tài khoản, thiết bị, đào tạo nội quy,...)
-- Theo dõi tiến độ hoàn thành checklist
-- Gán người phụ trách hướng dẫn (Buddy)
+### 14.1. Tiếp nhận nhân viên mới (Onboarding)
 
-### 14.2. Quản lý thử việc
-- **Hợp đồng thử việc**: thời hạn, mức lương thử việc
-- Theo dõi thời gian thử việc, cảnh báo sắp kết thúc
-- **Đánh giá kết quả thử việc**: tiêu chí, điểm số, nhận xét
-- Kết quả: Đạt (chuyển chính thức) / Không đạt (thôi việc) / Gia hạn
+#### Tiếp nhận từ Module 13
+- Nhân viên mới được tạo tự động từ Quyết định tuyển dụng (Module 13.5): `Employee` status=`probation`, `EmployeeJobRecord.probation_start_date` và `probation_end_date` đã điền
+- HR kiểm tra và bổ sung thông tin còn thiếu trong hồ sơ nhân viên (địa chỉ, tài khoản ngân hàng, MST,...)
+
+#### Checklist onboarding *(tính năng xây mới)*
+- Cấu hình **danh sách công việc cần làm** khi tiếp nhận, phân theo nhóm:
+  - *Hành chính:* Thu thập hồ sơ giấy tờ, cấp thẻ nhân viên, đăng ký BHXH, mở tài khoản ngân hàng
+  - *IT:* Cấp tài khoản email, phần mềm, thiết bị làm việc
+  - *Đào tạo hội nhập:* Giới thiệu nội quy, an toàn lao động, văn hóa công ty *(Điều 18 BLLĐ 2019 — nghĩa vụ đào tạo ATLĐ)*
+  - *Chuyên môn:* Đào tạo nghiệp vụ, bàn giao công việc
+- Phân công người phụ trách (HR, IT, Trưởng bộ phận) cho từng hạng mục — tham chiếu `users` hiện có
+- Giao **Buddy** (người hướng dẫn trong bộ phận)
+- Theo dõi tiến độ hoàn thành checklist theo %
+- Cảnh báo checklist trễ hạn — tích hợp `reminder_service` hiện có
+
+---
+
+### 14.2. Quản lý thử việc (Probation)
+
+#### Hợp đồng thử việc
+- Tạo **hợp đồng thử việc** *(Điều 24 BLLĐ 2019)* — lưu vào bảng `employee_contracts` hiện có với loại hợp đồng thử việc; sinh từ `contract_templates` hiện có
+- Hệ thống kiểm tra và **cảnh báo vi phạm pháp lý**:
+  - Thời hạn thử việc vượt giới hạn theo từng nhóm chức danh (180/60/30/6 ngày)
+  - Lương thử việc < 85% lương chính thức *(Điều 26 BLLĐ 2019)*
+  - Thử việc quá 1 lần với cùng một công việc *(Điều 24 BLLĐ 2019)*
+
+#### Theo dõi & Đánh giá thử việc
+- Countdown ngày còn lại đọc từ `EmployeeJobRecord.probation_end_date` hiện có; cảnh báo **trước 15 ngày và 7 ngày** qua `reminder_service` hiện có
+- **Form đánh giá thử việc** *(tính năng xây mới)*: bộ tiêu chí theo vị trí (thái độ, năng lực chuyên môn, hội nhập văn hóa, KPI thử việc), thang điểm tùy chỉnh, nhận xét của Trưởng bộ phận và HR
+- Lưu toàn bộ lịch sử đánh giá trong thử việc vào hồ sơ nhân viên
+
+#### Kết thúc thử việc
+- *(Điều 27 BLLĐ 2019)* Phải thông báo kết quả trước khi hết thời hạn; `reminder_service` nhắc HR đúng thời điểm
+- Kết quả thử việc:
+  - **Đạt — Chuyển chính thức**: cập nhật `Employee.status` → `official`, ghi `EmployeeJobRecord.official_date`; tạo hợp đồng lao động chính thức trong `employee_contracts`
+  - **Không đạt — Thôi việc**: cập nhật `Employee.status` → `resigned`; ghi nhận lý do; sinh Thông báo chấm dứt thử việc từ template *(Điều 27 BLLĐ — không cần bồi thường nếu thông báo trước ít nhất 3 ngày)*
+  - **Gia hạn thử việc**: cập nhật `EmployeeJobRecord.probation_end_date`; kiểm tra tổng thời gian không vượt giới hạn pháp lý
+- Sinh văn bản kết quả thử việc từ template, lưu file
+
+---
+
+### 14.3. Báo cáo Onboarding & Thử việc
+
+- Danh sách nhân viên đang trong thời gian thử việc, số ngày còn lại
+- Tỷ lệ hoàn thành checklist onboarding theo phòng ban
+- **Tỷ lệ vượt qua thử việc** (Probation Pass Rate) theo phòng ban, vị trí, kỳ
+- Thống kê lý do không qua thử việc
+- Thời gian trung bình hoàn thành checklist onboarding
+- Xuất Excel/PDF
 
 ---
 
