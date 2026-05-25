@@ -81,3 +81,4 @@ from app.models.reward import RewardType, EmployeeReward  # noqa: F401
 from app.models.discipline import EmployeeDiscipline  # noqa: F401
 from app.models.training import TrainingCourse, TrainingPlan, TrainingPlanCourse, EmployeeTrainingRecord, EmployeeTrainingCertificate  # noqa: F401
 from app.models.performance import EmployeeKpiMonthly, EmployeeYearlyReview  # noqa: F401
+from app.models.recruitment import HeadcountPlan, JobRequisition, RecruitmentBudgetItem  # noqa: F401
