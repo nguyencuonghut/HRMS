@@ -1,4 +1,4 @@
-"""Models tuyển dụng ATS (13.1 — Kế hoạch & Yêu cầu tuyển dụng / 13.2 — Đăng tin)."""
+"""Models tuyển dụng ATS (13.1 — Kế hoạch & Yêu cầu tuyển dụng / 13.2 — Đăng tin / 13.3 — Ứng viên)."""
 from __future__ import annotations
 
 from datetime import date, datetime, timezone
@@ -211,4 +211,173 @@ class JobPosting(SQLModel, table=True):
     __table_args__ = (
         sa.Index("ix_job_postings_jr", "job_requisition_id"),
         sa.Index("ix_job_postings_status", "status"),
+    )
+
+
+# ── Candidates (13.3) ─────────────────────────────────────────────────────────
+
+
+class Candidate(SQLModel, table=True):
+    """Hồ sơ ứng viên — độc lập với bảng employees."""
+
+    __tablename__ = "candidates"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    full_name: str = Field(sa_column=Column(sa.String(200), nullable=False))
+    date_of_birth: Optional[date] = Field(default=None, sa_column=Column(sa.Date(), nullable=True))
+    gender: Optional[str] = Field(default=None, sa_column=Column(sa.String(10), nullable=True))
+    nationality: Optional[str] = Field(default=None, sa_column=Column(sa.String(100), nullable=True))
+    id_number: Optional[str] = Field(default=None, sa_column=Column(sa.String(30), nullable=True))
+    phone: Optional[str] = Field(default=None, sa_column=Column(sa.String(30), nullable=True))
+    email: Optional[str] = Field(default=None, sa_column=Column(sa.String(200), nullable=True))
+    address: Optional[str] = Field(default=None, sa_column=Column(sa.Text(), nullable=True))
+    current_company: Optional[str] = Field(default=None, sa_column=Column(sa.String(200), nullable=True))
+    current_position: Optional[str] = Field(default=None, sa_column=Column(sa.String(200), nullable=True))
+    expected_salary: Optional[Decimal] = Field(
+        default=None, sa_column=Column(sa.Numeric(15, 2), nullable=True)
+    )
+    source_channel_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(
+            sa.Integer(), sa.ForeignKey("recruitment_channels.id", ondelete="SET NULL"), nullable=True
+        ),
+    )
+    source_note: Optional[str] = Field(default=None, sa_column=Column(sa.Text(), nullable=True))
+    internal_note: Optional[str] = Field(default=None, sa_column=Column(sa.Text(), nullable=True))
+    tags: List[str] = Field(
+        default_factory=list,
+        sa_column=Column(PgARRAY(sa.Text()), nullable=False, server_default="{}"),
+    )
+    is_active: bool = Field(sa_column=Column(sa.Boolean(), nullable=False, server_default="true"))
+    created_by_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(
+            sa.Integer(), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+        ),
+    )
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: datetime = Field(default_factory=_utcnow)
+
+    __table_args__ = (
+        sa.Index("ix_candidates_email", "email"),
+    )
+
+
+class CandidateEducation(SQLModel, table=True):
+    __tablename__ = "candidate_educations"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    candidate_id: int = Field(
+        sa_column=Column(sa.Integer(), sa.ForeignKey("candidates.id", ondelete="CASCADE"), nullable=False)
+    )
+    education_level_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(
+            sa.Integer(), sa.ForeignKey("education_levels.id", ondelete="SET NULL"), nullable=True
+        ),
+    )
+    institution_name: Optional[str] = Field(default=None, sa_column=Column(sa.String(300), nullable=True))
+    major_name: Optional[str] = Field(default=None, sa_column=Column(sa.String(300), nullable=True))
+    graduation_year: Optional[int] = Field(
+        default=None, sa_column=Column(sa.SmallInteger(), nullable=True)
+    )
+    is_main: bool = Field(sa_column=Column(sa.Boolean(), nullable=False, server_default="false"))
+    note: Optional[str] = Field(default=None, sa_column=Column(sa.Text(), nullable=True))
+
+
+class CandidateWorkExperience(SQLModel, table=True):
+    __tablename__ = "candidate_work_experiences"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    candidate_id: int = Field(
+        sa_column=Column(sa.Integer(), sa.ForeignKey("candidates.id", ondelete="CASCADE"), nullable=False)
+    )
+    company_name: str = Field(sa_column=Column(sa.String(300), nullable=False))
+    position_name: Optional[str] = Field(default=None, sa_column=Column(sa.String(200), nullable=True))
+    start_date: Optional[date] = Field(default=None, sa_column=Column(sa.Date(), nullable=True))
+    end_date: Optional[date] = Field(default=None, sa_column=Column(sa.Date(), nullable=True))
+    description: Optional[str] = Field(default=None, sa_column=Column(sa.Text(), nullable=True))
+    sort_order: int = Field(sa_column=Column(sa.SmallInteger(), nullable=False, server_default="0"))
+
+
+class CandidateSkill(SQLModel, table=True):
+    __tablename__ = "candidate_skills"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    candidate_id: int = Field(
+        sa_column=Column(sa.Integer(), sa.ForeignKey("candidates.id", ondelete="CASCADE"), nullable=False)
+    )
+    skill_name: str = Field(sa_column=Column(sa.String(200), nullable=False))
+    proficiency_level: Optional[str] = Field(
+        default=None, sa_column=Column(sa.String(20), nullable=True)
+    )
+
+    __table_args__ = (
+        sa.UniqueConstraint("candidate_id", "skill_name", name="uq_candidate_skill"),
+    )
+
+
+class CandidateAttachment(SQLModel, table=True):
+    __tablename__ = "candidate_attachments"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    candidate_id: int = Field(
+        sa_column=Column(sa.Integer(), sa.ForeignKey("candidates.id", ondelete="CASCADE"), nullable=False)
+    )
+    attachment_type: str = Field(sa_column=Column(sa.String(30), nullable=False))
+    file_path: str = Field(sa_column=Column(sa.String(500), nullable=False))
+    file_name: str = Field(sa_column=Column(sa.String(300), nullable=False))
+    file_size: Optional[int] = Field(default=None, sa_column=Column(sa.Integer(), nullable=True))
+    mime_type: Optional[str] = Field(default=None, sa_column=Column(sa.String(100), nullable=True))
+    note: Optional[str] = Field(default=None, sa_column=Column(sa.Text(), nullable=True))
+    uploaded_by_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(
+            sa.Integer(), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+        ),
+    )
+    uploaded_at: datetime = Field(default_factory=_utcnow)
+
+
+class CandidateApplication(SQLModel, table=True):
+    __tablename__ = "candidate_applications"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    candidate_id: int = Field(
+        sa_column=Column(
+            sa.Integer(), sa.ForeignKey("candidates.id", ondelete="RESTRICT"), nullable=False
+        )
+    )
+    job_requisition_id: int = Field(
+        sa_column=Column(
+            sa.Integer(), sa.ForeignKey("job_requisitions.id", ondelete="RESTRICT"), nullable=False
+        )
+    )
+    applied_date: date = Field(
+        sa_column=Column(sa.Date(), nullable=False, server_default=sa.text("CURRENT_DATE"))
+    )
+    source_channel_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(
+            sa.Integer(), sa.ForeignKey("recruitment_channels.id", ondelete="SET NULL"), nullable=True
+        ),
+    )
+    current_stage: str = Field(
+        sa_column=Column(sa.String(50), nullable=False, server_default="new")
+    )
+    rejection_reason: Optional[str] = Field(default=None, sa_column=Column(sa.Text(), nullable=True))
+    internal_note: Optional[str] = Field(default=None, sa_column=Column(sa.Text(), nullable=True))
+    created_by_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(
+            sa.Integer(), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+        ),
+    )
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: datetime = Field(default_factory=_utcnow)
+
+    __table_args__ = (
+        sa.UniqueConstraint("candidate_id", "job_requisition_id", name="uq_application_candidate_jr"),
+        sa.Index("ix_applications_jr", "job_requisition_id"),
+        sa.Index("ix_applications_stage", "current_stage"),
     )

@@ -148,11 +148,12 @@ class TestChannelCRUD:
         assert r.status_code == 204
 
     def test_delete_channel_in_use_returns_409(self, client: TestClient):
+        import uuid
         h = _admin(client)
         # Tạo kênh mới rồi dùng trong posting
         ch = client.post(
             BASE_CH,
-            json={"code": "inuse_ch_2098", "name": "Đang dùng"},
+            json={"code": f"inuse_{uuid.uuid4().hex[:8]}", "name": "Đang dùng"},
             headers=h,
         ).json()
         ch_id = ch["id"]

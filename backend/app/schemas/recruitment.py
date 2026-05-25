@@ -1,4 +1,4 @@
-"""Schemas tuyển dụng ATS (13.1 — Kế hoạch & Yêu cầu tuyển dụng / 13.2 — Đăng tin)."""
+"""Schemas tuyển dụng ATS (13.1 — Kế hoạch & Yêu cầu tuyển dụng / 13.2 — Đăng tin / 13.3 — Ứng viên)."""
 from __future__ import annotations
 
 from datetime import date, datetime
@@ -319,3 +319,217 @@ class LanguageValidationRequest(BaseModel):
 
 class LanguageValidationResult(BaseModel):
     warnings: List[str]
+
+
+# ── Candidates (13.3) ─────────────────────────────────────────────────────────
+
+CandidateGender = Literal["male", "female", "other"]
+CandidateGenderLabels: dict[str, str] = {"male": "Nam", "female": "Nữ", "other": "Khác"}
+
+AttachmentType = Literal["cv", "degree", "id_card", "photo", "other"]
+AttachmentTypeLabels: dict[str, str] = {
+    "cv": "CV / Hồ sơ",
+    "degree": "Bằng cấp / Chứng chỉ",
+    "id_card": "CCCD / Hộ chiếu",
+    "photo": "Ảnh",
+    "other": "Khác",
+}
+
+ProficiencyLevel = Literal["beginner", "intermediate", "advanced", "expert"]
+ApplicationStage = Literal["new", "screening", "test", "interview", "offer", "hired", "rejected", "withdrawn"]
+
+
+class CandidateEducationCreate(BaseModel):
+    education_level_id: Optional[int] = None
+    institution_name: Optional[str] = Field(default=None, max_length=300)
+    major_name: Optional[str] = Field(default=None, max_length=300)
+    graduation_year: Optional[int] = Field(default=None, ge=1950, le=2100)
+    is_main: bool = False
+    note: Optional[str] = None
+
+
+class CandidateEducationRead(BaseModel):
+    model_config = {"from_attributes": True}
+
+    id: int
+    candidate_id: int
+    education_level_id: Optional[int]
+    education_level_name: Optional[str]
+    institution_name: Optional[str]
+    major_name: Optional[str]
+    graduation_year: Optional[int]
+    is_main: bool
+    note: Optional[str]
+
+
+class CandidateWorkExpCreate(BaseModel):
+    company_name: str = Field(min_length=1, max_length=300)
+    position_name: Optional[str] = Field(default=None, max_length=200)
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+    description: Optional[str] = None
+    sort_order: int = 0
+
+
+class CandidateWorkExpRead(BaseModel):
+    model_config = {"from_attributes": True}
+
+    id: int
+    candidate_id: int
+    company_name: str
+    position_name: Optional[str]
+    start_date: Optional[date]
+    end_date: Optional[date]
+    description: Optional[str]
+    sort_order: int
+
+
+class CandidateSkillCreate(BaseModel):
+    skill_name: str = Field(min_length=1, max_length=200)
+    proficiency_level: Optional[ProficiencyLevel] = None
+
+
+class CandidateSkillRead(BaseModel):
+    model_config = {"from_attributes": True}
+
+    id: int
+    candidate_id: int
+    skill_name: str
+    proficiency_level: Optional[str]
+
+
+class CandidateAttachmentRead(BaseModel):
+    model_config = {"from_attributes": True}
+
+    id: int
+    candidate_id: int
+    attachment_type: str
+    attachment_type_label: str
+    file_name: str
+    file_size: Optional[int]
+    mime_type: Optional[str]
+    note: Optional[str]
+    uploaded_at: datetime
+    download_url: str
+
+
+class CandidateCreate(BaseModel):
+    full_name: str = Field(min_length=1, max_length=200)
+    date_of_birth: Optional[date] = None
+    gender: Optional[CandidateGender] = None
+    nationality: Optional[str] = Field(default=None, max_length=100)
+    id_number: Optional[str] = Field(default=None, max_length=30)
+    phone: Optional[str] = Field(default=None, max_length=30)
+    email: Optional[str] = Field(default=None, max_length=200)
+    address: Optional[str] = None
+    current_company: Optional[str] = Field(default=None, max_length=200)
+    current_position: Optional[str] = Field(default=None, max_length=200)
+    expected_salary: Optional[Decimal] = None
+    source_channel_id: Optional[int] = None
+    source_note: Optional[str] = None
+    internal_note: Optional[str] = None
+    tags: List[str] = Field(default_factory=list)
+
+
+class CandidateUpdate(BaseModel):
+    full_name: Optional[str] = Field(default=None, min_length=1, max_length=200)
+    date_of_birth: Optional[date] = None
+    gender: Optional[CandidateGender] = None
+    nationality: Optional[str] = Field(default=None, max_length=100)
+    id_number: Optional[str] = Field(default=None, max_length=30)
+    phone: Optional[str] = Field(default=None, max_length=30)
+    email: Optional[str] = Field(default=None, max_length=200)
+    address: Optional[str] = None
+    current_company: Optional[str] = Field(default=None, max_length=200)
+    current_position: Optional[str] = Field(default=None, max_length=200)
+    expected_salary: Optional[Decimal] = None
+    source_channel_id: Optional[int] = None
+    source_note: Optional[str] = None
+    internal_note: Optional[str] = None
+    tags: Optional[List[str]] = None
+
+
+class CandidateRead(BaseModel):
+    model_config = {"from_attributes": True}
+
+    id: int
+    full_name: str
+    date_of_birth: Optional[date]
+    gender: Optional[str]
+    gender_label: Optional[str]
+    nationality: Optional[str]
+    id_number: Optional[str]
+    phone: Optional[str]
+    email: Optional[str]
+    address: Optional[str]
+    current_company: Optional[str]
+    current_position: Optional[str]
+    expected_salary: Optional[Decimal]
+    source_channel_id: Optional[int]
+    source_channel_name: Optional[str]
+    source_note: Optional[str]
+    internal_note: Optional[str]
+    tags: List[str]
+    is_active: bool
+    educations: List[CandidateEducationRead]
+    work_experiences: List[CandidateWorkExpRead]
+    skills: List[CandidateSkillRead]
+    attachments: List[CandidateAttachmentRead]
+    active_applications: int
+    created_by_name: Optional[str]
+    created_at: datetime
+    updated_at: datetime
+
+
+class CandidateListItem(BaseModel):
+    model_config = {"from_attributes": True}
+
+    id: int
+    full_name: str
+    phone: Optional[str]
+    email: Optional[str]
+    current_position: Optional[str]
+    current_company: Optional[str]
+    source_channel_name: Optional[str]
+    active_applications: int
+    created_at: datetime
+
+
+class CandidateListPage(BaseModel):
+    items: List[CandidateListItem]
+    total: int
+    page: int
+    page_size: int
+
+
+class ApplicationCreate(BaseModel):
+    job_requisition_id: int
+    applied_date: date = Field(default_factory=date.today)
+    source_channel_id: Optional[int] = None
+    internal_note: Optional[str] = None
+
+
+class ApplicationRead(BaseModel):
+    model_config = {"from_attributes": True}
+
+    id: int
+    candidate_id: int
+    candidate_name: str
+    job_requisition_id: int
+    job_requisition_code: str
+    job_position_name: str
+    department_name: str
+    applied_date: date
+    source_channel_name: Optional[str]
+    current_stage: str
+    rejection_reason: Optional[str]
+    internal_note: Optional[str]
+    created_at: datetime
+    updated_at: datetime
+
+
+class ImportResult(BaseModel):
+    created: int
+    updated: int
+    skipped: int
+    errors: List[str]

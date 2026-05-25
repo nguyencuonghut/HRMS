@@ -1,24 +1,39 @@
-"""Endpoints tuyển dụng ATS — 13.1 Kế hoạch & Yêu cầu tuyển dụng / 13.2 Đăng tin."""
+"""Endpoints tuyển dụng ATS — 13.1 Kế hoạch & Yêu cầu tuyển dụng / 13.2 Đăng tin / 13.3 Ứng viên."""
 from __future__ import annotations
 
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, File, Form, Query, UploadFile, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import require_permission
 from app.core.database import get_session
 from app.models.auth import User
 from app.schemas.recruitment import (
+    ApplicationCreate,
+    ApplicationRead,
     BudgetItemCreate,
     BudgetItemRead,
     BudgetItemUpdate,
     BudgetSummary,
     CancelRequest,
+    CandidateAttachmentRead,
+    CandidateCreate,
+    CandidateEducationCreate,
+    CandidateEducationRead,
+    CandidateListPage,
+    CandidateRead,
+    CandidateSkillCreate,
+    CandidateSkillRead,
+    CandidateUpdate,
+    CandidateWorkExpCreate,
+    CandidateWorkExpRead,
     HeadcountPlanCreate,
     HeadcountPlanListPage,
     HeadcountPlanRead,
     HeadcountPlanUpdate,
+    ImportResult,
     JobPostingCreate,
     JobPostingListPage,
     JobPostingRead,
@@ -34,7 +49,13 @@ from app.schemas.recruitment import (
     RecruitmentChannelUpdate,
     RejectRequest,
 )
-from app.services import auth_service, headcount_plan_service, jr_service, job_posting_service
+from app.services import (
+    auth_service,
+    candidate_service,
+    headcount_plan_service,
+    job_posting_service,
+    jr_service,
+)
 
 router = APIRouter()
 
@@ -641,3 +662,333 @@ async def reopen_job_posting(
     )
     await session.commit()
     return result
+
+
+# ── Candidates (13.3) ─────────────────────────────────────────────────────────
+
+
+@router.get("/candidates/import-template", tags=[_TAG])
+async def candidate_import_template(
+    current_user: User = require_permission("recruitment:view"),
+):
+    from app.services.candidate_import_service import generate_template
+    from fastapi.responses import Response
+    content = generate_template()
+    return Response(
+        content=content,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=candidate_import_template.xlsx"},
+    )
+
+
+@router.post("/candidates/import", response_model=ImportResult, tags=[_TAG])
+async def import_candidates(
+    file: UploadFile = File(...),
+    current_user: User = require_permission("recruitment:manage"),
+    session: AsyncSession = Depends(get_session),
+):
+    from app.services.candidate_import_service import import_candidates_excel
+    content = await file.read()
+    result = await import_candidates_excel(session, content, current_user.id)
+    await session.commit()
+    return result
+
+
+@router.get("/candidates", response_model=CandidateListPage, tags=[_TAG])
+async def list_candidates(
+    search: Optional[str] = Query(default=None),
+    source_channel_id: Optional[int] = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    current_user: User = require_permission("recruitment:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await candidate_service.list_candidates(session, search, source_channel_id, page, page_size)
+
+
+@router.post("/candidates", response_model=CandidateRead, status_code=status.HTTP_201_CREATED, tags=[_TAG])
+async def create_candidate(
+    data: CandidateCreate,
+    current_user: User = require_permission("recruitment:manage"),
+    session: AsyncSession = Depends(get_session),
+):
+    result = await candidate_service.create_candidate(session, data, current_user.id)
+    await auth_service.log_audit(
+        session, current_user.id, "CREATE",
+        entity_type="candidate", entity_id=result.id, entity_name=result.full_name,
+    )
+    await session.commit()
+    return result
+
+
+@router.get("/candidates/{candidate_id}", response_model=CandidateRead, tags=[_TAG])
+async def get_candidate(
+    candidate_id: int,
+    current_user: User = require_permission("recruitment:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await candidate_service.get_candidate(session, candidate_id)
+
+
+@router.put("/candidates/{candidate_id}", response_model=CandidateRead, tags=[_TAG])
+async def update_candidate(
+    candidate_id: int,
+    data: CandidateUpdate,
+    current_user: User = require_permission("recruitment:manage"),
+    session: AsyncSession = Depends(get_session),
+):
+    result = await candidate_service.update_candidate(session, candidate_id, data)
+    await auth_service.log_audit(
+        session, current_user.id, "UPDATE",
+        entity_type="candidate", entity_id=candidate_id, entity_name=result.full_name,
+    )
+    await session.commit()
+    return result
+
+
+@router.delete("/candidates/{candidate_id}", status_code=status.HTTP_204_NO_CONTENT, tags=[_TAG])
+async def delete_candidate(
+    candidate_id: int,
+    current_user: User = require_permission("recruitment:manage"),
+    session: AsyncSession = Depends(get_session),
+):
+    await candidate_service.delete_candidate(session, candidate_id)
+    await auth_service.log_audit(
+        session, current_user.id, "DELETE",
+        entity_type="candidate", entity_id=candidate_id, entity_name=f"candidate#{candidate_id}",
+    )
+    await session.commit()
+
+
+# ── Candidate Education ───────────────────────────────────────────────────────
+
+
+@router.post(
+    "/candidates/{candidate_id}/educations",
+    response_model=CandidateEducationRead,
+    status_code=status.HTTP_201_CREATED,
+    tags=[_TAG],
+)
+async def add_education(
+    candidate_id: int,
+    data: CandidateEducationCreate,
+    current_user: User = require_permission("recruitment:manage"),
+    session: AsyncSession = Depends(get_session),
+):
+    result = await candidate_service.add_education(session, candidate_id, data)
+    await session.commit()
+    return result
+
+
+@router.put(
+    "/candidates/{candidate_id}/educations/{edu_id}",
+    response_model=CandidateEducationRead,
+    tags=[_TAG],
+)
+async def update_education(
+    candidate_id: int,
+    edu_id: int,
+    data: CandidateEducationCreate,
+    current_user: User = require_permission("recruitment:manage"),
+    session: AsyncSession = Depends(get_session),
+):
+    result = await candidate_service.update_education(session, candidate_id, edu_id, data)
+    await session.commit()
+    return result
+
+
+@router.delete(
+    "/candidates/{candidate_id}/educations/{edu_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    tags=[_TAG],
+)
+async def delete_education(
+    candidate_id: int,
+    edu_id: int,
+    current_user: User = require_permission("recruitment:manage"),
+    session: AsyncSession = Depends(get_session),
+):
+    await candidate_service.delete_education(session, candidate_id, edu_id)
+    await session.commit()
+
+
+# ── Candidate Work Experience ─────────────────────────────────────────────────
+
+
+@router.post(
+    "/candidates/{candidate_id}/work-experiences",
+    response_model=CandidateWorkExpRead,
+    status_code=status.HTTP_201_CREATED,
+    tags=[_TAG],
+)
+async def add_work_experience(
+    candidate_id: int,
+    data: CandidateWorkExpCreate,
+    current_user: User = require_permission("recruitment:manage"),
+    session: AsyncSession = Depends(get_session),
+):
+    result = await candidate_service.add_work_experience(session, candidate_id, data)
+    await session.commit()
+    return result
+
+
+@router.put(
+    "/candidates/{candidate_id}/work-experiences/{exp_id}",
+    response_model=CandidateWorkExpRead,
+    tags=[_TAG],
+)
+async def update_work_experience(
+    candidate_id: int,
+    exp_id: int,
+    data: CandidateWorkExpCreate,
+    current_user: User = require_permission("recruitment:manage"),
+    session: AsyncSession = Depends(get_session),
+):
+    result = await candidate_service.update_work_experience(session, candidate_id, exp_id, data)
+    await session.commit()
+    return result
+
+
+@router.delete(
+    "/candidates/{candidate_id}/work-experiences/{exp_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    tags=[_TAG],
+)
+async def delete_work_experience(
+    candidate_id: int,
+    exp_id: int,
+    current_user: User = require_permission("recruitment:manage"),
+    session: AsyncSession = Depends(get_session),
+):
+    await candidate_service.delete_work_experience(session, candidate_id, exp_id)
+    await session.commit()
+
+
+# ── Candidate Skills ──────────────────────────────────────────────────────────
+
+
+@router.post(
+    "/candidates/{candidate_id}/skills",
+    response_model=CandidateSkillRead,
+    status_code=status.HTTP_201_CREATED,
+    tags=[_TAG],
+)
+async def add_skill(
+    candidate_id: int,
+    data: CandidateSkillCreate,
+    current_user: User = require_permission("recruitment:manage"),
+    session: AsyncSession = Depends(get_session),
+):
+    result = await candidate_service.add_skill(session, candidate_id, data)
+    await session.commit()
+    return result
+
+
+@router.delete(
+    "/candidates/{candidate_id}/skills/{skill_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    tags=[_TAG],
+)
+async def delete_skill(
+    candidate_id: int,
+    skill_id: int,
+    current_user: User = require_permission("recruitment:manage"),
+    session: AsyncSession = Depends(get_session),
+):
+    await candidate_service.delete_skill(session, candidate_id, skill_id)
+    await session.commit()
+
+
+# ── Candidate Attachments ─────────────────────────────────────────────────────
+
+
+@router.post(
+    "/candidates/{candidate_id}/attachments",
+    response_model=CandidateAttachmentRead,
+    status_code=status.HTTP_201_CREATED,
+    tags=[_TAG],
+)
+async def upload_attachment(
+    candidate_id: int,
+    attachment_type: str = Form(...),
+    note: Optional[str] = Form(default=None),
+    file: UploadFile = File(...),
+    current_user: User = require_permission("recruitment:manage"),
+    session: AsyncSession = Depends(get_session),
+):
+    from app.services.candidate_import_service import save_candidate_attachment
+    result = await save_candidate_attachment(
+        session, candidate_id, file, attachment_type, note, current_user.id
+    )
+    await session.commit()
+    return result
+
+
+@router.delete(
+    "/candidates/{candidate_id}/attachments/{att_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    tags=[_TAG],
+)
+async def delete_attachment(
+    candidate_id: int,
+    att_id: int,
+    current_user: User = require_permission("recruitment:manage"),
+    session: AsyncSession = Depends(get_session),
+):
+    from app.services.candidate_import_service import delete_candidate_attachment
+    await delete_candidate_attachment(session, candidate_id, att_id)
+    await session.commit()
+
+
+@router.get(
+    "/candidates/{candidate_id}/attachments/{att_id}/download",
+    tags=[_TAG],
+)
+async def download_attachment(
+    candidate_id: int,
+    att_id: int,
+    current_user: User = require_permission("recruitment:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    from app.services.candidate_import_service import get_attachment_download
+    return await get_attachment_download(session, candidate_id, att_id)
+
+
+# ── Applications ──────────────────────────────────────────────────────────────
+
+
+@router.post(
+    "/candidates/{candidate_id}/apply",
+    response_model=ApplicationRead,
+    status_code=status.HTTP_201_CREATED,
+    tags=[_TAG],
+)
+async def apply_candidate(
+    candidate_id: int,
+    data: ApplicationCreate,
+    current_user: User = require_permission("recruitment:manage"),
+    session: AsyncSession = Depends(get_session),
+):
+    result = await candidate_service.apply_candidate(session, candidate_id, data, current_user.id)
+    await auth_service.log_audit(
+        session, current_user.id, "CREATE",
+        entity_type="candidate_application", entity_id=result.id,
+        entity_name=f"candidate#{candidate_id} → JR#{data.job_requisition_id}",
+    )
+    await session.commit()
+    return result
+
+
+@router.get(
+    "/job-requisitions/{jr_id}/applications",
+    tags=[_TAG],
+)
+async def list_applications(
+    jr_id: int,
+    stage: Optional[str] = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    current_user: User = require_permission("recruitment:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await candidate_service.list_applications(session, jr_id, stage, page, page_size)

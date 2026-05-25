@@ -1,0 +1,563 @@
+"""Service hồ sơ ứng viên (13.3)."""
+from __future__ import annotations
+
+from datetime import datetime, timezone
+from typing import Optional
+
+from fastapi import HTTPException, status
+from sqlalchemy import func, or_, select, text, update
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.catalog import EducationLevel
+from app.models.auth import User
+from app.models.org import Department, JobPosition
+from app.models.recruitment import (
+    Candidate,
+    CandidateApplication,
+    CandidateAttachment,
+    CandidateEducation,
+    CandidateSkill,
+    CandidateWorkExperience,
+    JobRequisition,
+    RecruitmentChannel,
+)
+from app.schemas.recruitment import (
+    ApplicationCreate,
+    ApplicationRead,
+    AttachmentTypeLabels,
+    CandidateAttachmentRead,
+    CandidateCreate,
+    CandidateEducationCreate,
+    CandidateEducationRead,
+    CandidateGenderLabels,
+    CandidateListItem,
+    CandidateListPage,
+    CandidateRead,
+    CandidateSkillCreate,
+    CandidateSkillRead,
+    CandidateUpdate,
+    CandidateWorkExpCreate,
+    CandidateWorkExpRead,
+)
+
+
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+
+async def _get_candidate_or_404(session: AsyncSession, candidate_id: int) -> Candidate:
+    c = await session.get(Candidate, candidate_id)
+    if not c or not c.is_active:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Không tìm thấy ứng viên")
+    return c
+
+
+def _att_read(att: CandidateAttachment) -> CandidateAttachmentRead:
+    return CandidateAttachmentRead(
+        id=att.id,
+        candidate_id=att.candidate_id,
+        attachment_type=att.attachment_type,
+        attachment_type_label=AttachmentTypeLabels.get(att.attachment_type, att.attachment_type),
+        file_name=att.file_name,
+        file_size=att.file_size,
+        mime_type=att.mime_type,
+        note=att.note,
+        uploaded_at=att.uploaded_at,
+        download_url=f"/api/v1/recruitment/candidates/{att.candidate_id}/attachments/{att.id}/download",
+    )
+
+
+async def _build_read(session: AsyncSession, c: Candidate) -> CandidateRead:
+    # Load sub-resources
+    edus_q = await session.execute(
+        select(CandidateEducation).where(CandidateEducation.candidate_id == c.id)
+    )
+    edus = edus_q.scalars().all()
+
+    exps_q = await session.execute(
+        select(CandidateWorkExperience)
+        .where(CandidateWorkExperience.candidate_id == c.id)
+        .order_by(CandidateWorkExperience.sort_order, CandidateWorkExperience.id)
+    )
+    exps = exps_q.scalars().all()
+
+    skills_q = await session.execute(
+        select(CandidateSkill).where(CandidateSkill.candidate_id == c.id)
+    )
+    skills = skills_q.scalars().all()
+
+    atts_q = await session.execute(
+        select(CandidateAttachment)
+        .where(CandidateAttachment.candidate_id == c.id)
+        .order_by(CandidateAttachment.uploaded_at.desc())
+    )
+    atts = atts_q.scalars().all()
+
+    # Count active applications
+    app_count_q = await session.execute(
+        select(func.count()).where(
+            CandidateApplication.candidate_id == c.id,
+            CandidateApplication.current_stage.not_in(["hired", "rejected", "withdrawn"]),
+        )
+    )
+    active_apps = app_count_q.scalar_one()
+
+    # Education level names
+    edu_reads: list[CandidateEducationRead] = []
+    for edu in edus:
+        level_name = None
+        if edu.education_level_id:
+            lv = await session.get(EducationLevel, edu.education_level_id)
+            level_name = lv.name if lv else None
+        edu_reads.append(
+            CandidateEducationRead(
+                id=edu.id,
+                candidate_id=edu.candidate_id,
+                education_level_id=edu.education_level_id,
+                education_level_name=level_name,
+                institution_name=edu.institution_name,
+                major_name=edu.major_name,
+                graduation_year=edu.graduation_year,
+                is_main=edu.is_main,
+                note=edu.note,
+            )
+        )
+
+    # Channel name
+    channel_name = None
+    if c.source_channel_id:
+        ch = await session.get(RecruitmentChannel, c.source_channel_id)
+        channel_name = ch.name if ch else None
+
+    # Creator name
+    created_by_name = None
+    if c.created_by_id:
+        u = await session.get(User, c.created_by_id)
+        created_by_name = u.full_name if u else None
+
+    return CandidateRead(
+        id=c.id,
+        full_name=c.full_name,
+        date_of_birth=c.date_of_birth,
+        gender=c.gender,
+        gender_label=CandidateGenderLabels.get(c.gender) if c.gender else None,
+        nationality=c.nationality,
+        id_number=c.id_number,
+        phone=c.phone,
+        email=c.email,
+        address=c.address,
+        current_company=c.current_company,
+        current_position=c.current_position,
+        expected_salary=c.expected_salary,
+        source_channel_id=c.source_channel_id,
+        source_channel_name=channel_name,
+        source_note=c.source_note,
+        internal_note=c.internal_note,
+        tags=c.tags or [],
+        is_active=c.is_active,
+        educations=edu_reads,
+        work_experiences=[
+            CandidateWorkExpRead(
+                id=e.id,
+                candidate_id=e.candidate_id,
+                company_name=e.company_name,
+                position_name=e.position_name,
+                start_date=e.start_date,
+                end_date=e.end_date,
+                description=e.description,
+                sort_order=e.sort_order,
+            )
+            for e in exps
+        ],
+        skills=[
+            CandidateSkillRead(
+                id=s.id,
+                candidate_id=s.candidate_id,
+                skill_name=s.skill_name,
+                proficiency_level=s.proficiency_level,
+            )
+            for s in skills
+        ],
+        attachments=[_att_read(a) for a in atts],
+        active_applications=active_apps,
+        created_by_name=created_by_name,
+        created_at=c.created_at,
+        updated_at=c.updated_at,
+    )
+
+
+# ── CRUD ──────────────────────────────────────────────────────────────────────
+
+
+async def list_candidates(
+    session: AsyncSession,
+    search: Optional[str],
+    source_channel_id: Optional[int],
+    page: int,
+    page_size: int,
+) -> CandidateListPage:
+    base = select(Candidate).where(Candidate.is_active == True)  # noqa: E712
+
+    if source_channel_id:
+        base = base.where(Candidate.source_channel_id == source_channel_id)
+
+    if search:
+        term = search.strip()
+        ts_query = func.plainto_tsquery("simple", term)
+        ts_vec = func.to_tsvector("simple", Candidate.full_name)
+        base = base.where(
+            or_(
+                ts_vec.op("@@")(ts_query),
+                Candidate.email.ilike(f"%{term}%"),
+                Candidate.phone.ilike(f"%{term}%"),
+            )
+        )
+
+    total_q = await session.execute(select(func.count()).select_from(base.subquery()))
+    total = total_q.scalar_one()
+
+    rows_q = await session.execute(
+        base.order_by(Candidate.created_at.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    )
+    rows = rows_q.scalars().all()
+
+    items: list[CandidateListItem] = []
+    for c in rows:
+        channel_name = None
+        if c.source_channel_id:
+            ch = await session.get(RecruitmentChannel, c.source_channel_id)
+            channel_name = ch.name if ch else None
+
+        app_count_q = await session.execute(
+            select(func.count()).where(
+                CandidateApplication.candidate_id == c.id,
+                CandidateApplication.current_stage.not_in(["hired", "rejected", "withdrawn"]),
+            )
+        )
+        active_apps = app_count_q.scalar_one()
+
+        items.append(
+            CandidateListItem(
+                id=c.id,
+                full_name=c.full_name,
+                phone=c.phone,
+                email=c.email,
+                current_position=c.current_position,
+                current_company=c.current_company,
+                source_channel_name=channel_name,
+                active_applications=active_apps,
+                created_at=c.created_at,
+            )
+        )
+
+    return CandidateListPage(items=items, total=total, page=page, page_size=page_size)
+
+
+async def get_candidate(session: AsyncSession, candidate_id: int) -> CandidateRead:
+    c = await _get_candidate_or_404(session, candidate_id)
+    return await _build_read(session, c)
+
+
+async def create_candidate(
+    session: AsyncSession, data: CandidateCreate, created_by_id: int
+) -> CandidateRead:
+    c = Candidate(**data.model_dump(), created_by_id=created_by_id)
+    session.add(c)
+    await session.flush()
+    return await _build_read(session, c)
+
+
+async def update_candidate(
+    session: AsyncSession, candidate_id: int, data: CandidateUpdate
+) -> CandidateRead:
+    c = await _get_candidate_or_404(session, candidate_id)
+    patch = data.model_dump(exclude_unset=True)
+    for k, v in patch.items():
+        setattr(c, k, v)
+    c.updated_at = _utcnow()
+    await session.flush()
+    return await _build_read(session, c)
+
+
+async def delete_candidate(session: AsyncSession, candidate_id: int) -> None:
+    """Soft-delete: is_active=False (GDPR)."""
+    c = await _get_candidate_or_404(session, candidate_id)
+    c.is_active = False
+    c.updated_at = _utcnow()
+    await session.flush()
+
+
+# ── Education sub-resource ────────────────────────────────────────────────────
+
+
+async def add_education(
+    session: AsyncSession, candidate_id: int, data: CandidateEducationCreate
+) -> CandidateEducationRead:
+    await _get_candidate_or_404(session, candidate_id)
+    edu = CandidateEducation(candidate_id=candidate_id, **data.model_dump())
+    session.add(edu)
+    await session.flush()
+
+    level_name = None
+    if edu.education_level_id:
+        lv = await session.get(EducationLevel, edu.education_level_id)
+        level_name = lv.name if lv else None
+
+    return CandidateEducationRead(
+        id=edu.id,
+        candidate_id=edu.candidate_id,
+        education_level_id=edu.education_level_id,
+        education_level_name=level_name,
+        institution_name=edu.institution_name,
+        major_name=edu.major_name,
+        graduation_year=edu.graduation_year,
+        is_main=edu.is_main,
+        note=edu.note,
+    )
+
+
+async def update_education(
+    session: AsyncSession, candidate_id: int, edu_id: int, data: CandidateEducationCreate
+) -> CandidateEducationRead:
+    await _get_candidate_or_404(session, candidate_id)
+    edu = await session.get(CandidateEducation, edu_id)
+    if not edu or edu.candidate_id != candidate_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Không tìm thấy học vấn")
+    for k, v in data.model_dump().items():
+        setattr(edu, k, v)
+    await session.flush()
+
+    level_name = None
+    if edu.education_level_id:
+        lv = await session.get(EducationLevel, edu.education_level_id)
+        level_name = lv.name if lv else None
+
+    return CandidateEducationRead(
+        id=edu.id,
+        candidate_id=edu.candidate_id,
+        education_level_id=edu.education_level_id,
+        education_level_name=level_name,
+        institution_name=edu.institution_name,
+        major_name=edu.major_name,
+        graduation_year=edu.graduation_year,
+        is_main=edu.is_main,
+        note=edu.note,
+    )
+
+
+async def delete_education(session: AsyncSession, candidate_id: int, edu_id: int) -> None:
+    await _get_candidate_or_404(session, candidate_id)
+    edu = await session.get(CandidateEducation, edu_id)
+    if not edu or edu.candidate_id != candidate_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Không tìm thấy học vấn")
+    await session.delete(edu)
+    await session.flush()
+
+
+# ── Work experience sub-resource ──────────────────────────────────────────────
+
+
+async def add_work_experience(
+    session: AsyncSession, candidate_id: int, data: CandidateWorkExpCreate
+) -> CandidateWorkExpRead:
+    await _get_candidate_or_404(session, candidate_id)
+    exp = CandidateWorkExperience(candidate_id=candidate_id, **data.model_dump())
+    session.add(exp)
+    await session.flush()
+    return CandidateWorkExpRead(
+        id=exp.id,
+        candidate_id=exp.candidate_id,
+        company_name=exp.company_name,
+        position_name=exp.position_name,
+        start_date=exp.start_date,
+        end_date=exp.end_date,
+        description=exp.description,
+        sort_order=exp.sort_order,
+    )
+
+
+async def update_work_experience(
+    session: AsyncSession, candidate_id: int, exp_id: int, data: CandidateWorkExpCreate
+) -> CandidateWorkExpRead:
+    await _get_candidate_or_404(session, candidate_id)
+    exp = await session.get(CandidateWorkExperience, exp_id)
+    if not exp or exp.candidate_id != candidate_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Không tìm thấy kinh nghiệm")
+    for k, v in data.model_dump().items():
+        setattr(exp, k, v)
+    await session.flush()
+    return CandidateWorkExpRead(
+        id=exp.id,
+        candidate_id=exp.candidate_id,
+        company_name=exp.company_name,
+        position_name=exp.position_name,
+        start_date=exp.start_date,
+        end_date=exp.end_date,
+        description=exp.description,
+        sort_order=exp.sort_order,
+    )
+
+
+async def delete_work_experience(session: AsyncSession, candidate_id: int, exp_id: int) -> None:
+    await _get_candidate_or_404(session, candidate_id)
+    exp = await session.get(CandidateWorkExperience, exp_id)
+    if not exp or exp.candidate_id != candidate_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Không tìm thấy kinh nghiệm")
+    await session.delete(exp)
+    await session.flush()
+
+
+# ── Skills sub-resource ───────────────────────────────────────────────────────
+
+
+async def add_skill(
+    session: AsyncSession, candidate_id: int, data: CandidateSkillCreate
+) -> CandidateSkillRead:
+    await _get_candidate_or_404(session, candidate_id)
+    # Check duplicate
+    existing = await session.execute(
+        select(CandidateSkill).where(
+            CandidateSkill.candidate_id == candidate_id,
+            CandidateSkill.skill_name == data.skill_name,
+        )
+    )
+    if existing.scalars().first():
+        raise HTTPException(status.HTTP_409_CONFLICT, detail="Kỹ năng đã tồn tại")
+    sk = CandidateSkill(candidate_id=candidate_id, **data.model_dump())
+    session.add(sk)
+    await session.flush()
+    return CandidateSkillRead(
+        id=sk.id,
+        candidate_id=sk.candidate_id,
+        skill_name=sk.skill_name,
+        proficiency_level=sk.proficiency_level,
+    )
+
+
+async def delete_skill(session: AsyncSession, candidate_id: int, skill_id: int) -> None:
+    await _get_candidate_or_404(session, candidate_id)
+    sk = await session.get(CandidateSkill, skill_id)
+    if not sk or sk.candidate_id != candidate_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Không tìm thấy kỹ năng")
+    await session.delete(sk)
+    await session.flush()
+
+
+# ── Application ───────────────────────────────────────────────────────────────
+
+
+async def apply_candidate(
+    session: AsyncSession,
+    candidate_id: int,
+    data: ApplicationCreate,
+    created_by_id: int,
+) -> ApplicationRead:
+    c = await _get_candidate_or_404(session, candidate_id)
+
+    jr = await session.get(JobRequisition, data.job_requisition_id)
+    if not jr:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Không tìm thấy JR")
+    if jr.status not in ("approved", "in_progress"):
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="JR phải ở trạng thái đã duyệt hoặc đang tuyển",
+        )
+
+    # Check unique constraint
+    existing = await session.execute(
+        select(CandidateApplication).where(
+            CandidateApplication.candidate_id == candidate_id,
+            CandidateApplication.job_requisition_id == data.job_requisition_id,
+        )
+    )
+    if existing.scalars().first():
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail="Ứng viên đã ứng tuyển vào JR này rồi",
+        )
+
+    app = CandidateApplication(
+        candidate_id=candidate_id,
+        job_requisition_id=data.job_requisition_id,
+        applied_date=data.applied_date,
+        source_channel_id=data.source_channel_id,
+        internal_note=data.internal_note,
+        created_by_id=created_by_id,
+    )
+    session.add(app)
+
+    # Transition JR to in_progress if still approved
+    if jr.status == "approved":
+        jr.status = "in_progress"
+        jr.updated_at = _utcnow()
+
+    await session.flush()
+
+    return await _build_application_read(session, app)
+
+
+async def list_applications(
+    session: AsyncSession,
+    jr_id: int,
+    stage: Optional[str],
+    page: int,
+    page_size: int,
+) -> dict:
+    base = select(CandidateApplication).where(CandidateApplication.job_requisition_id == jr_id)
+    if stage:
+        base = base.where(CandidateApplication.current_stage == stage)
+
+    total_q = await session.execute(select(func.count()).select_from(base.subquery()))
+    total = total_q.scalar_one()
+
+    rows_q = await session.execute(
+        base.order_by(CandidateApplication.applied_date.desc(), CandidateApplication.id.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    )
+    rows = rows_q.scalars().all()
+    items = [await _build_application_read(session, r) for r in rows]
+
+    return {"items": items, "total": total, "page": page, "page_size": page_size}
+
+
+async def _build_application_read(
+    session: AsyncSession, app: CandidateApplication
+) -> ApplicationRead:
+    candidate = await session.get(Candidate, app.candidate_id)
+    jr = await session.get(JobRequisition, app.job_requisition_id)
+
+    pos_name = dept_name = jr_code = ""
+    if jr:
+        jr_code = jr.code
+        pos = await session.get(JobPosition, jr.job_position_id)
+        pos_name = pos.name if pos else ""
+        dept = await session.get(Department, jr.department_id)
+        dept_name = dept.name if dept else ""
+
+    channel_name = None
+    if app.source_channel_id:
+        ch = await session.get(RecruitmentChannel, app.source_channel_id)
+        channel_name = ch.name if ch else None
+
+    return ApplicationRead(
+        id=app.id,
+        candidate_id=app.candidate_id,
+        candidate_name=candidate.full_name if candidate else "",
+        job_requisition_id=app.job_requisition_id,
+        job_requisition_code=jr_code,
+        job_position_name=pos_name,
+        department_name=dept_name,
+        applied_date=app.applied_date,
+        source_channel_name=channel_name,
+        current_stage=app.current_stage,
+        rejection_reason=app.rejection_reason,
+        internal_note=app.internal_note,
+        created_at=app.created_at,
+        updated_at=app.updated_at,
+    )
