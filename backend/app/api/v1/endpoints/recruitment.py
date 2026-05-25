@@ -14,6 +14,7 @@ from app.schemas.recruitment import (
     ApplicationCreate,
     ApplicationListPage,
     ApplicationRead,
+    AdvanceApplicationRequest,
     BudgetItemCreate,
     BudgetItemRead,
     BudgetItemUpdate,
@@ -27,6 +28,7 @@ from app.schemas.recruitment import (
     CandidateEducationRead,
     CandidateListPage,
     CandidateRead,
+    CandidateStageResultRead,
     CandidateSkillCreate,
     CandidateSkillRead,
     CandidateUpdate,
@@ -37,27 +39,49 @@ from app.schemas.recruitment import (
     HeadcountPlanRead,
     HeadcountPlanUpdate,
     ImportResult,
+    InterviewCancelRequest,
+    InterviewPanelistRead,
+    InterviewQuestionCreate,
+    InterviewQuestionRead,
+    InterviewQuestionUpdate,
+    InterviewSessionCreate,
+    InterviewSessionRead,
+    InterviewSessionUpdate,
     JobPostingCreate,
     JobPostingListPage,
     JobPostingRead,
     JobPostingUpdate,
     JobRequisitionCreate,
+    KanbanBoard,
     JobRequisitionListPage,
     JobRequisitionRead,
     JobRequisitionUpdate,
     LanguageValidationRequest,
     LanguageValidationResult,
+    HoldApplicationRequest,
+    PanelistScoreSubmit,
+    PipelineSetupRequest,
+    PipelineStageRead,
+    PipelineStageTemplateCreate,
+    PipelineStageTemplateRead,
+    PipelineStageTemplateUpdate,
+    PipelineStageUpdate,
     RecruitmentChannelCreate,
     RecruitmentChannelRead,
     RecruitmentChannelUpdate,
     RejectRequest,
+    ScorecardCriterionCreate,
+    ScorecardCriterionRead,
+    StageResultUpsert,
 )
 from app.services import (
     auth_service,
     candidate_service,
     headcount_plan_service,
+    interview_service,
     job_posting_service,
     jr_service,
+    pipeline_service,
 )
 
 router = APIRouter()
@@ -1020,3 +1044,353 @@ async def list_candidate_applications(
     session: AsyncSession = Depends(get_session),
 ):
     return await candidate_service.list_candidate_applications(session, candidate_id, page, page_size)
+
+
+# ── Pipeline Templates / Stages / Kanban (13.4) ─────────────────────────────
+
+
+@router.get("/pipeline-templates", response_model=List[PipelineStageTemplateRead], tags=[_TAG])
+async def list_pipeline_templates(
+    _: User = require_permission("recruitment:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await pipeline_service.list_pipeline_templates(session)
+
+
+@router.post(
+    "/pipeline-templates",
+    response_model=PipelineStageTemplateRead,
+    status_code=status.HTTP_201_CREATED,
+    tags=[_TAG],
+)
+async def create_pipeline_template(
+    data: PipelineStageTemplateCreate,
+    current_user: User = require_permission("recruitment:manage"),
+    session: AsyncSession = Depends(get_session),
+):
+    result = await pipeline_service.create_pipeline_template(session, data, current_user.id)
+    await session.commit()
+    return result
+
+
+@router.put("/pipeline-templates/{template_id}", response_model=PipelineStageTemplateRead, tags=[_TAG])
+async def update_pipeline_template(
+    template_id: int,
+    data: PipelineStageTemplateUpdate,
+    current_user: User = require_permission("recruitment:manage"),
+    session: AsyncSession = Depends(get_session),
+):
+    result = await pipeline_service.update_pipeline_template(session, template_id, data)
+    await session.commit()
+    return result
+
+
+@router.delete("/pipeline-templates/{template_id}", status_code=status.HTTP_204_NO_CONTENT, tags=[_TAG])
+async def delete_pipeline_template(
+    template_id: int,
+    current_user: User = require_permission("recruitment:manage"),
+    session: AsyncSession = Depends(get_session),
+):
+    await pipeline_service.delete_pipeline_template(session, template_id)
+    await session.commit()
+
+
+@router.get("/job-requisitions/{jr_id}/pipeline", response_model=List[PipelineStageRead], tags=[_TAG])
+async def list_pipeline_for_jr(
+    jr_id: int,
+    _: User = require_permission("recruitment:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await pipeline_service.list_pipeline_for_jr(session, jr_id)
+
+
+@router.post("/job-requisitions/{jr_id}/pipeline", response_model=List[PipelineStageRead], tags=[_TAG])
+async def setup_pipeline_for_jr(
+    jr_id: int,
+    data: PipelineSetupRequest,
+    current_user: User = require_permission("recruitment:manage"),
+    session: AsyncSession = Depends(get_session),
+):
+    result = await pipeline_service.setup_pipeline_for_jr(session, jr_id, data)
+    await session.commit()
+    return result
+
+
+@router.put("/job-requisitions/{jr_id}/pipeline/{stage_id}", response_model=PipelineStageRead, tags=[_TAG])
+async def update_pipeline_stage(
+    jr_id: int,
+    stage_id: int,
+    data: PipelineStageUpdate,
+    current_user: User = require_permission("recruitment:manage"),
+    session: AsyncSession = Depends(get_session),
+):
+    result = await pipeline_service.update_pipeline_stage(session, jr_id, stage_id, data)
+    await session.commit()
+    return result
+
+
+@router.delete("/job-requisitions/{jr_id}/pipeline/{stage_id}", status_code=status.HTTP_204_NO_CONTENT, tags=[_TAG])
+async def delete_pipeline_stage(
+    jr_id: int,
+    stage_id: int,
+    current_user: User = require_permission("recruitment:manage"),
+    session: AsyncSession = Depends(get_session),
+):
+    await pipeline_service.delete_pipeline_stage(session, jr_id, stage_id)
+    await session.commit()
+
+
+@router.post("/applications/{application_id}/advance", response_model=ApplicationRead, tags=[_TAG])
+async def advance_application(
+    application_id: int,
+    data: AdvanceApplicationRequest,
+    current_user: User = require_permission("recruitment:manage"),
+    session: AsyncSession = Depends(get_session),
+):
+    result = await pipeline_service.advance_application(session, application_id, data, current_user.id)
+    await session.commit()
+    return result
+
+
+@router.post("/applications/{application_id}/reject", response_model=ApplicationRead, tags=[_TAG])
+async def reject_application(
+    application_id: int,
+    data: RejectRequest,
+    current_user: User = require_permission("recruitment:manage"),
+    session: AsyncSession = Depends(get_session),
+):
+    result = await pipeline_service.reject_application(session, application_id, data, current_user.id)
+    await session.commit()
+    return result
+
+
+@router.post("/applications/{application_id}/hold", response_model=ApplicationRead, tags=[_TAG])
+async def hold_application(
+    application_id: int,
+    data: HoldApplicationRequest,
+    current_user: User = require_permission("recruitment:manage"),
+    session: AsyncSession = Depends(get_session),
+):
+    result = await pipeline_service.hold_application(session, application_id, data, current_user.id)
+    await session.commit()
+    return result
+
+
+@router.get("/job-requisitions/{jr_id}/kanban", response_model=KanbanBoard, tags=[_TAG])
+async def get_kanban(
+    jr_id: int,
+    _: User = require_permission("recruitment:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await pipeline_service.get_kanban(session, jr_id)
+
+
+@router.post(
+    "/applications/{application_id}/stages/{stage_id}/result",
+    response_model=CandidateStageResultRead,
+    status_code=status.HTTP_201_CREATED,
+    tags=[_TAG],
+)
+async def create_stage_result(
+    application_id: int,
+    stage_id: int,
+    data: StageResultUpsert,
+    current_user: User = require_permission("recruitment:manage"),
+    session: AsyncSession = Depends(get_session),
+):
+    result = await pipeline_service.upsert_stage_result(session, application_id, stage_id, data, current_user.id)
+    await session.commit()
+    return result
+
+
+@router.put(
+    "/applications/{application_id}/stages/{stage_id}/result",
+    response_model=CandidateStageResultRead,
+    tags=[_TAG],
+)
+async def update_stage_result(
+    application_id: int,
+    stage_id: int,
+    data: StageResultUpsert,
+    current_user: User = require_permission("recruitment:manage"),
+    session: AsyncSession = Depends(get_session),
+):
+    result = await pipeline_service.upsert_stage_result(session, application_id, stage_id, data, current_user.id)
+    await session.commit()
+    return result
+
+
+@router.get("/applications/{application_id}/stages", response_model=List[CandidateStageResultRead], tags=[_TAG])
+async def list_stage_results(
+    application_id: int,
+    _: User = require_permission("recruitment:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await pipeline_service.list_stage_results(session, application_id)
+
+
+# ── Interviews / Scorecard (13.4) ────────────────────────────────────────────
+
+
+@router.post(
+    "/applications/{application_id}/interviews",
+    response_model=InterviewSessionRead,
+    status_code=status.HTTP_201_CREATED,
+    tags=[_TAG],
+)
+async def create_interview(
+    application_id: int,
+    data: InterviewSessionCreate,
+    current_user: User = require_permission("recruitment:manage"),
+    session: AsyncSession = Depends(get_session),
+):
+    result = await interview_service.create_interview(session, application_id, data, current_user.id)
+    await session.commit()
+    return result
+
+
+@router.get("/applications/{application_id}/interviews", response_model=List[InterviewSessionRead], tags=[_TAG])
+async def list_application_interviews(
+    application_id: int,
+    _: User = require_permission("recruitment:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await interview_service.list_application_interviews(session, application_id)
+
+
+@router.get("/interviews/{interview_id}", response_model=InterviewSessionRead, tags=[_TAG])
+async def get_interview(
+    interview_id: int,
+    _: User = require_permission("recruitment:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await interview_service.get_interview(session, interview_id)
+
+
+@router.put("/interviews/{interview_id}", response_model=InterviewSessionRead, tags=[_TAG])
+async def update_interview(
+    interview_id: int,
+    data: InterviewSessionUpdate,
+    current_user: User = require_permission("recruitment:manage"),
+    session: AsyncSession = Depends(get_session),
+):
+    result = await interview_service.update_interview(session, interview_id, data)
+    await session.commit()
+    return result
+
+
+@router.post("/interviews/{interview_id}/complete", response_model=InterviewSessionRead, tags=[_TAG])
+async def complete_interview(
+    interview_id: int,
+    current_user: User = require_permission("recruitment:manage"),
+    session: AsyncSession = Depends(get_session),
+):
+    result = await interview_service.complete_interview(session, interview_id, current_user.id)
+    await session.commit()
+    return result
+
+
+@router.post("/interviews/{interview_id}/cancel", response_model=InterviewSessionRead, tags=[_TAG])
+async def cancel_interview(
+    interview_id: int,
+    data: InterviewCancelRequest,
+    current_user: User = require_permission("recruitment:manage"),
+    session: AsyncSession = Depends(get_session),
+):
+    result = await interview_service.cancel_interview(session, interview_id, data)
+    await session.commit()
+    return result
+
+
+@router.post("/interviews/{interview_id}/panelists/{user_id}/score", response_model=InterviewPanelistRead, tags=[_TAG])
+async def submit_panelist_score(
+    interview_id: int,
+    user_id: int,
+    data: PanelistScoreSubmit,
+    current_user: User = require_permission("recruitment:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    result = await interview_service.submit_panelist_score(session, interview_id, user_id, current_user, data)
+    await session.commit()
+    return result
+
+
+@router.put("/interviews/{interview_id}/panelists/{user_id}/score", response_model=InterviewPanelistRead, tags=[_TAG])
+async def update_panelist_score(
+    interview_id: int,
+    user_id: int,
+    data: PanelistScoreSubmit,
+    current_user: User = require_permission("recruitment:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    result = await interview_service.submit_panelist_score(session, interview_id, user_id, current_user, data)
+    await session.commit()
+    return result
+
+
+# ── Interview Kit (13.4) ─────────────────────────────────────────────────────
+
+
+@router.get("/questions", response_model=List[InterviewQuestionRead], tags=[_TAG])
+async def list_questions(
+    job_position_id: Optional[int] = Query(default=None),
+    category: Optional[str] = Query(default=None),
+    stage_type: Optional[str] = Query(default=None),
+    _: User = require_permission("recruitment:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await interview_service.list_questions(session, job_position_id, category, stage_type)
+
+
+@router.post("/questions", response_model=InterviewQuestionRead, status_code=status.HTTP_201_CREATED, tags=[_TAG])
+async def create_question(
+    data: InterviewQuestionCreate,
+    current_user: User = require_permission("recruitment:manage"),
+    session: AsyncSession = Depends(get_session),
+):
+    result = await interview_service.create_question(session, data, current_user.id)
+    await session.commit()
+    return result
+
+
+@router.put("/questions/{question_id}", response_model=InterviewQuestionRead, tags=[_TAG])
+async def update_question(
+    question_id: int,
+    data: InterviewQuestionUpdate,
+    current_user: User = require_permission("recruitment:manage"),
+    session: AsyncSession = Depends(get_session),
+):
+    result = await interview_service.update_question(session, question_id, data)
+    await session.commit()
+    return result
+
+
+@router.delete("/questions/{question_id}", status_code=status.HTTP_204_NO_CONTENT, tags=[_TAG])
+async def delete_question(
+    question_id: int,
+    current_user: User = require_permission("recruitment:manage"),
+    session: AsyncSession = Depends(get_session),
+):
+    await interview_service.delete_question(session, question_id)
+    await session.commit()
+
+
+@router.get("/scorecard-criteria", response_model=List[ScorecardCriterionRead], tags=[_TAG])
+async def list_scorecard_criteria(
+    job_position_id: Optional[int] = Query(default=None),
+    stage_type: Optional[str] = Query(default=None),
+    _: User = require_permission("recruitment:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await interview_service.list_scorecard_criteria(session, job_position_id, stage_type)
+
+
+@router.post("/scorecard-criteria", response_model=ScorecardCriterionRead, status_code=status.HTTP_201_CREATED, tags=[_TAG])
+async def create_scorecard_criterion(
+    data: ScorecardCriterionCreate,
+    current_user: User = require_permission("recruitment:manage"),
+    session: AsyncSession = Depends(get_session),
+):
+    result = await interview_service.create_scorecard_criterion(session, data)
+    await session.commit()
+    return result

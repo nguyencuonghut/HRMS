@@ -344,6 +344,11 @@ AttachmentTypeLabels: dict[str, str] = {
 
 ProficiencyLevel = Literal["beginner", "intermediate", "advanced", "expert"]
 ApplicationStage = Literal["new", "screening", "test", "interview", "offer", "hired", "rejected", "withdrawn"]
+PipelineStageType = Literal["screening", "test", "interview", "final"]
+StageResultValue = Literal["pass", "fail", "hold", "pending"]
+InterviewFormat = Literal["in_person", "online", "phone"]
+InterviewSessionStatus = Literal["scheduled", "completed", "cancelled", "rescheduled"]
+QuestionDifficulty = Literal["easy", "medium", "hard"]
 
 
 class CandidateEducationCreate(BaseModel):
@@ -713,6 +718,277 @@ class CandidateDuplicateMatch(BaseModel):
 class CandidateDuplicateCheckResult(BaseModel):
     exact_matches: List[CandidateDuplicateMatch]
     possible_matches: List[CandidateDuplicateMatch]
+
+
+class PipelineStageTemplateItemInput(BaseModel):
+    stage_order: int = Field(ge=1, le=50)
+    stage_name: str = Field(min_length=1, max_length=100)
+    stage_type: PipelineStageType
+    is_required: bool = True
+
+
+class PipelineStageTemplateCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    job_position_id: Optional[int] = None
+    is_default: bool = False
+    items: List[PipelineStageTemplateItemInput] = Field(min_length=1)
+
+
+class PipelineStageTemplateUpdate(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=1, max_length=200)
+    job_position_id: Optional[int] = None
+    is_default: Optional[bool] = None
+    items: Optional[List[PipelineStageTemplateItemInput]] = None
+
+
+class PipelineStageTemplateItemRead(BaseModel):
+    model_config = {"from_attributes": True}
+
+    id: int
+    template_id: int
+    stage_order: int
+    stage_name: str
+    stage_type: str
+    is_required: bool
+
+
+class PipelineStageTemplateRead(BaseModel):
+    model_config = {"from_attributes": True}
+
+    id: int
+    name: str
+    job_position_id: Optional[int]
+    is_default: bool
+    items: List[PipelineStageTemplateItemRead]
+    created_at: datetime
+
+
+class PipelineStageCreate(BaseModel):
+    stage_order: int = Field(ge=1, le=50)
+    stage_name: str = Field(min_length=1, max_length=100)
+    stage_type: PipelineStageType
+    is_active: bool = True
+
+
+class PipelineStageUpdate(BaseModel):
+    stage_order: Optional[int] = Field(default=None, ge=1, le=50)
+    stage_name: Optional[str] = Field(default=None, min_length=1, max_length=100)
+    stage_type: Optional[PipelineStageType] = None
+    is_active: Optional[bool] = None
+
+
+class PipelineSetupRequest(BaseModel):
+    template_id: Optional[int] = None
+    stages: Optional[List[PipelineStageCreate]] = None
+
+    @model_validator(mode="after")
+    def validate_source(self) -> "PipelineSetupRequest":
+        has_template = self.template_id is not None
+        has_stages = bool(self.stages)
+        if has_template == has_stages:
+            raise ValueError("Cần truyền đúng một trong hai: template_id hoặc stages")
+        return self
+
+
+class PipelineStageRead(BaseModel):
+    model_config = {"from_attributes": True}
+
+    id: int
+    job_requisition_id: int
+    stage_order: int
+    stage_name: str
+    stage_type: str
+    is_active: bool
+    application_count: int
+
+
+class AdvanceApplicationRequest(BaseModel):
+    stage_id: int
+    result: StageResultValue
+    notes: Optional[str] = None
+    score: Optional[Decimal] = None
+    rejection_reason: Optional[str] = None
+
+
+class HoldApplicationRequest(BaseModel):
+    stage_id: int
+    notes: Optional[str] = None
+
+
+class StageResultUpsert(BaseModel):
+    result: Optional[StageResultValue] = None
+    score: Optional[Decimal] = None
+    notes: Optional[str] = None
+    test_file_path: Optional[str] = Field(default=None, max_length=500)
+    test_file_name: Optional[str] = Field(default=None, max_length=300)
+    test_score_raw: Optional[Decimal] = None
+    test_pass_threshold: Optional[Decimal] = None
+
+
+class CandidateStageResultRead(BaseModel):
+    model_config = {"from_attributes": True}
+
+    id: int
+    application_id: int
+    stage_id: int
+    stage_name: str
+    stage_type: str
+    result: Optional[str]
+    score: Optional[Decimal]
+    notes: Optional[str]
+    test_file_path: Optional[str]
+    test_file_name: Optional[str]
+    test_score_raw: Optional[Decimal]
+    test_pass_threshold: Optional[Decimal]
+    evaluated_by_id: Optional[int]
+    evaluated_by_name: Optional[str]
+    evaluated_at: Optional[datetime]
+    created_at: datetime
+    updated_at: datetime
+
+
+class KanbanCard(BaseModel):
+    application_id: int
+    candidate_id: int
+    candidate_name: str
+    applied_date: date
+    source_channel: Optional[str]
+    last_result: Optional[str]
+
+
+class KanbanStage(BaseModel):
+    stage: PipelineStageRead
+    applications: List[KanbanCard]
+
+
+class KanbanBoard(BaseModel):
+    job_requisition_id: int
+    stages: List[KanbanStage]
+
+
+class InterviewPanelistRead(BaseModel):
+    model_config = {"from_attributes": True}
+
+    id: int
+    user_id: int
+    user_name: Optional[str]
+    criteria_scores: Optional[List[dict]]
+    overall_score: Optional[Decimal]
+    result: Optional[str]
+    private_notes: Optional[str]
+    submitted_at: Optional[datetime]
+
+
+class InterviewSessionCreate(BaseModel):
+    stage_id: int
+    scheduled_at: datetime
+    duration_minutes: int = Field(default=60, ge=15, le=480)
+    format: InterviewFormat = "in_person"
+    location: Optional[str] = Field(default=None, max_length=300)
+    note: Optional[str] = None
+    panelist_user_ids: List[int] = Field(min_length=1)
+
+
+class InterviewSessionUpdate(BaseModel):
+    scheduled_at: Optional[datetime] = None
+    duration_minutes: Optional[int] = Field(default=None, ge=15, le=480)
+    format: Optional[InterviewFormat] = None
+    location: Optional[str] = Field(default=None, max_length=300)
+    note: Optional[str] = None
+    panelist_user_ids: Optional[List[int]] = None
+
+
+class InterviewSessionRead(BaseModel):
+    model_config = {"from_attributes": True}
+
+    id: int
+    application_id: int
+    stage_id: int
+    stage_name: str
+    stage_type: str
+    scheduled_at: datetime
+    duration_minutes: int
+    format: str
+    location: Optional[str]
+    note: Optional[str]
+    status: str
+    completed_at: Optional[datetime]
+    cancel_reason: Optional[str]
+    created_by_id: Optional[int]
+    created_by_name: Optional[str]
+    created_at: datetime
+    updated_at: datetime
+    panelists: List[InterviewPanelistRead]
+
+
+class InterviewCancelRequest(BaseModel):
+    cancel_reason: Optional[str] = None
+
+
+class ScoreCriterionInput(BaseModel):
+    criterion: str = Field(min_length=1, max_length=200)
+    score: Decimal
+    max_score: Decimal = Field(default=5)
+
+
+class PanelistScoreSubmit(BaseModel):
+    criteria_scores: List[ScoreCriterionInput] = Field(default_factory=list)
+    overall_score: Optional[Decimal] = None
+    result: StageResultValue
+    private_notes: Optional[str] = None
+
+
+class InterviewQuestionCreate(BaseModel):
+    question_text: str = Field(min_length=1)
+    category: Optional[str] = Field(default=None, max_length=100)
+    difficulty: Optional[QuestionDifficulty] = None
+    job_position_id: Optional[int] = None
+    stage_type: Optional[PipelineStageType] = None
+    is_active: bool = True
+
+
+class InterviewQuestionUpdate(BaseModel):
+    question_text: Optional[str] = Field(default=None, min_length=1)
+    category: Optional[str] = Field(default=None, max_length=100)
+    difficulty: Optional[QuestionDifficulty] = None
+    job_position_id: Optional[int] = None
+    stage_type: Optional[PipelineStageType] = None
+    is_active: Optional[bool] = None
+
+
+class InterviewQuestionRead(BaseModel):
+    model_config = {"from_attributes": True}
+
+    id: int
+    question_text: str
+    category: Optional[str]
+    difficulty: Optional[str]
+    job_position_id: Optional[int]
+    stage_type: Optional[str]
+    is_active: bool
+    created_by_id: Optional[int]
+    created_at: datetime
+
+
+class ScorecardCriterionCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    job_position_id: Optional[int] = None
+    stage_type: Optional[PipelineStageType] = None
+    max_score: int = Field(default=5, ge=1, le=10)
+    sort_order: int = Field(default=0, ge=0, le=1000)
+    is_active: bool = True
+
+
+class ScorecardCriterionRead(BaseModel):
+    model_config = {"from_attributes": True}
+
+    id: int
+    name: str
+    job_position_id: Optional[int]
+    stage_type: Optional[str]
+    max_score: int
+    sort_order: int
+    is_active: bool
 
 
 class ApplicationCreate(BaseModel):

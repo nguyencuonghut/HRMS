@@ -7,6 +7,7 @@ from typing import List, Optional
 
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import ARRAY as PgARRAY
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Column, Field, SQLModel
 
 
@@ -409,4 +410,198 @@ class CandidateApplication(SQLModel, table=True):
         sa.UniqueConstraint("candidate_id", "job_requisition_id", name="uq_application_candidate_jr"),
         sa.Index("ix_applications_jr", "job_requisition_id"),
         sa.Index("ix_applications_stage", "current_stage"),
+    )
+
+
+class PipelineStageTemplate(SQLModel, table=True):
+    __tablename__ = "pipeline_stage_templates"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str = Field(sa_column=Column(sa.String(200), nullable=False))
+    job_position_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(sa.Integer(), sa.ForeignKey("job_positions.id", ondelete="SET NULL"), nullable=True),
+    )
+    is_default: bool = Field(sa_column=Column(sa.Boolean(), nullable=False, server_default="false"))
+    created_by_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(sa.Integer(), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
+    )
+    created_at: datetime = Field(default_factory=_utcnow)
+
+    __table_args__ = (
+        sa.Index("ix_pipeline_stage_templates_job_position", "job_position_id"),
+    )
+
+
+class PipelineStageTemplateItem(SQLModel, table=True):
+    __tablename__ = "pipeline_stage_template_items"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    template_id: int = Field(
+        sa_column=Column(
+            sa.Integer(), sa.ForeignKey("pipeline_stage_templates.id", ondelete="CASCADE"), nullable=False
+        )
+    )
+    stage_order: int = Field(sa_column=Column(sa.SmallInteger(), nullable=False))
+    stage_name: str = Field(sa_column=Column(sa.String(100), nullable=False))
+    stage_type: str = Field(sa_column=Column(sa.String(30), nullable=False))
+    is_required: bool = Field(sa_column=Column(sa.Boolean(), nullable=False, server_default="true"))
+
+    __table_args__ = (
+        sa.UniqueConstraint("template_id", "stage_order", name="uq_pipeline_stage_template_order"),
+        sa.UniqueConstraint("template_id", "stage_type", name="uq_pipeline_stage_template_type"),
+    )
+
+
+class PipelineStage(SQLModel, table=True):
+    __tablename__ = "pipeline_stages"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    job_requisition_id: int = Field(
+        sa_column=Column(
+            sa.Integer(), sa.ForeignKey("job_requisitions.id", ondelete="CASCADE"), nullable=False
+        )
+    )
+    stage_order: int = Field(sa_column=Column(sa.SmallInteger(), nullable=False))
+    stage_name: str = Field(sa_column=Column(sa.String(100), nullable=False))
+    stage_type: str = Field(sa_column=Column(sa.String(30), nullable=False))
+    is_active: bool = Field(sa_column=Column(sa.Boolean(), nullable=False, server_default="true"))
+
+    __table_args__ = (
+        sa.UniqueConstraint("job_requisition_id", "stage_order", name="uq_pipeline_stage_jr_order"),
+        sa.UniqueConstraint("job_requisition_id", "stage_type", name="uq_pipeline_stage_jr_type"),
+        sa.Index("ix_pipeline_stages_jr", "job_requisition_id"),
+    )
+
+
+class CandidateStageResult(SQLModel, table=True):
+    __tablename__ = "candidate_stage_results"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    application_id: int = Field(
+        sa_column=Column(
+            sa.Integer(), sa.ForeignKey("candidate_applications.id", ondelete="CASCADE"), nullable=False
+        )
+    )
+    stage_id: int = Field(
+        sa_column=Column(sa.Integer(), sa.ForeignKey("pipeline_stages.id", ondelete="CASCADE"), nullable=False)
+    )
+    result: Optional[str] = Field(default=None, sa_column=Column(sa.String(20), nullable=True))
+    score: Optional[Decimal] = Field(default=None, sa_column=Column(sa.Numeric(5, 2), nullable=True))
+    notes: Optional[str] = Field(default=None, sa_column=Column(sa.Text(), nullable=True))
+    test_file_path: Optional[str] = Field(default=None, sa_column=Column(sa.String(500), nullable=True))
+    test_file_name: Optional[str] = Field(default=None, sa_column=Column(sa.String(300), nullable=True))
+    test_score_raw: Optional[Decimal] = Field(default=None, sa_column=Column(sa.Numeric(5, 2), nullable=True))
+    test_pass_threshold: Optional[Decimal] = Field(default=None, sa_column=Column(sa.Numeric(5, 2), nullable=True))
+    evaluated_by_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(sa.Integer(), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
+    )
+    evaluated_at: Optional[datetime] = Field(default=None, sa_column=Column(sa.DateTime(), nullable=True))
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: datetime = Field(default_factory=_utcnow)
+
+    __table_args__ = (
+        sa.UniqueConstraint("application_id", "stage_id", name="uq_candidate_stage_result_application_stage"),
+        sa.Index("ix_candidate_stage_results_application", "application_id"),
+    )
+
+
+class InterviewSession(SQLModel, table=True):
+    __tablename__ = "interview_sessions"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    application_id: int = Field(
+        sa_column=Column(
+            sa.Integer(), sa.ForeignKey("candidate_applications.id", ondelete="CASCADE"), nullable=False
+        )
+    )
+    stage_id: int = Field(
+        sa_column=Column(sa.Integer(), sa.ForeignKey("pipeline_stages.id", ondelete="CASCADE"), nullable=False)
+    )
+    scheduled_at: datetime = Field(sa_column=Column(sa.DateTime(), nullable=False))
+    duration_minutes: int = Field(sa_column=Column(sa.SmallInteger(), nullable=False, server_default="60"))
+    format: str = Field(sa_column=Column(sa.String(20), nullable=False, server_default="in_person"))
+    location: Optional[str] = Field(default=None, sa_column=Column(sa.String(300), nullable=True))
+    note: Optional[str] = Field(default=None, sa_column=Column(sa.Text(), nullable=True))
+    status: str = Field(sa_column=Column(sa.String(20), nullable=False, server_default="scheduled"))
+    completed_at: Optional[datetime] = Field(default=None, sa_column=Column(sa.DateTime(), nullable=True))
+    cancel_reason: Optional[str] = Field(default=None, sa_column=Column(sa.Text(), nullable=True))
+    created_by_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(sa.Integer(), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
+    )
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: datetime = Field(default_factory=_utcnow)
+
+    __table_args__ = (
+        sa.Index("ix_interview_sessions_application", "application_id"),
+        sa.Index("ix_interview_sessions_scheduled", "scheduled_at"),
+    )
+
+
+class InterviewPanelist(SQLModel, table=True):
+    __tablename__ = "interview_panelists"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    interview_session_id: int = Field(
+        sa_column=Column(
+            sa.Integer(), sa.ForeignKey("interview_sessions.id", ondelete="CASCADE"), nullable=False
+        )
+    )
+    user_id: int = Field(
+        sa_column=Column(sa.Integer(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    )
+    criteria_scores: Optional[list[dict]] = Field(default=None, sa_column=Column(JSONB, nullable=True))
+    overall_score: Optional[Decimal] = Field(default=None, sa_column=Column(sa.Numeric(4, 2), nullable=True))
+    result: Optional[str] = Field(default=None, sa_column=Column(sa.String(20), nullable=True))
+    private_notes: Optional[str] = Field(default=None, sa_column=Column(sa.Text(), nullable=True))
+    submitted_at: Optional[datetime] = Field(default=None, sa_column=Column(sa.DateTime(), nullable=True))
+
+    __table_args__ = (
+        sa.UniqueConstraint("interview_session_id", "user_id", name="uq_interview_panelist_session_user"),
+    )
+
+
+class InterviewQuestion(SQLModel, table=True):
+    __tablename__ = "interview_questions"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    question_text: str = Field(sa_column=Column(sa.Text(), nullable=False))
+    category: Optional[str] = Field(default=None, sa_column=Column(sa.String(100), nullable=True))
+    difficulty: Optional[str] = Field(default=None, sa_column=Column(sa.String(20), nullable=True))
+    job_position_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(sa.Integer(), sa.ForeignKey("job_positions.id", ondelete="SET NULL"), nullable=True),
+    )
+    stage_type: Optional[str] = Field(default=None, sa_column=Column(sa.String(30), nullable=True))
+    is_active: bool = Field(sa_column=Column(sa.Boolean(), nullable=False, server_default="true"))
+    created_by_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(sa.Integer(), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
+    )
+    created_at: datetime = Field(default_factory=_utcnow)
+
+    __table_args__ = (
+        sa.Index("ix_interview_questions_position", "job_position_id"),
+    )
+
+
+class ScorecardCriterion(SQLModel, table=True):
+    __tablename__ = "scorecard_criteria"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str = Field(sa_column=Column(sa.String(200), nullable=False))
+    job_position_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(sa.Integer(), sa.ForeignKey("job_positions.id", ondelete="SET NULL"), nullable=True),
+    )
+    stage_type: Optional[str] = Field(default=None, sa_column=Column(sa.String(30), nullable=True))
+    max_score: int = Field(sa_column=Column(sa.SmallInteger(), nullable=False, server_default="5"))
+    sort_order: int = Field(sa_column=Column(sa.SmallInteger(), nullable=False, server_default="0"))
+    is_active: bool = Field(sa_column=Column(sa.Boolean(), nullable=False, server_default="true"))
+
+    __table_args__ = (
+        sa.Index("ix_scorecard_criteria_position", "job_position_id"),
     )

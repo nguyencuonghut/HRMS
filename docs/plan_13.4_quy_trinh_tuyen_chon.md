@@ -195,7 +195,7 @@ CREATE TABLE scorecard_criteria (
 
 ### Alembic migration
 
-File: `0036_add_recruitment_pipeline.py`
+File: `0037_add_recruitment_pipeline.py`
 
 ---
 

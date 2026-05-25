@@ -20,6 +20,7 @@ from app.models.recruitment import (
     CandidateSkill,
     CandidateWorkExperience,
     JobRequisition,
+    PipelineStage,
     RecruitmentChannel,
 )
 from app.services.administrative_import_service import normalize_text
@@ -766,6 +767,20 @@ async def apply_candidate(
         internal_note=data.internal_note,
         created_by_id=created_by_id,
     )
+
+    first_stage_q = await session.execute(
+        select(PipelineStage)
+        .where(
+            PipelineStage.job_requisition_id == data.job_requisition_id,
+            PipelineStage.is_active == True,  # noqa: E712
+        )
+        .order_by(PipelineStage.stage_order, PipelineStage.id)
+        .limit(1)
+    )
+    first_stage = first_stage_q.scalars().first()
+    if first_stage:
+        app.current_stage = first_stage.stage_type
+
     session.add(app)
 
     # Transition JR to in_progress if still approved
