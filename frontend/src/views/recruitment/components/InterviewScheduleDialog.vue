@@ -65,9 +65,11 @@
           option-label="label"
           option-value="value"
           filter
+          :loading="userSearchLoading"
           display="chip"
           class="w-full"
           placeholder="Chọn người phỏng vấn"
+          @filter="onUserFilter"
         />
       </div>
 
@@ -107,6 +109,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
+import type { MultiSelectFilterEvent } from "primevue/multiselect";
 import Button from "primevue/button";
 import DatePicker from "primevue/datepicker";
 import Dialog from "primevue/dialog";
@@ -152,8 +155,36 @@ const location = ref("");
 const note = ref("");
 const panelistUserIds = ref<number[]>([]);
 const userOptions = ref<Array<{ label: string; value: number }>>([]);
+const userSearchLoading = ref(false);
 const questions = ref<InterviewQuestionRead[]>([]);
 const criteria = ref<ScorecardCriterionRead[]>([]);
+
+let _searchTimer: ReturnType<typeof setTimeout> | null = null;
+
+async function searchUsers(query: string) {
+  userSearchLoading.value = true;
+  try {
+    const res = await userService.list({ search: query || undefined, is_active: true, limit: 50 });
+    const fetched = res.data.items.map((item) => ({
+      label: item.full_name || item.email,
+      value: item.id,
+    }));
+    // Giữ lại các user đã được chọn nhưng không có trong kết quả search
+    const selectedNotInResult = userOptions.value.filter(
+      (opt) => panelistUserIds.value.includes(opt.value) && !fetched.some((f) => f.value === opt.value),
+    );
+    userOptions.value = [...selectedNotInResult, ...fetched];
+  } catch {
+    // silent — không ảnh hưởng UX
+  } finally {
+    userSearchLoading.value = false;
+  }
+}
+
+function onUserFilter(event: MultiSelectFilterEvent) {
+  if (_searchTimer) clearTimeout(_searchTimer);
+  _searchTimer = setTimeout(() => void searchUsers(event.value), 300);
+}
 
 const formatOptions = [
   { label: "Trực tiếp", value: "in_person" },
@@ -193,7 +224,6 @@ function resetForm() {
 async function loadKit() {
   kitLoading.value = true;
   try {
-    const userRequest = userService.list({ limit: 200 });
     const questionRequest = props.jobPositionId
       ? recruitmentService.listQuestions({
           job_position_id: props.jobPositionId,
@@ -207,14 +237,7 @@ async function loadKit() {
         })
       : Promise.resolve({ data: [] as ScorecardCriterionRead[] });
 
-    const [userRes, questionRes, criteriaRes] = await Promise.all([
-      userRequest,
-      questionRequest,
-      criteriaRequest,
-    ]);
-    userOptions.value = userRes.data.items
-      .filter((item) => item.is_active)
-      .map((item) => ({ label: item.full_name || item.email, value: item.id }));
+    const [questionRes, criteriaRes] = await Promise.all([questionRequest, criteriaRequest]);
     questions.value = questionRes.data;
     criteria.value = criteriaRes.data;
   } catch {
@@ -229,6 +252,18 @@ async function loadKit() {
   }
 }
 
+async function preloadSelectedUsers() {
+  if (!props.editing?.panelists.length) {
+    userOptions.value = [];
+    return;
+  }
+  // Pre-populate options với panelists hiện tại để label hiển thị đúng
+  userOptions.value = props.editing.panelists.map((p) => ({
+    label: p.user_name ?? `User #${p.user_id}`,
+    value: p.user_id,
+  }));
+}
+
 watch(
   () => props.visible,
   (visible) => {
@@ -236,7 +271,9 @@ watch(
       return;
     }
     resetForm();
+    void preloadSelectedUsers();
     void loadKit();
+    void searchUsers("");
   },
 );
 
