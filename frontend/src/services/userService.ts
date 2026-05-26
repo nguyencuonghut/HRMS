@@ -10,6 +10,7 @@ export interface UserRead {
   id:            number
   email:         string
   full_name:     string
+  phone_number:  string | null
   is_active:     boolean
   is_superuser:  boolean
   last_login_at: string | null
@@ -22,6 +23,7 @@ export interface UserListItem {
   id:            number
   email:         string
   full_name:     string
+  phone_number:  string | null
   is_active:     boolean
   is_superuser:  boolean
   last_login_at: string | null
@@ -36,17 +38,19 @@ export interface UserListResponse {
 }
 
 export interface UserCreate {
-  email:        string
-  full_name:    string
-  password:     string
-  is_active?:   boolean
+  email:         string
+  full_name:     string
+  password:      string
+  phone_number?: string | null
+  is_active?:    boolean
   is_superuser?: boolean
 }
 
 export interface UserUpdate {
-  email?:     string
-  full_name?: string
-  is_active?: boolean
+  email?:        string
+  full_name?:    string
+  phone_number?: string | null
+  is_active?:    boolean
 }
 
 export interface RoleAssign {

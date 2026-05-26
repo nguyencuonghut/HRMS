@@ -86,7 +86,7 @@
           />
           <small v-if="probationDaysWarning" class="rc-error">
             <i class="pi pi-exclamation-triangle" />
-            Vượt giới hạn thử việc quy định
+            Vượt giới hạn thử việc quy định (tối đa {{ probationDaysLimit }} ngày)
           </small>
         </div>
         <div class="rc-field">
@@ -170,9 +170,8 @@ const probationSalaryWarning = computed(() => {
   return prob < off * 0.85
 })
 
-const probationDaysWarning = computed(() => {
-  return (form.value.probation_days ?? 0) > 60
-})
+const probationDaysLimit = computed(() => props.offer?.probation_days_limit ?? 60)
+const probationDaysWarning = computed(() => (form.value.probation_days ?? 0) > probationDaysLimit.value)
 
 function resetForm() {
   const o = props.offer

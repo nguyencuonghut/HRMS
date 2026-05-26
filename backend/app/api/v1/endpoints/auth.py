@@ -1,3 +1,5 @@
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from jose import JWTError
 from pydantic import BaseModel
@@ -44,10 +46,16 @@ class UserMeResponse(BaseModel):
     id: int
     email: str
     full_name: str
+    phone_number: Optional[str]
     is_active: bool
     is_superuser: bool
     roles: list[str]
     permissions: list[str]
+
+
+class UserMeUpdate(BaseModel):
+    full_name: Optional[str] = None
+    phone_number: Optional[str] = None
 
 
 # ── Endpoints ──────────────────────────────────────────────────────────────────
@@ -134,6 +142,37 @@ async def get_me(
         id=current_user.id,
         email=current_user.email,
         full_name=current_user.full_name,
+        phone_number=current_user.phone_number,
+        is_active=current_user.is_active,
+        is_superuser=current_user.is_superuser,
+        roles=roles,
+        permissions=permissions,
+    )
+
+
+@router.put("/me", response_model=UserMeResponse, summary="Cập nhật thông tin cá nhân")
+async def update_me(
+    payload: UserMeUpdate,
+    current_user: User = Depends(get_current_active_user),
+    session: AsyncSession = Depends(get_session),
+):
+    from datetime import datetime, timezone
+    if payload.full_name is not None:
+        current_user.full_name = payload.full_name
+    if payload.phone_number is not None:
+        current_user.phone_number = payload.phone_number
+    current_user.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
+    session.add(current_user)
+    await session.commit()
+    await session.refresh(current_user)
+    from app.services.auth_service import get_user_roles, get_user_permissions
+    roles = await get_user_roles(session, current_user.id)
+    permissions = ["*"] if current_user.is_superuser else sorted(await get_user_permissions(session, current_user.id))
+    return UserMeResponse(
+        id=current_user.id,
+        email=current_user.email,
+        full_name=current_user.full_name,
+        phone_number=current_user.phone_number,
         is_active=current_user.is_active,
         is_superuser=current_user.is_superuser,
         roles=roles,

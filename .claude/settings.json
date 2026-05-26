@@ -4,5 +4,18 @@
       "Bash(git config *)",
       "Read(//run/media/cuong/DATA/02_Project/166_HonghaHRM/**)"
     ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "FILE=$(jq -r '.tool_input.file_path // \"\"'); if echo \"$FILE\" | grep -qE 'backend/app/(services|api|models|schemas)/.*\\.py$'; then printf '{\"systemMessage\": \"TDD REQUIRED: Dang sua backend Python. PHAI dung skill /tdd truoc khi implement.\"}'; fi"
+          }
+        ]
+      }
+    ]
   }
 }

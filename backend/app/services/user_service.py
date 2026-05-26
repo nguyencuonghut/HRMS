@@ -38,7 +38,9 @@ async def list_users(
     if search:
         pattern = f"%{search}%"
         q = q.where(
-            User.full_name.ilike(pattern) | User.email.ilike(pattern)
+            User.full_name.ilike(pattern)
+            | User.email.ilike(pattern)
+            | User.phone_number.ilike(pattern)
         )
     if is_active is not None:
         q = q.where(User.is_active == is_active)
@@ -58,6 +60,7 @@ async def create_user(session: AsyncSession, data: UserCreate) -> User:
     user = User(
         email=data.email,
         full_name=data.full_name,
+        phone_number=data.phone_number,
         hashed_password=hash_password(data.password),
         is_active=data.is_active,
         is_superuser=data.is_superuser,
@@ -74,6 +77,8 @@ async def update_user(
         user.email = data.email
     if data.full_name is not None:
         user.full_name = data.full_name
+    if data.phone_number is not None:
+        user.phone_number = data.phone_number
     if data.is_active is not None:
         user.is_active = data.is_active
     user.updated_at = _utcnow()

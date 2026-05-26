@@ -25,6 +25,7 @@ class User(SQLModel, table=True):
     hashed_password: str = Field()
     is_active: bool = Field(default=True)
     is_superuser: bool = Field(default=False)
+    phone_number: Optional[str] = Field(default=None, max_length=20)
     # Liên kết hồ sơ nhân viên — sẽ có FK thực khi triển khai module Nhân sự
     employee_id: Optional[int] = Field(default=None)
     last_login_at: Optional[datetime] = Field(default=None)

@@ -156,6 +156,7 @@ import Button from 'primevue/button'
 import Tag from 'primevue/tag'
 import { useConfirm } from 'primevue/useconfirm'
 import { useToast } from 'primevue/usetoast'
+import { formatDatetime } from '@/utils/format'
 
 import recruitmentService, { type JobPostingRead } from '@/services/recruitmentService'
 import JobPostingFormDialog from './components/JobPostingFormDialog.vue'
@@ -175,7 +176,7 @@ function statusSeverity(st: string) {
   return map[st] ?? 'secondary'
 }
 function formatDate(d: string) { return new Date(d).toLocaleDateString('vi-VN') }
-function formatDatetime(d: string) { return new Date(d).toLocaleString('vi-VN', { dateStyle: 'short', timeStyle: 'short' }) }
+
 function deadlineClass(d: string | null) {
   if (!d) return ''
   const diff = (new Date(d).getTime() - Date.now()) / 86400000

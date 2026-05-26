@@ -33,6 +33,16 @@
         <small v-if="errors.full_name" class="error-msg">{{ errors.full_name }}</small>
       </div>
 
+      <div class="field">
+        <label>Số điện thoại</label>
+        <InputText
+          v-model="form.phone_number"
+          class="w-full"
+          placeholder="0901234567"
+          autocomplete="off"
+        />
+      </div>
+
       <template v-if="!user">
         <div class="field">
           <label>Mật khẩu <span class="req">*</span></label>
@@ -103,18 +113,19 @@ const visible    = defineModel<boolean>({ required: true })
 const toast      = useToast()
 const submitting = ref(false)
 
-const form = ref({ email: '', full_name: '', password: '', confirm: '', is_active: true })
+const form = ref({ email: '', full_name: '', phone_number: '', password: '', confirm: '', is_active: true })
 const errors = ref<Record<string, string>>({})
 
 watch(visible, (v) => {
   if (v && props.user) {
     form.value = { email: props.user.email, full_name: props.user.full_name,
+                   phone_number: props.user.phone_number ?? '',
                    password: '', confirm: '', is_active: props.user.is_active }
   }
 })
 
 function reset() {
-  form.value = { email: '', full_name: '', password: '', confirm: '', is_active: true }
+  form.value = { email: '', full_name: '', phone_number: '', password: '', confirm: '', is_active: true }
   errors.value = {}
 }
 
@@ -150,16 +161,18 @@ async function submit() {
   try {
     if (props.user) {
       await userService.update(props.user.id, {
-        email:     form.value.email.trim(),
-        full_name: form.value.full_name.trim(),
-        is_active: form.value.is_active,
+        email:        form.value.email.trim(),
+        full_name:    form.value.full_name.trim(),
+        phone_number: form.value.phone_number.trim() || null,
+        is_active:    form.value.is_active,
       })
       toast.add({ severity: 'success', summary: 'Thành công', detail: 'Đã cập nhật tài khoản', life: 3000 })
     } else {
       await userService.create({
-        email:     form.value.email.trim(),
-        full_name: form.value.full_name.trim(),
-        password:  form.value.password,
+        email:        form.value.email.trim(),
+        full_name:    form.value.full_name.trim(),
+        phone_number: form.value.phone_number.trim() || null,
+        password:     form.value.password,
       })
       toast.add({ severity: 'success', summary: 'Thành công', detail: 'Đã tạo tài khoản mới', life: 3000 })
     }

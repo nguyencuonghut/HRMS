@@ -5,9 +5,11 @@ import asyncio
 import json
 import re
 import smtplib
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from email.header import Header
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from email.utils import formataddr
 from typing import Optional
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -56,6 +58,7 @@ class EmailTemplateRead(BaseModel):
     updated_at: datetime
 
 class EmailTemplatePreviewRequest(BaseModel):
+    candidate_id: Optional[int] = None
     application_id: Optional[int] = None
     use_sample_data: bool = True
 
@@ -77,6 +80,8 @@ class CommunicationRead(BaseModel):
     sent_at: Optional[datetime]
     sent_by_name: Optional[str]
     trigger_event: Optional[str]
+    error_message: Optional[str]
+    error_friendly: Optional[str]
     created_at: datetime
 
 
@@ -91,6 +96,29 @@ def render(template_str: str, context: dict) -> str:
     def replacer(m):
         return str(context.get(m.group(1), m.group(0)))
     return _FIELD_RE.sub(replacer, template_str)
+
+def _friendly_error(msg: Optional[str]) -> Optional[str]:
+    if not msg:
+        return None
+    m = msg.lower()
+    if "không có email" in m or "no email" in m:
+        return "Ứng viên chưa có địa chỉ email. Vui lòng cập nhật thông tin ứng viên trước khi gửi."
+    if "connection refused" in m or "connect" in m and "refused" in m:
+        return "Không kết nối được đến máy chủ email (SMTP). Kiểm tra lại cấu hình SMTP hoặc liên hệ quản trị viên hệ thống."
+    if "timeout" in m or "timed out" in m:
+        return "Hết thời gian chờ khi kết nối đến máy chủ email. Có thể máy chủ SMTP đang quá tải hoặc bị chặn tường lửa."
+    if "authentication" in m or "535" in m or "534" in m or "username and password" in m:
+        return "Xác thực SMTP thất bại. Tên đăng nhập hoặc mật khẩu email không đúng. Liên hệ quản trị viên để kiểm tra cấu hình."
+    if "550" in m or "relay" in m:
+        return "Máy chủ email từ chối gửi. Địa chỉ email ứng viên có thể không tồn tại hoặc bị từ chối bởi máy chủ nhận."
+    if "ssl" in m or "tls" in m or "certificate" in m:
+        return "Lỗi bảo mật kết nối SMTP (SSL/TLS). Kiểm tra lại cài đặt mã hóa email trong cấu hình hệ thống."
+    if "getaddrinfo" in m or "name or service not known" in m or "nodename nor servname" in m:
+        return "Không tìm thấy địa chỉ máy chủ email. Kiểm tra lại tên miền SMTP trong cấu hình hệ thống."
+    if "smtplib" in m or "smtp" in m:
+        return "Lỗi giao tiếp với máy chủ email. Liên hệ quản trị viên hệ thống để kiểm tra cấu hình SMTP."
+    return "Gửi email thất bại do lỗi không xác định. Liên hệ quản trị viên hệ thống để được hỗ trợ."
+
 
 def _parse_fields(raw: Optional[str]) -> list[str]:
     if not raw:
@@ -140,6 +168,8 @@ async def _build_comm_read(session: AsyncSession, comm: CandidateCommunication) 
         sent_at=comm.sent_at,
         sent_by_name=sent_by_name,
         trigger_event=comm.trigger_event,
+        error_message=comm.error_message if comm.status == "failed" else None,
+        error_friendly=_friendly_error(comm.error_message) if comm.status == "failed" else None,
         created_at=comm.created_at,
     )
 
@@ -275,8 +305,10 @@ async def build_context(
                 .limit(1)
             )).scalar_one_or_none()
             if intvw_q and intvw_q.scheduled_at:
-                ctx["ngay_phong_van"] = intvw_q.scheduled_at.strftime("%d/%m/%Y")
-                ctx["gio_phong_van"] = intvw_q.scheduled_at.strftime("%H:%M")
+                _gmt7 = timezone(timedelta(hours=7))
+                _local = intvw_q.scheduled_at.replace(tzinfo=timezone.utc).astimezone(_gmt7)
+                ctx["ngay_phong_van"] = _local.strftime("%d/%m/%Y")
+                ctx["gio_phong_van"] = _local.strftime("%H:%M")
                 ctx["dia_diem_phong_van"] = intvw_q.location or ""
 
             # Offer
@@ -318,10 +350,16 @@ async def preview_template(
     if not t:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Không tìm thấy email template")
 
-    if req.use_sample_data or not req.application_id:
+    has_real_context = req.candidate_id or req.application_id
+    if req.use_sample_data or not has_real_context:
         ctx = {**_SAMPLE_CONTEXT}
     else:
-        ctx = await build_context(session, application_id=req.application_id, sender_user_id=user_id)
+        ctx = await build_context(
+            session,
+            candidate_id=req.candidate_id,
+            application_id=req.application_id,
+            sender_user_id=user_id,
+        )
 
     return render(t.subject, ctx), render(t.body_html, ctx)
 
@@ -331,18 +369,22 @@ async def preview_template(
 def _smtp_send_sync(to_email: str, subject: str, body_html: str, body_text: Optional[str]) -> None:
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
-    msg["From"] = f"{settings.SMTP_FROM_NAME} <{settings.SMTP_FROM_EMAIL}>"
+    msg["From"] = formataddr((str(Header(settings.SMTP_FROM_NAME, "utf-8")), settings.SMTP_FROM_EMAIL))
     msg["To"] = to_email
     if body_text:
         msg.attach(MIMEText(body_text, "plain", "utf-8"))
     msg.attach(MIMEText(body_html, "html", "utf-8"))
 
     if settings.SMTP_USE_TLS:
+        # Direct SSL — typically port 465
         server = smtplib.SMTP_SSL(settings.SMTP_HOST, settings.SMTP_PORT, timeout=10)
+        server.ehlo()
     else:
         server = smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=10)
-        if settings.SMTP_USERNAME:
+        server.ehlo()
+        if settings.SMTP_USE_STARTTLS:
             server.starttls()
+            server.ehlo()  # re-advertise capabilities after TLS handshake
     if settings.SMTP_USERNAME:
         server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
     server.sendmail(settings.SMTP_FROM_EMAIL, [to_email], msg.as_string())
@@ -520,6 +562,46 @@ async def auto_send_on_offer_event(
             req=SendEmailRequest(template_id=tmpl.id, application_id=application_id),
             user_id=user_id,
             trigger_event=event,
+            auto_send=True,
+        )
+    except Exception:
+        pass
+
+
+async def auto_send_on_interview_scheduled(
+    session: AsyncSession,
+    application_id: int,
+    user_id: int,
+) -> None:
+    """Fires after an InterviewSession is created — context has real time/location."""
+    trigger_event = "interview_scheduled"
+    tmpl = (await session.execute(
+        select(RecruitmentEmailTemplate)
+        .where(
+            RecruitmentEmailTemplate.trigger_event == trigger_event,
+            RecruitmentEmailTemplate.is_active == True,
+        )
+        .limit(1)
+    )).scalar_one_or_none()
+    if not tmpl:
+        return
+
+    app = await session.get(CandidateApplication, application_id)
+    if not app:
+        return
+
+    from app.models.recruitment import Candidate
+    cand = await session.get(Candidate, app.candidate_id)
+    if not cand or not cand.personal_email:
+        return
+
+    try:
+        await send_email(
+            session,
+            candidate_id=app.candidate_id,
+            req=SendEmailRequest(template_id=tmpl.id, application_id=application_id),
+            user_id=user_id,
+            trigger_event=trigger_event,
             auto_send=True,
         )
     except Exception:

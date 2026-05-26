@@ -138,6 +138,11 @@ async def create_offer(
     application = await session.get(CandidateApplication, application_id)
     if not application:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Không tìm thấy hồ sơ ứng tuyển")
+    if application.current_stage != "offer":
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail="Chỉ được tạo offer khi ứng viên đã ở giai đoạn 'offer'",
+        )
 
     # Kiểm tra đã có offer active chưa (chỉ được 1 offer draft/sent/waiting/negotiating/accepted cùng lúc)
     existing = (await session.execute(

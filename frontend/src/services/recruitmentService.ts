@@ -1381,6 +1381,7 @@ export interface EmailTemplateUpdate {
 }
 
 export interface EmailTemplatePreviewRequest {
+  candidate_id?: number | null
   application_id?: number | null
   use_sample_data?: boolean
 }
@@ -1409,6 +1410,8 @@ export interface CommunicationRead {
   sent_by_name: string | null
   trigger_event: string | null
   body_html: string | null
+  error_message: string | null
+  error_friendly: string | null
   created_at: string
 }
 

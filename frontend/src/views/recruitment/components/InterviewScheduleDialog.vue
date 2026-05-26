@@ -109,6 +109,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
+import { parseDatetimeUTC } from "@/utils/format";
 import type { MultiSelectFilterEvent } from "primevue/multiselect";
 import Button from "primevue/button";
 import DatePicker from "primevue/datepicker";
@@ -209,9 +210,7 @@ const locationPlaceholder = computed(() =>
 );
 
 function resetForm() {
-  scheduledAt.value = props.editing?.scheduled_at
-    ? new Date(props.editing.scheduled_at)
-    : null;
+  scheduledAt.value = parseDatetimeUTC(props.editing?.scheduled_at);
   durationMinutes.value = props.editing?.duration_minutes ?? 60;
   format.value = props.editing?.format ?? "in_person";
   location.value = props.editing?.location ?? "";

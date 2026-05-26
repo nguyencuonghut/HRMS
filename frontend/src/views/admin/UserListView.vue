@@ -22,7 +22,7 @@
       />
       <IconField class="toolbar-search">
         <InputIcon class="pi pi-search" />
-        <InputText v-model="search" placeholder="Tìm theo email, họ tên..." class="w-full" @input="onSearch" />
+        <InputText v-model="search" placeholder="Tìm theo email, họ tên, SĐT..." class="w-full" @input="onSearch" />
       </IconField>
       <Button
         icon="pi pi-refresh"
@@ -61,8 +61,13 @@
           </div>
         </template>
 
-        <Column field="full_name" header="Họ và tên" sortable style="min-width: 180px" />
-        <Column field="email"     header="Email"     sortable style="min-width: 200px" />
+        <Column field="full_name"    header="Họ và tên"      sortable style="min-width: 180px" />
+        <Column field="email"        header="Email"          sortable style="min-width: 200px" />
+        <Column field="phone_number" header="Số điện thoại"          style="width: 140px">
+          <template #body="{ data }">
+            <span :class="data.phone_number ? '' : 'no-role'">{{ data.phone_number ?? '—' }}</span>
+          </template>
+        </Column>
 
         <Column header="Vai trò" style="min-width: 160px">
           <template #body="{ data }">

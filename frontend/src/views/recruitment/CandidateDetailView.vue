@@ -1042,6 +1042,7 @@ import Textarea from "primevue/textarea";
 import ToggleSwitch from "primevue/toggleswitch";
 import { useConfirm } from "primevue/useconfirm";
 import { useToast } from "primevue/usetoast";
+import { formatDatetime } from "@/utils/format";
 
 import educationCatalogService, {
   type EducationalInstitutionRead,
@@ -1151,12 +1152,7 @@ const activeJRs = ref<{ label: string; value: number }[]>([]);
 function formatDate(d: string) {
   return new Date(d).toLocaleDateString("vi-VN");
 }
-function formatDatetime(d: string) {
-  return new Date(d).toLocaleString("vi-VN", {
-    dateStyle: "short",
-    timeStyle: "short",
-  });
-}
+
 function formatSalary(n: number) {
   return n.toLocaleString("vi-VN") + " ₫";
 }

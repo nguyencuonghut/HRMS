@@ -39,7 +39,8 @@ class Settings(BaseSettings):
     SMTP_PORT: int = 25
     SMTP_USERNAME: str = ""
     SMTP_PASSWORD: str = ""
-    SMTP_USE_TLS: bool = False
+    SMTP_USE_TLS: bool = False        # True = SMTP_SSL (port 465)
+    SMTP_USE_STARTTLS: bool = False   # True = STARTTLS (port 587)
     SMTP_FROM_EMAIL: str = "no-reply@hrms.local"
     SMTP_FROM_NAME: str = "Hồng Hà HRMS"
     COMPANY_NAME: str = "Công ty Hồng Hà"

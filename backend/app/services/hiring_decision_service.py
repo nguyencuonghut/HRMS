@@ -210,7 +210,7 @@ async def convert_to_employee(
         passport_issued_on=getattr(candidate, "passport_issued_on", None),
         passport_expires_on=getattr(candidate, "passport_expires_on", None),
         phone_number=getattr(candidate, "phone_number", None),
-        personal_email=getattr(candidate, "email", None),
+        personal_email=candidate.personal_email,
         status="probation",
         start_date=hd.start_date,
         initial_department_id=hd.department_id,
@@ -224,8 +224,13 @@ async def convert_to_employee(
     emp = await employee_service.create_employee(session, payload)
 
     # Khởi tạo checklist hồ sơ pháp lý
+    _VIETNAMESE_NATIONALITY_ID = 1
+    is_foreign = bool(
+        candidate.work_permit_number
+        or (candidate.nationality_id and candidate.nationality_id != _VIETNAMESE_NATIONALITY_ID)
+    )
     from app.services.document_checklist_service import _init_document_checklist
-    await _init_document_checklist(session, emp.id, is_foreign_worker=False)
+    await _init_document_checklist(session, emp.id, is_foreign_worker=is_foreign)
 
     # Migrate học vấn
     educations = (await session.execute(

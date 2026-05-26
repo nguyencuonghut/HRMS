@@ -140,6 +140,13 @@ async def create_interview(
             raise HTTPException(status.HTTP_404_NOT_FOUND, detail=f"Không tìm thấy user #{panelist_user_id}")
         session.add(InterviewPanelist(interview_session_id=interview.id, user_id=panelist_user_id))
     await session.flush()
+
+    try:
+        from app.services.recruitment_email_service import auto_send_on_interview_scheduled
+        await auto_send_on_interview_scheduled(session, application_id, created_by_id)
+    except Exception:
+        pass
+
     return await _interview_read(session, interview)
 
 
@@ -167,6 +174,8 @@ async def update_interview(
     data: InterviewSessionUpdate,
 ) -> InterviewSessionRead:
     interview = await _get_interview_or_404(session, interview_id)
+    if interview.status != "scheduled":
+        raise HTTPException(status.HTTP_409_CONFLICT, detail="Chỉ có thể chỉnh sửa lịch phỏng vấn ở trạng thái 'scheduled'")
     patch = data.model_dump(exclude_unset=True)
     panelist_user_ids = patch.pop("panelist_user_ids", None)
     if "scheduled_at" in patch and patch["scheduled_at"] is not None:
@@ -270,12 +279,11 @@ async def complete_interview(
 
     pass_count = sum(1 for panelist in submitted if panelist.result == "pass")
     fail_count = sum(1 for panelist in submitted if panelist.result == "fail")
-    hold_count = sum(1 for panelist in submitted if panelist.result == "hold")
     if not submitted:
         aggregated_result = "hold"
-    elif pass_count * 2 >= len(submitted):
+    elif pass_count * 2 > len(submitted):   # strict majority (>50%), tie → hold
         aggregated_result = "pass"
-    elif fail_count >= hold_count:
+    elif fail_count > len(submitted) // 2:  # strict majority fails
         aggregated_result = "fail"
     else:
         aggregated_result = "hold"

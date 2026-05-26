@@ -507,6 +507,22 @@
       @saved="onInterviewSaved"
     />
 
+    <Dialog
+      v-model:visible="showCancelInterviewDialog"
+      header="Hủy lịch phỏng vấn"
+      modal
+      :style="{ width: '420px' }"
+    >
+      <div style="display: flex; flex-direction: column; gap: 0.75rem; margin-top: 0.25rem">
+        <p style="margin: 0; color: var(--l-text-muted); font-size: 0.9rem">Lý do hủy (không bắt buộc):</p>
+        <InputText v-model="cancelInterviewReason" placeholder="Nhập lý do hủy lịch..." class="w-full" />
+      </div>
+      <template #footer>
+        <Button label="Đóng" severity="secondary" outlined @click="showCancelInterviewDialog = false" />
+        <Button label="Hủy lịch" severity="danger" icon="pi pi-ban" @click="confirmCancelInterview" />
+      </template>
+    </Dialog>
+
     <ScorecardDialog
       v-model:visible="showScorecardDialog"
       :interview-id="activeInterview?.id ?? null"
@@ -545,6 +561,7 @@ import Tag from "primevue/tag";
 import Textarea from "primevue/textarea";
 import { useConfirm } from "primevue/useconfirm";
 import { useToast } from "primevue/usetoast";
+import { formatDate, formatDatetime } from "@/utils/format";
 
 import recruitmentService, {
   type ApplicationRead,
@@ -592,6 +609,10 @@ const editingInterview = ref<InterviewSessionRead | null>(null);
 const showScorecardDialog = ref(false);
 const activeInterview = ref<InterviewSessionRead | null>(null);
 
+const showCancelInterviewDialog = ref(false);
+const cancelInterviewTarget = ref<InterviewSessionRead | null>(null);
+const cancelInterviewReason = ref('');
+
 const decisionOptions = [
   { label: "Đạt", value: "pass" },
   { label: "Tạm giữ", value: "hold" },
@@ -630,16 +651,6 @@ const activePanelist = computed<InterviewPanelistRead | null>(() => {
   );
 });
 
-function formatDate(value: string) {
-  return new Date(value).toLocaleDateString("vi-VN");
-}
-
-function formatDatetime(value: string) {
-  return new Date(value).toLocaleString("vi-VN", {
-    dateStyle: "short",
-    timeStyle: "short",
-  });
-}
 
 function stageLabel(value: string) {
   const map: Record<string, string> = {
@@ -910,33 +921,24 @@ function completeInterview(interview: InterviewSessionRead) {
 }
 
 function cancelInterview(interview: InterviewSessionRead) {
-  confirm.require({
-    message: "Hủy lịch phỏng vấn này?",
-    header: "Hủy lịch phỏng vấn",
-    icon: "pi pi-ban",
-    acceptLabel: "Hủy lịch",
-    rejectLabel: "Đóng",
-    acceptClass: "p-button-danger",
-    accept: async () => {
-      try {
-        await recruitmentService.cancelInterview(interview.id, null);
-        toast.add({
-          severity: "warn",
-          summary: "Đã hủy",
-          detail: "Lịch phỏng vấn đã được hủy",
-          life: 3000,
-        });
-        await loadAll();
-      } catch {
-        toast.add({
-          severity: "error",
-          summary: "Lỗi",
-          detail: "Không thể hủy lịch phỏng vấn",
-          life: 3000,
-        });
-      }
-    },
-  });
+  cancelInterviewTarget.value = interview;
+  cancelInterviewReason.value = '';
+  showCancelInterviewDialog.value = true;
+}
+
+async function confirmCancelInterview() {
+  if (!cancelInterviewTarget.value) return;
+  try {
+    await recruitmentService.cancelInterview(
+      cancelInterviewTarget.value.id,
+      cancelInterviewReason.value.trim() || null,
+    );
+    showCancelInterviewDialog.value = false;
+    toast.add({ severity: "warn", summary: "Đã hủy", detail: "Lịch phỏng vấn đã được hủy", life: 3000 });
+    await loadAll();
+  } catch {
+    toast.add({ severity: "error", summary: "Lỗi", detail: "Không thể hủy lịch phỏng vấn", life: 3000 });
+  }
 }
 
 onMounted(async () => {

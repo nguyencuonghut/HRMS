@@ -9,11 +9,12 @@ from pydantic import BaseModel, EmailStr, Field, field_validator
 # ── Request schemas ────────────────────────────────────────────────────────────
 
 class UserCreate(BaseModel):
-    email:        str   = Field(..., max_length=200)
-    full_name:    str   = Field(..., max_length=200)
-    password:     str   = Field(..., min_length=8)
-    is_active:    bool  = Field(True)
-    is_superuser: bool  = Field(False)
+    email:        str            = Field(..., max_length=200)
+    full_name:    str            = Field(..., max_length=200)
+    password:     str            = Field(..., min_length=8)
+    phone_number: Optional[str]  = Field(None, max_length=20)
+    is_active:    bool           = Field(True)
+    is_superuser: bool           = Field(False)
 
     @field_validator("email")
     @classmethod
@@ -36,9 +37,10 @@ class UserCreate(BaseModel):
 
 
 class UserUpdate(BaseModel):
-    email:     Optional[str]  = Field(None, max_length=200)
-    full_name: Optional[str]  = Field(None, max_length=200)
-    is_active: Optional[bool] = None
+    email:        Optional[str]  = Field(None, max_length=200)
+    full_name:    Optional[str]  = Field(None, max_length=200)
+    phone_number: Optional[str]  = Field(None, max_length=20)
+    is_active:    Optional[bool] = None
 
     @field_validator("email")
     @classmethod
@@ -84,6 +86,7 @@ class UserRead(BaseModel):
     id:            int
     email:         str
     full_name:     str
+    phone_number:  Optional[str]
     is_active:     bool
     is_superuser:  bool
     last_login_at: Optional[datetime]
@@ -98,6 +101,7 @@ class UserListItem(BaseModel):
     id:            int
     email:         str
     full_name:     str
+    phone_number:  Optional[str]
     is_active:     bool
     is_superuser:  bool
     last_login_at: Optional[datetime]

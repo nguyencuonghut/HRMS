@@ -96,6 +96,7 @@ import InputNumber from "primevue/inputnumber";
 import SelectButton from "primevue/selectbutton";
 import Textarea from "primevue/textarea";
 import { useToast } from "primevue/usetoast";
+import { formatDatetime } from "@/utils/format";
 
 import recruitmentService, {
   type InterviewPanelistRead,
@@ -154,12 +155,6 @@ const averageScore = computed(() => {
 
 const averageScoreLabel = computed(() => averageScore.value?.toString() ?? "—");
 
-function formatDatetime(value: string) {
-  return new Date(value).toLocaleString("vi-VN", {
-    dateStyle: "short",
-    timeStyle: "short",
-  });
-}
 
 function resetForm() {
   errorMessage.value = "";

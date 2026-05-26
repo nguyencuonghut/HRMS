@@ -374,10 +374,15 @@ async def setup_pipeline_for_jr(
     await session.flush()
 
     first_stage_type = created[0].stage_type
+    new_stage_types = {s.stage_type for s in created}
+    # Migrate any application whose current_stage is no longer valid in the new pipeline
+    # (includes "new" and any stale stage type from a previous pipeline setup)
     apps_q = await session.execute(
         select(CandidateApplication).where(
             CandidateApplication.job_requisition_id == jr_id,
-            CandidateApplication.current_stage == "new",
+            CandidateApplication.current_stage.notin_(
+                new_stage_types | _TERMINAL_STAGES | {"offer"}
+            ),
         )
     )
     for app in apps_q.scalars().all():
@@ -491,6 +496,9 @@ async def list_stage_results(session: AsyncSession, application_id: int) -> list
     return [await _result_read(session, row) for row in rows]
 
 
+_TERMINAL_STAGES = {"rejected", "hired", "withdrawn"}
+
+
 async def advance_application(
     session: AsyncSession,
     application_id: int,
@@ -498,11 +506,15 @@ async def advance_application(
     user_id: int,
 ) -> ApplicationRead:
     app = await _get_application_or_404(session, application_id)
+    if app.current_stage in _TERMINAL_STAGES:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail=f"Hồ sơ đã ở trạng thái '{app.current_stage}', không thể thay đổi")
     stage = await _get_stage_or_404(session, data.stage_id)
     if stage.job_requisition_id != app.job_requisition_id:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, detail="stage_id không thuộc JR của application")
+    if stage.stage_type != app.current_stage:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail="stage_id không khớp với bước hiện tại của ứng viên")
 
-    result = await _upsert_stage_result(
+    await _upsert_stage_result(
         session,
         application_id,
         data.stage_id,
@@ -529,7 +541,6 @@ async def advance_application(
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Cần nhập lý do loại")
         app.current_stage = "rejected"
         app.rejection_reason = data.rejection_reason
-        result.notes = data.rejection_reason
     elif data.result == "hold":
         app.current_stage = stage.stage_type
     elif data.result == "pending":
@@ -556,6 +567,8 @@ async def reject_application(
     user_id: int,
 ) -> ApplicationRead:
     app = await _get_application_or_404(session, application_id)
+    if app.current_stage in _TERMINAL_STAGES:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail=f"Hồ sơ đã ở trạng thái '{app.current_stage}', không thể thay đổi")
     app.current_stage = "rejected"
     app.rejection_reason = data.rejection_note
     app.updated_at = _utcnow()

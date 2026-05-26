@@ -190,7 +190,8 @@ const mergeFieldHint = '{{ten_ung_vien}}, {{vi_tri}}, {{ngay_phong_van}}, {{gio_
 
 const triggerOptions = [
   { label: 'Chuyển giai đoạn: Sàng lọc', value: 'stage_moved:screening' },
-  { label: 'Chuyển giai đoạn: Phỏng vấn', value: 'stage_moved:interview' },
+  { label: 'Chuyển giai đoạn: Phỏng vấn (chưa có lịch)', value: 'stage_moved:interview' },
+  { label: 'Lịch phỏng vấn đã được xếp (có giờ, địa điểm)', value: 'interview_scheduled' },
   { label: 'Chuyển giai đoạn: Đề nghị', value: 'stage_moved:offer' },
   { label: 'Gửi offer', value: 'offer_sent' },
   { label: 'Ứng viên chấp nhận offer', value: 'offer_accepted' },
