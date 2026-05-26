@@ -1046,3 +1046,147 @@ class ImportResult(BaseModel):
     updated: int
     skipped: int
     errors: List[str]
+
+
+# ── Offer (13.5) ──────────────────────────────────────────────────────────────
+
+OfferStatus = Literal["draft", "sent", "waiting", "accepted", "rejected", "negotiating", "expired"]
+OfferStatusLabels: dict[str, str] = {
+    "draft":       "Nháp",
+    "sent":        "Đã gửi",
+    "waiting":     "Chờ phản hồi",
+    "accepted":    "Đã chấp nhận",
+    "rejected":    "Từ chối",
+    "negotiating": "Đang đàm phán",
+    "expired":     "Hết hạn",
+}
+
+HiringDecisionStatus = Literal["pending", "converted", "cancelled"]
+
+
+class OfferCreate(BaseModel):
+    job_position_id: int
+    department_id: int
+    proposed_start_date: date
+    probation_salary: Decimal = Field(gt=0)
+    official_salary: Decimal = Field(gt=0)
+    probation_days: int = Field(ge=1, le=180)
+    benefits_note: Optional[str] = None
+    expires_at: Optional[date] = None
+    internal_note: Optional[str] = None
+
+
+class OfferUpdate(BaseModel):
+    job_position_id: Optional[int] = None
+    department_id: Optional[int] = None
+    proposed_start_date: Optional[date] = None
+    probation_salary: Optional[Decimal] = Field(default=None, gt=0)
+    official_salary: Optional[Decimal] = Field(default=None, gt=0)
+    probation_days: Optional[int] = Field(default=None, ge=1, le=180)
+    benefits_note: Optional[str] = None
+    expires_at: Optional[date] = None
+    internal_note: Optional[str] = None
+
+
+class OfferRead(BaseModel):
+    model_config = {"from_attributes": True}
+
+    id: int
+    application_id: int
+    candidate_id: int
+    candidate_name: str
+    job_requisition_id: int
+    job_position_id: Optional[int]
+    job_position_name: Optional[str]
+    department_id: Optional[int]
+    department_name: Optional[str]
+    proposed_start_date: date
+    probation_salary: Decimal
+    official_salary: Decimal
+    probation_days: int
+    probation_days_limit: int
+    probation_salary_warning: bool
+    probation_days_warning: bool
+    benefits_note: Optional[str]
+    offer_file_path: Optional[str]
+    offer_file_name: Optional[str]
+    status: str
+    status_label: str
+    sent_at: Optional[datetime]
+    responded_at: Optional[datetime]
+    expires_at: Optional[date]
+    rejection_reason: Optional[str]
+    negotiation_note: Optional[str]
+    internal_note: Optional[str]
+    created_by_id: int
+    created_by_name: Optional[str]
+    created_at: datetime
+    updated_at: datetime
+
+
+class OfferRejectRequest(BaseModel):
+    rejection_reason: str = Field(min_length=1)
+
+
+class OfferNegotiateRequest(BaseModel):
+    negotiation_note: str = Field(min_length=1)
+
+
+# ── Hiring Decision (13.5) ────────────────────────────────────────────────────
+
+
+class HiringDecisionCreate(BaseModel):
+    decision_number: Optional[str] = None
+    signed_date: date
+    department_id: int
+    job_position_id: int
+    job_title_id: Optional[int] = None
+    start_date: date
+    probation_salary: Decimal = Field(gt=0)
+    official_salary: Decimal = Field(gt=0)
+    probation_days: int = Field(ge=1, le=180)
+
+
+class HiringDecisionUpdate(BaseModel):
+    decision_number: Optional[str] = None
+    signed_date: Optional[date] = None
+    start_date: Optional[date] = None
+    probation_salary: Optional[Decimal] = Field(default=None, gt=0)
+    official_salary: Optional[Decimal] = Field(default=None, gt=0)
+    probation_days: Optional[int] = Field(default=None, ge=1, le=180)
+
+
+class HiringDecisionRead(BaseModel):
+    model_config = {"from_attributes": True}
+
+    id: int
+    offer_id: int
+    candidate_id: int
+    candidate_name: str
+    job_requisition_id: int
+    decision_number: Optional[str]
+    signed_date: date
+    department_id: int
+    department_name: str
+    job_position_id: int
+    job_position_name: str
+    job_title_id: Optional[int]
+    job_title_name: Optional[str]
+    start_date: date
+    probation_salary: Decimal
+    official_salary: Decimal
+    probation_days: int
+    file_path: Optional[str]
+    file_name: Optional[str]
+    employee_id: Optional[int]
+    status: str
+    status_label: str
+    created_by_id: int
+    created_at: datetime
+    updated_at: datetime
+
+
+class ConvertToEmployeeResult(BaseModel):
+    employee_id: int
+    employee_code: str
+    message: str

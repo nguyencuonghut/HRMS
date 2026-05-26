@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, File, Form, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -74,14 +74,25 @@ from app.schemas.recruitment import (
     ScorecardCriterionRead,
     ScorecardCriterionUpdate,
     StageResultUpsert,
+    ConvertToEmployeeResult,
+    HiringDecisionCreate,
+    HiringDecisionRead,
+    HiringDecisionUpdate,
+    OfferCreate,
+    OfferNegotiateRequest,
+    OfferRead,
+    OfferRejectRequest,
+    OfferUpdate,
 )
 from app.services import (
     auth_service,
     candidate_service,
     headcount_plan_service,
+    hiring_decision_service,
     interview_service,
     job_posting_service,
     jr_service,
+    offer_service,
     pipeline_service,
 )
 
@@ -1429,4 +1440,171 @@ async def delete_scorecard_criterion(
     session: AsyncSession = Depends(get_session),
 ):
     await interview_service.delete_scorecard_criterion(session, criterion_id)
+    await session.commit()
+
+
+# ── Offer ─────────────────────────────────────────────────────────────────────
+
+_OFFER_TAG = "Offer & Quyết định tuyển dụng"
+
+
+@router.get("/applications/{application_id}/offers", response_model=List[OfferRead], tags=[_OFFER_TAG])
+async def list_offers(
+    application_id: int,
+    _: User = require_permission("recruitment:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await offer_service.list_offers_for_application(session, application_id)
+
+
+@router.post(
+    "/applications/{application_id}/offers",
+    response_model=OfferRead,
+    status_code=status.HTTP_201_CREATED,
+    tags=[_OFFER_TAG],
+)
+async def create_offer(
+    application_id: int,
+    data: OfferCreate,
+    current_user: User = require_permission("recruitment:manage"),
+    session: AsyncSession = Depends(get_session),
+):
+    result = await offer_service.create_offer(session, application_id, data, current_user.id)
+    await session.commit()
+    return result
+
+
+@router.get("/offers/{offer_id}", response_model=OfferRead, tags=[_OFFER_TAG])
+async def get_offer(
+    offer_id: int,
+    _: User = require_permission("recruitment:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await offer_service.get_offer(session, offer_id)
+
+
+@router.put("/offers/{offer_id}", response_model=OfferRead, tags=[_OFFER_TAG])
+async def update_offer(
+    offer_id: int,
+    data: OfferUpdate,
+    current_user: User = require_permission("recruitment:manage"),
+    session: AsyncSession = Depends(get_session),
+):
+    result = await offer_service.update_offer(session, offer_id, data, current_user.id)
+    await session.commit()
+    return result
+
+
+@router.post("/offers/{offer_id}/send", response_model=OfferRead, tags=[_OFFER_TAG])
+async def send_offer(
+    offer_id: int,
+    current_user: User = require_permission("recruitment:manage"),
+    session: AsyncSession = Depends(get_session),
+):
+    result = await offer_service.send_offer(session, offer_id, current_user.id)
+    await session.commit()
+    return result
+
+
+@router.post("/offers/{offer_id}/accept", response_model=OfferRead, tags=[_OFFER_TAG])
+async def accept_offer(
+    offer_id: int,
+    current_user: User = require_permission("recruitment:manage"),
+    session: AsyncSession = Depends(get_session),
+):
+    result = await offer_service.accept_offer(session, offer_id, current_user.id)
+    await session.commit()
+    return result
+
+
+@router.post("/offers/{offer_id}/reject", response_model=OfferRead, tags=[_OFFER_TAG])
+async def reject_offer(
+    offer_id: int,
+    data: OfferRejectRequest,
+    current_user: User = require_permission("recruitment:manage"),
+    session: AsyncSession = Depends(get_session),
+):
+    result = await offer_service.reject_offer(session, offer_id, data, current_user.id)
+    await session.commit()
+    return result
+
+
+@router.post("/offers/{offer_id}/negotiate", response_model=OfferRead, tags=[_OFFER_TAG])
+async def negotiate_offer(
+    offer_id: int,
+    data: OfferNegotiateRequest,
+    current_user: User = require_permission("recruitment:manage"),
+    session: AsyncSession = Depends(get_session),
+):
+    result = await offer_service.negotiate_offer(session, offer_id, data, current_user.id)
+    await session.commit()
+    return result
+
+
+# ── Hiring Decision ───────────────────────────────────────────────────────────
+
+
+@router.post(
+    "/offers/{offer_id}/hiring-decision",
+    response_model=HiringDecisionRead,
+    status_code=status.HTTP_201_CREATED,
+    tags=[_OFFER_TAG],
+)
+async def create_hiring_decision(
+    offer_id: int,
+    data: HiringDecisionCreate,
+    current_user: User = require_permission("recruitment:manage"),
+    session: AsyncSession = Depends(get_session),
+):
+    result = await hiring_decision_service.create_decision(session, offer_id, data, current_user.id)
+    await session.commit()
+    return result
+
+
+@router.get("/offers/{offer_id}/hiring-decision", response_model=HiringDecisionRead, tags=[_OFFER_TAG])
+async def get_hiring_decision_for_offer(
+    offer_id: int,
+    _: User = require_permission("recruitment:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    result = await hiring_decision_service.get_decision_for_offer(session, offer_id)
+    if result is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Chưa có quyết định tuyển dụng cho offer này")
+    return result
+
+
+@router.get("/hiring-decisions/{decision_id}", response_model=HiringDecisionRead, tags=[_OFFER_TAG])
+async def get_hiring_decision(
+    decision_id: int,
+    _: User = require_permission("recruitment:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await hiring_decision_service.get_decision(session, decision_id)
+
+
+@router.put("/hiring-decisions/{decision_id}", response_model=HiringDecisionRead, tags=[_OFFER_TAG])
+async def update_hiring_decision(
+    decision_id: int,
+    data: HiringDecisionUpdate,
+    current_user: User = require_permission("recruitment:manage"),
+    session: AsyncSession = Depends(get_session),
+):
+    result = await hiring_decision_service.update_decision(session, decision_id, data, current_user.id)
+    await session.commit()
+    return result
+
+
+@router.post(
+    "/hiring-decisions/{decision_id}/convert",
+    response_model=ConvertToEmployeeResult,
+    tags=[_OFFER_TAG],
+)
+async def convert_to_employee(
+    decision_id: int,
+    current_user: User = require_permission("recruitment:manage"),
+    session: AsyncSession = Depends(get_session),
+):
+    result = await hiring_decision_service.convert_to_employee(session, decision_id, current_user.id)
+    await session.commit()
+    return result
     await session.commit()

@@ -627,3 +627,106 @@ class ScorecardCriterion(SQLModel, table=True):
     max_score: int = Field(sa_column=Column(sa.SmallInteger(), nullable=False, server_default="5"))
     sort_order: int = Field(sa_column=Column(sa.SmallInteger(), nullable=False, server_default="0"))
     is_active: bool = Field(sa_column=Column(sa.Boolean(), nullable=False, server_default="true"))
+
+
+# ── Offer & Hiring Decision (13.5) ────────────────────────────────────────────
+
+
+class Offer(SQLModel, table=True):
+    __tablename__ = "offers"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    application_id: int = Field(
+        sa_column=Column(sa.Integer(), sa.ForeignKey("candidate_applications.id", ondelete="RESTRICT"), nullable=False)
+    )
+    candidate_id: int = Field(
+        sa_column=Column(sa.Integer(), sa.ForeignKey("candidates.id", ondelete="RESTRICT"), nullable=False)
+    )
+    job_requisition_id: int = Field(
+        sa_column=Column(sa.Integer(), sa.ForeignKey("job_requisitions.id", ondelete="RESTRICT"), nullable=False)
+    )
+    job_position_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(sa.Integer(), sa.ForeignKey("job_positions.id", ondelete="SET NULL"), nullable=True),
+    )
+    department_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(sa.Integer(), sa.ForeignKey("departments.id", ondelete="SET NULL"), nullable=True),
+    )
+    proposed_start_date: date = Field(sa_column=Column(sa.Date(), nullable=False))
+    probation_salary: Decimal = Field(sa_column=Column(sa.Numeric(15, 2), nullable=False))
+    official_salary: Decimal = Field(sa_column=Column(sa.Numeric(15, 2), nullable=False))
+    probation_days: int = Field(sa_column=Column(sa.SmallInteger(), nullable=False))
+    benefits_note: Optional[str] = Field(default=None, sa_column=Column(sa.Text(), nullable=True))
+    offer_file_path: Optional[str] = Field(default=None, sa_column=Column(sa.String(500), nullable=True))
+    offer_file_name: Optional[str] = Field(default=None, sa_column=Column(sa.String(300), nullable=True))
+    # draft | sent | waiting | accepted | rejected | negotiating | expired
+    status: str = Field(sa_column=Column(sa.String(20), nullable=False, server_default="draft"))
+    sent_at: Optional[datetime] = Field(default=None, sa_column=Column(sa.DateTime(), nullable=True))
+    responded_at: Optional[datetime] = Field(default=None, sa_column=Column(sa.DateTime(), nullable=True))
+    expires_at: Optional[date] = Field(default=None, sa_column=Column(sa.Date(), nullable=True))
+    rejection_reason: Optional[str] = Field(default=None, sa_column=Column(sa.Text(), nullable=True))
+    negotiation_note: Optional[str] = Field(default=None, sa_column=Column(sa.Text(), nullable=True))
+    internal_note: Optional[str] = Field(default=None, sa_column=Column(sa.Text(), nullable=True))
+    created_by_id: int = Field(
+        sa_column=Column(sa.Integer(), sa.ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    )
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: datetime = Field(default_factory=_utcnow)
+
+    __table_args__ = (
+        sa.Index("ix_offers_application", "application_id"),
+        sa.Index("ix_offers_status", "status"),
+    )
+
+
+class HiringDecision(SQLModel, table=True):
+    __tablename__ = "hiring_decisions"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    offer_id: int = Field(
+        sa_column=Column(sa.Integer(), sa.ForeignKey("offers.id", ondelete="RESTRICT"), nullable=False)
+    )
+    candidate_id: int = Field(
+        sa_column=Column(sa.Integer(), sa.ForeignKey("candidates.id", ondelete="RESTRICT"), nullable=False)
+    )
+    job_requisition_id: int = Field(
+        sa_column=Column(sa.Integer(), sa.ForeignKey("job_requisitions.id", ondelete="RESTRICT"), nullable=False)
+    )
+    decision_number: Optional[str] = Field(default=None, sa_column=Column(sa.String(50), nullable=True))
+    signed_date: date = Field(sa_column=Column(sa.Date(), nullable=False))
+    department_id: int = Field(
+        sa_column=Column(sa.Integer(), sa.ForeignKey("departments.id", ondelete="RESTRICT"), nullable=False)
+    )
+    job_position_id: int = Field(
+        sa_column=Column(sa.Integer(), sa.ForeignKey("job_positions.id", ondelete="RESTRICT"), nullable=False)
+    )
+    job_title_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(sa.Integer(), sa.ForeignKey("job_titles.id", ondelete="SET NULL"), nullable=True),
+    )
+    start_date: date = Field(sa_column=Column(sa.Date(), nullable=False))
+    probation_salary: Decimal = Field(sa_column=Column(sa.Numeric(15, 2), nullable=False))
+    official_salary: Decimal = Field(sa_column=Column(sa.Numeric(15, 2), nullable=False))
+    probation_days: int = Field(sa_column=Column(sa.SmallInteger(), nullable=False))
+    file_path: Optional[str] = Field(default=None, sa_column=Column(sa.String(500), nullable=True))
+    file_name: Optional[str] = Field(default=None, sa_column=Column(sa.String(300), nullable=True))
+    file_size: Optional[int] = Field(default=None, sa_column=Column(sa.Integer(), nullable=True))
+    mime_type: Optional[str] = Field(default=None, sa_column=Column(sa.String(100), nullable=True))
+    employee_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(sa.Integer(), sa.ForeignKey("employees.id", ondelete="SET NULL"), nullable=True),
+    )
+    # pending | converted | cancelled
+    status: str = Field(sa_column=Column(sa.String(20), nullable=False, server_default="pending"))
+    created_by_id: int = Field(
+        sa_column=Column(sa.Integer(), sa.ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    )
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: datetime = Field(default_factory=_utcnow)
+
+    __table_args__ = (
+        sa.UniqueConstraint("offer_id", name="uq_hiring_decision_offer"),
+        sa.Index("ix_hiring_decisions_offer", "offer_id"),
+        sa.Index("ix_hiring_decisions_employee", "employee_id"),
+    )

@@ -2,6 +2,23 @@
   <div>
     <!-- Toolbar -->
     <div class="rc-toolbar">
+      <InputText
+        v-model="filterSearch"
+        placeholder="Tìm theo vị trí..."
+        style="width: 200px"
+        @input="onSearchInput"
+      />
+      <Select
+        v-model="filterPosId"
+        :options="jobPositions"
+        option-label="name"
+        option-value="id"
+        placeholder="Tất cả vị trí"
+        show-clear
+        filter
+        style="width: 210px"
+        @change="applyFilter"
+      />
       <Select
         v-model="filterStatus"
         :options="statusOptions"
@@ -152,6 +169,7 @@ import { RouterLink } from 'vue-router'
 import Button from 'primevue/button'
 import Column from 'primevue/column'
 import DataTable from 'primevue/datatable'
+import InputText from 'primevue/inputtext'
 import Select from 'primevue/select'
 import Tag from 'primevue/tag'
 import { useConfirm } from 'primevue/useconfirm'
@@ -159,6 +177,7 @@ import { useToast } from 'primevue/usetoast'
 
 import recruitmentService, { type JobRequisitionListItem, type JobRequisitionRead } from '@/services/recruitmentService'
 import departmentService, { type DepartmentRead } from '@/services/departmentService'
+import jobPositionService, { type JobPositionListItem } from '@/services/jobPositionService'
 import JRFormDialog from './JRFormDialog.vue'
 
 const confirm = useConfirm()
@@ -170,11 +189,20 @@ const total    = ref(0)
 const page     = ref(1)
 const pageSize = ref(20)
 
-const departments = ref<DepartmentRead[]>([])
+const departments  = ref<DepartmentRead[]>([])
+const jobPositions = ref<JobPositionListItem[]>([])
 
+const filterSearch = ref('')
+const filterPosId  = ref<number | null>(null)
 const filterStatus = ref<string | null>(null)
 const filterDeptId = ref<number | null>(null)
 const filterYear   = ref<number | null>(new Date().getFullYear())
+
+let searchTimer: ReturnType<typeof setTimeout> | null = null
+function onSearchInput() {
+  if (searchTimer) clearTimeout(searchTimer)
+  searchTimer = setTimeout(applyFilter, 350)
+}
 
 const showDialog = ref(false)
 const editingJr  = ref<JobRequisitionRead | null>(null)
@@ -222,11 +250,13 @@ async function load() {
   loading.value = true
   try {
     const res = await recruitmentService.listJR({
-      status:        filterStatus.value ?? undefined,
-      department_id: filterDeptId.value ?? undefined,
-      year:          filterYear.value ?? undefined,
-      page:          page.value,
-      page_size:     pageSize.value,
+      search:          filterSearch.value || undefined,
+      job_position_id: filterPosId.value ?? undefined,
+      status:          filterStatus.value ?? undefined,
+      department_id:   filterDeptId.value ?? undefined,
+      year:            filterYear.value ?? undefined,
+      page:            page.value,
+      page_size:       pageSize.value,
     })
     items.value = res.data.items
     total.value = res.data.total
@@ -239,6 +269,8 @@ async function load() {
 
 function applyFilter() { page.value = 1; load() }
 function reset() {
+  filterSearch.value = ''
+  filterPosId.value  = null
   filterStatus.value = null
   filterDeptId.value = null
   filterYear.value   = new Date().getFullYear()
@@ -294,8 +326,12 @@ function onSaved() {
 
 onMounted(async () => {
   try {
-    const res = await departmentService.getList(true)
-    departments.value = res.data
+    const [deptsRes, posRes] = await Promise.all([
+      departmentService.getList(true),
+      jobPositionService.getList({ is_active: true }),
+    ])
+    departments.value  = deptsRes.data
+    jobPositions.value = posRes.data
   } catch { /* ignore */ }
   load()
 })

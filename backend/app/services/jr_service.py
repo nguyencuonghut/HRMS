@@ -150,7 +150,12 @@ async def list_job_requisitions(
         stmt = stmt.where(JobRequisition.code.like(f"JR-{year}-%"))
     if search:
         kw = f"%{search.strip()}%"
-        stmt = stmt.where(JobRequisition.code.ilike(kw))
+        stmt = stmt.join(JobPosition, JobPosition.id == JobRequisition.job_position_id).where(
+            or_(
+                JobRequisition.code.ilike(kw),
+                JobPosition.name.ilike(kw),
+            )
+        )
 
     total_stmt = select(func.count()).select_from(stmt.subquery())
     total = (await session.execute(total_stmt)).scalar_one()

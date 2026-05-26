@@ -1123,3 +1123,177 @@ export interface ScorecardCriterionUpdate {
   sort_order?: number;
   is_active?: boolean;
 }
+
+// ── Offer ─────────────────────────────────────────────────────────────────────
+
+export interface OfferCreate {
+  job_position_id: number;
+  department_id: number;
+  proposed_start_date: string;
+  probation_salary: number;
+  official_salary: number;
+  probation_days: number;
+  benefits_note?: string | null;
+  expires_at?: string | null;
+  internal_note?: string | null;
+}
+
+export interface OfferUpdate {
+  job_position_id?: number | null;
+  department_id?: number | null;
+  proposed_start_date?: string | null;
+  probation_salary?: number | null;
+  official_salary?: number | null;
+  probation_days?: number | null;
+  benefits_note?: string | null;
+  expires_at?: string | null;
+  internal_note?: string | null;
+}
+
+export interface OfferRead {
+  id: number;
+  application_id: number;
+  candidate_id: number;
+  candidate_name: string;
+  job_requisition_id: number;
+  job_position_id: number | null;
+  job_position_name: string | null;
+  department_id: number | null;
+  department_name: string | null;
+  proposed_start_date: string;
+  probation_salary: string;
+  official_salary: string;
+  probation_days: number;
+  probation_days_limit: number;
+  probation_salary_warning: boolean;
+  probation_days_warning: boolean;
+  benefits_note: string | null;
+  offer_file_path: string | null;
+  offer_file_name: string | null;
+  status: string;
+  status_label: string;
+  sent_at: string | null;
+  responded_at: string | null;
+  expires_at: string | null;
+  rejection_reason: string | null;
+  negotiation_note: string | null;
+  internal_note: string | null;
+  created_by_id: number;
+  created_by_name: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OfferRejectRequest {
+  rejection_reason: string;
+}
+
+export interface OfferNegotiateRequest {
+  negotiation_note: string;
+}
+
+// ── Hiring Decision ───────────────────────────────────────────────────────────
+
+export interface HiringDecisionCreate {
+  decision_number?: string | null;
+  signed_date: string;
+  department_id: number;
+  job_position_id: number;
+  job_title_id?: number | null;
+  start_date: string;
+  probation_salary: number;
+  official_salary: number;
+  probation_days: number;
+}
+
+export interface HiringDecisionUpdate {
+  decision_number?: string | null;
+  signed_date?: string | null;
+  start_date?: string | null;
+  probation_salary?: number | null;
+  official_salary?: number | null;
+  probation_days?: number | null;
+}
+
+export interface HiringDecisionRead {
+  id: number;
+  offer_id: number;
+  candidate_id: number;
+  candidate_name: string;
+  job_requisition_id: number;
+  decision_number: string | null;
+  signed_date: string;
+  department_id: number;
+  department_name: string;
+  job_position_id: number;
+  job_position_name: string;
+  job_title_id: number | null;
+  job_title_name: string | null;
+  start_date: string;
+  probation_salary: string;
+  official_salary: string;
+  probation_days: number;
+  file_path: string | null;
+  file_name: string | null;
+  employee_id: number | null;
+  status: string;
+  status_label: string;
+  created_by_id: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ConvertToEmployeeResult {
+  employee_id: number;
+  employee_code: string;
+  message: string;
+}
+
+// ── Offer API ─────────────────────────────────────────────────────────────────
+
+const offerService = {
+  listForApplication: (applicationId: number) =>
+    api.get<OfferRead[]>(`/recruitment/applications/${applicationId}/offers`).then((r) => r.data),
+
+  create: (applicationId: number, data: OfferCreate) =>
+    api.post<OfferRead>(`/recruitment/applications/${applicationId}/offers`, data).then((r) => r.data),
+
+  get: (offerId: number) =>
+    api.get<OfferRead>(`/recruitment/offers/${offerId}`).then((r) => r.data),
+
+  update: (offerId: number, data: OfferUpdate) =>
+    api.put<OfferRead>(`/recruitment/offers/${offerId}`, data).then((r) => r.data),
+
+  send: (offerId: number) =>
+    api.post<OfferRead>(`/recruitment/offers/${offerId}/send`).then((r) => r.data),
+
+  accept: (offerId: number) =>
+    api.post<OfferRead>(`/recruitment/offers/${offerId}/accept`).then((r) => r.data),
+
+  reject: (offerId: number, data: OfferRejectRequest) =>
+    api.post<OfferRead>(`/recruitment/offers/${offerId}/reject`, data).then((r) => r.data),
+
+  negotiate: (offerId: number, data: OfferNegotiateRequest) =>
+    api.post<OfferRead>(`/recruitment/offers/${offerId}/negotiate`, data).then((r) => r.data),
+};
+
+// ── Hiring Decision API ───────────────────────────────────────────────────────
+
+const hiringDecisionService = {
+  getForOffer: (offerId: number) =>
+    api.get<HiringDecisionRead>(`/recruitment/offers/${offerId}/hiring-decision`).then((r) => r.data),
+
+  create: (offerId: number, data: HiringDecisionCreate) =>
+    api.post<HiringDecisionRead>(`/recruitment/offers/${offerId}/hiring-decision`, data).then((r) => r.data),
+
+  get: (decisionId: number) =>
+    api.get<HiringDecisionRead>(`/recruitment/hiring-decisions/${decisionId}`).then((r) => r.data),
+
+  update: (decisionId: number, data: HiringDecisionUpdate) =>
+    api.put<HiringDecisionRead>(`/recruitment/hiring-decisions/${decisionId}`, data).then((r) => r.data),
+
+  convert: (decisionId: number) =>
+    api.post<ConvertToEmployeeResult>(`/recruitment/hiring-decisions/${decisionId}/convert`).then((r) => r.data),
+};
+
+export { offerService, hiringDecisionService };

@@ -72,6 +72,7 @@
         <Tab value="profile">Hồ sơ</Tab>
         <Tab value="pipeline">Pipeline</Tab>
         <Tab value="interviews">Phỏng vấn</Tab>
+        <Tab value="offers">Offer & Tuyển dụng</Tab>
         <Tab value="notes">Ghi chú</Tab>
       </TabList>
 
@@ -379,6 +380,18 @@
           </div>
         </TabPanel>
 
+        <TabPanel value="offers">
+          <OfferListTab
+            :application-id="application.id"
+            :can-create="!['rejected', 'withdrawn'].includes(application.current_stage)"
+            :jr-job-position-id="jr?.job_position_id ?? null"
+            :jr-dept-id="jr?.department_id ?? null"
+            :jr-job-position-name="jr?.job_position_name ?? null"
+            :jr-dept-name="jr?.department_name ?? null"
+            @converted="onEmployeeConverted"
+          />
+        </TabPanel>
+
         <TabPanel value="notes">
           <div class="section-card" style="margin-top: 0.75rem">
             <div class="section-header">
@@ -539,10 +552,12 @@ import recruitmentService, {
   type CandidateStageResultRead,
   type InterviewPanelistRead,
   type InterviewSessionRead,
+  type JobRequisitionRead,
   type PipelineStageRead,
 } from "@/services/recruitmentService";
 import { useAuthStore } from "@/stores/auth";
 import InterviewScheduleDialog from "./components/InterviewScheduleDialog.vue";
+import OfferListTab from "./components/OfferListTab.vue";
 import ScorecardDialog from "./components/ScorecardDialog.vue";
 
 const route = useRoute();
@@ -563,6 +578,7 @@ const pipelineStages = ref<PipelineStageRead[]>([]);
 const stageResults = ref<CandidateStageResultRead[]>([]);
 const interviews = ref<InterviewSessionRead[]>([]);
 const derivedJobPositionId = ref<number | null>(null);
+const jr = ref<JobRequisitionRead | null>(null);
 
 const showDecisionDialog = ref(false);
 const decisionResult = ref<"pass" | "fail" | "hold">("pass");
@@ -776,6 +792,7 @@ async function loadAll() {
     stageResults.value = stageResultResponse.data;
     interviews.value = interviewResponse.data;
     derivedJobPositionId.value = jrResponse.data.job_position_id;
+    jr.value = jrResponse.data;
   } catch {
     application.value = null;
     candidate.value = null;
@@ -856,6 +873,11 @@ function openScorecard(interview: InterviewSessionRead) {
 
 function onInterviewSaved() {
   void loadAll();
+}
+
+function onEmployeeConverted() {
+  toast.add({ severity: 'success', summary: 'Đã tạo nhân viên', detail: 'Hồ sơ ứng viên đã được chuyển thành nhân viên.', life: 4000 })
+  void loadAll()
 }
 
 function completeInterview(interview: InterviewSessionRead) {
