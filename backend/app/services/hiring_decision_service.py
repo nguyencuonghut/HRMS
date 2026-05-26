@@ -223,6 +223,10 @@ async def convert_to_employee(
 
     emp = await employee_service.create_employee(session, payload)
 
+    # Khởi tạo checklist hồ sơ pháp lý
+    from app.services.document_checklist_service import _init_document_checklist
+    await _init_document_checklist(session, emp.id, is_foreign_worker=False)
+
     # Migrate học vấn
     educations = (await session.execute(
         select(CandidateEducation).where(CandidateEducation.candidate_id == candidate.id)

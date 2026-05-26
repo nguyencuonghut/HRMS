@@ -1039,3 +1039,121 @@ async def delete_attachment_endpoint(
         new_data={"att_id": att_id, "file_name": att.file_name},
     )
     await session.commit()
+
+
+# ── Document Checklist (13.6) ─────────────────────────────────────────────────
+from app.services import document_checklist_service
+from app.services.document_checklist_service import ChecklistItemRead, ChecklistItemUpdate
+from app.core.storage import get_object_stream as _get_obj_stream
+
+_DOC_PERM_VIEW = "recruitment:view"
+_DOC_PERM_MANAGE = "recruitment:manage"
+
+@router.get(
+    "/{employee_id}/document-checklist",
+    response_model=list[ChecklistItemRead],
+    summary="Danh sách hồ sơ pháp lý nhân viên",
+)
+async def get_document_checklist(
+    employee_id: int,
+    _: User = require_permission(_DOC_PERM_VIEW),
+    session: AsyncSession = Depends(get_session),
+):
+    await employee_service._get_or_404(session, employee_id)
+    return await document_checklist_service.get_employee_checklist(session, employee_id)
+
+
+@router.put(
+    "/{employee_id}/document-checklist/{item_id}",
+    response_model=ChecklistItemRead,
+    summary="Cập nhật trạng thái giấy tờ",
+)
+async def update_checklist_item(
+    employee_id: int,
+    item_id: int,
+    data: ChecklistItemUpdate,
+    current_user: User = require_permission(_DOC_PERM_MANAGE),
+    session: AsyncSession = Depends(get_session),
+):
+    result = await document_checklist_service.update_checklist_item(
+        session, employee_id, item_id, data, current_user.id
+    )
+    await session.commit()
+    return result
+
+
+@router.post(
+    "/{employee_id}/document-checklist/{item_id}/upload",
+    response_model=ChecklistItemRead,
+    summary="Upload file scan giấy tờ",
+)
+async def upload_checklist_file(
+    employee_id: int,
+    item_id: int,
+    file: UploadFile = File(...),
+    current_user: User = require_permission(_DOC_PERM_MANAGE),
+    session: AsyncSession = Depends(get_session),
+):
+    result = await document_checklist_service.upload_document_file(
+        session, employee_id, item_id, file, current_user.id
+    )
+    await session.commit()
+    return result
+
+
+@router.get(
+    "/{employee_id}/document-checklist/{item_id}/download",
+    summary="Tải file scan giấy tờ",
+)
+async def download_checklist_file(
+    employee_id: int,
+    item_id: int,
+    _: User = require_permission(_DOC_PERM_VIEW),
+    session: AsyncSession = Depends(get_session),
+):
+    file_path, file_name, mime_type = await document_checklist_service.get_document_download_stream(
+        session, employee_id, item_id
+    )
+    safe_name = (file_name or "file").encode("utf-8").decode("latin-1", errors="replace")
+    return StreamingResponse(
+        _get_obj_stream(file_path),
+        media_type=mime_type or "application/octet-stream",
+        headers={"Content-Disposition": f'attachment; filename="{safe_name}"'},
+    )
+
+
+@router.delete(
+    "/{employee_id}/document-checklist/{item_id}/file",
+    response_model=ChecklistItemRead,
+    summary="Xóa file scan (giữ record)",
+)
+async def delete_checklist_file(
+    employee_id: int,
+    item_id: int,
+    current_user: User = require_permission(_DOC_PERM_MANAGE),
+    session: AsyncSession = Depends(get_session),
+):
+    result = await document_checklist_service.delete_document_file(
+        session, employee_id, item_id, current_user.id
+    )
+    await session.commit()
+    return result
+
+
+@router.post(
+    "/{employee_id}/document-checklist/{item_id}/waive",
+    response_model=ChecklistItemRead,
+    summary="Miễn giấy tờ",
+)
+async def waive_checklist_item(
+    employee_id: int,
+    item_id: int,
+    reason: str,
+    current_user: User = require_permission(_DOC_PERM_MANAGE),
+    session: AsyncSession = Depends(get_session),
+):
+    result = await document_checklist_service.waive_item(
+        session, employee_id, item_id, reason, current_user.id
+    )
+    await session.commit()
+    return result

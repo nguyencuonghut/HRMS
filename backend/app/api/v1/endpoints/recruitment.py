@@ -4,7 +4,8 @@ from __future__ import annotations
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import require_permission
@@ -1607,4 +1608,58 @@ async def convert_to_employee(
     result = await hiring_decision_service.convert_to_employee(session, decision_id, current_user.id)
     await session.commit()
     return result
-    await session.commit()
+
+
+# ── Document Checklist Types (admin) ──────────────────────────────────────────
+from app.services import document_checklist_service as _doc_svc
+from app.services.document_checklist_service import EmployeeChecklistSummary
+
+_DOC_TAG = "Document Checklist"
+
+
+@router.get("/document-types", response_model=list, tags=[_DOC_TAG])
+async def list_document_types(
+    _: User = require_permission("recruitment:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    from app.models.recruitment import DocumentChecklistType
+    rows = (await session.execute(
+        select(DocumentChecklistType)
+        .where(DocumentChecklistType.is_active == True)
+        .order_by(DocumentChecklistType.sort_order)
+    )).scalars().all()
+    return [
+        {"id": r.id, "code": r.code, "name": r.name, "is_required": r.is_required,
+         "has_expiry": r.has_expiry, "applies_to": r.applies_to, "sort_order": r.sort_order}
+        for r in rows
+    ]
+
+
+@router.get(
+    "/document-checklist/summary",
+    response_model=list[EmployeeChecklistSummary],
+    tags=[_DOC_TAG],
+)
+async def missing_documents_report(
+    status: Optional[str] = Query(None, description="complete | incomplete | expiring"),
+    department_id: Optional[int] = Query(None),
+    _: User = require_permission("recruitment:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await _doc_svc.get_missing_documents_report(session, status, department_id)
+
+
+@router.get("/labor-report/export", tags=[_DOC_TAG])
+async def export_labor_report(
+    year: int = Query(...),
+    month: int = Query(..., ge=1, le=12),
+    _: User = require_permission("recruitment:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    data = await _doc_svc.export_labor_report_excel(session, year, month)
+    filename = f"lao_dong_moi_{year}_{month:02d}.xlsx"
+    return Response(
+        content=data,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

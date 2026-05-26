@@ -730,3 +730,54 @@ class HiringDecision(SQLModel, table=True):
         sa.Index("ix_hiring_decisions_offer", "offer_id"),
         sa.Index("ix_hiring_decisions_employee", "employee_id"),
     )
+
+
+class DocumentChecklistType(SQLModel, table=True):
+    __tablename__ = "document_checklist_types"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    code: str = Field(sa_column=Column(sa.String(50), nullable=False, unique=True))
+    name: str = Field(sa_column=Column(sa.String(200), nullable=False))
+    description: Optional[str] = Field(default=None, sa_column=Column(sa.Text(), nullable=True))
+    is_required: bool = Field(sa_column=Column(sa.Boolean(), nullable=False, server_default="true"))
+    has_expiry: bool = Field(sa_column=Column(sa.Boolean(), nullable=False, server_default="false"))
+    applies_to: str = Field(sa_column=Column(sa.String(30), nullable=False, server_default="all"))
+    sort_order: int = Field(sa_column=Column(sa.SmallInteger(), nullable=False, server_default="0"))
+    is_active: bool = Field(sa_column=Column(sa.Boolean(), nullable=False, server_default="true"))
+
+
+class EmployeeDocumentChecklist(SQLModel, table=True):
+    __tablename__ = "employee_document_checklists"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    employee_id: int = Field(
+        sa_column=Column(sa.Integer(), sa.ForeignKey("employees.id", ondelete="CASCADE"), nullable=False)
+    )
+    document_type_id: int = Field(
+        sa_column=Column(sa.Integer(), sa.ForeignKey("document_checklist_types.id", ondelete="RESTRICT"), nullable=False)
+    )
+    status: str = Field(sa_column=Column(sa.String(20), nullable=False, server_default="not_submitted"))
+    submitted_at: Optional[date] = Field(default=None, sa_column=Column(sa.Date(), nullable=True))
+    expires_at: Optional[date] = Field(default=None, sa_column=Column(sa.Date(), nullable=True))
+    waived_reason: Optional[str] = Field(default=None, sa_column=Column(sa.Text(), nullable=True))
+    file_path: Optional[str] = Field(default=None, sa_column=Column(sa.String(500), nullable=True))
+    file_name: Optional[str] = Field(default=None, sa_column=Column(sa.String(300), nullable=True))
+    file_size: Optional[int] = Field(default=None, sa_column=Column(sa.Integer(), nullable=True))
+    mime_type: Optional[str] = Field(default=None, sa_column=Column(sa.String(100), nullable=True))
+    note: Optional[str] = Field(default=None, sa_column=Column(sa.Text(), nullable=True))
+    created_by_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(sa.Integer(), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
+    )
+    updated_by_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(sa.Integer(), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
+    )
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: datetime = Field(default_factory=_utcnow)
+
+    __table_args__ = (
+        sa.UniqueConstraint("employee_id", "document_type_id", name="uq_emp_doc_type"),
+        sa.Index("ix_emp_doc_checklist_employee", "employee_id"),
+        sa.Index("ix_emp_doc_checklist_status", "status"),
+    )
