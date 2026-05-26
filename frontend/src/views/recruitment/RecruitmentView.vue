@@ -17,6 +17,7 @@
         <Tab value="candidates">Ứng viên</Tab>
         <Tab value="selection">Tuyển chọn</Tab>
         <Tab value="headcount">Kế hoạch nhân sự</Tab>
+        <Tab value="legal">Hồ sơ pháp lý</Tab>
       </TabList>
       <TabPanels>
         <TabPanel value="jr"><JRListTab /></TabPanel>
@@ -24,6 +25,7 @@
         <TabPanel value="candidates"><CandidateListTab /></TabPanel>
         <TabPanel value="selection"><KanbanPipelineView /></TabPanel>
         <TabPanel value="headcount"><HeadcountPlanTab /></TabPanel>
+        <TabPanel value="legal"><DocumentChecklistSummaryTab /></TabPanel>
       </TabPanels>
     </Tabs>
   </div>
@@ -42,6 +44,7 @@ import KanbanPipelineView from "./KanbanPipelineView.vue";
 import JRListTab from "./components/JRListTab.vue";
 import JobPostingTab from "./components/JobPostingTab.vue";
 import HeadcountPlanTab from "./components/HeadcountPlanTab.vue";
+import DocumentChecklistSummaryTab from "./components/DocumentChecklistSummaryTab.vue";
 
 const route = useRoute();
 const router = useRouter();
@@ -52,6 +55,7 @@ const validTabs = new Set([
   "candidates",
   "selection",
   "headcount",
+  "legal",
 ]);
 const resolveTab = (raw: unknown) =>
   typeof raw === "string" && validTabs.has(raw) ? raw : "jr";

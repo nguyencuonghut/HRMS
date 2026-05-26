@@ -1297,3 +1297,50 @@ const hiringDecisionService = {
 };
 
 export { offerService, hiringDecisionService };
+
+// ── Document Checklist ────────────────────────────────────────────────────────
+
+export interface DocumentChecklistType {
+  id: number;
+  code: string;
+  name: string;
+  is_required: boolean;
+  has_expiry: boolean;
+  applies_to: string;
+  sort_order: number;
+}
+
+export interface EmployeeChecklistSummary {
+  employee_id: number;
+  employee_code: string;
+  employee_name: string;
+  department_name: string | null;
+  total_required: number;
+  submitted_count: number;
+  missing_count: number;
+  expiring_count: number;
+  completion_rate: number;
+}
+
+export const documentChecklistService = {
+  getTypes: () =>
+    api.get<DocumentChecklistType[]>("/recruitment/document-types").then((r) => r.data),
+
+  getSummary: (params?: { status?: string; department_id?: number; search?: string }) =>
+    api
+      .get<EmployeeChecklistSummary[]>("/recruitment/document-checklist/summary", { params })
+      .then((r) => r.data),
+
+  exportLaborReport: async (year: number, month: number) => {
+    const res = await api.get("/recruitment/labor-report/export", {
+      responseType: "blob",
+      params: { year, month },
+    });
+    const url = URL.createObjectURL(res.data);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `lao_dong_moi_${year}_${String(month).padStart(2, "0")}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
+  },
+};

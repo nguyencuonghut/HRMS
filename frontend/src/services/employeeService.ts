@@ -524,6 +524,34 @@ export interface EmployeeAttachmentRead {
   download_url:        string
 }
 
+// ── Document Checklist (13.6) ─────────────────────────────────────────────────
+
+export interface ChecklistItemRead {
+  id: number
+  document_type_id: number
+  document_type_name: string
+  document_type_code: string
+  is_required: boolean
+  has_expiry: boolean
+  status: string   // not_submitted | submitted | expired | waived
+  submitted_at: string | null
+  expires_at: string | null
+  days_until_expiry: number | null
+  is_expiring_soon: boolean
+  waived_reason: string | null
+  has_file: boolean
+  file_name: string | null
+  note: string | null
+  updated_at: string
+}
+
+export interface ChecklistItemUpdate {
+  status?: string
+  submitted_at?: string | null
+  expires_at?: string | null
+  note?: string | null
+}
+
 // ── Service ───────────────────────────────────────────────────────────────────
 
 const BASE = '/employees'
@@ -701,4 +729,38 @@ export default {
 
   exportEmployeeProfile: (id: number) =>
     downloadBlob(`${BASE}/${id}/export`, `ho_so_${id}.xlsx`),
+
+  // Document Checklist (13.6)
+  getDocumentChecklist: (id: number) =>
+    api.get<ChecklistItemRead[]>(`${BASE}/${id}/document-checklist`),
+
+  updateChecklistItem: (id: number, itemId: number, data: ChecklistItemUpdate) =>
+    api.put<ChecklistItemRead>(`${BASE}/${id}/document-checklist/${itemId}`, data),
+
+  uploadChecklistFile: (id: number, itemId: number, file: File) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    return api.post<ChecklistItemRead>(`${BASE}/${id}/document-checklist/${itemId}/upload`, fd, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  },
+
+  downloadChecklistFile: (id: number, itemId: number, fileName: string) =>
+    downloadBlob(`${BASE}/${id}/document-checklist/${itemId}/download`, fileName),
+
+  deleteChecklistFile: (id: number, itemId: number) =>
+    api.delete<ChecklistItemRead>(`${BASE}/${id}/document-checklist/${itemId}/file`),
+
+  waiveChecklistItem: (id: number, itemId: number, reason: string) =>
+    api.post<ChecklistItemRead>(`${BASE}/${id}/document-checklist/${itemId}/waive`, null, {
+      params: { reason },
+    }),
+
+  initDocumentChecklist: (id: number) =>
+    api.post<ChecklistItemRead[]>(`${BASE}/${id}/document-checklist/init`),
+
+  addChecklistItem: (id: number, documentTypeId: number) =>
+    api.post<ChecklistItemRead>(`${BASE}/${id}/document-checklist`, null, {
+      params: { document_type_id: documentTypeId },
+    }),
 }

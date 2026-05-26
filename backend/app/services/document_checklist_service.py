@@ -295,6 +295,7 @@ async def get_missing_documents_report(
     session: AsyncSession,
     status_filter: Optional[str] = None,
     department_id: Optional[int] = None,
+    search: Optional[str] = None,
 ) -> list[EmployeeChecklistSummary]:
     """Báo cáo tình trạng nộp hồ sơ của các nhân viên (chỉ loại bắt buộc)."""
     today = _today()
@@ -317,6 +318,9 @@ async def get_missing_documents_report(
     )
     if department_id is not None:
         emp_q = emp_q.where(EmployeeJobRecord.department_id == department_id)
+    if search:
+        kw = f"%{search.strip()}%"
+        emp_q = emp_q.where(Employee.full_name.ilike(kw))
 
     emp_rows = (await session.execute(emp_q)).all()
 
@@ -324,6 +328,13 @@ async def get_missing_documents_report(
         return []
 
     employee_ids = [emp.id for emp, _, _ in emp_rows]
+
+    # Build display codes (e.g. HC0001, CNT0009)
+    from app.services import employee_code_service
+    employees_only = [emp for emp, _, _ in emp_rows]
+    display_codes: dict[int, str] = await employee_code_service.batch_build_employee_display_codes(
+        session, employees_only
+    )
 
     # Load all required checklist items for these employees in one query
     checklist_q = (
@@ -379,8 +390,7 @@ async def get_missing_documents_report(
 
         completion_rate = (submitted_count / total_required * 100) if total_required > 0 else 0.0
 
-        # Build display code from employee_seq
-        employee_code = str(emp.employee_seq)
+        employee_code = display_codes.get(emp.id, str(emp.employee_seq))
 
         summary = EmployeeChecklistSummary(
             employee_id=emp.id,
@@ -536,6 +546,83 @@ async def export_labor_report_excel(
 
 
 # ── Internal initialiser ──────────────────────────────────────────────────────
+
+
+async def init_employee_checklist(
+    session: AsyncSession,
+    employee_id: int,
+    user_id: int,
+    is_foreign_worker: bool = False,
+) -> list[ChecklistItemRead]:
+    """Khởi tạo checklist cho nhân viên cũ (không qua convert_to_employee).
+    Bỏ qua các loại đã có (upsert-safe).
+    """
+    applies_to_values = ["all"]
+    if is_foreign_worker:
+        applies_to_values.append("foreign_worker")
+
+    q = (
+        select(DocumentChecklistType)
+        .where(
+            DocumentChecklistType.is_active == True,
+            DocumentChecklistType.applies_to.in_(applies_to_values),
+        )
+        .order_by(DocumentChecklistType.sort_order)
+    )
+    dtypes = (await session.execute(q)).scalars().all()
+
+    existing_type_ids = {
+        r for (r,) in (await session.execute(
+            select(EmployeeDocumentChecklist.document_type_id)
+            .where(EmployeeDocumentChecklist.employee_id == employee_id)
+        )).all()
+    }
+
+    for dtype in dtypes:
+        if dtype.id not in existing_type_ids:
+            session.add(EmployeeDocumentChecklist(
+                employee_id=employee_id,
+                document_type_id=dtype.id,
+                status="not_submitted",
+                created_by_id=user_id,
+                updated_by_id=user_id,
+            ))
+
+    await session.flush()
+    return await get_employee_checklist(session, employee_id)
+
+
+async def add_checklist_item(
+    session: AsyncSession,
+    employee_id: int,
+    document_type_id: int,
+    user_id: int,
+) -> ChecklistItemRead:
+    """Thêm thủ công một loại giấy tờ vào checklist nhân viên."""
+    dtype = await session.get(DocumentChecklistType, document_type_id)
+    if not dtype:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Không tìm thấy loại giấy tờ")
+
+    existing = (await session.execute(
+        select(EmployeeDocumentChecklist)
+        .where(
+            EmployeeDocumentChecklist.employee_id == employee_id,
+            EmployeeDocumentChecklist.document_type_id == document_type_id,
+        )
+    )).scalar_one_or_none()
+    if existing:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail="Loại giấy tờ này đã có trong checklist")
+
+    item = EmployeeDocumentChecklist(
+        employee_id=employee_id,
+        document_type_id=document_type_id,
+        status="not_submitted",
+        created_by_id=user_id,
+        updated_by_id=user_id,
+    )
+    session.add(item)
+    await session.flush()
+    return _to_read(item, dtype)
 
 
 async def _init_document_checklist(

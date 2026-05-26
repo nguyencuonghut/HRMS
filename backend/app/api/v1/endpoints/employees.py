@@ -1157,3 +1157,41 @@ async def waive_checklist_item(
     )
     await session.commit()
     return result
+
+
+@router.post(
+    "/{employee_id}/document-checklist/init",
+    response_model=list[ChecklistItemRead],
+    summary="Khởi tạo checklist giấy tờ mặc định cho nhân viên",
+)
+async def init_document_checklist(
+    employee_id: int,
+    current_user: User = require_permission(_DOC_PERM_MANAGE),
+    session: AsyncSession = Depends(get_session),
+):
+    await employee_service._get_or_404(session, employee_id)
+    result = await document_checklist_service.init_employee_checklist(
+        session, employee_id, current_user.id
+    )
+    await session.commit()
+    return result
+
+
+@router.post(
+    "/{employee_id}/document-checklist",
+    response_model=ChecklistItemRead,
+    status_code=201,
+    summary="Thêm một loại giấy tờ vào checklist",
+)
+async def add_checklist_item(
+    employee_id: int,
+    document_type_id: int,
+    current_user: User = require_permission(_DOC_PERM_MANAGE),
+    session: AsyncSession = Depends(get_session),
+):
+    await employee_service._get_or_404(session, employee_id)
+    result = await document_checklist_service.add_checklist_item(
+        session, employee_id, document_type_id, current_user.id
+    )
+    await session.commit()
+    return result

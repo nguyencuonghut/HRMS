@@ -1643,10 +1643,11 @@ async def list_document_types(
 async def missing_documents_report(
     status: Optional[str] = Query(None, description="complete | incomplete | expiring"),
     department_id: Optional[int] = Query(None),
+    search: Optional[str] = Query(None, description="Tìm theo họ tên nhân viên"),
     _: User = require_permission("recruitment:view"),
     session: AsyncSession = Depends(get_session),
 ):
-    return await _doc_svc.get_missing_documents_report(session, status, department_id)
+    return await _doc_svc.get_missing_documents_report(session, status, department_id, search)
 
 
 @router.get("/labor-report/export", tags=[_DOC_TAG])
