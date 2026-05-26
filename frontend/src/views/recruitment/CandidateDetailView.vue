@@ -81,6 +81,7 @@
         <Tab value="applications"
           >Ứng tuyển ({{ candidate.active_applications }})</Tab
         >
+        <Tab value="communications">Giao tiếp</Tab>
       </TabList>
 
       <TabPanels>
@@ -873,6 +874,11 @@
           </Dialog>
         </TabPanel>
 
+        <!-- TAB: Giao tiếp -->
+        <TabPanel value="communications">
+          <CommunicationTab :candidate-id="candidateId" />
+        </TabPanel>
+
         <!-- TAB: Ứng tuyển -->
         <TabPanel value="applications">
           <div class="section-card" style="margin-top: 0.75rem">
@@ -1053,6 +1059,7 @@ import recruitmentService, {
   type RecruitmentChannelRead,
 } from "@/services/recruitmentService";
 import CandidateFormDialog from "./components/CandidateFormDialog.vue";
+import CommunicationTab from "./components/CommunicationTab.vue";
 
 const route = useRoute();
 const router = useRouter();

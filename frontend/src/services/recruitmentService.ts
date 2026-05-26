@@ -1344,3 +1344,101 @@ export const documentChecklistService = {
     URL.revokeObjectURL(url);
   },
 };
+
+// ── Email Templates ───────────────────────────────────────────────────────────
+
+export interface EmailTemplateRead {
+  id: number
+  code: string
+  name: string
+  trigger_event: string | null
+  subject: string
+  body_html: string
+  body_text: string | null
+  merge_fields: string[]
+  is_active: boolean
+  is_system: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface EmailTemplateCreate {
+  code: string
+  name: string
+  trigger_event?: string | null
+  subject: string
+  body_html: string
+  body_text?: string | null
+}
+
+export interface EmailTemplateUpdate {
+  name?: string
+  trigger_event?: string | null
+  subject?: string
+  body_html?: string
+  body_text?: string | null
+  is_active?: boolean
+}
+
+export interface EmailTemplatePreviewRequest {
+  application_id?: number | null
+  use_sample_data?: boolean
+}
+
+export interface EmailTemplatePreviewResult {
+  subject: string
+  body_html: string
+}
+
+export interface SendEmailRequest {
+  template_id: number
+  application_id?: number | null
+  custom_subject?: string | null
+  custom_body?: string | null
+  extra_context?: Record<string, string> | null
+}
+
+export interface CommunicationRead {
+  id: number
+  channel: string
+  direction: string
+  template_name: string | null
+  subject: string | null
+  status: string
+  sent_at: string | null
+  sent_by_name: string | null
+  trigger_event: string | null
+  body_html: string | null
+  created_at: string
+}
+
+export const emailTemplateService = {
+  list: () =>
+    api.get<EmailTemplateRead[]>('/recruitment/email-templates').then((r) => r.data),
+
+  get: (id: number) =>
+    api.get<EmailTemplateRead>(`/recruitment/email-templates/${id}`).then((r) => r.data),
+
+  create: (data: EmailTemplateCreate) =>
+    api.post<EmailTemplateRead>('/recruitment/email-templates', data).then((r) => r.data),
+
+  update: (id: number, data: EmailTemplateUpdate) =>
+    api.put<EmailTemplateRead>(`/recruitment/email-templates/${id}`, data).then((r) => r.data),
+
+  delete: (id: number) =>
+    api.delete(`/recruitment/email-templates/${id}`),
+
+  preview: (id: number, req: EmailTemplatePreviewRequest) =>
+    api.post<EmailTemplatePreviewResult>(`/recruitment/email-templates/${id}/preview`, req).then((r) => r.data),
+}
+
+export const communicationService = {
+  listForCandidate: (candidateId: number) =>
+    api.get<CommunicationRead[]>(`/recruitment/candidates/${candidateId}/communications`).then((r) => r.data),
+
+  listForApplication: (applicationId: number) =>
+    api.get<CommunicationRead[]>(`/recruitment/applications/${applicationId}/communications`).then((r) => r.data),
+
+  send: (candidateId: number, req: SendEmailRequest) =>
+    api.post<CommunicationRead>(`/recruitment/candidates/${candidateId}/communications/send`, req).then((r) => r.data),
+}

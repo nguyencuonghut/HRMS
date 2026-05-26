@@ -720,3 +720,93 @@ html.dark-mode .rc-lang-warning {
     grid-template-columns: 1fr;
   }
 }
+
+// ── Communication Tab ─────────────────────────────────────────────────────────
+
+.comm-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.comm-item {
+  border: 1px solid var(--p-surface-200);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.comm-item-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 0.65rem 0.9rem;
+  cursor: pointer;
+  background: var(--p-surface-50);
+  gap: 0.75rem;
+
+  &:hover {
+    background: var(--p-surface-100);
+  }
+}
+
+.comm-item-left {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+}
+
+.comm-icon {
+  color: var(--p-primary-color);
+  margin-top: 0.15rem;
+  flex-shrink: 0;
+}
+
+.comm-subject {
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.comm-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin-top: 0.2rem;
+}
+
+.comm-body {
+  padding: 0.75rem 0.9rem;
+  border-top: 1px solid var(--p-surface-200);
+  background: var(--p-surface-0);
+}
+
+.comm-html-preview {
+  font-size: 0.875rem;
+  line-height: 1.6;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.comm-preview-panel {
+  border: 1px solid var(--p-surface-200);
+  border-radius: 6px;
+  overflow: hidden;
+  margin-top: 0.5rem;
+}
+
+.comm-preview-subject {
+  padding: 0.5rem 0.75rem;
+  background: var(--p-surface-50);
+  border-bottom: 1px solid var(--p-surface-200);
+  font-size: 0.875rem;
+}
+
+.comm-preview-body {
+  padding: 0.75rem;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  max-height: 380px;
+  overflow-y: auto;
+}
