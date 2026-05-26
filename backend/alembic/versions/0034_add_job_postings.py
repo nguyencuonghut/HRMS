@@ -39,7 +39,7 @@ def upgrade() -> None:
         ('vietnamjobs',  'VietnamJobs',            8),
         ('linkedin',     'LinkedIn',               9),
         ('headhunter',   'Headhunter / Agency',    10),
-        ('other',        'Khác',                   11),
+        ('other',        'Khác',                   11)
     """)
 
     # 2. Tin tuyển dụng
