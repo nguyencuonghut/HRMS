@@ -206,6 +206,13 @@ async def send_offer(session: AsyncSession, offer_id: int, user_id: int) -> Offe
     offer.sent_at = _utcnow()
     offer.updated_at = _utcnow()
     await session.flush()
+
+    try:
+        from app.services.recruitment_email_service import auto_send_on_offer_event
+        await auto_send_on_offer_event(session, offer.application_id, "offer_sent", user_id)
+    except Exception:
+        pass
+
     return await _build_offer_read(session, offer)
 
 
@@ -229,6 +236,13 @@ async def accept_offer(session: AsyncSession, offer_id: int, user_id: int) -> Of
         application.updated_at = _utcnow()
 
     await session.flush()
+
+    try:
+        from app.services.recruitment_email_service import auto_send_on_offer_event
+        await auto_send_on_offer_event(session, offer.application_id, "offer_accepted", user_id)
+    except Exception:
+        pass
+
     return await _build_offer_read(session, offer)
 
 
@@ -258,6 +272,13 @@ async def reject_offer(
         application.updated_at = _utcnow()
 
     await session.flush()
+
+    try:
+        from app.services.recruitment_email_service import auto_send_on_offer_event
+        await auto_send_on_offer_event(session, offer.application_id, "offer_rejected", user_id)
+    except Exception:
+        pass
+
     return await _build_offer_read(session, offer)
 
 

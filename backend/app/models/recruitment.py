@@ -781,3 +781,64 @@ class EmployeeDocumentChecklist(SQLModel, table=True):
         sa.Index("ix_emp_doc_checklist_employee", "employee_id"),
         sa.Index("ix_emp_doc_checklist_status", "status"),
     )
+
+
+class RecruitmentEmailTemplate(SQLModel, table=True):
+    __tablename__ = "recruitment_email_templates"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    code: str = Field(sa_column=Column(sa.String(100), nullable=False, unique=True))
+    name: str = Field(sa_column=Column(sa.String(300), nullable=False))
+    trigger_event: Optional[str] = Field(default=None, sa_column=Column(sa.String(50), nullable=True))
+    subject: str = Field(sa_column=Column(sa.Text(), nullable=False))
+    body_html: str = Field(sa_column=Column(sa.Text(), nullable=False))
+    body_text: Optional[str] = Field(default=None, sa_column=Column(sa.Text(), nullable=True))
+    merge_fields: Optional[str] = Field(default=None, sa_column=Column(sa.Text(), nullable=True))
+    # stored as JSON string: '["ten_ung_vien","vi_tri"]'
+    is_active: bool = Field(sa_column=Column(sa.Boolean(), nullable=False, server_default="true"))
+    is_system: bool = Field(sa_column=Column(sa.Boolean(), nullable=False, server_default="false"))
+    created_by_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(sa.Integer(), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
+    )
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: datetime = Field(default_factory=_utcnow)
+
+
+class CandidateCommunication(SQLModel, table=True):
+    __tablename__ = "candidate_communications"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    candidate_id: int = Field(
+        sa_column=Column(sa.Integer(), sa.ForeignKey("candidates.id", ondelete="CASCADE"), nullable=False)
+    )
+    application_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(sa.Integer(), sa.ForeignKey("candidate_applications.id", ondelete="SET NULL"), nullable=True),
+    )
+    channel: str = Field(sa_column=Column(sa.String(20), nullable=False, server_default="email"))
+    direction: str = Field(sa_column=Column(sa.String(10), nullable=False, server_default="outbound"))
+    template_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(sa.Integer(), sa.ForeignKey("recruitment_email_templates.id", ondelete="SET NULL"), nullable=True),
+    )
+    subject: Optional[str] = Field(default=None, sa_column=Column(sa.Text(), nullable=True))
+    body_html: Optional[str] = Field(default=None, sa_column=Column(sa.Text(), nullable=True))
+    body_text: Optional[str] = Field(default=None, sa_column=Column(sa.Text(), nullable=True))
+    status: str = Field(sa_column=Column(sa.String(20), nullable=False, server_default="pending"))
+    sent_at: Optional[datetime] = Field(default=None, sa_column=Column(sa.DateTime(), nullable=True))
+    error_message: Optional[str] = Field(default=None, sa_column=Column(sa.Text(), nullable=True))
+    trigger_event: Optional[str] = Field(default=None, sa_column=Column(sa.String(100), nullable=True))
+    merge_context: Optional[str] = Field(default=None, sa_column=Column(sa.Text(), nullable=True))
+    # JSON string snapshot of merge context
+    sent_by_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(sa.Integer(), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
+    )
+    created_at: datetime = Field(default_factory=_utcnow)
+
+    __table_args__ = (
+        sa.Index("ix_comm_candidate", "candidate_id"),
+        sa.Index("ix_comm_application", "application_id"),
+        sa.Index("ix_comm_status", "status"),
+    )

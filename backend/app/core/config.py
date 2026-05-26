@@ -34,6 +34,16 @@ class Settings(BaseSettings):
     # CORS
     CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://localhost:3000"]
 
+    # SMTP email
+    SMTP_HOST: str = "localhost"
+    SMTP_PORT: int = 25
+    SMTP_USERNAME: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_USE_TLS: bool = False
+    SMTP_FROM_EMAIL: str = "no-reply@hrms.local"
+    SMTP_FROM_NAME: str = "Hồng Hà HRMS"
+    COMPANY_NAME: str = "Công ty Hồng Hà"
+
     # Administrative catalog seed source
     ADMINISTRATIVE_WARDS_JSON_PATH: str = str(
         _BASE_DIR / "app" / "seeds" / "data" / "wards_all_qd19_2025.json"

@@ -537,6 +537,15 @@ async def advance_application(
 
     app.updated_at = _utcnow()
     await session.flush()
+
+    # Auto-send email on stage change (non-blocking, never fails pipeline)
+    if data.result == "pass" and app.current_stage:
+        try:
+            from app.services.recruitment_email_service import auto_send_on_stage_change
+            await auto_send_on_stage_change(session, application_id, app.current_stage, user_id)
+        except Exception:
+            pass
+
     return await _application_read(session, app)
 
 
@@ -551,6 +560,13 @@ async def reject_application(
     app.rejection_reason = data.rejection_note
     app.updated_at = _utcnow()
     await session.flush()
+
+    try:
+        from app.services.recruitment_email_service import auto_send_on_stage_change
+        await auto_send_on_stage_change(session, application_id, "rejected", user_id)
+    except Exception:
+        pass
+
     return await _application_read(session, app)
 
 

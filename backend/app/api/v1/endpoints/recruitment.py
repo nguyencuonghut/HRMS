@@ -1664,3 +1664,106 @@ async def export_labor_report(
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+# ── Email Templates (13.7) ────────────────────────────────────────────────────
+from app.services import recruitment_email_service as _email_svc
+from app.services.recruitment_email_service import (
+    EmailTemplateCreate, EmailTemplateUpdate, EmailTemplateRead,
+    EmailTemplatePreviewRequest, SendEmailRequest, CommunicationRead,
+)
+
+_EMAIL_TAG = "Email Templates"
+_COMM_TAG = "Candidate Communications"
+
+
+@router.get("/email-templates", response_model=list[EmailTemplateRead], tags=[_EMAIL_TAG])
+async def list_email_templates(
+    active_only: bool = Query(False),
+    _: User = require_permission("recruitment:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await _email_svc.list_templates(session, active_only=active_only)
+
+
+@router.get("/email-templates/{template_id}", response_model=EmailTemplateRead, tags=[_EMAIL_TAG])
+async def get_email_template(
+    template_id: int,
+    _: User = require_permission("recruitment:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await _email_svc.get_template(session, template_id)
+
+
+@router.post("/email-templates", response_model=EmailTemplateRead, status_code=201, tags=[_EMAIL_TAG])
+async def create_email_template(
+    data: EmailTemplateCreate,
+    current_user: User = require_permission("recruitment:manage"),
+    session: AsyncSession = Depends(get_session),
+):
+    result = await _email_svc.create_template(session, data, current_user.id)
+    await session.commit()
+    return result
+
+
+@router.put("/email-templates/{template_id}", response_model=EmailTemplateRead, tags=[_EMAIL_TAG])
+async def update_email_template(
+    template_id: int,
+    data: EmailTemplateUpdate,
+    current_user: User = require_permission("recruitment:manage"),
+    session: AsyncSession = Depends(get_session),
+):
+    result = await _email_svc.update_template(session, template_id, data)
+    await session.commit()
+    return result
+
+
+@router.delete("/email-templates/{template_id}", status_code=204, tags=[_EMAIL_TAG])
+async def delete_email_template(
+    template_id: int,
+    current_user: User = require_permission("recruitment:manage"),
+    session: AsyncSession = Depends(get_session),
+):
+    await _email_svc.delete_template(session, template_id)
+    await session.commit()
+
+
+@router.post("/email-templates/{template_id}/preview", tags=[_EMAIL_TAG])
+async def preview_email_template(
+    template_id: int,
+    req: EmailTemplatePreviewRequest,
+    current_user: User = require_permission("recruitment:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    subject, body_html = await _email_svc.preview_template(session, template_id, req, current_user.id)
+    return {"subject": subject, "body_html": body_html}
+
+
+@router.get("/candidates/{candidate_id}/communications", response_model=list[CommunicationRead], tags=[_COMM_TAG])
+async def get_candidate_communications(
+    candidate_id: int,
+    _: User = require_permission("recruitment:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await _email_svc.get_candidate_communications(session, candidate_id)
+
+
+@router.post("/candidates/{candidate_id}/communications/send", response_model=CommunicationRead, tags=[_COMM_TAG])
+async def send_candidate_email(
+    candidate_id: int,
+    req: SendEmailRequest,
+    current_user: User = require_permission("recruitment:manage"),
+    session: AsyncSession = Depends(get_session),
+):
+    result = await _email_svc.send_email(session, candidate_id, req, current_user.id)
+    await session.commit()
+    return result
+
+
+@router.get("/applications/{application_id}/communications", response_model=list[CommunicationRead], tags=[_COMM_TAG])
+async def get_application_communications(
+    application_id: int,
+    _: User = require_permission("recruitment:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await _email_svc.get_application_communications(session, application_id)
