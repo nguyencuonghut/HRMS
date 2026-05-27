@@ -1,6 +1,7 @@
 """Endpoints tuyển dụng ATS — 13.1 Kế hoạch & Yêu cầu tuyển dụng / 13.2 Đăng tin / 13.3 Ứng viên."""
 from __future__ import annotations
 
+from datetime import date
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
@@ -35,6 +36,9 @@ from app.schemas.recruitment import (
     CandidateUpdate,
     CandidateWorkExpCreate,
     CandidateWorkExpRead,
+    ChannelEffectivenessItem,
+    DepartmentRecruitmentStat,
+    FunnelReport,
     HeadcountPlanCreate,
     HeadcountPlanListPage,
     HeadcountPlanRead,
@@ -70,11 +74,13 @@ from app.schemas.recruitment import (
     RecruitmentChannelCreate,
     RecruitmentChannelRead,
     RecruitmentChannelUpdate,
+    RecruitmentSummaryReport,
     RejectRequest,
     ScorecardCriterionCreate,
     ScorecardCriterionRead,
     ScorecardCriterionUpdate,
     StageResultUpsert,
+    TimeMetricsReport,
     ConvertToEmployeeResult,
     HiringDecisionCreate,
     HiringDecisionRead,
@@ -95,6 +101,7 @@ from app.services import (
     jr_service,
     offer_service,
     pipeline_service,
+    recruitment_report_service,
 )
 
 router = APIRouter()
@@ -1764,3 +1771,80 @@ async def get_application_communications(
     session: AsyncSession = Depends(get_session),
 ):
     return await _email_svc.get_application_communications(session, application_id)
+
+
+# ── Recruitment Reports (13.8) ────────────────────────────────────────────────
+
+_REPORT_TAG = "Báo cáo tuyển dụng"
+
+
+@router.get("/reports/summary", response_model=RecruitmentSummaryReport, tags=[_REPORT_TAG])
+async def get_recruitment_summary(
+    start_date: date = Query(..., description="Ngày bắt đầu kỳ báo cáo"),
+    end_date: date = Query(..., description="Ngày kết thúc kỳ báo cáo"),
+    department_id: Optional[int] = Query(None),
+    _: User = require_permission("recruitment:view"),
+    session: AsyncSession = Depends(get_session),
+) -> RecruitmentSummaryReport:
+    return await recruitment_report_service.get_summary(session, start_date, end_date, department_id)
+
+
+@router.get("/reports/funnel", response_model=FunnelReport, tags=[_REPORT_TAG])
+async def get_recruitment_funnel(
+    start_date: date = Query(...),
+    end_date: date = Query(...),
+    department_id: Optional[int] = Query(None),
+    job_requisition_id: Optional[int] = Query(None),
+    _: User = require_permission("recruitment:view"),
+    session: AsyncSession = Depends(get_session),
+) -> FunnelReport:
+    return await recruitment_report_service.get_funnel(
+        session, start_date, end_date, department_id, job_requisition_id
+    )
+
+
+@router.get("/reports/channel-effectiveness", response_model=list[ChannelEffectivenessItem], tags=[_REPORT_TAG])
+async def get_channel_effectiveness(
+    start_date: date = Query(...),
+    end_date: date = Query(...),
+    _: User = require_permission("recruitment:view"),
+    session: AsyncSession = Depends(get_session),
+) -> list[ChannelEffectivenessItem]:
+    return await recruitment_report_service.get_channel_effectiveness(session, start_date, end_date)
+
+
+@router.get("/reports/by-department", response_model=list[DepartmentRecruitmentStat], tags=[_REPORT_TAG])
+async def get_department_breakdown(
+    start_date: date = Query(...),
+    end_date: date = Query(...),
+    _: User = require_permission("recruitment:view"),
+    session: AsyncSession = Depends(get_session),
+) -> list[DepartmentRecruitmentStat]:
+    return await recruitment_report_service.get_department_breakdown(session, start_date, end_date)
+
+
+@router.get("/reports/time-metrics", response_model=TimeMetricsReport, tags=[_REPORT_TAG])
+async def get_time_metrics(
+    year: int = Query(..., ge=2020, le=2100),
+    department_id: Optional[int] = Query(None),
+    _: User = require_permission("recruitment:view"),
+    session: AsyncSession = Depends(get_session),
+) -> TimeMetricsReport:
+    return await recruitment_report_service.get_time_metrics_monthly(session, year, department_id)
+
+
+@router.get("/reports/export", tags=[_REPORT_TAG])
+async def export_recruitment_report(
+    start_date: date = Query(...),
+    end_date: date = Query(...),
+    department_id: Optional[int] = Query(None),
+    _: User = require_permission("recruitment:view"),
+    session: AsyncSession = Depends(get_session),
+) -> StreamingResponse:
+    buf = await recruitment_report_service.export_excel(session, start_date, end_date, department_id)
+    filename = f"BaoCaoTuyenDung_{start_date}_{end_date}.xlsx"
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

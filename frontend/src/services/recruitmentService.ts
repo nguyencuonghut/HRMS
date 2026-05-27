@@ -1446,3 +1446,88 @@ export const communicationService = {
   send: (candidateId: number, req: SendEmailRequest) =>
     api.post<CommunicationRead>(`/recruitment/candidates/${candidateId}/communications/send`, req).then((r) => r.data),
 }
+
+// ── Recruitment Reports (13.8) ─────────────────────────────────────────────
+
+export interface RecruitmentSummaryReport {
+  period_start: string
+  period_end: string
+  total_jr: number
+  total_applications: number
+  total_screened: number
+  total_interviewed: number
+  total_offered: number
+  total_hired: number
+  avg_time_to_hire: number | null
+  avg_time_to_fill: number | null
+  offer_acceptance_rate: number | null
+  cost_per_hire: number | null
+  probation_pass_rate: number | null
+}
+
+export interface FunnelStage {
+  stage: string
+  stage_label: string
+  count: number
+  conversion_rate: number | null
+}
+
+export interface FunnelReport {
+  stages: FunnelStage[]
+}
+
+export interface ChannelEffectivenessItem {
+  channel_id: number
+  channel_name: string
+  total_candidates: number
+  hired_count: number
+  hire_rate: number
+  total_cost: number | null
+  cost_per_hire: number | null
+}
+
+export interface DepartmentRecruitmentStat {
+  department_id: number
+  department_name: string
+  total_jr: number
+  open_jr: number
+  hired_count: number
+  avg_time_to_hire: number | null
+  offer_acceptance_rate: number | null
+  budget_used: number | null
+  cost_per_hire: number | null
+}
+
+export interface MonthlyTimeMetric {
+  month: number
+  year: number
+  avg_time_to_hire: number | null
+  avg_time_to_fill: number | null
+  hired_count: number
+  applications_count: number
+}
+
+export interface TimeMetricsReport {
+  year: number
+  monthly: MonthlyTimeMetric[]
+}
+
+export const recruitmentReportService = {
+  getSummary: (params: { start_date: string; end_date: string; department_id?: number }) =>
+    api.get<RecruitmentSummaryReport>('/recruitment/reports/summary', { params }).then((r) => r.data),
+
+  getFunnel: (params: { start_date: string; end_date: string; department_id?: number; job_requisition_id?: number }) =>
+    api.get<FunnelReport>('/recruitment/reports/funnel', { params }).then((r) => r.data),
+
+  getChannelEffectiveness: (params: { start_date: string; end_date: string }) =>
+    api.get<ChannelEffectivenessItem[]>('/recruitment/reports/channel-effectiveness', { params }).then((r) => r.data),
+
+  getDepartmentBreakdown: (params: { start_date: string; end_date: string }) =>
+    api.get<DepartmentRecruitmentStat[]>('/recruitment/reports/by-department', { params }).then((r) => r.data),
+
+  getTimeMetrics: (params: { year: number; department_id?: number }) =>
+    api.get<TimeMetricsReport>('/recruitment/reports/time-metrics', { params }).then((r) => r.data),
+
+  exportExcel: (params: { start_date: string; end_date: string; department_id?: number }) =>
+    api.get('/recruitment/reports/export', { params, responseType: 'blob' }).then((r) => r.data as Blob),
+}

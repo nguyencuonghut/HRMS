@@ -1193,3 +1193,69 @@ class ConvertToEmployeeResult(BaseModel):
     employee_id: int
     employee_code: str
     message: str
+
+
+# ── Recruitment Reports (13.8) ────────────────────────────────────────────────
+
+
+class RecruitmentSummaryReport(BaseModel):
+    period_start: date
+    period_end: date
+    total_jr: int
+    total_applications: int
+    total_screened: int
+    total_interviewed: int
+    total_offered: int
+    total_hired: int
+    avg_time_to_hire: Optional[float] = None   # ngày
+    avg_time_to_fill: Optional[float] = None   # ngày
+    offer_acceptance_rate: Optional[float] = None  # %
+    cost_per_hire: Optional[float] = None      # VND
+    probation_pass_rate: Optional[float] = None  # %, None nếu module 14 chưa có data
+
+
+class FunnelStage(BaseModel):
+    stage: str        # new | screening | test | interview | offer | hired | rejected
+    stage_label: str
+    count: int
+    conversion_rate: Optional[float] = None   # % so với stage trước
+
+
+class FunnelReport(BaseModel):
+    stages: list[FunnelStage]
+
+
+class ChannelEffectivenessItem(BaseModel):
+    channel_id: int
+    channel_name: str
+    total_candidates: int
+    hired_count: int
+    hire_rate: float   # %
+    total_cost: Optional[float] = None    # VND
+    cost_per_hire: Optional[float] = None
+
+
+class DepartmentRecruitmentStat(BaseModel):
+    department_id: int
+    department_name: str
+    total_jr: int
+    open_jr: int
+    hired_count: int
+    avg_time_to_hire: Optional[float] = None
+    offer_acceptance_rate: Optional[float] = None
+    budget_used: Optional[float] = None
+    cost_per_hire: Optional[float] = None
+
+
+class MonthlyTimeMetric(BaseModel):
+    month: int
+    year: int
+    avg_time_to_hire: Optional[float] = None
+    avg_time_to_fill: Optional[float] = None
+    hired_count: int
+    applications_count: int
+
+
+class TimeMetricsReport(BaseModel):
+    year: int
+    monthly: list[MonthlyTimeMetric]

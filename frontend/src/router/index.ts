@@ -221,6 +221,12 @@ const router = createRouter({
           component: () => import("@/views/recruitment/components/EmailTemplateListTab.vue"),
           meta: { title: "Cài đặt tuyển dụng" },
         },
+        {
+          path: "recruitment/reports",
+          name: "recruitment-reports",
+          component: () => import("@/views/recruitment/RecruitmentReportView.vue"),
+          meta: { title: "Báo cáo tuyển dụng" },
+        },
         // Báo cáo
         {
           path: "reports",

@@ -128,6 +128,7 @@ const menu: MenuItem[] = [
       { to: '/recruitment/headcount', label: 'Kế hoạch nhân sự'   },
       { to: '/recruitment/legal',     label: 'Hồ sơ pháp lý'      },
       { to: '/recruitment/settings',  label: 'Cài đặt tuyển dụng' },
+      { to: '/recruitment/reports',   label: 'Báo cáo tuyển dụng' },
     ],
   },
   { section: true, label: 'Phân tích' },
