@@ -57,7 +57,7 @@
     </div>
 
     <!-- Info -->
-    <div class="section-stack" style="padding-top: 0.5rem">
+    <div class="section-stack" style="margin-top: 0.75rem">
       <div class="section-card">
         <div class="section-header">
           <span class="section-title">Thông tin tin tuyển dụng</span>

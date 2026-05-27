@@ -1550,6 +1550,15 @@ async def create_hiring_decision(
     return result
 
 
+@router.get("/job-requisitions/{jr_id}/hiring-decisions", response_model=list[HiringDecisionRead], tags=[_OFFER_TAG])
+async def list_hiring_decisions_for_jr(
+    jr_id: int,
+    _: User = require_permission("recruitment:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await hiring_decision_service.list_decisions_for_jr(session, jr_id)
+
+
 @router.get("/offers/{offer_id}/hiring-decision", response_model=HiringDecisionRead, tags=[_OFFER_TAG])
 async def get_hiring_decision_for_offer(
     offer_id: int,

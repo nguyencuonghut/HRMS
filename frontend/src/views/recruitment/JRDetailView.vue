@@ -108,6 +108,9 @@
       <TabList>
         <Tab value="info">Thông tin chung</Tab>
         <Tab value="budget">Ngân sách tuyển dụng</Tab>
+        <Tab value="hired">Kết quả tuyển dụng
+          <Badge v-if="hiredDecisions.length" :value="hiredDecisions.length" severity="success" style="margin-left: 0.4rem" />
+        </Tab>
       </TabList>
       <TabPanels>
         <!-- Info tab -->
@@ -191,6 +194,45 @@
                 {{ jr.effective_requirements }}
               </div>
               <div v-else class="rc-jd-empty">Chưa có yêu cầu ứng viên</div>
+            </div>
+          </div>
+        </TabPanel>
+
+        <!-- Hired tab -->
+        <TabPanel value="hired">
+          <div class="section-stack" style="padding-top: 1rem">
+            <div class="section-card">
+              <div v-if="hiredLoading" class="rc-jd-empty">Đang tải...</div>
+              <div v-else-if="!hiredDecisions.length" class="rc-jd-empty">Chưa có ứng viên nào được tuyển.</div>
+              <DataTable v-else :value="hiredDecisions" size="small">
+                <Column header="Ứng viên" style="min-width: 160px">
+                  <template #body="{ data }">
+                    <RouterLink :to="`/recruitment/candidates/${data.candidate_id}`" class="rc-link">
+                      {{ data.candidate_name }}
+                    </RouterLink>
+                  </template>
+                </Column>
+                <Column header="Phòng ban / Vị trí" style="min-width: 200px">
+                  <template #body="{ data }">
+                    <div>{{ data.department_name }}</div>
+                    <div style="font-size: 0.8rem; color: var(--l-text-muted)">{{ data.job_position_name }}</div>
+                  </template>
+                </Column>
+                <Column header="Ngày bắt đầu" style="width: 130px">
+                  <template #body="{ data }">{{ data.start_date }}</template>
+                </Column>
+                <Column header="Mã NV" style="width: 110px">
+                  <template #body="{ data }">
+                    <span v-if="data.employee_code" class="rc-emp-code">{{ data.employee_code }}</span>
+                    <span v-else class="rc-muted">—</span>
+                  </template>
+                </Column>
+                <Column header="Trạng thái" style="width: 140px">
+                  <template #body="{ data }">
+                    <Tag :value="data.status_label" :severity="data.status === 'converted' ? 'success' : 'warn'" />
+                  </template>
+                </Column>
+              </DataTable>
             </div>
           </div>
         </TabPanel>
@@ -436,8 +478,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
-import { useRoute, useRouter } from "vue-router";
+import { ref, computed, onMounted, watch } from "vue";
+import { useRoute, useRouter, RouterLink } from "vue-router";
+import Badge from "primevue/badge";
 import Button from "primevue/button";
 import Column from "primevue/column";
 import DataTable from "primevue/datatable";
@@ -455,6 +498,8 @@ import { useConfirm } from "primevue/useconfirm";
 import { useToast } from "primevue/usetoast";
 
 import recruitmentService, {
+  hiringDecisionService,
+  type HiringDecisionRead,
   type JobRequisitionRead,
   type BudgetSummary,
   type BudgetItemRead,
@@ -472,6 +517,9 @@ const activeTab = ref("info");
 
 const budget = ref<BudgetSummary | null>(null);
 const budgetLoading = ref(false);
+
+const hiredDecisions = ref<HiringDecisionRead[]>([]);
+const hiredLoading = ref(false);
 
 // Edit JR
 const showEditDialog = ref(false);
@@ -570,6 +618,21 @@ async function loadBudget() {
     budgetLoading.value = false;
   }
 }
+
+async function loadHired() {
+  hiredLoading.value = true;
+  try {
+    hiredDecisions.value = await hiringDecisionService.listForJr(jrId.value);
+  } catch {
+    hiredDecisions.value = [];
+  } finally {
+    hiredLoading.value = false;
+  }
+}
+
+watch(activeTab, (tab) => {
+  if (tab === "hired" && !hiredDecisions.value.length) loadHired();
+});
 
 // JR actions
 function openEdit() {

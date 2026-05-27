@@ -1231,6 +1231,7 @@ export interface HiringDecisionRead {
   file_path: string | null;
   file_name: string | null;
   employee_id: number | null;
+  employee_code: string | null;
   status: string;
   status_label: string;
   candidate_missing_fields: string[];
@@ -1276,6 +1277,9 @@ const offerService = {
 // ── Hiring Decision API ───────────────────────────────────────────────────────
 
 const hiringDecisionService = {
+  listForJr: (jrId: number) =>
+    api.get<HiringDecisionRead[]>(`/recruitment/job-requisitions/${jrId}/hiring-decisions`).then((r) => r.data),
+
   getForOffer: (offerId: number) =>
     api.get<HiringDecisionRead>(`/recruitment/offers/${offerId}/hiring-decision`).then((r) => r.data),
 

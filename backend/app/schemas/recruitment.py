@@ -1179,6 +1179,7 @@ class HiringDecisionRead(BaseModel):
     file_path: Optional[str]
     file_name: Optional[str]
     employee_id: Optional[int]
+    employee_code: Optional[str] = None
     status: str
     status_label: str
     candidate_missing_fields: list[str]

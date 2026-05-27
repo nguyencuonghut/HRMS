@@ -43,6 +43,14 @@ async def _build_read(session: AsyncSession, hd: HiringDecision) -> HiringDecisi
 
     missing_fields = _get_missing_candidate_fields(candidate) if candidate else []
 
+    employee_code: Optional[str] = None
+    if hd.employee_id:
+        from app.models.employee import Employee
+        from app.services import employee_code_service
+        emp = await session.get(Employee, hd.employee_id)
+        if emp:
+            employee_code = await employee_code_service.build_employee_display_code(session, emp)
+
     return HiringDecisionRead(
         id=hd.id,
         offer_id=hd.offer_id,
@@ -64,6 +72,7 @@ async def _build_read(session: AsyncSession, hd: HiringDecision) -> HiringDecisi
         file_path=hd.file_path,
         file_name=hd.file_name,
         employee_id=hd.employee_id,
+        employee_code=employee_code,
         status=hd.status,
         status_label=_HD_STATUS_LABELS.get(hd.status, hd.status),
         candidate_missing_fields=missing_fields,
@@ -71,6 +80,14 @@ async def _build_read(session: AsyncSession, hd: HiringDecision) -> HiringDecisi
         created_at=hd.created_at,
         updated_at=hd.updated_at,
     )
+
+
+async def list_decisions_for_jr(session: AsyncSession, jr_id: int) -> list[HiringDecisionRead]:
+    rows = (await session.execute(
+        select(HiringDecision).where(HiringDecision.job_requisition_id == jr_id)
+        .order_by(HiringDecision.created_at.desc())
+    )).scalars().all()
+    return [await _build_read(session, hd) for hd in rows]
 
 
 async def get_decision_for_offer(session: AsyncSession, offer_id: int) -> Optional[HiringDecisionRead]:
