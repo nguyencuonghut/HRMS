@@ -1178,18 +1178,6 @@ async def advance_application(
     return result
 
 
-@router.post("/applications/{application_id}/reject", response_model=ApplicationRead, tags=[_TAG])
-async def reject_application(
-    application_id: int,
-    data: RejectRequest,
-    current_user: User = require_permission("recruitment:manage"),
-    session: AsyncSession = Depends(get_session),
-):
-    result = await pipeline_service.reject_application(session, application_id, data, current_user.id)
-    await session.commit()
-    return result
-
-
 @router.post("/applications/{application_id}/hold", response_model=ApplicationRead, tags=[_TAG])
 async def hold_application(
     application_id: int,

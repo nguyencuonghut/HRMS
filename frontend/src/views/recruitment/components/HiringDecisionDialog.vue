@@ -92,14 +92,35 @@
       </div>
     </div>
 
+    <!-- Missing fields warning (shown when decision is pending and candidate has missing required fields) -->
+    <div
+      v-if="decision?.status === 'pending' && decision.candidate_missing_fields?.length"
+      class="rc-missing-fields-warn"
+    >
+      <i class="pi pi-exclamation-triangle" />
+      Hồ sơ ứng viên thiếu thông tin bắt buộc — cần bổ sung trước khi tạo nhân viên:
+      <ul class="rc-missing-list">
+        <li v-for="f in decision.candidate_missing_fields" :key="f">{{ f }}</li>
+      </ul>
+    </div>
+
     <template #footer>
       <Button label="Đóng" severity="secondary" outlined @click="visible = false" />
+      <Button
+        v-if="decision?.status === 'pending'"
+        label="Cập nhật"
+        icon="pi pi-save"
+        severity="secondary"
+        :loading="saving"
+        @click="update"
+      />
       <Button
         v-if="decision?.status === 'pending'"
         label="Tạo nhân viên"
         icon="pi pi-user-plus"
         severity="success"
         :loading="converting"
+        :disabled="!!decision.candidate_missing_fields?.length"
         @click="convert"
       />
       <Button
@@ -147,6 +168,20 @@ const emit = defineEmits<{
 
 const visible = defineModel<boolean>('visible', { default: false })
 const toast = useToast()
+
+function extractErrorDetail(err: unknown, fallback = 'Có lỗi xảy ra'): string {
+  const data = (err as any)?.response?.data
+  if (!data) return fallback
+  // Plain string response (e.g. nginx/proxy 500)
+  if (typeof data === 'string') return data.length < 200 ? data : fallback
+  const detail = data.detail
+  if (!detail) return fallback
+  if (typeof detail === 'string') return detail
+  if (Array.isArray(detail)) {
+    return detail.map((d: any) => d?.msg ?? JSON.stringify(d)).join('; ')
+  }
+  return fallback
+}
 const saving = ref(false)
 const converting = ref(false)
 const convertResult = ref<ConvertToEmployeeResult | null>(null)
@@ -204,9 +239,37 @@ async function save() {
     const result = await hiringDecisionService.create(props.offerId, payload)
     toast.add({ severity: 'success', summary: 'Đã tạo quyết định tuyển dụng', life: 2000 })
     emit('saved', result)
-  } catch (err: any) {
-    const msg = err?.response?.data?.detail ?? 'Có lỗi xảy ra'
-    toast.add({ severity: 'error', summary: 'Lỗi', detail: msg, life: 4000 })
+    visible.value = false
+  } catch (err: unknown) {
+    toast.add({ severity: 'error', summary: 'Lỗi', detail: extractErrorDetail(err), life: 5000 })
+  } finally {
+    saving.value = false
+  }
+}
+
+async function update() {
+  if (!props.decision) return
+  if (!form.value.department_id || !form.value.job_position_id || !form.value.start_date || !form.value.official_salary || !form.value.probation_salary || !form.value.probation_days) {
+    toast.add({ severity: 'warn', summary: 'Thiếu thông tin', detail: 'Vui lòng điền đầy đủ các trường bắt buộc.', life: 3000 })
+    return
+  }
+  saving.value = true
+  try {
+    const payload = {
+      decision_number: form.value.decision_number || null,
+      signed_date: toDateStr(form.value.signed_date)!,
+      department_id: form.value.department_id!,
+      job_position_id: form.value.job_position_id!,
+      start_date: toDateStr(form.value.start_date)!,
+      official_salary: form.value.official_salary!,
+      probation_salary: form.value.probation_salary!,
+      probation_days: form.value.probation_days!,
+    }
+    const result = await hiringDecisionService.update(props.decision.id, payload)
+    toast.add({ severity: 'success', summary: 'Đã cập nhật quyết định', life: 2000 })
+    emit('saved', result)
+  } catch (err: unknown) {
+    toast.add({ severity: 'error', summary: 'Lỗi', detail: extractErrorDetail(err), life: 5000 })
   } finally {
     saving.value = false
   }
@@ -221,9 +284,9 @@ async function convert() {
     const updated = await hiringDecisionService.get(props.decision.id)
     toast.add({ severity: 'success', summary: 'Đã tạo nhân viên', detail: result.message, life: 4000 })
     emit('converted', result, updated)
-  } catch (err: any) {
-    const msg = err?.response?.data?.detail ?? 'Có lỗi xảy ra'
-    toast.add({ severity: 'error', summary: 'Lỗi', detail: msg, life: 4000 })
+    visible.value = false
+  } catch (err: unknown) {
+    toast.add({ severity: 'error', summary: 'Lỗi', detail: extractErrorDetail(err), life: 5000 })
   } finally {
     converting.value = false
   }

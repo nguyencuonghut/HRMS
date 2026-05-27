@@ -14,12 +14,13 @@ depends_on = None
 
 _TEMPLATES = [
     ("invite_screening",           "Mời tham gia sàng lọc",              "stage_moved:screening",  True),
-    ("invite_interview",           "Mời phỏng vấn",                      "stage_moved:interview",  True),
+    ("invite_interview",           "Mời phỏng vấn",                      "interview_scheduled",    True),
     ("offer_sent",                 "Thông báo gửi Offer",                 "offer_sent",             True),
     ("offer_accepted_confirm",     "Xác nhận chấp nhận offer",           "offer_accepted",         True),
     ("rejection_early",            "Thông báo không phù hợp (sớm)",      "stage_moved:rejected",   True),
     ("rejection_after_interview",  "Cảm ơn sau phỏng vấn",               "rejected",               True),
     ("hired_welcome",              "Chào mừng nhân viên mới",            "hired",                  True),
+    ("application_on_hold",       "Hồ sơ đang được xem xét",            "hold",                   True),
 ]
 
 _DEFAULT_SUBJECT = {
@@ -30,6 +31,7 @@ _DEFAULT_SUBJECT = {
     "rejection_early":            "Thông báo kết quả ứng tuyển — {{vi_tri}}",
     "rejection_after_interview":  "Cảm ơn bạn đã tham gia phỏng vấn — {{vi_tri}}",
     "hired_welcome":              "Chào mừng bạn gia nhập {{ten_cong_ty}}!",
+    "application_on_hold":        "Thông báo về hồ sơ ứng tuyển — {{vi_tri}}",
 }
 
 _DEFAULT_BODY = {
@@ -79,6 +81,12 @@ _DEFAULT_BODY = {
 <p>Ngày bắt đầu: <strong>{{ngay_bat_dau}}</strong>.</p>
 <p>Chúng tôi sẽ liên hệ để hướng dẫn các thủ tục cần thiết trước ngày đi làm.</p>
 <p>Hẹn gặp bạn sớm!<br/>{{ten_hr}}<br/>{{ten_cong_ty}}</p>""",
+
+    "application_on_hold": """<p>Kính gửi {{ten_ung_vien}},</p>
+<p>Cảm ơn bạn đã quan tâm và ứng tuyển vào vị trí <strong>{{vi_tri}}</strong> tại <strong>{{ten_cong_ty}}</strong>.</p>
+<p>Chúng tôi đã nhận được hồ sơ của bạn và hiện đang trong quá trình xem xét. Chúng tôi sẽ liên hệ với bạn sớm nhất có thể để thông báo kết quả.</p>
+<p>Nếu có bất kỳ thắc mắc nào, vui lòng liên hệ {{ten_hr}} qua email {{email_hr}}.</p>
+<p>Trân trọng,<br/>{{ten_hr}}<br/>{{ten_cong_ty}}</p>""",
 }
 
 

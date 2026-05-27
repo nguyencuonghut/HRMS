@@ -41,6 +41,8 @@ async def _build_read(session: AsyncSession, hd: HiringDecision) -> HiringDecisi
     jp = await session.get(JobPosition, hd.job_position_id)
     jt = await session.get(JobTitle, hd.job_title_id) if hd.job_title_id else None
 
+    missing_fields = _get_missing_candidate_fields(candidate) if candidate else []
+
     return HiringDecisionRead(
         id=hd.id,
         offer_id=hd.offer_id,
@@ -64,6 +66,7 @@ async def _build_read(session: AsyncSession, hd: HiringDecision) -> HiringDecisi
         employee_id=hd.employee_id,
         status=hd.status,
         status_label=_HD_STATUS_LABELS.get(hd.status, hd.status),
+        candidate_missing_fields=missing_fields,
         created_by_id=hd.created_by_id,
         created_at=hd.created_at,
         updated_at=hd.updated_at,
@@ -84,6 +87,18 @@ async def get_decision(session: AsyncSession, decision_id: int) -> HiringDecisio
     if not hd:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Không tìm thấy quyết định tuyển dụng")
     return await _build_read(session, hd)
+
+
+async def _validate_dept_position(session: AsyncSession, department_id: int, job_position_id: int) -> None:
+    from app.models.org import JobPosition
+    jp = await session.get(JobPosition, job_position_id)
+    if not jp:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Không tìm thấy vị trí công việc")
+    if jp.department_id != department_id:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Vị trí công việc không thuộc phòng ban đã chọn",
+        )
 
 
 async def create_decision(
@@ -109,6 +124,8 @@ async def create_decision(
             status.HTTP_409_CONFLICT,
             detail="Offer này đã có quyết định tuyển dụng",
         )
+
+    await _validate_dept_position(session, data.department_id, data.job_position_id)
 
     hd = HiringDecision(
         offer_id=offer_id,
@@ -147,7 +164,12 @@ async def update_decision(
             status.HTTP_409_CONFLICT,
             detail="Chỉ có thể chỉnh sửa quyết định ở trạng thái chờ xử lý",
         )
-    for field, value in data.model_dump(exclude_unset=True).items():
+    updates = data.model_dump(exclude_unset=True)
+    dept_id = updates.get("department_id", hd.department_id)
+    pos_id = updates.get("job_position_id", hd.job_position_id)
+    if "department_id" in updates or "job_position_id" in updates:
+        await _validate_dept_position(session, dept_id, pos_id)
+    for field, value in updates.items():
         setattr(hd, field, value)
     hd.updated_at = _utcnow()
     await session.flush()
@@ -312,12 +334,12 @@ async def convert_to_employee(
     )
 
 
-def _check_required_candidate_fields(candidate) -> None:
+def _get_missing_candidate_fields(candidate) -> list[str]:
     missing = []
     if not candidate.last_name:
-        missing.append("Họ (last_name)")
+        missing.append("Họ")
     if not candidate.first_name:
-        missing.append("Tên (first_name)")
+        missing.append("Tên")
     if not candidate.date_of_birth:
         missing.append("Ngày sinh")
     if not candidate.gender:
@@ -330,6 +352,11 @@ def _check_required_candidate_fields(candidate) -> None:
         missing.append("Ngày cấp CCCD")
     if not candidate.id_issued_by:
         missing.append("Nơi cấp CCCD")
+    return missing
+
+
+def _check_required_candidate_fields(candidate) -> None:
+    missing = _get_missing_candidate_fields(candidate)
     if missing:
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_CONTENT,

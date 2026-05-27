@@ -22,6 +22,13 @@
         />
       </div>
 
+      <!-- Stage indicator -->
+      <div v-if="selectedApplicationStage" style="font-size: 0.83rem; color: var(--l-text-muted); margin-bottom: 0.25rem">
+        <i class="pi pi-filter" style="margin-right: 0.3rem" />
+        Giai đoạn hiện tại: <strong>{{ stageName(selectedApplicationStage) }}</strong>
+        — chỉ hiển thị template phù hợp với giai đoạn này.
+      </div>
+
       <!-- Template select -->
       <div class="rc-field">
         <label class="rc-label">Template <span class="rc-req">*</span></label>
@@ -70,7 +77,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, computed, watch } from 'vue'
 import Button from 'primevue/button'
 import Dialog from 'primevue/dialog'
 import Select from 'primevue/select'
@@ -80,6 +87,7 @@ import {
   communicationService,
   type EmailTemplateRead,
   type EmailTemplatePreviewResult,
+  type ApplicationRead,
 } from '@/services/recruitmentService'
 import recruitmentService from '@/services/recruitmentService'
 
@@ -95,6 +103,8 @@ const visible = defineModel<boolean>('visible', { default: false })
 const toast = useToast()
 
 const templates = ref<EmailTemplateRead[]>([])
+const applicationItems = ref<ApplicationRead[]>([])
+
 const triggerEventLabels: Record<string, string> = {
   'stage_moved:screening': 'Chuyển giai đoạn: Sàng lọc',
   'stage_moved:interview': 'Chuyển giai đoạn: Phỏng vấn (chưa có lịch)',
@@ -105,10 +115,71 @@ const triggerEventLabels: Record<string, string> = {
   'offer_rejected': 'Ứng viên từ chối offer',
   'hired': 'Tuyển dụng thành công',
   'rejected': 'Từ chối ứng viên',
+  'hold': 'Tạm giữ hồ sơ',
 }
 
-const templateOptions = ref<{ label: string; value: number }[]>([])
-const applicationOptions = ref<{ label: string; value: number }[]>([])
+const STAGE_NAMES: Record<string, string> = {
+  new: 'Mới nộp',
+  screening: 'Sàng lọc',
+  test: 'Kiểm tra',
+  interview: 'Phỏng vấn',
+  final: 'Vòng cuối',
+  offer: 'Đề nghị',
+  hired: 'Đã tuyển',
+  rejected: 'Đã từ chối',
+  withdrawn: 'Đã rút',
+}
+
+function stageName(stage: string | null): string {
+  return stage ? (STAGE_NAMES[stage] ?? stage) : ''
+}
+
+// trigger_event → danh sách stage được phép chọn template này
+const TRIGGER_STAGE_ALLOW: Record<string, string[]> = {
+  'stage_moved:new':        ['new'],
+  'stage_moved:screening':  ['screening'],
+  'stage_moved:test':       ['test'],
+  'stage_moved:interview':  ['interview'],
+  'stage_moved:final':      ['final'],
+  'stage_moved:offer':      ['offer'],
+  'interview_scheduled':    ['interview'],
+  'offer_sent':             ['offer'],
+  'offer_accepted':         ['offer'],
+  'offer_rejected':         ['offer'],
+  'hired':                  ['hired'],
+  'hold':                   ['new', 'screening', 'test', 'interview', 'final'],
+  'rejected':               [], // special: luôn cho phép (xem isTemplateAllowed)
+}
+
+function isTemplateAllowed(t: EmailTemplateRead, currentStage: string | null): boolean {
+  if (!currentStage) return true                    // chưa chọn app → hiện tất cả
+  if (!t.trigger_event) return true                 // template generic → luôn hiện
+  if (t.trigger_event === 'rejected') return true   // từ chối có thể gửi ở bất kỳ giai đoạn nào
+  const allowed = TRIGGER_STAGE_ALLOW[t.trigger_event]
+  if (allowed === undefined) return true            // trigger không xác định → hiện
+  return allowed.includes(currentStage)
+}
+
+const applicationOptions = computed(() =>
+  applicationItems.value.map((a) => ({
+    label: `${a.job_requisition_code} — ${a.job_position_name ?? ''}${a.department_name ? ' / ' + a.department_name : ''}`,
+    value: a.id,
+  }))
+)
+
+const selectedApplicationStage = computed<string | null>(() => {
+  if (!form.value.application_id) return null
+  return applicationItems.value.find((a) => a.id === form.value.application_id)?.current_stage ?? null
+})
+
+const templateOptions = computed(() =>
+  templates.value
+    .filter((t) => isTemplateAllowed(t, selectedApplicationStage.value))
+    .map((t) => ({
+      label: t.name + (t.trigger_event ? ` (${triggerEventLabels[t.trigger_event] ?? t.trigger_event})` : ''),
+      value: t.id,
+    }))
+)
 
 const form = ref({
   template_id: null as number | null,
@@ -125,20 +196,24 @@ async function loadData() {
       recruitmentService.listCandidateApplications(props.candidateId, { page_size: 50 }),
     ])
     templates.value = tplRes
-    templateOptions.value = tplRes.map((t) => ({
-      label: t.name + (t.trigger_event ? ` (${triggerEventLabels[t.trigger_event] ?? t.trigger_event})` : ''),
-      value: t.id,
-    }))
-    applicationOptions.value = appRes.data.items.map((a) => ({
-      label: `${a.job_requisition_code} — ${a.job_position_name ?? ''}${a.department_name ? ' / ' + a.department_name : ''}`,
-      value: a.id,
-    }))
+    applicationItems.value = appRes.data.items
     // auto-select nếu chỉ có 1 application
     if (appRes.data.items.length === 1) {
       form.value.application_id = appRes.data.items[0].id
     }
   } catch {}
 }
+
+// Reset template nếu không còn hợp lệ sau khi đổi application
+watch(selectedApplicationStage, () => {
+  if (form.value.template_id) {
+    const stillValid = templateOptions.value.some((o) => o.value === form.value.template_id)
+    if (!stillValid) {
+      form.value.template_id = null
+      preview.value = null
+    }
+  }
+})
 
 async function onContextChange() {
   preview.value = null

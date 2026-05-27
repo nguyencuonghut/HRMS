@@ -98,6 +98,24 @@
   color: var(--l-text-muted);
 }
 
+.rc-missing-fields-warn {
+  font-size: 0.85rem;
+  color: var(--p-orange-700);
+  background: color-mix(in srgb, var(--p-orange-400) 12%, transparent);
+  border-radius: 6px;
+  padding: 0.6rem 0.75rem;
+  margin-top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+
+  .rc-missing-list {
+    margin: 0.25rem 0 0 1.25rem;
+    padding: 0;
+    li { margin: 0.1rem 0; }
+  }
+}
+
 .rc-api-error {
   color: var(--p-red-500);
   font-size: 0.875rem;

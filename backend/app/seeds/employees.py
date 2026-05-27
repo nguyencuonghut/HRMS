@@ -308,4 +308,17 @@ async def seed_sample_employees(session: AsyncSession) -> int:
                 },
             )
 
+    # Sync next_value to max(employee_seq)+1 so allocate_employee_seq doesn't collide
+    await session.execute(text("""
+        UPDATE employee_code_sequences ecs
+        SET next_value = sub.max_seq + 1
+        FROM (
+            SELECT employee_code_sequence_id, MAX(employee_seq) AS max_seq
+            FROM employees
+            GROUP BY employee_code_sequence_id
+        ) sub
+        WHERE ecs.id = sub.employee_code_sequence_id
+          AND ecs.next_value <= sub.max_seq
+    """))
+
     return added

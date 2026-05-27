@@ -227,9 +227,6 @@ DELETE /recruitment/job-requisitions/{jr_id}/pipeline/{stage_id}
 POST   /recruitment/applications/{id}/advance
        body: { stage_id, result, notes }
 
-POST   /recruitment/applications/{id}/reject
-       body: { rejection_reason }
-
 POST   /recruitment/applications/{id}/hold
        body: { notes }
 
@@ -341,11 +338,6 @@ class PanelistScoreSubmit(BaseModel):
 - Nếu result = `pass`: kiểm tra còn bước tiếp theo → cập nhật `application.current_stage`
 - Nếu là bước cuối và pass: chuyển `current_stage = 'offer'` (sẵn sàng cho 13.5)
 - Nếu result = `fail`: chuyển `current_stage = 'rejected'`, yêu cầu `rejection_reason`
-
-**`reject_application(session, application_id, rejection_reason, user_id)`**
-- `current_stage → rejected`
-- Ghi `rejection_reason`
-- Trigger gửi email thông báo (→ 13.7)
 
 **`get_kanban(session, jr_id) → KanbanBoard`**
 - JOIN `pipeline_stages` + `candidate_applications` + `candidates`
@@ -484,8 +476,8 @@ frontend/
 - Models: PipelineStageTemplate, PipelineStageTemplateItem, PipelineStage, CandidateStageResult, InterviewSession, InterviewPanelist, InterviewQuestion, ScorecardCriterion
 
 ### Slice 2 — Backend: Pipeline Setup + Advance/Reject ✅
-- `pipeline_service.py`: setup_pipeline_for_jr, advance_application, reject_application, hold_application, get_kanban
-- Endpoints: pipeline config + advance/reject/hold
+- `pipeline_service.py`: setup_pipeline_for_jr, advance_application, hold_application, get_kanban
+- Endpoints: pipeline config + advance/hold
 
 ### Slice 3 — Backend: Interview + Scorecard ✅
 - `interview_service.py`: create_interview, submit_panelist_score, complete_interview, cancel_interview

@@ -475,11 +475,6 @@ export default {
       data,
     ),
 
-  rejectApplication: (applicationId: number, rejection_note: string) =>
-    api.post<ApplicationRead>(
-      `/recruitment/applications/${applicationId}/reject`,
-      { rejection_note },
-    ),
 
   holdApplication: (applicationId: number, data: HoldApplicationPayload) =>
     api.post<ApplicationRead>(
@@ -1238,6 +1233,7 @@ export interface HiringDecisionRead {
   employee_id: number | null;
   status: string;
   status_label: string;
+  candidate_missing_fields: string[];
   created_by_id: number;
   created_at: string;
   updated_at: string;

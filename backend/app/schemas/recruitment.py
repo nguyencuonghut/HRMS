@@ -1181,6 +1181,7 @@ class HiringDecisionRead(BaseModel):
     employee_id: Optional[int]
     status: str
     status_label: str
+    candidate_missing_fields: list[str]
     created_by_id: int
     created_at: datetime
     updated_at: datetime

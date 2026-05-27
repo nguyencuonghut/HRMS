@@ -274,7 +274,7 @@
 
       <div class="rc-field">
         <label class="rc-label">Tags <span class="rc-optional">(Enter để thêm)</span></label>
-        <InputChips v-model="form.tags" />
+        <AutoComplete v-model="form.tags" :typeahead="false" multiple fluid />
       </div>
 
       <div class="rc-field">
@@ -297,7 +297,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import Button from 'primevue/button'
 import DatePicker from 'primevue/datepicker'
 import Dialog from 'primevue/dialog'
-import InputChips from 'primevue/inputchips'
+import AutoComplete from 'primevue/autocomplete'
 import InputNumber from 'primevue/inputnumber'
 import InputText from 'primevue/inputtext'
 import Select from 'primevue/select'

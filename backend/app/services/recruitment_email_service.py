@@ -568,6 +568,98 @@ async def auto_send_on_offer_event(
         pass
 
 
+async def auto_send_on_hold(
+    session: AsyncSession,
+    application_id: int,
+    user_id: int,
+) -> None:
+    """Fires when a candidate is placed on hold — notifies them that their application is under review."""
+    trigger_event = "hold"
+    tmpl = (await session.execute(
+        select(RecruitmentEmailTemplate)
+        .where(
+            RecruitmentEmailTemplate.trigger_event == trigger_event,
+            RecruitmentEmailTemplate.is_active == True,
+        )
+        .limit(1)
+    )).scalar_one_or_none()
+    if not tmpl:
+        return
+
+    app = await session.get(CandidateApplication, application_id)
+    if not app:
+        return
+
+    from app.models.recruitment import Candidate
+    cand = await session.get(Candidate, app.candidate_id)
+    if not cand or not cand.personal_email:
+        return
+
+    try:
+        await send_email(
+            session,
+            candidate_id=app.candidate_id,
+            req=SendEmailRequest(template_id=tmpl.id, application_id=application_id),
+            user_id=user_id,
+            trigger_event=trigger_event,
+            auto_send=True,
+        )
+    except Exception:
+        pass
+
+
+_STAGES_WITH_INTERVIEW_REJECTION = {"interview", "final"}
+
+
+async def auto_send_on_fail(
+    session: AsyncSession,
+    application_id: int,
+    rejected_from_stage_type: str,
+    user_id: int,
+) -> None:
+    """Pick rejection template based on which stage the candidate was rejected from.
+
+    interview/final → 'rejected' (rejection_after_interview)
+    earlier stages  → 'stage_moved:rejected' (rejection_early)
+    """
+    trigger_event = (
+        "rejected"
+        if rejected_from_stage_type in _STAGES_WITH_INTERVIEW_REJECTION
+        else "stage_moved:rejected"
+    )
+    tmpl = (await session.execute(
+        select(RecruitmentEmailTemplate)
+        .where(
+            RecruitmentEmailTemplate.trigger_event == trigger_event,
+            RecruitmentEmailTemplate.is_active == True,
+        )
+        .limit(1)
+    )).scalar_one_or_none()
+    if not tmpl:
+        return
+
+    app = await session.get(CandidateApplication, application_id)
+    if not app:
+        return
+
+    from app.models.recruitment import Candidate
+    cand = await session.get(Candidate, app.candidate_id)
+    if not cand or not cand.personal_email:
+        return
+
+    try:
+        await send_email(
+            session,
+            candidate_id=app.candidate_id,
+            req=SendEmailRequest(template_id=tmpl.id, application_id=application_id),
+            user_id=user_id,
+            trigger_event=trigger_event,
+            auto_send=True,
+        )
+    except Exception:
+        pass
+
+
 async def auto_send_on_interview_scheduled(
     session: AsyncSession,
     application_id: int,

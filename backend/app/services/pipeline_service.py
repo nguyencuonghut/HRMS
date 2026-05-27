@@ -39,7 +39,6 @@ from app.schemas.recruitment import (
     PipelineStageTemplateRead,
     PipelineStageTemplateUpdate,
     PipelineStageUpdate,
-    RejectRequest,
     StageResultUpsert,
 )
 
@@ -556,31 +555,21 @@ async def advance_application(
             await auto_send_on_stage_change(session, application_id, app.current_stage, user_id)
         except Exception:
             pass
+    elif data.result == "fail":
+        try:
+            from app.services.recruitment_email_service import auto_send_on_fail
+            await auto_send_on_fail(session, application_id, stage.stage_type, user_id)
+        except Exception:
+            pass
+    elif data.result == "hold":
+        try:
+            from app.services.recruitment_email_service import auto_send_on_hold
+            await auto_send_on_hold(session, application_id, user_id)
+        except Exception:
+            pass
 
     return await _application_read(session, app)
 
-
-async def reject_application(
-    session: AsyncSession,
-    application_id: int,
-    data: RejectRequest,
-    user_id: int,
-) -> ApplicationRead:
-    app = await _get_application_or_404(session, application_id)
-    if app.current_stage in _TERMINAL_STAGES:
-        raise HTTPException(status.HTTP_409_CONFLICT, detail=f"Hồ sơ đã ở trạng thái '{app.current_stage}', không thể thay đổi")
-    app.current_stage = "rejected"
-    app.rejection_reason = data.rejection_note
-    app.updated_at = _utcnow()
-    await session.flush()
-
-    try:
-        from app.services.recruitment_email_service import auto_send_on_stage_change
-        await auto_send_on_stage_change(session, application_id, "rejected", user_id)
-    except Exception:
-        pass
-
-    return await _application_read(session, app)
 
 
 async def hold_application(
@@ -604,6 +593,13 @@ async def hold_application(
     app.current_stage = stage.stage_type
     app.updated_at = _utcnow()
     await session.flush()
+
+    try:
+        from app.services.recruitment_email_service import auto_send_on_hold
+        await auto_send_on_hold(session, application_id, user_id)
+    except Exception:
+        pass
+
     return await _application_read(session, app)
 
 
@@ -638,8 +634,10 @@ async def get_kanban(session: AsyncSession, jr_id: int) -> KanbanBoard:
                 channel_name = channel.name if channel else None
             last_result_q = await session.execute(
                 select(CandidateStageResult)
-                .where(CandidateStageResult.application_id == app.id)
-                .order_by(CandidateStageResult.evaluated_at.desc().nullslast(), CandidateStageResult.id.desc())
+                .where(
+                    CandidateStageResult.application_id == app.id,
+                    CandidateStageResult.stage_id == stage.id,
+                )
                 .limit(1)
             )
             last_result = last_result_q.scalars().first()
