@@ -153,9 +153,13 @@ const router = createRouter({
         // Tuyển dụng
         {
           path: "recruitment",
-          name: "recruitment",
-          component: () => import("@/views/recruitment/RecruitmentView.vue"),
-          meta: { title: "Tuyển dụng" },
+          redirect: { name: "jr-list" },
+        },
+        {
+          path: "recruitment/jr",
+          name: "jr-list",
+          component: () => import("@/views/recruitment/components/JRListTab.vue"),
+          meta: { title: "Yêu cầu tuyển dụng" },
         },
         {
           path: "recruitment/jr/:id",
@@ -164,25 +168,58 @@ const router = createRouter({
           meta: { title: "Chi tiết yêu cầu tuyển dụng" },
         },
         {
+          path: "recruitment/postings",
+          name: "posting-list",
+          component: () => import("@/views/recruitment/components/JobPostingTab.vue"),
+          meta: { title: "Tin tuyển dụng" },
+        },
+        {
           path: "recruitment/postings/:id",
           name: "posting-detail",
-          component: () =>
-            import("@/views/recruitment/JobPostingDetailView.vue"),
+          component: () => import("@/views/recruitment/JobPostingDetailView.vue"),
           meta: { title: "Chi tiết tin tuyển dụng" },
+        },
+        {
+          path: "recruitment/candidates",
+          name: "candidate-list",
+          component: () => import("@/views/recruitment/components/CandidateListTab.vue"),
+          meta: { title: "Ứng viên" },
         },
         {
           path: "recruitment/candidates/:id",
           name: "candidate-detail",
-          component: () =>
-            import("@/views/recruitment/CandidateDetailView.vue"),
+          component: () => import("@/views/recruitment/CandidateDetailView.vue"),
           meta: { title: "Chi tiết ứng viên" },
+        },
+        {
+          path: "recruitment/selection/:jr_id?",
+          name: "selection",
+          component: () => import("@/views/recruitment/KanbanPipelineView.vue"),
+          meta: { title: "Tuyển chọn" },
         },
         {
           path: "recruitment/applications/:id",
           name: "application-detail",
-          component: () =>
-            import("@/views/recruitment/ApplicationDetailView.vue"),
+          component: () => import("@/views/recruitment/ApplicationDetailView.vue"),
           meta: { title: "Chi tiết tuyển chọn" },
+        },
+        {
+          path: "recruitment/headcount",
+          name: "headcount-plan",
+          component: () => import("@/views/recruitment/components/HeadcountPlanTab.vue"),
+          meta: { title: "Kế hoạch nhân sự" },
+        },
+        {
+          path: "recruitment/legal",
+          name: "legal-documents",
+          component: () => import("@/views/recruitment/components/DocumentChecklistSummaryTab.vue"),
+          meta: { title: "Hồ sơ pháp lý" },
+        },
+        {
+          path: "recruitment/settings",
+          name: "recruitment-settings",
+          component: () => import("@/views/recruitment/components/EmailTemplateListTab.vue"),
+          meta: { title: "Cài đặt tuyển dụng" },
         },
         // Báo cáo
         {

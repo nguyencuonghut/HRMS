@@ -1,5 +1,10 @@
 <template>
   <div v-if="application && candidate" class="rc-detail">
+    <RecruitmentBreadcrumb :crumbs="[
+      { label: 'Tuyển chọn', to: '/recruitment/selection' },
+      { label: application.job_requisition_code, to: `/recruitment/selection/${application.job_requisition_id}` },
+      { label: candidate.full_name },
+    ]" />
     <div class="rc-detail-header">
       <div class="rc-header-left">
         <Button
@@ -7,11 +12,7 @@
           text
           rounded
           severity="secondary"
-          @click="
-            router.push(
-              `/recruitment?tab=selection&jr_id=${application.job_requisition_id}`,
-            )
-          "
+          @click="router.push(`/recruitment/selection/${application.job_requisition_id}`)"
         />
         <div>
           <div
@@ -576,6 +577,7 @@ import { useAuthStore } from "@/stores/auth";
 import InterviewScheduleDialog from "./components/InterviewScheduleDialog.vue";
 import OfferListTab from "./components/OfferListTab.vue";
 import ScorecardDialog from "./components/ScorecardDialog.vue";
+import RecruitmentBreadcrumb from "./components/RecruitmentBreadcrumb.vue";
 
 const route = useRoute();
 const router = useRouter();

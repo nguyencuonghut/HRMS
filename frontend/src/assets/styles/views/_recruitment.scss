@@ -233,6 +233,32 @@
   font-family: monospace;
 }
 
+// Breadcrumb navigation
+.rc-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  color: var(--l-text-muted);
+  margin-bottom: 0.5rem;
+  flex-wrap: wrap;
+
+  .rc-breadcrumb-sep {
+    opacity: 0.5;
+  }
+
+  .rc-breadcrumb-link {
+    color: var(--l-text-muted);
+    text-decoration: none;
+    &:hover { color: var(--p-primary-color); text-decoration: underline; }
+  }
+
+  .rc-breadcrumb-current {
+    color: var(--l-text);
+    font-weight: 500;
+  }
+}
+
 .rc-meta-row {
   display: flex;
   align-items: center;

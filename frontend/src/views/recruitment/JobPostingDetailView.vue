@@ -1,9 +1,13 @@
 <template>
   <div class="rc-detail" v-if="posting">
+    <RecruitmentBreadcrumb :crumbs="[
+      { label: 'Tin tuyển dụng', to: '/recruitment/postings' },
+      { label: posting.title },
+    ]" />
     <!-- Header -->
     <div class="rc-detail-header">
       <div class="rc-header-left">
-        <Button icon="pi pi-arrow-left" text rounded severity="secondary" @click="$router.push('/recruitment?tab=postings')" />
+        <Button icon="pi pi-arrow-left" text rounded severity="secondary" @click="$router.push('/recruitment/postings')" />
         <div>
           <div style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap">
             <span class="rc-jr-code">{{ posting.title }}</span>
@@ -160,6 +164,7 @@ import { formatDatetime } from '@/utils/format'
 
 import recruitmentService, { type JobPostingRead } from '@/services/recruitmentService'
 import JobPostingFormDialog from './components/JobPostingFormDialog.vue'
+import RecruitmentBreadcrumb from './components/RecruitmentBreadcrumb.vue'
 
 const route   = useRoute()
 const confirm = useConfirm()

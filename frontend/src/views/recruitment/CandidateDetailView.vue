@@ -1,5 +1,9 @@
 <template>
   <div class="rc-detail" v-if="candidate">
+    <RecruitmentBreadcrumb :crumbs="[
+      { label: 'Ứng viên', to: '/recruitment/candidates' },
+      { label: candidate.full_name },
+    ]" />
     <!-- Header -->
     <div class="rc-detail-header">
       <div class="rc-header-left">
@@ -8,7 +12,7 @@
           text
           rounded
           severity="secondary"
-          @click="router.push('/recruitment?tab=candidates')"
+          @click="router.push('/recruitment/candidates')"
         />
         <div>
           <div
@@ -1061,6 +1065,7 @@ import recruitmentService, {
 } from "@/services/recruitmentService";
 import CandidateFormDialog from "./components/CandidateFormDialog.vue";
 import CommunicationTab from "./components/CommunicationTab.vue";
+import RecruitmentBreadcrumb from "./components/RecruitmentBreadcrumb.vue";
 
 const route = useRoute();
 const router = useRouter();

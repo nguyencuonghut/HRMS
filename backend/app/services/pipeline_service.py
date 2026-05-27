@@ -638,6 +638,7 @@ async def get_kanban(session: AsyncSession, jr_id: int) -> KanbanBoard:
                     CandidateStageResult.application_id == app.id,
                     CandidateStageResult.stage_id == stage.id,
                 )
+                .order_by(CandidateStageResult.id.desc())
                 .limit(1)
             )
             last_result = last_result_q.scalars().first()

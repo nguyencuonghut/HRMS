@@ -55,7 +55,7 @@ interface MenuItem {
   items?: { to: string; label: string; icon?: string }[]
 }
 
-const openGroups    = ref<Set<string>>(new Set(['Cơ cấu tổ chức', 'Danh mục']))
+const openGroups    = ref<Set<string>>(new Set(['Cơ cấu tổ chức', 'Tuyển dụng', 'Danh mục']))
 const reminderBadge = ref(0)
 
 onMounted(async () => {
@@ -117,7 +117,19 @@ const menu: MenuItem[] = [
   { to: '/rewards', label: 'Khen thưởng & Kỷ luật', icon: 'pi-star' },
   { to: '/training', label: 'Đào tạo', icon: 'pi-graduation-cap' },
   { to: '/performance', label: 'Đánh giá KPI', icon: 'pi-chart-bar' },
-  { to: '/recruitment', label: 'Tuyển dụng', icon: 'pi-briefcase' },
+  {
+    label: 'Tuyển dụng',
+    icon: 'pi-briefcase',
+    items: [
+      { to: '/recruitment/jr',        label: 'Yêu cầu tuyển dụng' },
+      { to: '/recruitment/postings',  label: 'Tin tuyển dụng'     },
+      { to: '/recruitment/candidates', label: 'Ứng viên'          },
+      { to: '/recruitment/selection', label: 'Tuyển chọn'         },
+      { to: '/recruitment/headcount', label: 'Kế hoạch nhân sự'   },
+      { to: '/recruitment/legal',     label: 'Hồ sơ pháp lý'      },
+      { to: '/recruitment/settings',  label: 'Cài đặt tuyển dụng' },
+    ],
+  },
   { section: true, label: 'Phân tích' },
   { to: '/reports', label: 'Báo cáo', icon: 'pi-chart-pie' },
   { section: true, label: 'Hệ thống' },

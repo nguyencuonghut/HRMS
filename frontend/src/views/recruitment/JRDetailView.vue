@@ -1,5 +1,9 @@
 <template>
   <div class="rc-detail" v-if="jr">
+    <RecruitmentBreadcrumb :crumbs="[
+      { label: 'Yêu cầu tuyển dụng', to: '/recruitment/jr' },
+      { label: jr.code },
+    ]" />
     <!-- Header -->
     <div class="rc-detail-header">
       <div class="rc-header-left">
@@ -8,7 +12,7 @@
           text
           rounded
           severity="secondary"
-          @click="$router.push('/recruitment')"
+          @click="$router.push('/recruitment/jr')"
         />
         <div>
           <div
@@ -52,7 +56,7 @@
           icon="pi pi-sitemap"
           severity="warn"
           outlined
-          @click="$router.push(`/recruitment?tab=selection&jr_id=${jr.id}`)"
+          @click="$router.push(`/recruitment/selection/${jr.id}`)"
         />
         <Button
           v-if="jr.status === 'draft'"
@@ -107,6 +111,12 @@
     <Tabs v-model:value="activeTab">
       <TabList>
         <Tab value="info">Thông tin chung</Tab>
+        <Tab value="postings">Tin tuyển dụng
+          <Badge v-if="postings.length" :value="postings.length" severity="info" style="margin-left: 0.4rem" />
+        </Tab>
+        <Tab value="pipeline">Ứng viên trong pipeline
+          <Badge v-if="applications.length" :value="applications.length" severity="warn" style="margin-left: 0.4rem" />
+        </Tab>
         <Tab value="budget">Ngân sách tuyển dụng</Tab>
         <Tab value="hired">Kết quả tuyển dụng
           <Badge v-if="hiredDecisions.length" :value="hiredDecisions.length" severity="success" style="margin-left: 0.4rem" />
@@ -230,6 +240,93 @@
                 <Column header="Trạng thái" style="width: 140px">
                   <template #body="{ data }">
                     <Tag :value="data.status_label" :severity="data.status === 'converted' ? 'success' : 'warn'" />
+                  </template>
+                </Column>
+              </DataTable>
+            </div>
+          </div>
+        </TabPanel>
+
+        <!-- Postings tab -->
+        <TabPanel value="postings">
+          <div class="section-stack" style="padding-top: 1rem">
+            <div class="section-card">
+              <div v-if="postingsLoading" class="rc-jd-empty">Đang tải...</div>
+              <div v-else-if="!postings.length" class="rc-jd-empty">Chưa có tin tuyển dụng nào được tạo cho yêu cầu này.</div>
+              <DataTable v-else :value="postings" size="small">
+                <Column header="Tiêu đề" style="min-width: 200px">
+                  <template #body="{ data }: { data: JobPostingRead }">
+                    <RouterLink :to="`/recruitment/postings/${data.id}`" class="rc-link">
+                      {{ data.title }}
+                    </RouterLink>
+                  </template>
+                </Column>
+                <Column header="Loại" style="width: 110px">
+                  <template #body="{ data }: { data: JobPostingRead }">
+                    <Tag :value="data.posting_type_label" :severity="data.posting_type === 'internal' ? 'info' : 'secondary'" />
+                  </template>
+                </Column>
+                <Column header="Trạng thái" style="width: 120px">
+                  <template #body="{ data }: { data: JobPostingRead }">
+                    <Tag :value="data.status_label" :severity="postingStatusSeverity(data.status)" />
+                  </template>
+                </Column>
+                <Column header="Ứng viên" style="width: 90px; text-align: center">
+                  <template #body="{ data }: { data: JobPostingRead }">
+                    {{ data.candidate_count }}
+                  </template>
+                </Column>
+                <Column header="Hạn nộp" style="width: 120px">
+                  <template #body="{ data }: { data: JobPostingRead }">
+                    <span :class="deadlineClass(data.deadline ?? null)">
+                      {{ data.deadline ? formatDateShort(data.deadline) : '—' }}
+                    </span>
+                  </template>
+                </Column>
+                <Column header="Đăng lúc" style="width: 120px">
+                  <template #body="{ data }: { data: JobPostingRead }">
+                    <span class="rc-muted">{{ data.opened_at ? formatDateShort(data.opened_at) : '—' }}</span>
+                  </template>
+                </Column>
+              </DataTable>
+            </div>
+          </div>
+        </TabPanel>
+
+        <!-- Pipeline tab -->
+        <TabPanel value="pipeline">
+          <div class="section-stack" style="padding-top: 1rem">
+            <div class="section-card">
+              <div v-if="applicationsLoading" class="rc-jd-empty">Đang tải...</div>
+              <div v-else-if="!applications.length" class="rc-jd-empty">Chưa có ứng viên nào trong quy trình tuyển chọn.</div>
+              <DataTable v-else :value="applications" size="small">
+                <Column header="Ứng viên" style="min-width: 160px">
+                  <template #body="{ data }: { data: ApplicationRead }">
+                    <RouterLink :to="`/recruitment/candidates/${data.candidate_id}`" class="rc-link">
+                      {{ data.candidate_name }}
+                    </RouterLink>
+                  </template>
+                </Column>
+                <Column header="Giai đoạn hiện tại" style="min-width: 140px">
+                  <template #body="{ data }: { data: ApplicationRead }">
+                    <Tag :value="stageLabel(data.current_stage)" :severity="stageSeverity(data.current_stage)" />
+                  </template>
+                </Column>
+                <Column header="Nguồn" style="min-width: 120px">
+                  <template #body="{ data }: { data: ApplicationRead }">
+                    <span class="rc-muted">{{ data.source_channel_name ?? '—' }}</span>
+                  </template>
+                </Column>
+                <Column header="Ngày nộp" style="width: 110px">
+                  <template #body="{ data }: { data: ApplicationRead }">
+                    <span class="rc-muted">{{ formatDateShort(data.applied_date) }}</span>
+                  </template>
+                </Column>
+                <Column header="" style="width: 70px; text-align: right">
+                  <template #body="{ data }: { data: ApplicationRead }">
+                    <RouterLink :to="`/recruitment/applications/${data.id}`">
+                      <Button icon="pi pi-eye" text rounded size="small" severity="secondary" v-tooltip.top="'Xem pipeline'" />
+                    </RouterLink>
                   </template>
                 </Column>
               </DataTable>
@@ -499,12 +596,15 @@ import { useToast } from "primevue/usetoast";
 
 import recruitmentService, {
   hiringDecisionService,
+  type ApplicationRead,
   type HiringDecisionRead,
+  type JobPostingRead,
   type JobRequisitionRead,
   type BudgetSummary,
   type BudgetItemRead,
 } from "@/services/recruitmentService";
 import JRFormDialog from "./components/JRFormDialog.vue";
+import RecruitmentBreadcrumb from "./components/RecruitmentBreadcrumb.vue";
 
 const route = useRoute();
 const router = useRouter();
@@ -520,6 +620,12 @@ const budgetLoading = ref(false);
 
 const hiredDecisions = ref<HiringDecisionRead[]>([]);
 const hiredLoading = ref(false);
+
+const postings = ref<JobPostingRead[]>([]);
+const postingsLoading = ref(false);
+
+const applications = ref<ApplicationRead[]>([]);
+const applicationsLoading = ref(false);
 
 // Edit JR
 const showEditDialog = ref(false);
@@ -630,8 +736,67 @@ async function loadHired() {
   }
 }
 
+async function loadPostings() {
+  postingsLoading.value = true;
+  try {
+    const res = await recruitmentService.listPostings({ job_requisition_id: jrId.value, page_size: 100 });
+    postings.value = res.data.items;
+  } catch {
+    postings.value = [];
+  } finally {
+    postingsLoading.value = false;
+  }
+}
+
+async function loadApplications() {
+  applicationsLoading.value = true;
+  try {
+    const res = await recruitmentService.listApplications(jrId.value, { page_size: 100 });
+    applications.value = res.data.items;
+  } catch {
+    applications.value = [];
+  } finally {
+    applicationsLoading.value = false;
+  }
+}
+
+function postingStatusSeverity(status: string) {
+  const map: Record<string, string> = { draft: "secondary", active: "success", closed: "warn", expired: "danger" };
+  return map[status] ?? "secondary";
+}
+
+function stageLabel(stage: string) {
+  const map: Record<string, string> = {
+    new:       "Mới nộp",
+    screening: "Sơ loại hồ sơ",
+    test:      "Kiểm tra",
+    interview: "Phỏng vấn",
+    final:     "Vòng cuối",
+    hired:     "Đã tuyển",
+    rejected:  "Đã loại",
+    withdrawn: "Đã rút đơn",
+  };
+  return map[stage] ?? stage;
+}
+
+function stageSeverity(stage: string) {
+  const map: Record<string, string> = {
+    new:       "secondary",
+    screening: "info",
+    test:      "info",
+    interview: "warn",
+    final:     "warn",
+    hired:     "success",
+    rejected:  "danger",
+    withdrawn: "secondary",
+  };
+  return map[stage] ?? "info";
+}
+
 watch(activeTab, (tab) => {
   if (tab === "hired" && !hiredDecisions.value.length) loadHired();
+  if (tab === "postings" && !postings.value.length) loadPostings();
+  if (tab === "pipeline" && !applications.value.length) loadApplications();
 });
 
 // JR actions

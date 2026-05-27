@@ -212,38 +212,31 @@ async function loadBoard() {
 }
 
 function onJrChange() {
-  router.replace({
-    query: {
-      ...route.query,
-      jr_id: selectedJrId.value ?? undefined,
-    },
-  });
+  if (selectedJrId.value) {
+    router.push(`/recruitment/selection/${selectedJrId.value}`);
+  } else {
+    router.push("/recruitment/selection");
+    board.value = null;
+  }
   void loadBoard();
 }
 
 watch(
-  () => route.query.jr_id,
-  (value: string | string[] | undefined) => {
-    const next = typeof value === "string" ? Number(value) : null;
-    if (selectedJrId.value !== next) {
-      selectedJrId.value = Number.isFinite(next) ? next : null;
-    }
-  },
-);
-
-watch(
-  () => selectedJrId.value,
-  (value: number | null) => {
-    if (!value) {
-      board.value = null;
+  () => route.params.jr_id,
+  (value) => {
+    const next = value ? Number(value) : null;
+    const resolved = next && Number.isFinite(next) ? next : null;
+    if (selectedJrId.value !== resolved) {
+      selectedJrId.value = resolved;
+      void loadBoard();
     }
   },
 );
 
 onMounted(async () => {
-  const initial =
-    typeof route.query.jr_id === "string" ? Number(route.query.jr_id) : null;
-  selectedJrId.value = Number.isFinite(initial) ? initial : null;
+  const paramJrId = route.params.jr_id;
+  const initial = paramJrId ? Number(paramJrId) : null;
+  selectedJrId.value = initial && Number.isFinite(initial) ? initial : null;
   await loadJR();
   await loadBoard();
 });
