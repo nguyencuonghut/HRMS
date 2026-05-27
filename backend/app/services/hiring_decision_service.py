@@ -339,6 +339,17 @@ async def convert_to_employee(
         jr.quantity_remaining -= 1
         if jr.quantity_remaining == 0:
             jr.status = "completed"
+            # Tự động đóng tất cả tin tuyển dụng active của JR này
+            from app.models.recruitment import JobPosting
+            active_postings = (await session.execute(
+                select(JobPosting)
+                .where(JobPosting.job_requisition_id == jr.id)
+                .where(JobPosting.status == "active")
+            )).scalars().all()
+            now = _utcnow()
+            for posting in active_postings:
+                posting.status = "closed"
+                posting.closed_at = now
 
     await session.flush()
 
