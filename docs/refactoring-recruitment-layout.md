@@ -3,6 +3,9 @@
 > **Nguyên tắc:** Mọi khẳng định trong file này đều được verify từ source code thực tế.
 > Không có nội dung suy đoán.
 
+> **Trạng thái:** ✅ **Tất cả 8 slices đã hoàn thành.** Xem mục "Sai khác so với kế hoạch"
+> bên dưới để biết những điểm implementation thực tế khác với plan ban đầu.
+
 ---
 
 ## Bối cảnh & Vấn đề đã xác minh
@@ -503,6 +506,61 @@ Từ Slice 2 trở đi, mỗi slice cần pass toàn bộ tests của slice trư
 
 4. **Sau Slice 8 — `/recruitment` redirect:** Redirect về `/recruitment/jr` (mặc định), hay
    tạo trang dashboard tổng quan tuyển dụng mới?
+
+---
+
+---
+
+## Sai khác so với kế hoạch (Implementation Notes)
+
+### Slice 5 — Tuyển chọn
+
+**Kế hoạch:** Tạo 2 routes riêng + file `KanbanJrPickerView.vue` mới cho picker state.
+
+**Thực tế:** Dùng 1 route duy nhất với optional param:
+```typescript
+{ path: 'recruitment/selection/:jr_id?', name: 'selection', component: KanbanPipelineView.vue }
+```
+`KanbanPipelineView.vue` tự xử lý cả 2 state (chưa chọn JR → hiển thị Select dropdown;
+đã chọn → hiển thị Kanban). `KanbanJrPickerView.vue` **không được tạo**.
+
+**Lý do:** Đơn giản hơn, không cần tách view khi component đã handle được cả 2 trạng thái.
+
+---
+
+### `RecruitmentView.vue` — Trạng thái sau refactoring
+
+File vẫn **tồn tại** trên disk nhưng **không còn trong router** (orphaned).  
+Tất cả routes trong `router/index.ts` giờ trỏ trực tiếp đến component con.  
+→ Có thể xóa file này khi không còn bất kỳ import nào tham chiếu đến nó.
+
+---
+
+### Sidebar submenu — Số items thực tế
+
+Kế hoạch Slice 1 đề xuất 5 items, Slice 8 thêm 2. Thực tế sidebar có **7 items**:
+```typescript
+items: [
+  { to: '/recruitment/jr',        label: 'Yêu cầu tuyển dụng' },
+  { to: '/recruitment/postings',  label: 'Tin tuyển dụng'     },
+  { to: '/recruitment/candidates',label: 'Ứng viên'           },
+  { to: '/recruitment/selection', label: 'Tuyển chọn'         },
+  { to: '/recruitment/headcount', label: 'Kế hoạch nhân sự'   },
+  { to: '/recruitment/legal',     label: 'Hồ sơ pháp lý'      },
+  { to: '/recruitment/settings',  label: 'Cài đặt tuyển dụng' },
+]
+```
+Mục **`Báo cáo tuyển dụng`** (`/recruitment/reports`) sẽ được thêm khi implement Plan 13.8.
+
+---
+
+### Các chi tiết bổ sung ngoài plan
+
+- **Tab "Tin tuyển dụng" và "Ứng viên trong pipeline"** được thêm vào `JRDetailView.vue`
+  (không có trong refactoring plan ban đầu — phát sinh khi review UX).
+- **"Kết quả tuyển dụng"** được chuyển từ `JobPostingDetailView.vue` → `JRDetailView.vue`.
+- **Auto-close job postings** khi JR hoàn thành: implemented trong `hiring_decision_service.py`.
+- **Cột "Số đợt tuyển dụng"** thêm vào `CandidateListTab.vue`.
 
 ---
 

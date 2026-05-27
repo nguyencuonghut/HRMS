@@ -298,7 +298,20 @@ Style: header row fill `#1B4F72`, alternating row color, number format VND cho c
 
 ## Thiết kế Frontend
 
-### `RecruitmentReportTab.vue` (trong `RecruitmentView.vue`)
+> **Lưu ý kiến trúc (sau refactoring routing):** Module tuyển dụng đã được refactor sang
+> real routes (docs/refactoring-recruitment-layout.md). `RecruitmentView.vue` không còn
+> trong router — mỗi section là route độc lập. Báo cáo phải là **standalone view** tại
+> `/recruitment/reports`, không phải tab trong hub cũ.
+
+### `RecruitmentReportView.vue` (standalone — route `/recruitment/reports`)
+
+**Breadcrumb:**
+```vue
+<RecruitmentBreadcrumb :crumbs="[
+  { label: 'Yêu cầu tuyển dụng', to: '/recruitment/jr' },
+  { label: 'Báo cáo tuyển dụng' },
+]" />
+```
 
 **Toolbar:**
 - DatePicker range (start_date → end_date)
@@ -354,8 +367,30 @@ backend/
 
 frontend/
   src/services/recruitmentService.ts                     (EDIT: thêm report API)
-  src/views/recruitment/components/RecruitmentReportTab.vue (NEW)
-  src/views/recruitment/RecruitmentView.vue              (EDIT: thêm tab Báo cáo)
+  src/views/recruitment/RecruitmentReportView.vue        (NEW — standalone view, không phải Tab)
+  src/router/index.ts                                    (EDIT: thêm route /recruitment/reports)
+  src/components/layout/AppMenu.vue                      (EDIT: thêm menu item 'Báo cáo tuyển dụng')
+```
+
+> ~~`src/views/recruitment/RecruitmentView.vue (EDIT)`~~ — `RecruitmentView.vue` không còn
+> trong router sau refactoring. **Không edit file này.** Xem
+> `docs/refactoring-recruitment-layout.md` để hiểu kiến trúc hiện tại.
+
+### Route cần thêm (`router/index.ts`)
+
+```typescript
+{
+  path: 'recruitment/reports',
+  name: 'recruitment-reports',
+  component: () => import('@/views/recruitment/RecruitmentReportView.vue'),
+  meta: { title: 'Báo cáo tuyển dụng' },
+}
+```
+
+### Menu item cần thêm (`AppMenu.vue` — submenu Tuyển dụng)
+
+```typescript
+{ to: '/recruitment/reports', label: 'Báo cáo tuyển dụng', icon: 'pi-chart-bar' }
 ```
 
 ---
