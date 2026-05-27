@@ -63,6 +63,25 @@ const router = createRouter({
           component: () => import("@/views/employees/EmployeeDetailView.vue"),
           meta: { title: "Hồ sơ nhân viên" },
         },
+        // Onboarding
+        {
+          path: "employees/onboarding/tasks",
+          name: "onboarding-tasks",
+          component: () => import("@/views/employees/OnboardingTaskConfigView.vue"),
+          meta: { title: "Cấu hình task onboarding" },
+        },
+        {
+          path: "employees/onboarding/:employee_id",
+          name: "onboarding-detail",
+          component: () => import("@/views/employees/OnboardingDetailView.vue"),
+          meta: { title: "Chi tiết onboarding" },
+        },
+        {
+          path: "employees/onboarding",
+          name: "onboarding-list",
+          component: () => import("@/views/employees/OnboardingListView.vue"),
+          meta: { title: "Tiếp nhận nhân viên mới" },
+        },
         // Nhắc nhở sự kiện
         {
           path: "reminders",

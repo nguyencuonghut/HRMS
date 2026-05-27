@@ -55,7 +55,7 @@ interface MenuItem {
   items?: { to: string; label: string; icon?: string }[]
 }
 
-const openGroups    = ref<Set<string>>(new Set(['Cơ cấu tổ chức', 'Tuyển dụng', 'Danh mục']))
+const openGroups    = ref<Set<string>>(new Set(['Cơ cấu tổ chức', 'Nhân sự', 'Tuyển dụng', 'Danh mục']))
 const reminderBadge = ref(0)
 
 onMounted(async () => {
@@ -86,7 +86,14 @@ const menu: MenuItem[] = [
       { to: '/org/history',     label: 'Lịch sử thay đổi', icon: 'pi-history' },
     ],
   },
-  { to: '/employees', label: 'Nhân sự',  icon: 'pi-users' },
+  {
+    label: 'Nhân sự',
+    icon: 'pi-users',
+    items: [
+      { to: '/employees',            label: 'Danh sách nhân viên' },
+      { to: '/employees/onboarding', label: 'Tiếp nhận nhân viên mới', icon: 'pi-clipboard' },
+    ],
+  },
   { to: '/reminders', label: 'Nhắc nhở', icon: 'pi-bell'  },
   { to: '/contracts', label: 'Hợp đồng', icon: 'pi-file-edit' },
   {

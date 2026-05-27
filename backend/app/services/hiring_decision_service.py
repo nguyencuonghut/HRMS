@@ -353,6 +353,21 @@ async def convert_to_employee(
 
     await session.flush()
 
+    # Tạo checklist onboarding — KHÔNG rollback nếu thất bại (ví dụ không có task nào active)
+    try:
+        from app.services.onboarding_service import create_checklist as _create_onboarding_checklist
+        await _create_onboarding_checklist(
+            session,
+            employee_id=emp.id,
+            hiring_decision_id=hd.id,
+            created_by_id=user_id,
+        )
+    except Exception as _ob_err:
+        import logging as _log
+        _log.getLogger(__name__).warning(
+            "Tạo onboarding checklist thất bại cho employee_id=%s: %s", emp.id, _ob_err
+        )
+
     employee_code = await employee_code_service.build_employee_display_code(session, emp)
 
     return ConvertToEmployeeResult(

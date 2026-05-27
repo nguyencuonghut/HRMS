@@ -82,3 +82,4 @@ from app.models.discipline import EmployeeDiscipline  # noqa: F401
 from app.models.training import TrainingCourse, TrainingPlan, TrainingPlanCourse, EmployeeTrainingRecord, EmployeeTrainingCertificate  # noqa: F401
 from app.models.performance import EmployeeKpiMonthly, EmployeeYearlyReview  # noqa: F401
 from app.models.recruitment import HeadcountPlan, JobRequisition, RecruitmentBudgetItem, RecruitmentChannel, JobPosting, Candidate, CandidateEducation, CandidateWorkExperience, CandidateSkill, CandidateAttachment, CandidateApplication  # noqa: F401
+from app.models.onboarding import OnboardingTask, OnboardingChecklist, OnboardingChecklistItem  # noqa: F401
