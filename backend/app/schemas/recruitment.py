@@ -652,6 +652,7 @@ class CandidateListItem(BaseModel):
     nationality_name: Optional[str]
     source_channel_name: Optional[str]
     active_applications: int
+    total_jr_participated: int
     identity_strength: IdentityStrength
     identity_strength_label: str
     created_at: datetime

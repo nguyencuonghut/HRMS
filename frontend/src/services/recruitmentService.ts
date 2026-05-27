@@ -754,6 +754,7 @@ export interface CandidateListItem {
   nationality_name: string | null;
   source_channel_name: string | null;
   active_applications: number;
+  total_jr_participated: number;
   identity_strength: "weak" | "medium" | "strong";
   identity_strength_label: string;
   created_at: string;

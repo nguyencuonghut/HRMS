@@ -111,6 +111,17 @@
           </template>
         </Column>
 
+        <Column header="Số đợt tuyển dụng" style="width: 130px; text-align: center">
+          <template #body="{ data }: { data: CandidateListItem }">
+            <Badge
+              v-if="data.total_jr_participated"
+              :value="String(data.total_jr_participated)"
+              severity="secondary"
+            />
+            <span v-else class="rc-muted">0</span>
+          </template>
+        </Column>
+
         <Column header="Ngày tạo" style="width: 110px">
           <template #body="{ data }: { data: CandidateListItem }">
             <span class="rc-muted">{{ formatDate(data.created_at) }}</span>

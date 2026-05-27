@@ -481,6 +481,14 @@ async def list_candidates(
             )
         )
         active_apps = app_count_q.scalar_one()
+
+        total_jr_q = await session.execute(
+            select(func.count()).where(
+                CandidateApplication.candidate_id == c.id,
+            )
+        )
+        total_jr = total_jr_q.scalar_one()
+
         identity_strength = _identity_strength(c)
 
         items.append(
@@ -494,6 +502,7 @@ async def list_candidates(
                 nationality_name=nationality_name,
                 source_channel_name=channel_name,
                 active_applications=active_apps,
+                total_jr_participated=total_jr,
                 identity_strength=identity_strength,
                 identity_strength_label=IdentityStrengthLabels[identity_strength],
                 created_at=c.created_at,
