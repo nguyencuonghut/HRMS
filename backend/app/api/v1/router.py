@@ -35,6 +35,7 @@ from app.api.v1.endpoints import dashboard
 from app.api.v1.endpoints import hr_reports
 from app.api.v1.endpoints import leave_analytics
 from app.api.v1.endpoints import insurance_reports
+from app.api.v1.endpoints import contract_reports
 
 router = APIRouter()
 router.include_router(auth.router,          prefix="/auth",          tags=["Xác thực"])
@@ -90,3 +91,4 @@ router.include_router(dashboard.router, prefix="/reports/dashboard", tags=["Dash
 router.include_router(hr_reports.router, prefix="/reports/hr", tags=["Báo cáo nhân sự"])
 router.include_router(leave_analytics.router, prefix="/reports/leaves", tags=["Phân tích nghỉ phép"])
 router.include_router(insurance_reports.router, prefix="/reports/insurance", tags=["Báo cáo Bảo hiểm Analytics"])
+router.include_router(contract_reports.router, prefix="/reports/contracts", tags=["Báo cáo Hợp đồng"])

@@ -477,7 +477,7 @@ ContractReportView.vue
 
 ### Urgency Badge
 
-```vue
+```html
 <!-- Dùng PrimeVue Tag component -->
 <Tag
   :value="row.urgency"
