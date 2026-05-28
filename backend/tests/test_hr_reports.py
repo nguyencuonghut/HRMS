@@ -3,20 +3,34 @@ from __future__ import annotations
 
 import asyncio
 from datetime import date, timedelta
+import io
 import uuid
 
+import openpyxl
 import pytest
+from fastapi.testclient import TestClient
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.core.config import settings
 from app.services import hr_report_service
 
+BASE = "/api/v1/reports/hr"
+_ADMIN_EMAIL = "admin@hrms.local"
+_ADMIN_PASSWORD = "Hrms@2026"
 _PREFIX = f"T11HR_{uuid.uuid4().hex[:8]}"
 
 
 def _engine():
     return create_async_engine(settings.DATABASE_URL, connect_args={"ssl": False})
+
+
+def _admin_headers(client: TestClient) -> dict[str, str]:
+    token = client.post(
+        "/api/v1/auth/login",
+        json={"email": _ADMIN_EMAIL, "password": _ADMIN_PASSWORD},
+    ).json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}
 
 
 async def _cleanup() -> None:
@@ -335,3 +349,63 @@ def test_get_org_structure_returns_tree_with_rollups():
     assert root.direct_headcount == 0
     assert [child.department_id for child in root.children] == [refs["dept_sales"], refs["dept_ops"]]
     assert sum(child.total_headcount for child in root.children) == root.total_headcount
+
+
+def test_employee_list_endpoint_returns_filtered_page(client: TestClient):
+    refs = asyncio.run(_seed_hr_report_data())
+    headers = _admin_headers(client)
+
+    resp = client.get(
+        f"{BASE}/employee-list",
+        headers=headers,
+        params={"department_id": refs["dept_sales"], "gender": "female", "page": 1, "page_size": 20},
+    )
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["total"] == 2
+    assert [item["full_name"] for item in data["items"]] == [f"{_PREFIX} Bravo", f"{_PREFIX} India"]
+
+
+def test_movement_endpoint_returns_monthly_rows(client: TestClient):
+    asyncio.run(_seed_hr_report_data())
+    headers = _admin_headers(client)
+    today = date.today()
+
+    resp = client.get(
+        f"{BASE}/movement",
+        headers=headers,
+        params={
+            "start_date": (today - timedelta(days=120)).isoformat(),
+            "end_date": today.isoformat(),
+            "group_by": "month",
+        },
+    )
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["total_resigned"] == 1
+    assert data["total_transfers"] == 1
+    assert any(row["transfer_count"] == 1 for row in data["rows"])
+
+
+def test_export_employee_list_returns_valid_xlsx(client: TestClient):
+    refs = asyncio.run(_seed_hr_report_data())
+    headers = _admin_headers(client)
+
+    resp = client.get(
+        f"{BASE}/export",
+        headers=headers,
+        params={"type": "employee-list", "department_id": refs["dept_sales"]},
+    )
+    assert resp.status_code == 200, resp.text
+    assert "spreadsheetml" in resp.headers.get("content-type", "")
+    assert "bao_cao_nhan_su_employee-list" in resp.headers.get("content-disposition", "")
+
+    wb = openpyxl.load_workbook(io.BytesIO(resp.content))
+    ws = wb["Danh sach nhan su"]
+    assert ws.max_row >= 2
+    assert ws["B2"].value is not None
+
+
+def test_export_requires_auth(client: TestClient):
+    resp = client.get(f"{BASE}/export", params={"type": "tenure"})
+    assert resp.status_code in (401, 403)

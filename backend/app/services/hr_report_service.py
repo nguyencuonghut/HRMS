@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, timedelta
+from io import BytesIO
 from math import ceil
 from typing import Optional
 
@@ -50,6 +51,13 @@ def _tenure_years(start_date: date, end_date: Optional[date] = None) -> int:
 
 def _round1(value: float) -> float:
     return round(value + 1e-9, 1)
+
+
+def _save_workbook_bytes(workbook) -> BytesIO:
+    output = BytesIO()
+    workbook.save(output)
+    output.seek(0)
+    return output
 
 
 def _period_label(period_start: date, group_by: str) -> str:
@@ -550,3 +558,188 @@ async def get_org_structure(
         department_count=len(dept_map),
         tree=tree,
     )
+
+
+async def export_employee_list_excel(
+    session: AsyncSession,
+    **filters,
+) -> BytesIO:
+    from openpyxl import Workbook
+
+    normalized_filters = dict(filters)
+    normalized_filters["page"] = 1
+    normalized_filters["page_size"] = max(int(normalized_filters.get("page_size", 0) or 0), 10000)
+    report = await get_employee_list(session, **normalized_filters)
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Danh sach nhan su"
+    ws.append(
+        [
+            "Ma NV",
+            "Ho ten",
+            "Gioi tinh",
+            "Trang thai",
+            "Ngay vao lam",
+            "Ngay nghi viec",
+            "Phong ban",
+            "Chuc danh",
+            "Loai hop dong",
+            "Loai van ban",
+            "Tham nien",
+        ]
+    )
+    for item in report.items:
+        ws.append(
+            [
+                item.employee_code,
+                item.full_name,
+                item.gender,
+                item.status,
+                item.start_date.isoformat(),
+                item.resigned_date.isoformat() if item.resigned_date else "",
+                item.department_name or "",
+                item.job_title_name or "",
+                item.contract_category_name or "",
+                item.document_kind or "",
+                item.tenure_years,
+            ]
+        )
+    return _save_workbook_bytes(wb)
+
+
+async def export_movement_excel(
+    session: AsyncSession,
+    *,
+    start_date: date,
+    end_date: date,
+    group_by: str = "month",
+    department_id: Optional[int] = None,
+) -> BytesIO:
+    from openpyxl import Workbook
+
+    report = await get_movement_report(
+        session,
+        start_date=start_date,
+        end_date=end_date,
+        group_by=group_by,
+        department_id=department_id,
+    )
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Bien dong nhan su"
+    ws.append(
+        [
+            "Ky",
+            "Tu ngay",
+            "Den ngay",
+            "Tuyen moi",
+            "Thoi viec",
+            "Chuyen bo phan",
+            "Bien dong rong",
+        ]
+    )
+    for row in report.rows:
+        ws.append(
+            [
+                row.period_label,
+                row.period_start.isoformat(),
+                row.period_end.isoformat(),
+                row.hired_count,
+                row.resigned_count,
+                row.transfer_count,
+                row.net_change,
+            ]
+        )
+    return _save_workbook_bytes(wb)
+
+
+async def export_tenure_excel(
+    session: AsyncSession,
+    *,
+    department_id: Optional[int] = None,
+) -> BytesIO:
+    from openpyxl import Workbook
+
+    report = await get_tenure_report(session, department_id=department_id)
+    wb = Workbook()
+    summary_ws = wb.active
+    summary_ws.title = "Tong hop tham nien"
+    summary_ws.append(
+        ["Nhom", "Headcount", "Ty le", "TB tham nien"]
+    )
+    for group in report.groups:
+        summary_ws.append(
+            [group.group_label, group.headcount, group.percentage, group.avg_tenure_years]
+        )
+
+    detail_ws = wb.create_sheet("Chi tiet tham nien")
+    detail_ws.append(["Nhom", "Ho ten", "Phong ban", "Ngay vao lam", "Tham nien"])
+    for group in report.groups:
+        for employee in group.employees:
+            detail_ws.append(
+                [
+                    group.group_label,
+                    employee.full_name,
+                    employee.department_name or "",
+                    employee.start_date.isoformat(),
+                    employee.tenure_years,
+                ]
+            )
+    return _save_workbook_bytes(wb)
+
+
+async def export_org_structure_excel(
+    session: AsyncSession,
+    *,
+    department_id: Optional[int] = None,
+) -> BytesIO:
+    from openpyxl import Workbook
+
+    report = await get_org_structure(session, department_id=department_id)
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Co cau to chuc"
+    ws.append(
+        [
+            "Phong ban",
+            "Phong ban cha",
+            "Headcount tong",
+            "Headcount truc tiep",
+            "Chuc danh",
+            "Cap bac",
+            "Headcount chuc danh",
+        ]
+    )
+
+    def append_node(node: DepartmentNode, parent_name: str = "") -> None:
+        if node.by_job_title:
+            for title in node.by_job_title:
+                ws.append(
+                    [
+                        node.department_name,
+                        parent_name,
+                        node.total_headcount,
+                        node.direct_headcount,
+                        title.job_title_name or "",
+                        title.job_level or "",
+                        title.headcount,
+                    ]
+                )
+        else:
+            ws.append(
+                [
+                    node.department_name,
+                    parent_name,
+                    node.total_headcount,
+                    node.direct_headcount,
+                    "",
+                    "",
+                    "",
+                ]
+            )
+        for child in node.children:
+            append_node(child, node.department_name)
+
+    for root in report.tree:
+        append_node(root)
+    return _save_workbook_bytes(wb)
