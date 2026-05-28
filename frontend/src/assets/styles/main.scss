@@ -1223,3 +1223,19 @@ html.dark-mode .leave-half-tag { color: var(--p-primary-400); }
 .leave-days-warn  { color: var(--p-red-500); }
 html.dark-mode .leave-days-ok   { color: var(--p-green-400); }
 html.dark-mode .leave-days-warn { color: var(--p-red-400); }
+
+// ── Leave Analytics (11.3) ──────────────────────────────────────────────────
+.heat-0 { background-color: var(--l-surface-ground, #f8fafc); }
+.heat-1 { background-color: color-mix(in srgb, var(--p-primary-500) 10%, transparent) !important; }
+.heat-2 { background-color: color-mix(in srgb, var(--p-primary-500) 25%, transparent) !important; }
+.heat-3 { background-color: color-mix(in srgb, var(--p-primary-500) 50%, transparent) !important; color: var(--l-surface, white) !important; }
+.heat-4 { background-color: var(--p-primary-500) !important; color: white !important; font-weight: 600; }
+
+html.dark-mode {
+  .heat-3 { color: var(--l-text, black) !important; }
+  .heat-4 { color: black !important; }
+}
+
+.expiry-critical { background-color: color-mix(in srgb, var(--p-red-500) 15%, var(--l-surface)) !important; }
+.expiry-warning  { background-color: color-mix(in srgb, var(--p-orange-500) 15%, var(--l-surface)) !important; }
+

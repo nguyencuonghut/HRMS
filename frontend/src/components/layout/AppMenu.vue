@@ -198,6 +198,11 @@ const menu: MenuItem[] = [
         label: "Báo cáo nhân sự",
         icon: "pi-users",
       },
+      {
+        to: "/reports/leave-analytics",
+        label: "Phân tích nghỉ phép",
+        icon: "pi-chart-bar",
+      },
       { to: "/reports", label: "Tổng quan báo cáo", icon: "pi-folder-open" },
     ],
   },
