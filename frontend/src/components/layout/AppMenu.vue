@@ -193,6 +193,11 @@ const menu: MenuItem[] = [
         label: "Dashboard nhân sự",
         icon: "pi-chart-pie",
       },
+      {
+        to: "/reports/hr",
+        label: "Báo cáo nhân sự",
+        icon: "pi-users",
+      },
       { to: "/reports", label: "Tổng quan báo cáo", icon: "pi-folder-open" },
     ],
   },

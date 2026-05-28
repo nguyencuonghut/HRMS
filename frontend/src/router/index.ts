@@ -277,6 +277,12 @@ const router = createRouter({
           component: () => import("@/views/reports/DashboardView.vue"),
           meta: { title: "Dashboard tổng quan" },
         },
+        {
+          path: "reports/hr",
+          name: "hr-reports",
+          component: () => import("@/views/reports/HRReportView.vue"),
+          meta: { title: "Báo cáo nhân sự" },
+        },
         // Danh mục
         {
           path: "catalog",

@@ -217,7 +217,11 @@ async def get_employee_list(
     if gender:
         filters.append(Employee.gender == gender)
     if document_kind:
-        filters.append(EmployeeContract.document_kind == document_kind)
+        if document_kind == "probation":
+            # Thử việc có document_kind = 'labor_contract', phân biệt qua business_group
+            filters.append(ContractCategory.business_group == "probation")
+        else:
+            filters.append(EmployeeContract.document_kind == document_kind)
     if start_date_from:
         filters.append(Employee.start_date >= start_date_from)
     if start_date_to:
