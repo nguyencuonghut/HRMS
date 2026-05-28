@@ -342,6 +342,34 @@ export default {
 
   exportReportD02Ts: (reportId: number) =>
     api.get(`/insurance/reports/${reportId}/export/d02-ts`, { responseType: 'blob' }),
+
+  // ── Insurance Analytics Endpoints (11.4) ──
+  getAnalyticsDashboard: (params: { year: number; month: number; department_id?: number | null }) =>
+    api.get<InsuranceDashboardKPI>('/reports/insurance/dashboard', { params }),
+
+  getMonthlyChanges: (params: { year: number; department_id?: number | null }) =>
+    api.get<InsuranceMonthlyChangesResponse>('/reports/insurance/monthly-changes', { params }),
+
+  getPayrollFund: (params: { year: number; department_id?: number | null }) =>
+    api.get<InsurancePayrollFundResponse>('/reports/insurance/payroll-fund', { params }),
+
+  getNonParticipants: (params: { department_id?: number | null; page?: number; page_size?: number }) =>
+    api.get<InsuranceNonParticipantsResponse>('/reports/insurance/non-participants', { params }),
+
+  getDepartmentBreakdown: (params: { year: number; month: number }) =>
+    api.get<InsuranceDepartmentBreakdownResponse>('/reports/insurance/by-department', { params }),
+
+  getEmployeeHistory: (params: { employee_id: number; year?: number | null }) =>
+    api.get<InsuranceEmployeeHistoryResponse>('/reports/insurance/employee-history', { params }),
+
+  exportAnalyticsUrl: (params: { year: number; month: number; department_id?: number | null }): string => {
+    const qs = new URLSearchParams(
+      Object.entries(params)
+        .filter(([, v]) => v !== null && v !== undefined)
+        .map(([k, v]) => [k, String(v)])
+    ).toString()
+    return `/api/v1/reports/insurance/export?${qs}`
+  },
 }
 
 // ── Report types (6.4) ────────────────────────────────────────────────────────
@@ -407,3 +435,94 @@ export interface InsurancePeriodReportCreate {
   submission_type: SubmissionType
   note?: string | null
 }
+
+// ── Insurance Analytics Types (11.4) ──────────────────────────────────────────
+
+export interface InsuranceDashboardKPI {
+  year: number
+  month: number
+  department_id: number | null
+  participating_count: number
+  total_active_employees: number
+  participation_rate: number
+  total_basis_amount: number
+  increased_count: number
+  decreased_count: number
+  net_change: number
+}
+
+export interface MonthlyChangePoint {
+  month: number
+  increased: number
+  decreased: number
+  net: number
+}
+
+export interface InsuranceMonthlyChangesResponse {
+  year: number
+  department_id: number | null
+  data: MonthlyChangePoint[]
+}
+
+export interface PayrollFundPoint {
+  month: number
+  added_amount: number
+  removed_amount: number
+  snapshot_amount: number | null
+}
+
+export interface InsurancePayrollFundResponse {
+  year: number
+  department_id: number | null
+  data: PayrollFundPoint[]
+}
+
+export interface NonParticipantRow {
+  employee_id: number
+  employee_code: string
+  full_name: string
+  department_name: string
+  participation_status: string | null
+  status_effective_from: string | null
+  status_note: string | null
+  company_bhxh_joined_date: string | null
+}
+
+export interface InsuranceNonParticipantsResponse {
+  items: NonParticipantRow[]
+  total: number
+  page: number
+  page_size: number
+}
+
+export interface DepartmentBreakdownRow {
+  department_id: number
+  department_name: string
+  participating_count: number
+  total_count: number
+  participation_rate: number
+  total_basis_amount: number | null
+}
+
+export interface InsuranceDepartmentBreakdownResponse {
+  year: number
+  month: number
+  items: DepartmentBreakdownRow[]
+}
+
+export interface EmployeeHistoryPoint {
+  effective_date: string
+  change_type: string
+  change_reason: string
+  basis_amount: number | null
+  participation_status_after: string | null
+}
+
+export interface InsuranceEmployeeHistoryResponse {
+  employee_id: number
+  full_name: string
+  current_participation_status: string | null
+  current_basis_amount: number | null
+  history: EmployeeHistoryPoint[]
+}
+

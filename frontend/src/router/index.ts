@@ -289,6 +289,12 @@ const router = createRouter({
           component: () => import("@/views/reports/LeaveAnalyticsView.vue"),
           meta: { title: "Phân tích nghỉ phép" },
         },
+        {
+          path: "reports/insurance",
+          name: "insurance-analytics",
+          component: () => import("@/views/reports/InsuranceAnalyticsView.vue"),
+          meta: { title: "Báo cáo Bảo hiểm", permission: "insurance:read" },
+        },
         // Danh mục
         {
           path: "catalog",

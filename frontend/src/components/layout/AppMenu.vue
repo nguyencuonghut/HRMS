@@ -203,6 +203,11 @@ const menu: MenuItem[] = [
         label: "Phân tích nghỉ phép",
         icon: "pi-chart-bar",
       },
+      {
+        to: "/reports/insurance",
+        label: "Báo cáo bảo hiểm",
+        icon: "pi-shield",
+      },
       { to: "/reports", label: "Tổng quan báo cáo", icon: "pi-folder-open" },
     ],
   },
