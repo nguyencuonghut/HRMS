@@ -24,14 +24,10 @@
           <MovementTab />
         </TabPanel>
         <TabPanel value="tenure">
-          <Message severity="secondary" :closable="false">
-            Tab Thâm niên sẽ hoàn thiện ở Slice 4.
-          </Message>
+          <TenureTab />
         </TabPanel>
         <TabPanel value="org-structure">
-          <Message severity="secondary" :closable="false">
-            Tab Cơ cấu tổ chức sẽ hoàn thiện ở Slice 4.
-          </Message>
+          <OrgStructureTab />
         </TabPanel>
       </TabPanels>
     </Tabs>
@@ -40,7 +36,6 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import Message from 'primevue/message'
 import Tab from 'primevue/tab'
 import TabList from 'primevue/tablist'
 import TabPanel from 'primevue/tabpanel'
@@ -49,6 +44,8 @@ import Tabs from 'primevue/tabs'
 
 import EmployeeListTab from './components/hr/EmployeeListTab.vue'
 import MovementTab from './components/hr/MovementTab.vue'
+import TenureTab from './components/hr/TenureTab.vue'
+import OrgStructureTab from './components/hr/OrgStructureTab.vue'
 
 const activeTab = ref('employee-list')
 </script>
