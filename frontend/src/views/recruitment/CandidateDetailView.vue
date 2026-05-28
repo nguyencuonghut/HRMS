@@ -1046,7 +1046,7 @@ import Textarea from "primevue/textarea";
 import ToggleSwitch from "primevue/toggleswitch";
 import { useConfirm } from "primevue/useconfirm";
 import { useToast } from "primevue/usetoast";
-import { formatDatetime } from "@/utils/format";
+import { formatDatetime, toLocalIso } from "@/utils/format";
 
 import educationCatalogService, {
   type EducationalInstitutionRead,
@@ -1455,10 +1455,10 @@ async function saveExp() {
       company_name: expForm.value.company_name,
       position_name: expForm.value.position_name || null,
       start_date: expStartDate.value
-        ? expStartDate.value.toISOString().slice(0, 10)
+        ? toLocalIso(expStartDate.value)
         : null,
       end_date: expEndDate.value
-        ? expEndDate.value.toISOString().slice(0, 10)
+        ? toLocalIso(expEndDate.value)
         : null,
       description: expForm.value.description || null,
     };
@@ -1614,7 +1614,7 @@ async function doApply() {
     await recruitmentService.applyCandidate(candidateId.value, {
       job_requisition_id: applyForm.value.job_requisition_id,
       applied_date: applyDate.value
-        ? applyDate.value.toISOString().slice(0, 10)
+        ? toLocalIso(applyDate.value)
         : undefined,
       source_channel_id: applyForm.value.source_channel_id ?? undefined,
       internal_note: applyForm.value.internal_note || undefined,

@@ -243,6 +243,7 @@ import Textarea from 'primevue/textarea'
 
 import employeeService, { type ChecklistItemRead, type ChecklistItemUpdate } from '@/services/employeeService'
 import { documentChecklistService, type DocumentChecklistType } from '@/services/recruitmentService'
+import { toLocalIso } from '@/utils/format'
 
 const props = defineProps<{ employeeId: number }>()
 
@@ -320,7 +321,7 @@ function formatDate(iso: string): string {
 
 function dateToIso(d: Date | null): string | null {
   if (!d) return null
-  return d.toISOString().slice(0, 10)
+  return toLocalIso(d)
 }
 
 // ── Init / Add ────────────────────────────────────────────────────────────────

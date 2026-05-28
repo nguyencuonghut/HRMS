@@ -217,6 +217,7 @@ import {
   type TimeMetricsReport,
 } from '@/services/recruitmentService'
 import RecruitmentBreadcrumb from './components/RecruitmentBreadcrumb.vue'
+import { toLocalIso } from '@/utils/format'
 
 const toast = useToast()
 
@@ -237,7 +238,7 @@ const departments = ref<DepartmentRecruitmentStat[]>([])
 const timeMetrics = ref<TimeMetricsReport | null>(null)
 
 function fmtDate(d: Date): string {
-  return d.toISOString().slice(0, 10)
+  return toLocalIso(d)
 }
 
 function formatDate(s: string): string {

@@ -315,6 +315,7 @@ import recruitmentService, {
   type CandidateRead,
   type RecruitmentChannelRead,
 } from '@/services/recruitmentService'
+import { toLocalIso } from '@/utils/format'
 
 const props = defineProps<{ editing: CandidateRead | null }>()
 const emit = defineEmits<{ (e: 'saved'): void }>()
@@ -387,7 +388,7 @@ function toDate(value: string | null | undefined): Date | null {
 }
 
 function toIso(value: Date | null): string | null {
-  return value ? value.toISOString().slice(0, 10) : null
+  return value ? toLocalIso(value) : null
 }
 
 function formatDate(value: string | null): string {

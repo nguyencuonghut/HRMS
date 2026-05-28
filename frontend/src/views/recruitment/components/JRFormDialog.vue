@@ -146,6 +146,7 @@ import { useToast } from 'primevue/usetoast'
 import recruitmentService, { type JobRequisitionRead } from '@/services/recruitmentService'
 import departmentService, { type DepartmentRead } from '@/services/departmentService'
 import jobPositionService, { type JobPositionListItem } from '@/services/jobPositionService'
+import { toLocalIso } from '@/utils/format'
 
 const props = defineProps<{
   visible: boolean
@@ -251,7 +252,7 @@ async function submit() {
       reason_type:      form.value.reason_type,
       salary_min:       form.value.salary_min,
       salary_max:       form.value.salary_max,
-      deadline:         form.value.deadline ? form.value.deadline.toISOString().substring(0, 10) : null,
+      deadline:         form.value.deadline ? toLocalIso(form.value.deadline) : null,
       jd_description:   form.value.jd_description.trim() || null,
       jd_requirements:  form.value.jd_requirements.trim() || null,
       internal_note:    form.value.internal_note.trim() || null,

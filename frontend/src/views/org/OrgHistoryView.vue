@@ -179,6 +179,7 @@ import Select from 'primevue/select'
 import Tag from 'primevue/tag'
 
 import orgHistoryService, { type OrgHistoryItem } from '@/services/orgHistoryService'
+import { toLocalIso } from '@/utils/format'
 
 // ── State ──────────────────────────────────────────────────────────────────────
 
@@ -279,7 +280,7 @@ function diffRows(
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
 function toISODate(d: Date): string {
-  return d.toISOString().slice(0, 10)
+  return toLocalIso(d)
 }
 
 function formatDate(iso: string): string {

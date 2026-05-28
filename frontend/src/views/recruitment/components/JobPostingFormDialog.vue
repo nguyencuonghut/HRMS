@@ -158,6 +158,7 @@ import recruitmentService, {
   type JobRequisitionListItem,
   type RecruitmentChannelRead,
 } from '@/services/recruitmentService'
+import { toLocalIso } from '@/utils/format'
 
 const props = defineProps<{
   visible: boolean
@@ -276,7 +277,7 @@ async function submit() {
       salary_display: form.value.salary_display.trim() || null,
       posting_type:  form.value.posting_type,
       channels:      form.value.channels,
-      deadline:      form.value.deadline ? form.value.deadline.toISOString().substring(0, 10) : null,
+      deadline:      form.value.deadline ? toLocalIso(form.value.deadline) : null,
       note:          form.value.note.trim() || null,
     }
     if (props.editing) {

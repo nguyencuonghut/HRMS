@@ -126,6 +126,7 @@ import { useToast } from 'primevue/usetoast'
 import { offerService, type OfferRead } from '@/services/recruitmentService'
 import departmentService from '@/services/departmentService'
 import jobPositionService from '@/services/jobPositionService'
+import { toLocalIso } from '@/utils/format'
 
 const props = defineProps<{
   applicationId: number
@@ -190,7 +191,7 @@ function resetForm() {
 
 function toDateStr(d: Date | null): string | null {
   if (!d) return null
-  return d.toISOString().slice(0, 10)
+  return toLocalIso(d)
 }
 
 async function save() {

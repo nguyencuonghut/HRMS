@@ -1,4 +1,5 @@
 import api from './api'
+import { toLocalIso } from '@/utils/format'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -723,7 +724,7 @@ export default {
     }),
 
   exportEmployees: (params?: { keyword?: string; status?: string; is_active?: boolean }) => {
-    const today = new Date().toISOString().slice(0, 10).replace(/-/g, '')
+    const today = toLocalIso(new Date()).replace(/-/g, '')
     return downloadBlob(`${BASE}/export`, `danh_sach_nhan_vien_${today}.xlsx`, params as Record<string, unknown>)
   },
 

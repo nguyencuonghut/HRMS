@@ -249,6 +249,7 @@ import rewardReportService from '@/services/rewardReportService'
 import type { RewardDisciplineReportPage } from '@/services/rewardReportService'
 import departmentService from '@/services/departmentService'
 import type { DepartmentRead } from '@/services/departmentService'
+import { toLocalIso } from '@/utils/format'
 
 // ── Toast ─────────────────────────────────────────────────────────────────────
 const toast = useToast()
@@ -274,7 +275,7 @@ const deptOptions = computed(() => [
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function toApiDate(d: Date): string {
-  return d.toISOString().split('T')[0]
+  return toLocalIso(d)
 }
 
 function fmtDate(s: string | null | undefined): string {

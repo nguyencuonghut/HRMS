@@ -224,6 +224,7 @@ import Select from 'primevue/select'
 import Tag from 'primevue/tag'
 
 import auditLogService, { type AuditLogItem } from '@/services/auditLogService'
+import { toLocalIso } from '@/utils/format'
 
 const toast    = useToast()
 const loading  = ref(false)
@@ -335,7 +336,7 @@ function diffRows(
 }
 
 function toISODate(d: Date): string {
-  return d.toISOString().slice(0, 10)
+  return toLocalIso(d)
 }
 
 function formatDate(iso: string): string {

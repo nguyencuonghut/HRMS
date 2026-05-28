@@ -3,6 +3,19 @@ function toUtcString(d: string): string {
   return /[Z+\-]\d{2}:\d{2}$|Z$/.test(d) ? d : d + 'Z'
 }
 
+/**
+ * Convert a Date object to local YYYY-MM-DD string (no UTC conversion).
+ * Use this instead of d.toISOString().slice(0,10) which shifts the date
+ * to UTC first — causing off-by-one-day errors for users in UTC+7.
+ */
+export function toLocalIso(d: Date | null | undefined): string {
+  if (!d) return ''
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
 export function formatDatetime(d: string | null | undefined): string {
   if (!d) return '—'
   return new Date(toUtcString(d)).toLocaleString('vi-VN', { dateStyle: 'short', timeStyle: 'short' })
