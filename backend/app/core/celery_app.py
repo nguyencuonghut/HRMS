@@ -8,7 +8,7 @@ celery_app = Celery(
     "hrms",
     broker=settings.REDIS_URL,
     backend=settings.REDIS_URL,
-    include=["app.workers.tasks"],
+    include=["app.workers.tasks", "app.workers.export_tasks"],
 )
 
 celery_app.conf.update(
@@ -17,6 +17,9 @@ celery_app.conf.update(
     task_serializer="json",
     result_serializer="json",
     accept_content=["json"],
+    task_routes={
+        "app.workers.export_tasks.run_export_task": {"queue": "exports"},
+    },
     beat_schedule={
         "expire-overdue-contracts": {
             "task": "app.workers.tasks.expire_overdue_contracts",
