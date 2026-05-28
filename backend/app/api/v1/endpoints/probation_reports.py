@@ -1,0 +1,149 @@
+"""Endpoints báo cáo Onboarding & Thử việc (Plan 14.3)."""
+from __future__ import annotations
+
+from datetime import date
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import StreamingResponse
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.api.v1.deps import require_permission
+from app.core.database import get_session
+from app.models.auth import User
+from app.schemas.probation_report import (
+    ActiveProbationReport,
+    ChecklistCompletionReport,
+    FailureReasonReport,
+    ProbationPassRateReport,
+)
+from app.services import probation_report_service
+
+router = APIRouter()
+
+_XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+
+@router.get(
+    "/active",
+    response_model=ActiveProbationReport,
+    summary="Danh sách nhân viên đang thử việc",
+)
+async def get_active(
+    department_id: Optional[int] = Query(None, description="Lọc theo phòng ban"),
+    keyword: Optional[str] = Query(None, description="Tìm theo tên hoặc mã nhân viên"),
+    current_user: User = require_permission("employees:read"),
+    session: AsyncSession = Depends(get_session),
+) -> ActiveProbationReport:
+    return await probation_report_service.get_active_probation(
+        session, department_id=department_id, keyword=keyword
+    )
+
+
+@router.get(
+    "/checklist-completion",
+    response_model=ChecklistCompletionReport,
+    summary="Tỷ lệ hoàn thành Checklist onboarding theo phòng ban",
+)
+async def get_checklist_completion(
+    start_date: date = Query(..., description="Từ ngày (start_date của nhân viên)"),
+    end_date: date = Query(..., description="Đến ngày"),
+    department_id: Optional[int] = Query(None),
+    current_user: User = require_permission("employees:read"),
+    session: AsyncSession = Depends(get_session),
+) -> ChecklistCompletionReport:
+    if start_date > end_date:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="start_date phải ≤ end_date",
+        )
+    return await probation_report_service.get_checklist_completion(
+        session,
+        start_date=start_date,
+        end_date=end_date,
+        department_id=department_id,
+    )
+
+
+@router.get(
+    "/pass-rate",
+    response_model=ProbationPassRateReport,
+    summary="Tỷ lệ vượt thử việc theo kỳ",
+)
+async def get_pass_rate(
+    start_date: date = Query(...),
+    end_date: date = Query(...),
+    department_id: Optional[int] = Query(None),
+    current_user: User = require_permission("employees:read"),
+    session: AsyncSession = Depends(get_session),
+) -> ProbationPassRateReport:
+    if start_date > end_date:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="start_date phải ≤ end_date",
+        )
+    return await probation_report_service.get_pass_rate(
+        session,
+        start_date=start_date,
+        end_date=end_date,
+        department_id=department_id,
+    )
+
+
+@router.get(
+    "/failure-reasons",
+    response_model=FailureReasonReport,
+    summary="Phân tích lý do không đạt thử việc",
+)
+async def get_failure_reasons(
+    start_date: date = Query(...),
+    end_date: date = Query(...),
+    current_user: User = require_permission("employees:read"),
+    session: AsyncSession = Depends(get_session),
+) -> FailureReasonReport:
+    if start_date > end_date:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="start_date phải ≤ end_date",
+        )
+    return await probation_report_service.get_failure_reasons(
+        session, start_date=start_date, end_date=end_date
+    )
+
+
+@router.get(
+    "/export",
+    summary="Xuất báo cáo thử việc ra Excel",
+    response_class=StreamingResponse,
+)
+async def export(
+    start_date: date = Query(...),
+    end_date: date = Query(...),
+    department_id: Optional[int] = Query(None),
+    current_user: User = require_permission("employees:read"),
+    session: AsyncSession = Depends(get_session),
+) -> StreamingResponse:
+    if start_date > end_date:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="start_date phải ≤ end_date",
+        )
+    try:
+        buf = await probation_report_service.export_excel(
+            session,
+            start_date=start_date,
+            end_date=end_date,
+            department_id=department_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        )
+
+    filename = f"bc_thu_viec_{start_date}_{end_date}.xlsx"
+    return StreamingResponse(
+        buf,
+        media_type=_XLSX_MIME,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

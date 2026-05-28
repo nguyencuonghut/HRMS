@@ -90,8 +90,9 @@ const menu: MenuItem[] = [
     label: 'Nhân sự',
     icon: 'pi-users',
     items: [
-      { to: '/employees',            label: 'Danh sách nhân viên' },
-      { to: '/employees/onboarding', label: 'Tiếp nhận nhân viên mới', icon: 'pi-clipboard' },
+      { to: '/employees',                      label: 'Danh sách nhân viên' },
+      { to: '/employees/onboarding',           label: 'Tiếp nhận nhân viên mới', icon: 'pi-clipboard' },
+      { to: '/employees/probation-reports',    label: 'Báo cáo thử việc',        icon: 'pi-chart-bar' },
     ],
   },
   { to: '/reminders', label: 'Nhắc nhở', icon: 'pi-bell'  },

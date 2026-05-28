@@ -17,6 +17,7 @@
 :root {
   --l-bg:             #f0f2f5;   // page background
   --l-surface:        #ffffff;   // topbar + sidebar + card
+  --l-surface-variant:#f8f9fa;   // inset panel, score grid, subtle card
   --l-border:         #e4e6eb;   // separators
   --l-text:           #1f2937;
   --l-text-muted:     #6b7280;
@@ -36,6 +37,7 @@
 html.dark-mode {
   --l-bg:             #09090b;
   --l-surface:        #18181b;   // topbar + sidebar (zinc-900)
+  --l-surface-variant:#27272a;   // inset panel, score grid (zinc-800)
   --l-border:         #27272a;   // zinc-800
   --l-text:           #f4f4f5;
   --l-text-muted:     #71717a;

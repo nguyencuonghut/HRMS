@@ -63,6 +63,13 @@ const router = createRouter({
           component: () => import("@/views/employees/EmployeeDetailView.vue"),
           meta: { title: "Hồ sơ nhân viên" },
         },
+        // Probation reports
+        {
+          path: "employees/probation-reports",
+          name: "employees-probation-reports",
+          component: () => import("@/views/employees/ProbationReportView.vue"),
+          meta: { title: "Báo cáo thử việc" },
+        },
         // Onboarding
         {
           path: "employees/onboarding/tasks",

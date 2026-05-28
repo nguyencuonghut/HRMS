@@ -66,6 +66,7 @@
           <Tab value="insurance" :disabled="isNew">Bảo hiểm</Tab>
           <Tab value="kpi" :disabled="isNew">Đánh giá KPI</Tab>
           <Tab value="legal" :disabled="isNew">Hồ sơ pháp lý</Tab>
+          <Tab value="probation" :disabled="isNew">Thử việc</Tab>
         </TabList>
 
         <TabPanels>
@@ -448,6 +449,11 @@
           <TabPanel value="legal">
             <DocumentChecklistTab v-if="!isNew && employeeId" :employee-id="employeeId" />
           </TabPanel>
+
+          <!-- ── TAB: Thử việc (14.2) ────────────────────────────────────── -->
+          <TabPanel value="probation">
+            <ProbationTab v-if="!isNew && employeeId" :employee-id="employeeId" />
+          </TabPanel>
         </TabPanels>
       </Tabs>
     </template>
@@ -525,6 +531,7 @@ import ContractTab from './ContractTab.vue'
 import InsuranceTab from './InsuranceTab.vue'
 import KpiHistoryTab from './KpiHistoryTab.vue'
 import DocumentChecklistTab from './DocumentChecklistTab.vue'
+import ProbationTab from './ProbationTab.vue'
 import departmentService, { type DepartmentRead } from '@/services/departmentService'
 import jobTitleService, { type JobTitleRead } from '@/services/jobTitleService'
 import jobPositionService, { type JobPositionListItem } from '@/services/jobPositionService'

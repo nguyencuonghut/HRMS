@@ -29,6 +29,8 @@ from app.api.v1.endpoints import training
 from app.api.v1.endpoints import performance
 from app.api.v1.endpoints import recruitment
 from app.api.v1.endpoints import onboarding
+from app.api.v1.endpoints import probation
+from app.api.v1.endpoints import probation_reports
 
 router = APIRouter()
 router.include_router(auth.router,          prefix="/auth",          tags=["Xác thực"])
@@ -78,3 +80,5 @@ router.include_router(performance.router, prefix="/performance", tags=["Hiệu s
 router.include_router(performance.employee_perf_router, prefix="/employees", tags=["Hiệu suất KPI"])
 router.include_router(recruitment.router, prefix="/recruitment", tags=["Tuyển dụng"])
 router.include_router(onboarding.router,  prefix="/onboarding",  tags=["Onboarding"])
+router.include_router(probation.router,   prefix="/employees",   tags=["Quản lý thử việc"])
+router.include_router(probation_reports.router, prefix="/reports/probation", tags=["Báo cáo thử việc"])

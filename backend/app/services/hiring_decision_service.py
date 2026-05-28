@@ -368,6 +368,16 @@ async def convert_to_employee(
             "Tạo onboarding checklist thất bại cho employee_id=%s: %s", emp.id, _ob_err
         )
 
+    # Tạo hợp đồng thử việc — KHÔNG rollback nếu thất bại (template có thể chưa có)
+    try:
+        from app.services.probation_service import generate_probation_contract as _gen_prob_contract
+        await _gen_prob_contract(session, emp.id, user_id)
+    except Exception as _prob_err:
+        import logging as _log
+        _log.getLogger(__name__).warning(
+            "generate_probation_contract thất bại cho employee_id=%s: %s", emp.id, _prob_err
+        )
+
     employee_code = await employee_code_service.build_employee_display_code(session, emp)
 
     return ConvertToEmployeeResult(
