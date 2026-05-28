@@ -9,7 +9,7 @@
 
     <!-- Filter toolbar -->
     <div class="toolbar">
-      <span class="ob-label" style="white-space:nowrap">Kỳ báo cáo:</span>
+      <span class="ob-label" style="white-space:nowrap">Lọc theo kỳ:</span>
       <DatePicker
         v-model="filterFrom"
         date-format="dd/mm/yy"
@@ -30,7 +30,7 @@
         placeholder="Tên hoặc mã nhân viên..."
         class="toolbar-filter"
         style="width: 210px"
-        @keydown.enter="loadActive"
+        @keydown.enter="loadAll"
       />
       <Select
         v-model="filterDeptId"
@@ -46,8 +46,17 @@
         label="Xem báo cáo"
         icon="pi pi-search"
         :loading="loadingAny"
-        v-tooltip.bottom="'Kỳ báo cáo áp dụng cho: ngày vào làm (checklist) và ngày đánh giá (tỷ lệ vượt thử việc)'"
+        v-tooltip.bottom="'Lọc theo kỳ áp dụng cho: bảng nhân viên, checklist và tỷ lệ vượt thử việc. Để trống để xem tất cả.'"
         @click="loadAll"
+      />
+      <Button
+        icon="pi pi-refresh"
+        severity="secondary"
+        text
+        rounded
+        v-tooltip.bottom="'Làm mới'"
+        :disabled="loadingAny"
+        @click="resetFilters"
       />
       <div style="flex:1" />
       <Button
@@ -63,16 +72,21 @@
 
     <!-- ── Section 1: KPI Summary Cards ──────────────────────────────────── -->
     <div class="prob-kpi-row">
+      <!-- Card 1: Khi không có kỳ → đang thử việc real-time; khi có kỳ → tổng trong kỳ -->
       <div class="prob-kpi-card">
-        <div class="prob-kpi-value prob-kpi-primary">{{ activeProbation?.total ?? '—' }}</div>
-        <div class="prob-kpi-label">Đang thử việc</div>
+        <div class="prob-kpi-value prob-kpi-primary">
+          {{ hasDateRange ? (historyReport?.total ?? '—') : (activeProbation?.total ?? '—') }}
+        </div>
+        <div class="prob-kpi-label">{{ hasDateRange ? 'Thử việc trong kỳ' : 'Đang thử việc' }}</div>
       </div>
+      <!-- Card 2: Khi không có kỳ → ngày còn lại TB real-time; khi có kỳ → số người vượt -->
       <div class="prob-kpi-card">
         <div class="prob-kpi-value prob-kpi-info">
-          {{ avgDaysRemaining !== null ? avgDaysRemaining : '—' }}
+          {{ hasDateRange ? (passRate?.overall?.passed ?? '—') : (avgDaysRemaining !== null ? avgDaysRemaining : '—') }}
         </div>
-        <div class="prob-kpi-label">Ngày còn lại TB</div>
+        <div class="prob-kpi-label">{{ hasDateRange ? 'Đã vượt trong kỳ' : 'Ngày còn lại TB' }}</div>
       </div>
+      <!-- Card 3: Tỷ lệ vượt — luôn theo effectiveDates() -->
       <div class="prob-kpi-card">
         <div class="prob-kpi-value prob-kpi-success">
           {{ passRate?.overall?.pass_rate !== null && passRate?.overall?.pass_rate !== undefined
@@ -80,31 +94,38 @@
         </div>
         <div class="prob-kpi-label">Tỷ lệ vượt thử việc</div>
       </div>
+      <!-- Card 4: Hội nhập TB — luôn theo effectiveDates() -->
       <div class="prob-kpi-card">
         <div class="prob-kpi-value prob-kpi-warn">
           {{ avgChecklistPct !== null ? avgChecklistPct.toFixed(1) + '%' : '—' }}
         </div>
-        <div class="prob-kpi-label">Checklist hoàn thành TB</div>
+        <div class="prob-kpi-label">Hội nhập hoàn thành TB</div>
       </div>
     </div>
 
-    <!-- ── Section 2: Nhân viên đang thử việc ───────────────────────────── -->
+    <!-- ── Section 2: Nhân viên thử việc trong kỳ ──────────────────────── -->
     <div class="ob-card">
       <div class="prob-section-title">
         <i class="pi pi-users" />
-        Nhân viên đang thử việc
-        <Tag v-if="activeProbation" :value="String(activeProbation.total)" severity="secondary" />
+        {{ hasDateRange ? 'Nhân viên thử việc trong kỳ' : 'Tất cả nhân viên thử việc' }}
+        <Tag v-if="historyReport" :value="String(historyReport.total)" severity="secondary" />
       </div>
       <DataTable
-        :value="activeProbation?.items ?? []"
-        :loading="loadingActive"
+        :value="historyReport?.items ?? []"
+        :loading="loadingHistory"
         size="small"
         striped-rows
-        :rows="20"
+        lazy
+        :total-records="historyTotal"
+        :rows="historyPageSize"
+        :first="(historyPage - 1) * historyPageSize"
         paginator
         :rows-per-page-options="[10,20,50]"
+        @page="onHistoryPage"
       >
-        <template #empty><div class="ob-empty">Không có nhân viên đang thử việc</div></template>
+        <template #empty>
+          <div class="ob-empty">Không có nhân viên thử việc</div>
+        </template>
 
         <Column header="Nhân viên" min-header-width="160px">
           <template #body="{ data }">
@@ -117,29 +138,40 @@
           </template>
         </Column>
 
+        <Column header="Trạng thái" style="width:130px">
+          <template #body="{ data }">
+            <Tag
+              :value="empStatusLabel(data.employee_status)"
+              :severity="empStatusSeverity(data.employee_status)"
+            />
+          </template>
+        </Column>
+
         <Column field="department_name" header="Phòng ban" style="width:150px">
           <template #body="{ data }">{{ data.department_name ?? '—' }}</template>
         </Column>
 
-        <Column header="Kết thúc TV" style="width:120px">
+        <Column header="Bắt đầu TV" style="width:110px">
+          <template #body="{ data }">{{ fmtDate(data.probation_start_date) }}</template>
+        </Column>
+
+        <Column header="Kết thúc TV" style="width:110px">
           <template #body="{ data }">{{ fmtDate(data.probation_end_date) }}</template>
         </Column>
 
-        <Column header="Còn lại" style="width:100px">
+        <Column header="Còn lại" style="width:90px">
           <template #body="{ data }">
-            <Badge
-              v-if="data.days_remaining !== null"
-              :value="`${data.days_remaining}d`"
-              :severity="urgencySeverity(data.urgency)"
-            />
+            <span v-if="data.days_remaining !== null" style="font-size:0.85rem">
+              {{ data.days_remaining }}d
+            </span>
             <span v-else class="ob-muted">—</span>
           </template>
         </Column>
 
-        <Column header="Onboarding" style="width:160px">
+        <Column header="Hội nhập" style="width:160px">
           <template #body="{ data }">
             <div v-if="data.completion_pct !== null" style="display:flex;align-items:center;gap:0.5rem">
-              <ProgressBar :value="data.completion_pct" style="height:7px;flex:1" />
+              <ProgressBar :value="data.completion_pct" :show-value="false" style="height:7px;flex:1" />
               <span style="font-size:0.78rem;white-space:nowrap">{{ data.completion_pct.toFixed(0) }}%</span>
             </div>
             <span v-else class="ob-muted">—</span>
@@ -154,14 +186,23 @@
             />
           </template>
         </Column>
+
+        <Column header="Phiếu ĐG" style="width:110px">
+          <template #body="{ data }">
+            <span v-if="data.evaluation_status" style="font-size:0.8rem">
+              {{ evalStatusLabel(data.evaluation_status) }}
+            </span>
+            <span v-else class="ob-muted">—</span>
+          </template>
+        </Column>
       </DataTable>
     </div>
 
     <!-- ── Section 3: Checklist hoàn thành theo phòng ban ───────────────── -->
-    <div v-if="hasDateRange" class="ob-card">
+    <div class="ob-card">
       <div class="prob-section-title">
         <i class="pi pi-clipboard" />
-        Tỷ lệ hoàn thành Checklist onboarding theo phòng ban
+        Tỷ lệ hoàn thành checklist hội nhập theo phòng ban
       </div>
       <DataTable
         :value="checklist?.items ?? []"
@@ -169,7 +210,7 @@
         size="small"
         striped-rows
       >
-        <template #empty><div class="ob-empty">Không có dữ liệu trong kỳ này</div></template>
+        <template #empty><div class="ob-empty">Không có dữ liệu</div></template>
 
         <Column field="department_name" header="Phòng ban" />
         <Column field="total_checklists" header="Tổng" style="width:80px" />
@@ -177,7 +218,7 @@
         <Column header="Tỷ lệ xong" style="width:180px">
           <template #body="{ data }">
             <div style="display:flex;align-items:center;gap:0.5rem">
-              <ProgressBar :value="data.completion_rate" style="height:7px;flex:1" />
+              <ProgressBar :value="data.completion_rate" :show-value="false" style="height:7px;flex:1" />
               <span style="font-size:0.8rem;white-space:nowrap">{{ data.completion_rate.toFixed(1) }}%</span>
             </div>
           </template>
@@ -185,7 +226,7 @@
         <Column header="Tiến độ TB" style="width:180px">
           <template #body="{ data }">
             <div style="display:flex;align-items:center;gap:0.5rem">
-              <ProgressBar :value="data.avg_completion_pct" style="height:7px;flex:1" />
+              <ProgressBar :value="data.avg_completion_pct" :show-value="false" style="height:7px;flex:1" />
               <span style="font-size:0.8rem;white-space:nowrap">{{ data.avg_completion_pct.toFixed(1) }}%</span>
             </div>
           </template>
@@ -194,7 +235,7 @@
     </div>
 
     <!-- ── Section 4: Tỷ lệ vượt thử việc ──────────────────────────────── -->
-    <div v-if="hasDateRange" class="ob-card">
+    <div class="ob-card">
       <div class="prob-section-title">
         <i class="pi pi-chart-bar" />
         Tỷ lệ vượt thử việc theo phòng ban
@@ -237,7 +278,7 @@
         <Column header="Tỷ lệ" style="width:160px">
           <template #body="{ data }">
             <div v-if="data.pass_rate !== null" style="display:flex;align-items:center;gap:0.5rem">
-              <ProgressBar :value="data.pass_rate" style="height:7px;flex:1" />
+              <ProgressBar :value="data.pass_rate" :show-value="false" style="height:7px;flex:1" />
               <span style="font-size:0.8rem;white-space:nowrap">{{ data.pass_rate.toFixed(1) }}%</span>
             </div>
             <span v-else class="ob-muted">—</span>
@@ -247,7 +288,7 @@
     </div>
 
     <!-- ── Section 5: Xu hướng theo tháng ───────────────────────────────── -->
-    <div v-if="hasDateRange && passRate?.monthly_trend?.length" class="ob-card">
+    <div v-if="passRate?.monthly_trend?.length" class="ob-card">
       <div class="prob-section-title">
         <i class="pi pi-chart-line" />
         Xu hướng thử việc theo tháng
@@ -282,7 +323,7 @@
     </div>
 
     <!-- ── Section 6: Lý do không đạt ──────────────────────────────────── -->
-    <div v-if="hasDateRange && (failureReasons?.total_failed ?? 0) > 0" class="ob-card">
+    <div v-if="(failureReasons?.total_failed ?? 0) > 0" class="ob-card">
       <div class="prob-section-title">
         <i class="pi pi-exclamation-triangle" />
         Lý do không đạt thử việc
@@ -299,7 +340,7 @@
         >
           <span class="prob-keyword-name">{{ kw.keyword }}</span>
           <span class="prob-keyword-count">{{ kw.count }}</span>
-          <ProgressBar :value="kw.pct" style="height:5px;margin-top:0.25rem" />
+          <ProgressBar :value="kw.pct" :show-value="false" style="height:5px;margin-top:0.25rem" />
         </div>
       </div>
 
@@ -329,7 +370,6 @@ import Accordion from 'primevue/accordion'
 import AccordionContent from 'primevue/accordioncontent'
 import AccordionHeader from 'primevue/accordionheader'
 import AccordionPanel from 'primevue/accordionpanel'
-import Badge from 'primevue/badge'
 import Button from 'primevue/button'
 import Column from 'primevue/column'
 import DataTable from 'primevue/datatable'
@@ -344,41 +384,59 @@ import probationReportService, {
   type ActiveProbationReport,
   type ChecklistCompletionReport,
   type FailureReasonReport,
+  type ProbationHistoryReport,
   type ProbationPassRateReport,
 } from '@/services/probationReportService'
 
 const toast = useToast()
 
 // ── Filters ────────────────────────────────────────────────────────────────────
-// Mặc định: đầu năm hiện tại → hôm nay
-const now = new Date()
-const defaultFrom = new Date(now.getFullYear(), 0, 1)   // 1/1/năm nay
-const defaultTo   = new Date(now.getFullYear(), now.getMonth(), now.getDate()) // hôm nay
-
-const filterFrom    = ref<Date | null>(defaultFrom)
-const filterTo      = ref<Date | null>(defaultTo)
+const filterFrom    = ref<Date | null>(null)
+const filterTo      = ref<Date | null>(null)
 const filterDeptId  = ref<number | null>(null)
 const filterKeyword = ref('')
 const departments   = ref<{ id: number; name: string }[]>([])
 
 // ── State ──────────────────────────────────────────────────────────────────────
 const loadingActive    = ref(false)
+const loadingHistory   = ref(false)
 const loadingChecklist = ref(false)
 const loadingPassRate  = ref(false)
 const loadingFailure   = ref(false)
 const exporting        = ref(false)
 
 const activeProbation = ref<ActiveProbationReport | null>(null)
+const historyReport   = ref<ProbationHistoryReport | null>(null)
 const checklist       = ref<ChecklistCompletionReport | null>(null)
 const passRate        = ref<ProbationPassRateReport | null>(null)
 const failureReasons  = ref<FailureReasonReport | null>(null)
 
+// ── Pagination (history) ───────────────────────────────────────────────────────
+const historyPage     = ref(1)
+const historyPageSize = ref(20)
+const historyTotal    = ref(0)
+
 // ── Computed ───────────────────────────────────────────────────────────────────
 const loadingAny = computed(() =>
-  loadingActive.value || loadingChecklist.value || loadingPassRate.value || loadingFailure.value
+  loadingActive.value || loadingHistory.value || loadingChecklist.value || loadingPassRate.value || loadingFailure.value
 )
 
 const hasDateRange = computed(() => !!filterFrom.value && !!filterTo.value)
+
+const isFiltered = computed(() =>
+  filterKeyword.value.trim() !== '' ||
+  filterDeptId.value !== null ||
+  filterFrom.value !== null ||
+  filterTo.value !== null
+)
+
+function resetFilters() {
+  filterFrom.value    = null
+  filterTo.value      = null
+  filterKeyword.value = ''
+  filterDeptId.value  = null
+  loadAll()
+}
 
 function toIso(d: Date | null): string {
   if (!d) return ''
@@ -405,12 +463,6 @@ function fmtDate(iso: string | null | undefined): string {
   return `${d}/${m}/${y}`
 }
 
-function urgencySeverity(urgency: string): 'danger' | 'warn' | 'success' {
-  if (urgency === 'critical') return 'danger'
-  if (urgency === 'warning')  return 'warn'
-  return 'success'
-}
-
 function evalResultLabel(r: string): string {
   const map: Record<string, string> = {
     not_started: 'Chưa đánh giá',
@@ -431,6 +483,37 @@ function evalResultSeverity(r: string): 'secondary' | 'success' | 'danger' | 'wa
     extended:    'warn',
   }
   return map[r] ?? 'secondary'
+}
+
+function empStatusLabel(s: string): string {
+  const map: Record<string, string> = {
+    probation:  'Đang thử việc',
+    official:   'Chính thức',
+    resigned:   'Đã nghỉ',
+    terminated: 'Đã chấm dứt',
+    maternity:  'Thai sản',
+    suspended:  'Tạm hoãn',
+  }
+  return map[s] ?? s
+}
+
+function empStatusSeverity(s: string): 'info' | 'success' | 'warn' | 'danger' | 'secondary' {
+  const map: Record<string, 'info' | 'success' | 'warn' | 'danger' | 'secondary'> = {
+    probation:  'info',
+    official:   'success',
+    resigned:   'warn',
+    terminated: 'danger',
+  }
+  return map[s] ?? 'secondary'
+}
+
+function evalStatusLabel(s: string): string {
+  const map: Record<string, string> = {
+    draft:     'Nháp',
+    submitted: 'Đã nộp',
+    approved:  'Đã duyệt',
+  }
+  return map[s] ?? s
 }
 
 function apiError(e: unknown): string {
@@ -455,13 +538,47 @@ async function loadActive() {
   }
 }
 
+function effectiveDates() {
+  return {
+    start_date: filterFrom.value ? toIso(filterFrom.value) : '2000-01-01',
+    end_date:   filterTo.value   ? toIso(filterTo.value)   : toIso(new Date()),
+  }
+}
+
+async function loadHistory() {
+  loadingHistory.value = true
+  try {
+    const params: Record<string, unknown> = {
+      page:      historyPage.value,
+      page_size: historyPageSize.value,
+    }
+    if (filterFrom.value)             params.start_date    = toIso(filterFrom.value)
+    if (filterTo.value)               params.end_date      = toIso(filterTo.value)
+    if (filterDeptId.value)           params.department_id = filterDeptId.value
+    if (filterKeyword.value.trim())   params.keyword       = filterKeyword.value.trim()
+    const res = await probationReportService.getHistory(params as Parameters<typeof probationReportService.getHistory>[0])
+    historyReport.value = res.data
+    historyTotal.value  = res.data.total
+  } catch (e) {
+    toast.add({ severity: 'error', summary: 'Lỗi', detail: apiError(e), life: 4000 })
+  } finally {
+    loadingHistory.value = false
+  }
+}
+
+async function onHistoryPage(event: { page: number; rows: number }) {
+  historyPage.value     = event.page + 1  // PrimeVue page is 0-based
+  historyPageSize.value = event.rows
+  await loadHistory()
+}
+
 async function loadChecklist() {
-  if (!filterFrom.value || !filterTo.value) return
   loadingChecklist.value = true
   try {
+    const { start_date, end_date } = effectiveDates()
     const res = await probationReportService.getChecklistCompletion({
-      start_date: toIso(filterFrom.value),
-      end_date:   toIso(filterTo.value),
+      start_date,
+      end_date,
       ...(filterDeptId.value ? { department_id: filterDeptId.value } : {}),
     })
     checklist.value = res.data
@@ -473,12 +590,12 @@ async function loadChecklist() {
 }
 
 async function loadPassRate() {
-  if (!filterFrom.value || !filterTo.value) return
   loadingPassRate.value = true
   try {
+    const { start_date, end_date } = effectiveDates()
     const res = await probationReportService.getPassRate({
-      start_date: toIso(filterFrom.value),
-      end_date:   toIso(filterTo.value),
+      start_date,
+      end_date,
       ...(filterDeptId.value ? { department_id: filterDeptId.value } : {}),
     })
     passRate.value = res.data
@@ -490,13 +607,10 @@ async function loadPassRate() {
 }
 
 async function loadFailureReasons() {
-  if (!filterFrom.value || !filterTo.value) return
   loadingFailure.value = true
   try {
-    const res = await probationReportService.getFailureReasons({
-      start_date: toIso(filterFrom.value),
-      end_date:   toIso(filterTo.value),
-    })
+    const { start_date, end_date } = effectiveDates()
+    const res = await probationReportService.getFailureReasons({ start_date, end_date })
     failureReasons.value = res.data
   } catch (e) {
     toast.add({ severity: 'error', summary: 'Lỗi', detail: apiError(e), life: 4000 })
@@ -506,7 +620,8 @@ async function loadFailureReasons() {
 }
 
 async function loadAll() {
-  await Promise.all([loadActive(), loadChecklist(), loadPassRate(), loadFailureReasons()])
+  historyPage.value = 1
+  await Promise.all([loadActive(), loadHistory(), loadChecklist(), loadPassRate(), loadFailureReasons()])
 }
 
 async function doExport() {

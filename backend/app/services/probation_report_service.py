@@ -22,6 +22,8 @@ from app.schemas.probation_report import (
     FailureKeywordCount,
     FailureReasonReport,
     MonthlyProbationTrend,
+    ProbationHistoryReport,
+    ProbationHistoryRow,
     ProbationPassRateReport,
     ProbationPassRateStat,
 )
@@ -124,6 +126,117 @@ async def get_active_probation(
     items.sort(key=lambda r: (r.days_remaining is None, r.days_remaining or 0))
 
     return ActiveProbationReport(items=items, total=len(items))
+
+
+# ── A2: Lịch sử thử việc trong kỳ (bao gồm cả đã kết thúc) ──────────────────
+
+async def get_probation_history(
+    session: AsyncSession,
+    *,
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
+    department_id: Optional[int] = None,
+    keyword: Optional[str] = None,
+    page: int = 1,
+    page_size: int = 20,
+) -> ProbationHistoryReport:
+    """Trả về tất cả nhân viên có probation_start_date trong khoảng [start_date, end_date].
+    Nếu không có start_date/end_date, trả về tất cả.
+    Bao gồm cả những người đã kết thúc thử việc (official, resigned, …).
+    """
+    base_conditions = [Employee.is_active == True]  # noqa: E712
+    if start_date is not None:
+        base_conditions.append(EmployeeJobRecord.probation_start_date >= start_date)
+    if end_date is not None:
+        base_conditions.append(EmployeeJobRecord.probation_start_date <= end_date)
+
+    stmt = (
+        select(
+            Employee,
+            EmployeeJobRecord,
+            Department.id.label("dept_id"),
+            Department.name.label("dept_name"),
+            OnboardingChecklist.status.label("oc_status"),
+            OnboardingChecklist.completion_pct.label("oc_pct"),
+            ProbationEvaluation.result.label("eval_result"),
+            ProbationEvaluation.status.label("eval_status"),
+        )
+        .where(*base_conditions)
+        .join(
+            EmployeeJobRecord,
+            (EmployeeJobRecord.employee_id == Employee.id) & (EmployeeJobRecord.is_current == True),  # noqa: E712
+        )
+        .outerjoin(Department, Department.id == EmployeeJobRecord.department_id)
+        .outerjoin(OnboardingChecklist, OnboardingChecklist.employee_id == Employee.id)
+        .outerjoin(
+            ProbationEvaluation,
+            (ProbationEvaluation.employee_id == Employee.id)
+            & (ProbationEvaluation.job_record_id == EmployeeJobRecord.id),
+        )
+    )
+
+    if department_id is not None:
+        stmt = stmt.where(EmployeeJobRecord.department_id == department_id)
+
+    rows = (await session.execute(stmt)).all()
+
+    employees = [emp for emp, *_ in rows]
+    code_map = await employee_code_service.batch_build_employee_display_codes(session, employees)
+
+    today = date.today()
+    items: list[ProbationHistoryRow] = []
+    for emp, ejr, dept_id, dept_name, oc_status, oc_pct, eval_result, eval_status in rows:
+        # days_remaining chỉ tính nếu còn đang probation
+        days_remaining: Optional[int] = None
+        if emp.status == "probation" and ejr.probation_end_date is not None:
+            days_remaining = (ejr.probation_end_date - today).days
+
+        # evaluation_result
+        evaluation_result = eval_result if eval_result is not None else "not_started"
+
+        items.append(ProbationHistoryRow(
+            employee_id=emp.id,
+            employee_name=emp.full_name,
+            employee_code=code_map.get(emp.id, ""),
+            employee_status=emp.status,
+            department_id=dept_id,
+            department_name=dept_name,
+            probation_start_date=ejr.probation_start_date,
+            probation_end_date=ejr.probation_end_date,
+            days_remaining=days_remaining,
+            onboarding_status=oc_status,
+            completion_pct=float(oc_pct) if oc_pct is not None else None,
+            evaluation_result=evaluation_result,
+            evaluation_status=eval_status,
+        ))
+
+    # Filter by keyword
+    if keyword:
+        kw = keyword.strip().lower()
+        items = [
+            r for r in items
+            if kw in r.employee_name.lower() or kw in r.employee_code.lower()
+        ]
+
+    # Sort: đang probation lên trước (theo days_remaining), đã xong xuống dưới
+    items.sort(key=lambda r: (
+        r.employee_status != "probation",
+        r.days_remaining is None,
+        r.days_remaining or 0,
+    ))
+
+    total = len(items)
+    offset = (page - 1) * page_size
+    items = items[offset: offset + page_size]
+
+    return ProbationHistoryReport(
+        period_start=start_date,
+        period_end=end_date,
+        items=items,
+        total=total,
+        page=page,
+        page_size=page_size,
+    )
 
 
 # ── B: Tỷ lệ hoàn thành Checklist theo phòng ban ─────────────────────────────

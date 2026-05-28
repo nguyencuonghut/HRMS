@@ -37,6 +37,31 @@ export interface ChecklistCompletionReport {
   items: ChecklistCompletionRow[]
 }
 
+export interface ProbationHistoryRow {
+  employee_id: number
+  employee_name: string
+  employee_code: string
+  employee_status: string
+  department_id: number | null
+  department_name: string | null
+  probation_start_date: string | null
+  probation_end_date: string | null
+  days_remaining: number | null
+  onboarding_status: string | null
+  completion_pct: number | null
+  evaluation_result: 'not_started' | 'pending' | 'passed' | 'failed' | 'extended'
+  evaluation_status: string | null
+}
+
+export interface ProbationHistoryReport {
+  period_start: string | null
+  period_end: string | null
+  items: ProbationHistoryRow[]
+  total: number
+  page: number
+  page_size: number
+}
+
 export interface ProbationPassRateStat {
   group_id: number | null
   group_name: string
@@ -91,6 +116,9 @@ const BASE = '/reports/probation'
 export default {
   getActive: (params?: { department_id?: number; keyword?: string }) =>
     api.get<ActiveProbationReport>(`${BASE}/active`, { params }),
+
+  getHistory: (params: { start_date?: string; end_date?: string; department_id?: number; keyword?: string; page?: number; page_size?: number }) =>
+    api.get<ProbationHistoryReport>(`${BASE}/history`, { params }),
 
   getChecklistCompletion: (params: { start_date: string; end_date: string; department_id?: number }) =>
     api.get<ChecklistCompletionReport>(`${BASE}/checklist-completion`, { params }),

@@ -26,6 +26,31 @@ class ActiveProbationReport(BaseModel):
     total: int
 
 
+class ProbationHistoryRow(BaseModel):
+    employee_id: int
+    employee_name: str
+    employee_code: str
+    employee_status: str          # probation | official | resigned | terminated | ...
+    department_id: Optional[int]
+    department_name: Optional[str]
+    probation_start_date: Optional[date]
+    probation_end_date: Optional[date]
+    days_remaining: Optional[int] # None nếu không còn đang thử việc
+    onboarding_status: Optional[str]
+    completion_pct: Optional[float]
+    evaluation_result: str        # not_started | pending | passed | failed | extended
+    evaluation_status: Optional[str]  # draft | submitted | approved | None
+
+
+class ProbationHistoryReport(BaseModel):
+    period_start: Optional[date]   # None nếu không filter
+    period_end: Optional[date]     # None nếu không filter
+    items: List[ProbationHistoryRow]
+    total: int
+    page: int
+    page_size: int
+
+
 class ChecklistCompletionRow(BaseModel):
     department_id: int
     department_name: str

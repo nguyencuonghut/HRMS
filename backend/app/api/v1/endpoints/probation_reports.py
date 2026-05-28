@@ -15,6 +15,7 @@ from app.schemas.probation_report import (
     ActiveProbationReport,
     ChecklistCompletionReport,
     FailureReasonReport,
+    ProbationHistoryReport,
     ProbationPassRateReport,
 )
 from app.services import probation_report_service
@@ -37,6 +38,37 @@ async def get_active(
 ) -> ActiveProbationReport:
     return await probation_report_service.get_active_probation(
         session, department_id=department_id, keyword=keyword
+    )
+
+
+@router.get(
+    "/history",
+    response_model=ProbationHistoryReport,
+    summary="Nhân viên từng thử việc trong kỳ (bao gồm đã hoàn thành)",
+)
+async def get_history(
+    start_date: Optional[date] = Query(None, description="Từ ngày bắt đầu thử việc"),
+    end_date: Optional[date] = Query(None, description="Đến ngày bắt đầu thử việc"),
+    department_id: Optional[int] = Query(None),
+    keyword: Optional[str] = Query(None, description="Tìm theo tên hoặc mã nhân viên"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    current_user: User = require_permission("employees:read"),
+    session: AsyncSession = Depends(get_session),
+) -> ProbationHistoryReport:
+    if start_date is not None and end_date is not None and start_date > end_date:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="start_date phải ≤ end_date",
+        )
+    return await probation_report_service.get_probation_history(
+        session,
+        start_date=start_date,
+        end_date=end_date,
+        department_id=department_id,
+        keyword=keyword,
+        page=page,
+        page_size=page_size,
     )
 
 
