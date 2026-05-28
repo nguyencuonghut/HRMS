@@ -168,14 +168,14 @@ const manualStages = ref<PipelineStageCreate[]>([
 const modeOptions = [
   { label: "Từ mẫu có sẵn", value: "template" },
   { label: "Tạo thủ công", value: "manual" },
-] as const;
+];
 
 const stageTypeOptions = [
   { label: "Sàng lọc", value: "screening" },
   { label: "Kiểm tra", value: "test" },
   { label: "Phỏng vấn", value: "interview" },
   { label: "Vòng cuối", value: "final" },
-] as const;
+];
 
 function addStage() {
   manualStages.value.push({

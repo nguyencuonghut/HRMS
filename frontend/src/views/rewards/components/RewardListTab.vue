@@ -564,7 +564,6 @@ function confirmDelete(row: RewardRead) {
     message: `Xóa quyết định khen thưởng "${row.title}" của ${row.employee_name}?`,
     header: 'Xác nhận xóa',
     icon: 'pi pi-exclamation-triangle',
-    acceptSeverity: 'danger',
     acceptLabel: 'Xóa',
     rejectLabel: 'Hủy',
     accept: () => doDelete(row.id),

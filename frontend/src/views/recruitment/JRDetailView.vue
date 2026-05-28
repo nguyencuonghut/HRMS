@@ -576,7 +576,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from "vue";
-import { useRoute, useRouter, RouterLink } from "vue-router";
+import { useRoute, RouterLink } from "vue-router";
 import Badge from "primevue/badge";
 import Button from "primevue/button";
 import Column from "primevue/column";
@@ -607,7 +607,6 @@ import JRFormDialog from "./components/JRFormDialog.vue";
 import RecruitmentBreadcrumb from "./components/RecruitmentBreadcrumb.vue";
 
 const route = useRoute();
-const router = useRouter();
 const confirm = useConfirm();
 const toast = useToast();
 

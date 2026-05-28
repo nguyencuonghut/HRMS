@@ -665,7 +665,6 @@ function confirmDelete(row: YearlyReviewRead) {
     message: `Xóa đánh giá cuối năm ${row.year} của ${row.employee_name}?`,
     header: 'Xác nhận xóa',
     icon: 'pi pi-exclamation-triangle',
-    acceptSeverity: 'danger',
     acceptLabel: 'Xóa',
     rejectLabel: 'Hủy',
     accept: () => doDelete(row.id),

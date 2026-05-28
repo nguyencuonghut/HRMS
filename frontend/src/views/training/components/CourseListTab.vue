@@ -13,7 +13,7 @@
 
       <Select
         v-model="filterCourseType"
-        :options="COURSE_TYPES"
+        :options="courseTypeOptions"
         option-label="label"
         option-value="value"
         placeholder="Tất cả loại"
@@ -199,7 +199,7 @@
             <label class="training-label">Loại đào tạo <span class="training-req">*</span></label>
             <Select
               v-model="form.course_type"
-              :options="COURSE_TYPES"
+              :options="courseTypeOptions"
               option-label="label"
               option-value="value"
               placeholder="Chọn loại..."
@@ -301,6 +301,7 @@ import trainingService, {
 
 const confirm = useConfirm()
 const toast   = useToast()
+const courseTypeOptions = COURSE_TYPES.map((option) => ({ ...option }))
 
 // ── Options ───────────────────────────────────────────────────────────────────
 
@@ -494,7 +495,6 @@ function confirmDelete(row: CourseRead) {
     message: `Xóa khóa học "${row.name}" (${row.code})?`,
     header: 'Xác nhận xóa',
     icon: 'pi pi-exclamation-triangle',
-    acceptSeverity: 'danger',
     acceptLabel: 'Xóa',
     rejectLabel: 'Hủy',
     accept: () => doDelete(row.id),

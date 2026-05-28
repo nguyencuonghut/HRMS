@@ -619,7 +619,7 @@ const decisionOptions = [
   { label: "Đạt", value: "pass" },
   { label: "Tạm giữ", value: "hold" },
   { label: "Loại", value: "fail" },
-] as const;
+];
 
 const resultMap = computed(
   () => new Map(stageResults.value.map((item) => [item.stage_id, item])),
@@ -695,7 +695,7 @@ function stageTypeLabel(value: PipelineStageRead["stage_type"]) {
 }
 
 function resultLabel(
-  value: CandidateStageResultRead["result"] | InterviewPanelistRead["result"],
+  value: CandidateStageResultRead["result"] | InterviewPanelistRead["result"] | undefined,
 ) {
   const map = {
     pass: "Đạt",

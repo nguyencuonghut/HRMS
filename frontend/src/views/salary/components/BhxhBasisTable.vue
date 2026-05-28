@@ -132,7 +132,7 @@
         :total-records="total"
         :first="(currentPage - 1) * pageSize"
         template="PrevPageLink PageLinks NextPageLink"
-        @page="(e: { page: number }) => loadPage(e.page + 1)"
+        @page="onPageChange"
       />
       <div style="padding: 0.5rem 0; font-size: 0.85rem; color: var(--p-text-muted-color)">
         Tổng: {{ total }} nhân viên
@@ -240,6 +240,10 @@ let searchTimer: ReturnType<typeof setTimeout> | null = null
 function onSearchInput() {
   if (searchTimer) clearTimeout(searchTimer)
   searchTimer = setTimeout(() => loadPage(1), 350)
+}
+
+function onPageChange(event: { page: number }) {
+  loadPage(event.page + 1)
 }
 
 // ── Actions ───────────────────────────────────────────────────────────────────

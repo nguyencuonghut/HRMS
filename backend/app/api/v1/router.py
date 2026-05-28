@@ -31,6 +31,7 @@ from app.api.v1.endpoints import recruitment
 from app.api.v1.endpoints import onboarding
 from app.api.v1.endpoints import probation
 from app.api.v1.endpoints import probation_reports
+from app.api.v1.endpoints import dashboard
 
 router = APIRouter()
 router.include_router(auth.router,          prefix="/auth",          tags=["Xác thực"])
@@ -82,3 +83,4 @@ router.include_router(recruitment.router, prefix="/recruitment", tags=["Tuyển 
 router.include_router(onboarding.router,  prefix="/onboarding",  tags=["Onboarding"])
 router.include_router(probation.router,   prefix="/employees",   tags=["Quản lý thử việc"])
 router.include_router(probation_reports.router, prefix="/reports/probation", tags=["Báo cáo thử việc"])
+router.include_router(dashboard.router, prefix="/reports/dashboard", tags=["Dashboard nhân sự"])

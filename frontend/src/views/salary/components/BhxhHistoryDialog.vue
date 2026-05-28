@@ -32,7 +32,7 @@
       :value="items"
       :loading="loading"
       size="small"
-      :row-class="(data: BhxhSalaryHistoryItem, idx: number) => idx === 0 ? 'salary-history-current-row' : ''"
+      :row-class="historyRowClass"
     >
       <template #empty>
         <div style="padding: 1rem; color: var(--p-text-muted-color)">Chưa có lịch sử mức lương BHXH</div>
@@ -111,6 +111,16 @@ const emit = defineEmits<{
 const visible = ref(props.modelValue)
 const items = ref<BhxhSalaryHistoryItem[]>([])
 const loading = ref(false)
+
+function historyRowClass(data: BhxhSalaryHistoryItem) {
+  const first = items.value[0]
+  if (!first) return ''
+  return data.effective_date === first.effective_date &&
+    data.basis_amount === first.basis_amount &&
+    data.source_type === first.source_type
+    ? 'salary-history-current-row'
+    : ''
+}
 
 watch(() => props.modelValue, (v) => { visible.value = v })
 watch(visible, (v) => emit('update:modelValue', v))

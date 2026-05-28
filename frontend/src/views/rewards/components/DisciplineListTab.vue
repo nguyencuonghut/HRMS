@@ -24,7 +24,7 @@
 
       <Select
         v-model="filterForm"
-        :options="DISCIPLINE_FORMS"
+        :options="disciplineFormOptions"
         option-label="label"
         option-value="value"
         placeholder="Tất cả hình thức"
@@ -206,7 +206,7 @@
           <label class="rewards-label">Hình thức kỷ luật <span class="rewards-req">*</span></label>
           <Select
             v-model="form.discipline_form"
-            :options="DISCIPLINE_FORMS"
+            :options="disciplineFormOptions"
             option-label="label"
             option-value="value"
             placeholder="Chọn hình thức..."
@@ -379,6 +379,7 @@ import employeeService, { type EmployeeLookupItem } from '@/services/employeeSer
 
 const confirm = useConfirm()
 const toast   = useToast()
+const disciplineFormOptions = DISCIPLINE_FORMS.map((option) => ({ ...option }))
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
@@ -611,7 +612,6 @@ function confirmDelete(row: DisciplineRead) {
     message: `Xóa quyết định kỷ luật "${row.title}" của ${row.employee_name}?`,
     header: 'Xác nhận xóa',
     icon: 'pi pi-exclamation-triangle',
-    acceptSeverity: 'danger',
     acceptLabel: 'Xóa',
     rejectLabel: 'Hủy',
     accept: () => doDelete(row.id),

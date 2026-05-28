@@ -151,8 +151,6 @@ import InputText from 'primevue/inputtext'
 import MultiSelect from 'primevue/multiselect'
 import Select from 'primevue/select'
 import Textarea from 'primevue/textarea'
-import { useToast } from 'primevue/usetoast'
-
 import recruitmentService, {
   type JobPostingRead,
   type JobRequisitionListItem,
@@ -168,8 +166,6 @@ const emit = defineEmits<{
   (e: 'update:visible', v: boolean): void
   (e: 'saved'): void
 }>()
-
-const toast = useToast()
 
 const saving      = ref(false)
 const apiError    = ref('')

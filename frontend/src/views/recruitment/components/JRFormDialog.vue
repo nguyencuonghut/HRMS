@@ -198,8 +198,8 @@ function resetForm() {
       salary_min:      jr.salary_min ? Number(jr.salary_min) : null,
       salary_max:      jr.salary_max ? Number(jr.salary_max) : null,
       deadline:        jr.deadline ? new Date(jr.deadline) : null,
-      jd_description:  jr.jd_description ?? '',
-      jd_requirements: jr.jd_requirements ?? '',
+      jd_description:  jr.effective_description ?? '',
+      jd_requirements: jr.effective_requirements ?? '',
       internal_note:   jr.internal_note ?? '',
     }
   } else {

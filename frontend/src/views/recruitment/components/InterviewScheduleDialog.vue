@@ -191,7 +191,7 @@ const formatOptions = [
   { label: "Trực tiếp", value: "in_person" },
   { label: "Online", value: "online" },
   { label: "Điện thoại", value: "phone" },
-] as const;
+];
 
 const dialogTitle = computed(() =>
   props.editing ? "Cập nhật lịch phỏng vấn" : "Lên lịch phỏng vấn",

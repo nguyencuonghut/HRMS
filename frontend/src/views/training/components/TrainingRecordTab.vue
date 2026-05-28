@@ -38,7 +38,7 @@
 
       <Select
         v-model="filterStatus"
-        :options="RECORD_STATUSES"
+        :options="recordStatusOptions"
         option-label="label"
         option-value="value"
         placeholder="Trạng thái"
@@ -260,7 +260,7 @@
             :filter-fields="['code', 'name']"
             class="w-full"
           >
-            <template #option="{ option }: { option: CourseRead }">
+            <template #option="{ option }: { option: AssignCourseOption }">
               <span class="emp-code" style="margin-right: 0.4rem">{{ option.code }}</span>
               {{ option.name }}
             </template>
@@ -338,7 +338,7 @@
           <label class="training-label">Trạng thái <span class="training-req">*</span></label>
           <Select
             v-model="updateForm.status"
-            :options="RECORD_STATUSES"
+            :options="recordStatusOptions"
             option-label="label"
             option-value="value"
             filter
@@ -350,7 +350,7 @@
           <label class="training-label">Kết quả</label>
           <Select
             v-model="updateForm.result"
-            :options="RECORD_RESULTS"
+            :options="recordResultOptions"
             option-label="label"
             option-value="value"
             placeholder="Chưa đánh giá"
@@ -452,6 +452,8 @@ import employeeService, { type EmployeeLookupItem } from '@/services/employeeSer
 
 const confirm = useConfirm()
 const toast   = useToast()
+const recordStatusOptions = RECORD_STATUSES.map((option) => ({ ...option }))
+const recordResultOptions = RECORD_RESULTS.map((option) => ({ ...option }))
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
@@ -478,7 +480,7 @@ const filterToDate   = ref<Date | null>(null)
 let searchTimer: ReturnType<typeof setTimeout> | null = null
 
 const resultFilterOptions = [
-  ...RECORD_RESULTS,
+  ...recordResultOptions,
   { value: 'null', label: 'Chưa đánh giá' },
 ]
 
@@ -510,7 +512,9 @@ const assignForm = ref<{
 })
 
 // Courses shown in assign dialog — all active if no plan, filtered by plan if plan selected
-const planCoursesForAssign = ref<CourseRead[]>([])
+type AssignCourseOption = Pick<CourseRead, 'id' | 'code' | 'name'>
+
+const planCoursesForAssign = ref<AssignCourseOption[]>([])
 const assignCourseOptions = computed(() =>
   assignForm.value.plan_id ? planCoursesForAssign.value : courses.value
 )
@@ -651,20 +655,11 @@ async function onPlanChange() {
   if (!assignForm.value.plan_id) return
   try {
     const res = await trainingService.listPlanCourses(assignForm.value.plan_id)
-    // Map plan courses to CourseRead-like objects
+    // Map plan courses to the minimal shape Select needs.
     planCoursesForAssign.value = res.data.map(pc => ({
       id: pc.course_id,
       code: pc.course_code,
       name: pc.course_name,
-      course_type: '',
-      course_type_label: pc.course_type_label,
-      duration_hours: pc.duration_hours,
-      organizer: null,
-      description: null,
-      cost_per_person: null,
-      is_mandatory: false,
-      is_active: true,
-      created_at: '',
     }))
   } catch {
     toast.add({ severity: 'error', summary: 'Lỗi', detail: 'Không thể tải khóa học của kế hoạch', life: 4000 })
@@ -821,7 +816,6 @@ function confirmDeleteRecord(rec: TrainingRecordRead) {
     message: `Xóa bản ghi đào tạo của "${rec.employee_name}" — "${rec.course_name}"?`,
     header: 'Xác nhận xóa',
     icon: 'pi pi-exclamation-triangle',
-    acceptSeverity: 'danger',
     acceptLabel: 'Xóa',
     rejectLabel: 'Hủy',
     accept: () => doDeleteRecord(rec),

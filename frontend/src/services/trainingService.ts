@@ -1,34 +1,34 @@
 import api from './api'
 
-export const COURSE_TYPES = [
+export type CourseTypeValue = 'noi_bo' | 'ben_ngoai' | 'online'
+export type PlanStatusValue = 'draft' | 'approved' | 'cancelled'
+export type RecordStatusValue = 'chua_bat_dau' | 'dang_hoc' | 'hoan_thanh' | 'khong_hoan_thanh' | 'vang_mat'
+export type RecordResultValue = 'dat' | 'khong_dat'
+
+export const COURSE_TYPES: { value: CourseTypeValue; label: string }[] = [
   { value: 'noi_bo',     label: 'Nội bộ' },
   { value: 'ben_ngoai',  label: 'Bên ngoài' },
   { value: 'online',     label: 'Online' },
-] as const
+] 
 
-export const PLAN_STATUSES = [
+export const PLAN_STATUSES: { value: PlanStatusValue; label: string }[] = [
   { value: 'draft',     label: 'Dự thảo' },
   { value: 'approved',  label: 'Đã duyệt' },
   { value: 'cancelled', label: 'Đã hủy' },
-] as const
+] 
 
-export const RECORD_STATUSES = [
+export const RECORD_STATUSES: { value: RecordStatusValue; label: string }[] = [
   { value: 'chua_bat_dau',     label: 'Chưa bắt đầu' },
   { value: 'dang_hoc',         label: 'Đang học' },
   { value: 'hoan_thanh',       label: 'Hoàn thành' },
   { value: 'khong_hoan_thanh', label: 'Không hoàn thành' },
   { value: 'vang_mat',         label: 'Vắng mặt' },
-] as const
+] 
 
-export const RECORD_RESULTS = [
+export const RECORD_RESULTS: { value: RecordResultValue; label: string }[] = [
   { value: 'dat',      label: 'Đạt' },
   { value: 'khong_dat', label: 'Không đạt' },
-] as const
-
-export type CourseTypeValue = 'noi_bo' | 'ben_ngoai' | 'online'
-export type PlanStatusValue = 'draft' | 'approved' | 'cancelled'
-export type RecordStatusValue = 'chua_bat_dau' | 'dang_hoc' | 'hoan_thanh' | 'khong_hoan_thanh' | 'vang_mat'
-export type RecordResultValue = 'dat' | 'khong_dat'
+] 
 
 export interface CourseRead {
   id: number

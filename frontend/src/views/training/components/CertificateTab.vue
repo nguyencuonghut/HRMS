@@ -612,7 +612,6 @@ function confirmDelete(cert: CertificateRead) {
     message: `Xóa chứng chỉ "${cert.certificate_name}" của ${cert.employee_name}?`,
     header: 'Xác nhận xóa',
     icon: 'pi pi-exclamation-triangle',
-    acceptSeverity: 'danger',
     acceptLabel: 'Xóa',
     rejectLabel: 'Hủy',
     accept: () => doDelete(cert),

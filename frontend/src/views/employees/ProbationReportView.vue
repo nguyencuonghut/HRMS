@@ -423,13 +423,6 @@ const loadingAny = computed(() =>
 
 const hasDateRange = computed(() => !!filterFrom.value && !!filterTo.value)
 
-const isFiltered = computed(() =>
-  filterKeyword.value.trim() !== '' ||
-  filterDeptId.value !== null ||
-  filterFrom.value !== null ||
-  filterTo.value !== null
-)
-
 function resetFilters() {
   filterFrom.value    = null
   filterTo.value      = null

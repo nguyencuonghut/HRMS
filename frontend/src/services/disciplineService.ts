@@ -1,13 +1,17 @@
 import api from './api'
 
-export const DISCIPLINE_FORMS = [
+export type DisciplineFormValue =
+  | 'khien_trach'
+  | 'keo_dai_nang_luong'
+  | 'cach_chuc'
+  | 'sa_thai'
+
+export const DISCIPLINE_FORMS: { value: DisciplineFormValue; label: string }[] = [
   { value: 'khien_trach',        label: 'Khiển trách' },
   { value: 'keo_dai_nang_luong', label: 'Kéo dài thời hạn nâng lương' },
   { value: 'cach_chuc',          label: 'Cách chức' },
   { value: 'sa_thai',            label: 'Sa thải' },
-] as const
-
-export type DisciplineFormValue = typeof DISCIPLINE_FORMS[number]['value']
+]
 
 export interface DisciplineRead {
   id: number

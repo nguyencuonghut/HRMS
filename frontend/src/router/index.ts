@@ -74,7 +74,8 @@ const router = createRouter({
         {
           path: "employees/onboarding/tasks",
           name: "onboarding-tasks",
-          component: () => import("@/views/employees/OnboardingTaskConfigView.vue"),
+          component: () =>
+            import("@/views/employees/OnboardingTaskConfigView.vue"),
           meta: { title: "Cấu hình task onboarding" },
         },
         {
@@ -184,7 +185,8 @@ const router = createRouter({
         {
           path: "recruitment/jr",
           name: "jr-list",
-          component: () => import("@/views/recruitment/components/JRListTab.vue"),
+          component: () =>
+            import("@/views/recruitment/components/JRListTab.vue"),
           meta: { title: "Yêu cầu tuyển dụng" },
         },
         {
@@ -196,25 +198,29 @@ const router = createRouter({
         {
           path: "recruitment/postings",
           name: "posting-list",
-          component: () => import("@/views/recruitment/components/JobPostingTab.vue"),
+          component: () =>
+            import("@/views/recruitment/components/JobPostingTab.vue"),
           meta: { title: "Tin tuyển dụng" },
         },
         {
           path: "recruitment/postings/:id",
           name: "posting-detail",
-          component: () => import("@/views/recruitment/JobPostingDetailView.vue"),
+          component: () =>
+            import("@/views/recruitment/JobPostingDetailView.vue"),
           meta: { title: "Chi tiết tin tuyển dụng" },
         },
         {
           path: "recruitment/candidates",
           name: "candidate-list",
-          component: () => import("@/views/recruitment/components/CandidateListTab.vue"),
+          component: () =>
+            import("@/views/recruitment/components/CandidateListTab.vue"),
           meta: { title: "Ứng viên" },
         },
         {
           path: "recruitment/candidates/:id",
           name: "candidate-detail",
-          component: () => import("@/views/recruitment/CandidateDetailView.vue"),
+          component: () =>
+            import("@/views/recruitment/CandidateDetailView.vue"),
           meta: { title: "Chi tiết ứng viên" },
         },
         {
@@ -226,31 +232,36 @@ const router = createRouter({
         {
           path: "recruitment/applications/:id",
           name: "application-detail",
-          component: () => import("@/views/recruitment/ApplicationDetailView.vue"),
+          component: () =>
+            import("@/views/recruitment/ApplicationDetailView.vue"),
           meta: { title: "Chi tiết tuyển chọn" },
         },
         {
           path: "recruitment/headcount",
           name: "headcount-plan",
-          component: () => import("@/views/recruitment/components/HeadcountPlanTab.vue"),
+          component: () =>
+            import("@/views/recruitment/components/HeadcountPlanTab.vue"),
           meta: { title: "Kế hoạch nhân sự" },
         },
         {
           path: "recruitment/legal",
           name: "legal-documents",
-          component: () => import("@/views/recruitment/components/DocumentChecklistSummaryTab.vue"),
+          component: () =>
+            import("@/views/recruitment/components/DocumentChecklistSummaryTab.vue"),
           meta: { title: "Hồ sơ pháp lý" },
         },
         {
           path: "recruitment/settings",
           name: "recruitment-settings",
-          component: () => import("@/views/recruitment/components/EmailTemplateListTab.vue"),
+          component: () =>
+            import("@/views/recruitment/components/EmailTemplateListTab.vue"),
           meta: { title: "Cài đặt tuyển dụng" },
         },
         {
           path: "recruitment/reports",
           name: "recruitment-reports",
-          component: () => import("@/views/recruitment/RecruitmentReportView.vue"),
+          component: () =>
+            import("@/views/recruitment/RecruitmentReportView.vue"),
           meta: { title: "Báo cáo tuyển dụng" },
         },
         // Báo cáo
@@ -259,6 +270,12 @@ const router = createRouter({
           name: "reports",
           component: () => import("@/views/reports/ReportView.vue"),
           meta: { title: "Báo cáo" },
+        },
+        {
+          path: "reports/dashboard",
+          name: "dashboard-overview",
+          component: () => import("@/views/reports/DashboardView.vue"),
+          meta: { title: "Dashboard tổng quan" },
         },
         // Danh mục
         {
@@ -310,8 +327,7 @@ const router = createRouter({
         {
           path: "catalog/recruitment",
           name: "catalog-recruitment",
-          component: () =>
-            import("@/views/catalog/RecruitmentCatalogView.vue"),
+          component: () => import("@/views/catalog/RecruitmentCatalogView.vue"),
           meta: { title: "Danh mục tuyển dụng" },
         },
         // Cài đặt

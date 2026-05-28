@@ -623,7 +623,7 @@ const stageTypeOptions = [
   { label: "Kiểm tra", value: "test" },
   { label: "Phỏng vấn", value: "interview" },
   { label: "Vòng cuối", value: "final" },
-] as const;
+];
 
 const stageTypeFilterOptions = [{ label: "Tất cả bước", value: null }, ...stageTypeOptions];
 
@@ -631,7 +631,7 @@ const difficultyOptions = [
   { label: "Dễ", value: "easy" },
   { label: "Trung bình", value: "medium" },
   { label: "Khó", value: "hard" },
-] as const;
+];
 
 function stageTypeLabel(value: string | null | undefined) {
   const map: Record<string, string> = {

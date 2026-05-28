@@ -35,7 +35,7 @@
 
       <Select
         v-model="filterStatus"
-        :options="PLAN_STATUSES"
+        :options="planStatusOptions"
         option-label="label"
         option-value="value"
         placeholder="Trạng thái"
@@ -453,6 +453,7 @@ import departmentService, { type DepartmentRead } from '@/services/departmentSer
 
 const confirm = useConfirm()
 const toast   = useToast()
+const planStatusOptions = PLAN_STATUSES.map((option) => ({ ...option }))
 
 // ── Options ───────────────────────────────────────────────────────────────────
 
@@ -689,7 +690,6 @@ function approvePlan(plan: PlanRead) {
     message: `Duyệt kế hoạch "${plan.title}"?`,
     header: 'Xác nhận duyệt',
     icon: 'pi pi-check-circle',
-    acceptSeverity: 'success',
     acceptLabel: 'Duyệt',
     rejectLabel: 'Hủy',
     accept: () => doApprovePlan(plan),
@@ -712,7 +712,6 @@ function cancelPlan(plan: PlanRead) {
     message: `Hủy kế hoạch "${plan.title}"?`,
     header: 'Xác nhận hủy',
     icon: 'pi pi-ban',
-    acceptSeverity: 'warn',
     acceptLabel: 'Hủy KH',
     rejectLabel: 'Đóng',
     accept: () => doCancelPlan(plan),
@@ -735,7 +734,6 @@ function confirmDelete(plan: PlanRead) {
     message: `Xóa kế hoạch "${plan.title}"?`,
     header: 'Xác nhận xóa',
     icon: 'pi pi-exclamation-triangle',
-    acceptSeverity: 'danger',
     acceptLabel: 'Xóa',
     rejectLabel: 'Hủy',
     accept: () => doDeletePlan(plan),
@@ -822,7 +820,6 @@ function confirmRemoveCourse(planId: number, pc: PlanCourseRead) {
     message: `Xóa khóa học "${pc.course_name}" khỏi kế hoạch?`,
     header: 'Xác nhận xóa',
     icon: 'pi pi-exclamation-triangle',
-    acceptSeverity: 'danger',
     acceptLabel: 'Xóa',
     rejectLabel: 'Hủy',
     accept: async () => {

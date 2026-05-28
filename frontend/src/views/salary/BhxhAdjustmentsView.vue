@@ -120,7 +120,7 @@
           :total-records="total"
           :first="(currentPage - 1) * pageSize"
           template="PrevPageLink PageLinks NextPageLink"
-          @page="(e: { page: number }) => loadPage(e.page + 1)"
+          @page="onPageChange"
         />
         <div class="salary-adj-footer-total">Tổng: {{ total }} điều chỉnh</div>
       </div>
@@ -285,6 +285,10 @@ let searchTimer: ReturnType<typeof setTimeout> | null = null
 function onSearchInput() {
   if (searchTimer) clearTimeout(searchTimer)
   searchTimer = setTimeout(() => loadPage(1), 350)
+}
+
+function onPageChange(event: { page: number }) {
+  loadPage(event.page + 1)
 }
 
 // ── Row selection ─────────────────────────────────────────────────────────────

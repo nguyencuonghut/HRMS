@@ -138,7 +138,7 @@ const resultOptions = [
   { label: "Đạt", value: "pass" },
   { label: "Giữ", value: "hold" },
   { label: "Không đạt", value: "fail" },
-] as const;
+];
 
 const readonly = computed(() => !!props.panelist?.submitted_at);
 

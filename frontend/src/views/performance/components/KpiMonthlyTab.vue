@@ -530,7 +530,6 @@ function confirmDelete(row: KpiMonthlyRead) {
     message: `Xóa điểm KPI tháng ${row.month}/${row.year} của ${row.employee_name}?`,
     header: 'Xác nhận xóa',
     icon: 'pi pi-exclamation-triangle',
-    acceptSeverity: 'danger',
     acceptLabel: 'Xóa',
     rejectLabel: 'Hủy',
     accept: () => doDelete(row.id),
