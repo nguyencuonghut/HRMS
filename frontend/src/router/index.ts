@@ -295,6 +295,12 @@ const router = createRouter({
           component: () => import("@/views/reports/InsuranceAnalyticsView.vue"),
           meta: { title: "Báo cáo Bảo hiểm", permission: "insurance:read" },
         },
+        {
+          path: "reports/contracts",
+          name: "contract-reports",
+          component: () => import("@/views/reports/ContractReportView.vue"),
+          meta: { title: "Báo cáo Hợp đồng", permission: "employees:read" },
+        },
         // Danh mục
         {
           path: "catalog",

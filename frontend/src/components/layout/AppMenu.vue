@@ -208,6 +208,11 @@ const menu: MenuItem[] = [
         label: "Báo cáo bảo hiểm",
         icon: "pi-shield",
       },
+      {
+        to: "/reports/contracts",
+        label: "Báo cáo hợp đồng",
+        icon: "pi-file",
+      },
       { to: "/reports", label: "Tổng quan báo cáo", icon: "pi-folder-open" },
     ],
   },
