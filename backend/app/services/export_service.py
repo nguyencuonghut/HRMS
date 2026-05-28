@@ -13,13 +13,16 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.auth import User
-from app.models.export import ExportJob
+from app.models.export import ExportJob, ReportTemplate
 from app.schemas.export import (
     ExportFormat,
     ExportHistoryResponse,
     ExportJobRequest,
     ExportJobResponse,
     ExportJobStatusResponse,
+    ReportTemplateCreate,
+    ReportTemplateResponse,
+    ReportTemplateUpdate,
 )
 from app.services import (
     auth_service,
@@ -360,6 +363,62 @@ class ExportService:
             page_size=page_size,
         )
 
+    async def list_templates(self, user: User) -> list[ReportTemplateResponse]:
+        rows = (
+            await self.session.execute(
+                select(ReportTemplate)
+                .where(ReportTemplate.user_id == user.id)
+                .order_by(ReportTemplate.is_default.desc(), ReportTemplate.updated_at.desc(), ReportTemplate.id.desc())
+            )
+        ).scalars().all()
+        return [self._to_template_response(row) for row in rows]
+
+    async def create_template(self, payload: ReportTemplateCreate, user: User) -> ReportTemplateResponse:
+        await self._assert_permission(user, payload.report_type)
+        if payload.is_default:
+            await self._clear_default_template(user.id, payload.report_type)
+
+        template = ReportTemplate(
+            user_id=user.id,
+            name=payload.name.strip(),
+            description=payload.description,
+            report_type=payload.report_type,
+            format=payload.format,
+            filters=payload.filters,
+            is_default=payload.is_default,
+            created_at=_utcnow(),
+            updated_at=_utcnow(),
+        )
+        self.session.add(template)
+        await self.session.commit()
+        await self.session.refresh(template)
+        return self._to_template_response(template)
+
+    async def update_template(self, template_id: int, payload: ReportTemplateUpdate, user: User) -> ReportTemplateResponse:
+        template = await self._get_template(template_id, user)
+        if payload.name is not None:
+            template.name = payload.name.strip()
+        if payload.description is not None:
+            template.description = payload.description
+        if payload.filters is not None:
+            template.filters = payload.filters
+        if payload.format is not None:
+            template.format = payload.format
+        if payload.is_default is not None:
+            if payload.is_default:
+                await self._clear_default_template(user.id, template.report_type, exclude_id=template.id)
+            template.is_default = payload.is_default
+        template.updated_at = _utcnow()
+        self.session.add(template)
+        await self.session.commit()
+        await self.session.refresh(template)
+        return self._to_template_response(template)
+
+    async def delete_template(self, template_id: int, user: User) -> None:
+        template = await self._get_template(template_id, user)
+        await self.session.delete(template)
+        await self.session.commit()
+
     async def get_status(self, job_id: uuid.UUID, user: User) -> ExportJobStatusResponse:
         job = await self._get_job(job_id, user)
         return ExportJobStatusResponse(
@@ -391,6 +450,30 @@ class ExportService:
         if not job:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy export job")
         return job
+
+    async def _get_template(self, template_id: int, user: User) -> ReportTemplate:
+        template = (
+            await self.session.execute(
+                select(ReportTemplate).where(ReportTemplate.id == template_id, ReportTemplate.user_id == user.id)
+            )
+        ).scalar_one_or_none()
+        if not template:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy mẫu báo cáo")
+        return template
+
+    async def _clear_default_template(self, user_id: int, report_type: str, exclude_id: int | None = None) -> None:
+        stmt = select(ReportTemplate).where(
+            ReportTemplate.user_id == user_id,
+            ReportTemplate.report_type == report_type,
+            ReportTemplate.is_default == True,  # noqa: E712
+        )
+        if exclude_id is not None:
+            stmt = stmt.where(ReportTemplate.id != exclude_id)
+        rows = (await self.session.execute(stmt)).scalars().all()
+        for row in rows:
+            row.is_default = False
+            row.updated_at = _utcnow()
+            self.session.add(row)
 
     async def _assert_permission(self, user: User, report_type: str) -> None:
         handler = REPORT_HANDLERS.get(report_type)
@@ -458,6 +541,48 @@ class ExportService:
             expires_at=job.expires_at,
             download_url=_build_download_url(job),
         )
+
+    @staticmethod
+    def _to_template_response(template: ReportTemplate) -> ReportTemplateResponse:
+        return ReportTemplateResponse(
+            id=template.id,
+            name=template.name,
+            description=template.description,
+            report_type=template.report_type,
+            format=template.format,
+            filters=template.filters,
+            is_default=template.is_default,
+            created_at=template.created_at,
+            updated_at=template.updated_at,
+        )
+
+
+async def cleanup_expired_exports_async() -> dict[str, int]:
+    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+    from app.core.config import settings
+
+    engine = create_async_engine(settings.DATABASE_URL, connect_args={"ssl": False})
+    SessionLocal = async_sessionmaker(engine, expire_on_commit=False)
+    deleted_files = 0
+    deleted_jobs = 0
+    try:
+        async with SessionLocal() as session:
+            rows = (
+                await session.execute(
+                    select(ExportJob).where(ExportJob.expires_at < _utcnow())
+                )
+            ).scalars().all()
+            for row in rows:
+                if row.file_path and Path(row.file_path).exists():
+                    Path(row.file_path).unlink(missing_ok=True)
+                    deleted_files += 1
+                await session.delete(row)
+                deleted_jobs += 1
+            await session.commit()
+    finally:
+        await engine.dispose()
+    return {"deleted_jobs": deleted_jobs, "deleted_files": deleted_files}
 
 
 async def run_export_job_by_id(job_id: uuid.UUID, request_dict: dict[str, Any]) -> None:

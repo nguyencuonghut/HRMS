@@ -4,6 +4,7 @@ import asyncio
 import io
 import uuid
 from datetime import date, timedelta
+from pathlib import Path
 
 import openpyxl
 import pytest
@@ -13,6 +14,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.core.config import settings
 from app.workers.export_tasks import run_export_task
+from app.services.export_service import cleanup_expired_exports_async
 
 BASE = "/api/v1/reports/export"
 _ADMIN_EMAIL = "admin@hrms.local"
@@ -38,6 +40,9 @@ async def _cleanup() -> None:
     async with Session() as s:
         await s.execute(text("""
             DELETE FROM export_jobs WHERE filename LIKE :prefix
+        """), {"prefix": f"{_PREFIX}%"})
+        await s.execute(text("""
+            DELETE FROM report_templates WHERE name LIKE :prefix
         """), {"prefix": f"{_PREFIX}%"})
         await s.execute(text("""
             DELETE FROM employee_contracts
@@ -236,3 +241,101 @@ def test_async_export_history_status_and_delete(client: TestClient, monkeypatch:
 
     status_missing = client.get(f"{BASE}/{job_id}/status", headers=headers)
     assert status_missing.status_code == 404
+
+
+def test_report_template_crud_and_history_paging(client: TestClient):
+    headers = _admin_headers(client)
+
+    create = client.post(
+        f"{BASE}/templates",
+        headers=headers,
+        json={
+            "name": f"{_PREFIX}_template",
+            "description": "Mau bao cao nhan su",
+            "report_type": "hr-employee-list",
+            "format": "xlsx",
+            "filters": {"page_size": 50},
+            "is_default": True,
+        },
+    )
+    assert create.status_code == 200, create.text
+    template = create.json()
+    assert template["name"] == f"{_PREFIX}_template"
+    assert template["is_default"] is True
+    template_id = template["id"]
+
+    listing = client.get(f"{BASE}/templates", headers=headers)
+    assert listing.status_code == 200
+    assert any(item["id"] == template_id for item in listing.json())
+
+    update = client.put(
+        f"{BASE}/templates/{template_id}",
+        headers=headers,
+        json={"description": "Cap nhat", "filters": {"page_size": 100}, "is_default": False},
+    )
+    assert update.status_code == 200
+    assert update.json()["description"] == "Cap nhat"
+    assert update.json()["filters"]["page_size"] == 100
+    assert update.json()["is_default"] is False
+
+    export_response = client.post(
+        BASE,
+        headers=headers,
+        json={
+            "report_type": "hr-employee-list",
+            "format": "xlsx",
+            "filename": f"{_PREFIX}_history",
+            "filters": {"page_size": 20},
+        },
+    )
+    assert export_response.status_code == 200
+
+    history = client.get(f"{BASE}/history?page=1&page_size=1", headers=headers)
+    assert history.status_code == 200
+    assert history.json()["page"] == 1
+    assert history.json()["page_size"] == 1
+    assert history.json()["total"] >= 1
+    assert len(history.json()["items"]) == 1
+
+    delete = client.delete(f"{BASE}/templates/{template_id}", headers=headers)
+    assert delete.status_code == 204
+
+    listing_after = client.get(f"{BASE}/templates", headers=headers)
+    assert all(item["id"] != template_id for item in listing_after.json())
+
+
+def test_cleanup_expired_exports_removes_jobs_and_files():
+    async def _seed_expired_job() -> tuple[str, str]:
+        engine = _engine()
+        Session = async_sessionmaker(engine, expire_on_commit=False)
+        async with Session() as s:
+            job_id = str(uuid.uuid4())
+            file_path = f"/tmp/hrms_exports/{job_id}.xlsx"
+            Path(file_path).write_bytes(b"expired-export")
+            await s.execute(text("""
+                INSERT INTO export_jobs (
+                    id, user_id, report_type, format, filters, status, filename,
+                    file_path, file_size_bytes, row_count, created_at, expires_at
+                ) VALUES (
+                    :id, 1, 'hr-employee-list', 'xlsx', '{}'::jsonb, 'done', :filename,
+                    :file_path, 14, 1, NOW() - INTERVAL '8 days', NOW() - INTERVAL '1 day'
+                )
+            """), {"id": job_id, "filename": f"{_PREFIX}_expired.xlsx", "file_path": file_path})
+            await s.commit()
+        await engine.dispose()
+        return job_id, file_path
+
+    job_id, file_path = asyncio.run(_seed_expired_job())
+    result = asyncio.run(cleanup_expired_exports_async())
+    assert result["deleted_jobs"] >= 1
+    assert not Path(file_path).exists()
+
+    async def _assert_missing() -> None:
+        engine = _engine()
+        Session = async_sessionmaker(engine, expire_on_commit=False)
+        async with Session() as s:
+            remaining = (await s.execute(text("SELECT COUNT(*) FROM export_jobs WHERE id = :id"), {"id": job_id})).scalar_one()
+            assert remaining == 0
+        await engine.dispose()
+
+    asyncio.run(_assert_missing())

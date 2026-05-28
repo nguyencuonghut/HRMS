@@ -33,5 +33,9 @@ celery_app.conf.update(
             "task": "app.workers.tasks.expire_stale_postings",
             "schedule": crontab(hour=0, minute=10),  # 00:10 hàng ngày
         },
+        "cleanup-expired-exports": {
+            "task": "app.workers.export_tasks.cleanup_expired_exports",
+            "schedule": crontab(hour=1, minute=0),
+        },
     },
 )

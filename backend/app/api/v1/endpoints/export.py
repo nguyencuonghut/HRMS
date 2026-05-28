@@ -15,6 +15,9 @@ from app.schemas.export import (
     ExportJobRequest,
     ExportJobResponse,
     ExportJobStatusResponse,
+    ReportTemplateCreate,
+    ReportTemplateResponse,
+    ReportTemplateUpdate,
 )
 from app.services.export_service import ExportService
 
@@ -73,4 +76,41 @@ async def delete_export_job(
     session: AsyncSession = Depends(get_session),
 ) -> Response:
     await ExportService(session).delete_job(job_id, current_user)
+    return Response(status_code=204)
+
+
+@router.post("/templates", response_model=ReportTemplateResponse)
+async def create_report_template(
+    payload: ReportTemplateCreate,
+    current_user: User = Depends(get_current_active_user),
+    session: AsyncSession = Depends(get_session),
+) -> ReportTemplateResponse:
+    return await ExportService(session).create_template(payload, current_user)
+
+
+@router.get("/templates", response_model=list[ReportTemplateResponse])
+async def list_report_templates(
+    current_user: User = Depends(get_current_active_user),
+    session: AsyncSession = Depends(get_session),
+) -> list[ReportTemplateResponse]:
+    return await ExportService(session).list_templates(current_user)
+
+
+@router.put("/templates/{template_id}", response_model=ReportTemplateResponse)
+async def update_report_template(
+    template_id: int,
+    payload: ReportTemplateUpdate,
+    current_user: User = Depends(get_current_active_user),
+    session: AsyncSession = Depends(get_session),
+) -> ReportTemplateResponse:
+    return await ExportService(session).update_template(template_id, payload, current_user)
+
+
+@router.delete("/templates/{template_id}", status_code=204)
+async def delete_report_template(
+    template_id: int,
+    current_user: User = Depends(get_current_active_user),
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    await ExportService(session).delete_template(template_id, current_user)
     return Response(status_code=204)
