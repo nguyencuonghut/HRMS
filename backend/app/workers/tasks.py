@@ -83,6 +83,51 @@ async def _expire_stale_postings_async() -> int:
         await engine.dispose()
 
 
+@celery_app.task(name="app.workers.tasks.send_daily_notifications")
+def send_daily_notifications() -> dict:
+    """Gửi email nhắc việc hàng ngày lúc 08:00."""
+    return asyncio.run(_send_daily_notifications_async())
+
+
+async def _send_daily_notifications_async() -> dict:
+    from app.services import notification_service
+
+    engine = create_async_engine(settings.DATABASE_URL, connect_args={"ssl": False})
+    SessionLocal = async_sessionmaker(engine, expire_on_commit=False)
+    sent = failed = skipped = 0
+    try:
+        async with SessionLocal() as session:
+            tasks = await notification_service.get_pending_notifications(session)
+            hr_emails = await notification_service.get_hr_recipients(session)
+            for task in tasks:
+                if await notification_service._already_sent_today(
+                    session, task.template_code, task.employee_id
+                ):
+                    skipped += 1
+                    continue
+                recipients = (
+                    hr_emails
+                    if task.recipient_type == "hr"
+                    else ([task.employee_email] if task.employee_email else hr_emails)
+                )
+                for email in recipients:
+                    ok = await notification_service.send_notification_email(
+                        task.template_code,
+                        email,
+                        task.recipient_name,
+                        task.merge_data,
+                        session,
+                        employee_id=task.employee_id,
+                    )
+                    if ok:
+                        sent += 1
+                    else:
+                        failed += 1
+    finally:
+        await engine.dispose()
+    return {"sent": sent, "failed": failed, "skipped": skipped}
+
+
 async def _reset_expired_carryover_async() -> dict:
     engine = create_async_engine(settings.DATABASE_URL, connect_args={"ssl": False})
     SessionLocal = async_sessionmaker(engine, expire_on_commit=False)

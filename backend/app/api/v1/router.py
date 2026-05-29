@@ -36,8 +36,10 @@ from app.api.v1.endpoints import hr_reports
 from app.api.v1.endpoints import leave_analytics
 from app.api.v1.endpoints import data_imports
 from app.api.v1.endpoints import insurance_reports
+from app.api.v1.endpoints import bhxh_exports
 from app.api.v1.endpoints import contract_reports
 from app.api.v1.endpoints import export
+from app.api.v1.endpoints import notifications
 
 router = APIRouter()
 router.include_router(auth.router,          prefix="/auth",          tags=["Xác thực"])
@@ -96,3 +98,5 @@ router.include_router(insurance_reports.router, prefix="/reports/insurance", tag
 router.include_router(contract_reports.router, prefix="/reports/contracts", tags=["Báo cáo Hợp đồng"])
 router.include_router(export.router, prefix="/reports/export", tags=["Trung tâm xuất báo cáo"])
 router.include_router(data_imports.router, prefix="/imports", tags=["Import dữ liệu"])
+router.include_router(bhxh_exports.router, prefix="/exports/bhxh", tags=["Xuất biểu mẫu BHXH"])
+router.include_router(notifications.router, prefix="/notifications", tags=["Thông báo"])

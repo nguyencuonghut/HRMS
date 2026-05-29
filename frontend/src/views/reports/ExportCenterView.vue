@@ -16,6 +16,7 @@
         <Tab value="quick">Xuất nhanh</Tab>
         <Tab value="history">Lịch sử</Tab>
         <Tab value="templates">Mẫu</Tab>
+        <Tab value="bhxh">Biểu mẫu BHXH</Tab>
       </TabList>
 
       <TabPanels>
@@ -268,6 +269,77 @@
             </DataTable>
           </div>
         </TabPanel>
+        <TabPanel value="bhxh">
+          <div class="bhxh-panel">
+            <!-- Filter row -->
+            <div class="card bhxh-filter-card">
+              <div class="bhxh-filter-row">
+                <div class="bhxh-field">
+                  <label>Tháng</label>
+                  <Select
+                    v-model="bhxhMonth"
+                    :options="monthOptions"
+                    option-label="label"
+                    option-value="value"
+                  />
+                </div>
+                <div class="bhxh-field">
+                  <label>Năm</label>
+                  <Select
+                    v-model="bhxhYear"
+                    :options="bhxhYearOptions"
+                    option-label="label"
+                    option-value="value"
+                  />
+                </div>
+                <div class="bhxh-field">
+                  <label>Phòng ban</label>
+                  <Select
+                    v-model="bhxhDeptId"
+                    :options="departments"
+                    option-label="name"
+                    option-value="id"
+                    placeholder="Toàn công ty"
+                    show-clear
+                    filter
+                  />
+                </div>
+              </div>
+            </div>
+
+            <!-- D02-LT card -->
+            <div class="card bhxh-form-card">
+              <div class="bhxh-form-info">
+                <div class="bhxh-form-title">D02-LT</div>
+                <div class="bhxh-form-desc">Danh sách lao động tham gia BHXH, BHYT, BHTN</div>
+              </div>
+              <Button
+                label="Xuất Excel"
+                icon="pi pi-file-excel"
+                severity="success"
+                outlined
+                :loading="exportingD02"
+                @click="doExportD02"
+              />
+            </div>
+
+            <!-- D03-TS card -->
+            <div class="card bhxh-form-card">
+              <div class="bhxh-form-info">
+                <div class="bhxh-form-title">D03-TS</div>
+                <div class="bhxh-form-desc">Bảng tổng hợp mức đóng BHXH, BHYT, BHTN</div>
+              </div>
+              <Button
+                label="Xuất Excel"
+                icon="pi pi-file-excel"
+                severity="success"
+                outlined
+                :loading="exportingD03"
+                @click="doExportD03"
+              />
+            </div>
+          </div>
+        </TabPanel>
       </TabPanels>
     </Tabs>
 
@@ -344,7 +416,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import Button from 'primevue/button'
 import Checkbox from 'primevue/checkbox'
 import Column from 'primevue/column'
@@ -370,6 +442,7 @@ import exportService, {
   type ExportReportType,
   type ReportTemplateResponse,
 } from '@/services/exportService'
+import bhxhExportService from '@/services/bhxhExportService'
 import ExportFilterPanel from './components/export/ExportFilterPanel.vue'
 
 const toast = useToast()
@@ -787,6 +860,44 @@ function onHistoryPage(event: { page: number; rows: number }) {
   void loadHistory(historyPage.page)
 }
 
+// BHXH export state
+const _now = new Date()
+const bhxhMonth = ref(_now.getMonth() + 1)
+const bhxhYear = ref(_now.getFullYear())
+const bhxhDeptId = ref<number | null>(null)
+const exportingD02 = ref(false)
+const exportingD03 = ref(false)
+
+const monthOptions = Array.from({ length: 12 }, (_, i) => ({ label: `Tháng ${i + 1}`, value: i + 1 }))
+const bhxhYearOptions = computed(() =>
+  Array.from({ length: 6 }, (_, i) => {
+    const y = _now.getFullYear() - 2 + i
+    return { label: String(y), value: y }
+  }),
+)
+
+async function doExportD02() {
+  exportingD02.value = true
+  try {
+    await bhxhExportService.exportD02Lt({ year: bhxhYear.value, month: bhxhMonth.value, department_id: bhxhDeptId.value })
+  } catch {
+    toast.add({ severity: 'error', summary: 'Xuất D02-LT thất bại', life: 4000 })
+  } finally {
+    exportingD02.value = false
+  }
+}
+
+async function doExportD03() {
+  exportingD03.value = true
+  try {
+    await bhxhExportService.exportD03Ts({ year: bhxhYear.value, month: bhxhMonth.value, department_id: bhxhDeptId.value })
+  } catch {
+    toast.add({ severity: 'error', summary: 'Xuất D03-TS thất bại', life: 4000 })
+  } finally {
+    exportingD03.value = false
+  }
+}
+
 onMounted(async () => {
   await Promise.all([
     loadDepartments(),
@@ -947,5 +1058,59 @@ onMounted(async () => {
     align-items: flex-start;
     flex-direction: column;
   }
+}
+
+.bhxh-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding-top: 0.5rem;
+}
+
+.bhxh-filter-card {
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--l-border);
+  background: var(--l-surface);
+}
+
+.bhxh-filter-row {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.bhxh-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 160px;
+}
+
+.bhxh-field label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--l-text-muted);
+}
+
+.bhxh-form-card {
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--l-border);
+  background: var(--l-surface);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.bhxh-form-title {
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+.bhxh-form-desc {
+  font-size: 0.85rem;
+  color: var(--l-text-muted);
+  margin-top: 0.2rem;
 }
 </style>

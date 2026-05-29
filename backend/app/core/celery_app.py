@@ -37,5 +37,9 @@ celery_app.conf.update(
             "task": "app.workers.export_tasks.cleanup_expired_exports",
             "schedule": crontab(hour=1, minute=0),
         },
+        "send-daily-notifications": {
+            "task": "app.workers.tasks.send_daily_notifications",
+            "schedule": crontab(hour=8, minute=0),  # 08:00 hàng ngày
+        },
     },
 )

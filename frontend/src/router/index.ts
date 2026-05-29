@@ -373,6 +373,12 @@ const router = createRouter({
           component: () => import("@/views/settings/SettingsView.vue"),
           meta: { title: "Cài đặt" },
         },
+        {
+          path: "settings/notifications",
+          name: "notification-settings",
+          component: () => import("@/views/settings/NotificationSettingsView.vue"),
+          meta: { title: "Cài đặt thông báo" },
+        },
         // Quản trị hệ thống
         {
           path: "admin/users",

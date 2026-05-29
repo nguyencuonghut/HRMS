@@ -9,6 +9,7 @@ from app.core.database import AsyncSessionLocal, ping_db
 from app.core.storage import ensure_bucket
 from app.api.v1.router import router as api_v1_router
 from app.seeds import rbac as rbac_seed
+from app.seeds import notification_templates as notif_seed
 
 
 async def seed_rbac_if_possible() -> None:
@@ -25,11 +26,23 @@ async def seed_rbac_if_possible() -> None:
             await rbac_seed.run(session)
 
 
+async def seed_notifications_if_possible() -> None:
+    """Auto-seed notification templates nếu table đã tồn tại."""
+    async with AsyncSessionLocal() as session:
+        table_exists = (await session.execute(
+            text("SELECT to_regclass('notification_templates') IS NOT NULL")
+        )).scalar()
+        if not table_exists:
+            return
+        await notif_seed.seed_notification_templates(session)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     ensure_bucket()
     await ping_db()
     await seed_rbac_if_possible()
+    await seed_notifications_if_possible()
     yield
 
 
