@@ -2,7 +2,10 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from datetime import date
+
+logger = logging.getLogger(__name__)
 
 from sqlalchemy import text, update
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -151,3 +154,19 @@ async def _reset_expired_carryover_async() -> dict:
             return {"reset_rows": result.rowcount}
     finally:
         await engine.dispose()
+
+
+@celery_app.task(name="app.workers.tasks.ping_healthcheck")
+def ping_healthcheck() -> str:
+    """Ping uptime monitoring service (healthchecks.io).
+    Chạy mỗi 60 giây — nếu bị gián đoạn hơn 5 phút → alert.
+    """
+    if not settings.HEALTHCHECK_PING_URL:
+        return "skipped: HEALTHCHECK_PING_URL not set"
+    import httpx
+    try:
+        httpx.get(settings.HEALTHCHECK_PING_URL, timeout=10)
+        return "ok"
+    except Exception as exc:
+        logger.warning("healthcheck_ping_failed url=%s err=%s", settings.HEALTHCHECK_PING_URL, exc)
+        return f"failed: {exc}"

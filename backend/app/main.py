@@ -9,12 +9,37 @@ from slowapi import _rate_limit_exceeded_handler
 
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal, ping_db
+from app.core.logging import setup_logging
 from app.core.rate_limit import limiter
 from app.core.storage import ensure_bucket
 from app.middleware.security_headers import SecurityHeadersMiddleware
 from app.api.v1.router import router as api_v1_router
 from app.seeds import rbac as rbac_seed
 from app.seeds import notification_templates as notif_seed
+
+# ── Structured logging (setup before everything else) ─────────────────────────
+setup_logging(debug=settings.DEBUG)
+
+# ── Sentry error monitoring ────────────────────────────────────────────────────
+if settings.SENTRY_DSN:
+    import sentry_sdk
+    from sentry_sdk.integrations.fastapi import FastApiIntegration
+    from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
+    from sentry_sdk.integrations.celery import CeleryIntegration
+
+    sentry_sdk.init(
+        dsn=settings.SENTRY_DSN,
+        integrations=[
+            FastApiIntegration(transaction_style="endpoint"),
+            SqlalchemyIntegration(),
+            CeleryIntegration(),
+        ],
+        environment=settings.ENVIRONMENT,
+        release=settings.APP_VERSION,
+        traces_sample_rate=0.1,
+        profiles_sample_rate=0.05,
+        send_default_pii=False,
+    )
 
 
 async def seed_rbac_if_possible() -> None:
@@ -77,6 +102,45 @@ app.add_middleware(
 app.include_router(api_v1_router, prefix="/api/v1")
 
 
-@app.get("/health")
-async def health_check():
-    return {"status": "ok", "version": settings.APP_VERSION}
+@app.get("/health", tags=["System"], summary="Health check")
+async def health_check() -> dict:
+    """Kiểm tra trạng thái hệ thống: DB, Redis, MinIO."""
+    import redis.asyncio as aioredis
+
+    checks: dict[str, str] = {}
+    overall = "ok"
+
+    # Database
+    try:
+        async with AsyncSessionLocal() as session:
+            await session.execute(text("SELECT 1"))
+        checks["database"] = "ok"
+    except Exception as exc:
+        checks["database"] = f"error: {exc}"
+        overall = "degraded"
+
+    # Redis
+    try:
+        r = aioredis.from_url(settings.REDIS_URL, socket_timeout=2)
+        await r.ping()
+        await r.aclose()
+        checks["redis"] = "ok"
+    except Exception as exc:
+        checks["redis"] = f"error: {exc}"
+        overall = "degraded"
+
+    # MinIO (bucket_exists = lightweight HEAD request)
+    try:
+        from app.core.storage import _client, bucket_name
+        _client().bucket_exists(bucket_name())
+        checks["minio"] = "ok"
+    except Exception as exc:
+        checks["minio"] = f"error: {exc}"
+        overall = "degraded"
+
+    return {
+        "status":      overall,
+        "version":     settings.APP_VERSION,
+        "environment": settings.ENVIRONMENT,
+        "checks":      checks,
+    }

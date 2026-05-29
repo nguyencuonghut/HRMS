@@ -26,7 +26,8 @@ class Settings(BaseSettings):
     MAX_UPLOAD_SIZE_MB: int = 50    # max file size for attachments
 
     # Monitoring
-    SENTRY_DSN: str = ""            # bỏ trống = disabled
+    SENTRY_DSN:            str = ""   # bỏ trống = disabled
+    HEALTHCHECK_PING_URL:  str = ""   # Healthchecks.io ping URL
 
     # Security
     SECRET_KEY: str = "change-this-secret-key-in-production"

@@ -41,5 +41,9 @@ celery_app.conf.update(
             "task": "app.workers.tasks.send_daily_notifications",
             "schedule": crontab(hour=8, minute=0),  # 08:00 hàng ngày
         },
+        "ping-healthcheck": {
+            "task": "app.workers.tasks.ping_healthcheck",
+            "schedule": 60.0,  # mỗi 60 giây — nếu miss 5 lần → uptime alert
+        },
     },
 )
