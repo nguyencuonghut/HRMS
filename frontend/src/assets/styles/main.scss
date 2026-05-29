@@ -61,6 +61,7 @@ html, body {
   margin: 0;
   padding: 0;
   height: 100%;
+  overflow: hidden;           /* page KHÔNG scroll — sidebar/content tự scroll riêng */
   font-family: 'Be Vietnam Pro', sans-serif;
   font-size: 14px;
   -webkit-font-smoothing: antialiased;
@@ -98,13 +99,19 @@ html.dark-mode ::-webkit-scrollbar-thumb { background: rgba(255,255,255,.1); }
 .layout-wrapper {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  height: 100dvh;             /* cố định đúng chiều cao viewport, không grow thêm */
+  overflow: hidden;
   background: var(--l-bg);
   color: var(--l-text);
   transition: background .2s, color .2s;
 }
 
-.layout-main { display: flex; flex: 1; overflow: hidden; }
+.layout-main {
+  display: flex;
+  flex: 1;
+  overflow: hidden;           /* clip để con tự scroll riêng */
+  min-height: 0;              /* flex child shrink đúng */
+}
 
 .layout-content {
   flex: 1;
@@ -113,6 +120,7 @@ html.dark-mode ::-webkit-scrollbar-thumb { background: rgba(255,255,255,.1); }
   padding: 1.5rem;
   overflow-y: auto;
   min-width: 0;
+  scroll-behavior: smooth;    /* scroll-to-top mượt sau khi navigate */
 }
 
 // ── Topbar ─────────────────────────────────────────────────────────
@@ -156,7 +164,7 @@ $topbar-height: 4rem;
 
 .layout-sidebar {
   width: $sidebar-width;
-  min-height: calc(100vh - $topbar-height);
+  height: 100%;               /* fill layout-main height, scroll riêng */
   background: var(--l-surface);
   border-right: 1px solid var(--l-border);
   transition: width .25s ease, background .2s, border-color .2s;

@@ -23,7 +23,8 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { onMounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import Toast from 'primevue/toast'
 import ConfirmDialog from 'primevue/confirmdialog'
 import AppTopbar from './AppTopbar.vue'
@@ -32,6 +33,16 @@ import AppFooter from './AppFooter.vue'
 import { useLayout } from '@/composables/useLayout'
 
 const { darkMode, mobileOpen, closeMobile, initDarkMode } = useLayout()
+const route = useRoute()
+
+// Scroll content area về đầu khi chuyển route
+watch(
+  () => route.path,
+  () => {
+    const el = document.getElementById('main-content')
+    if (el) el.scrollTop = 0
+  },
+)
 
 onMounted(() => {
   initDarkMode()
