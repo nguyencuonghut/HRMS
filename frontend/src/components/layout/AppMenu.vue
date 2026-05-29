@@ -94,7 +94,7 @@ function toggleGroup(label: string) {
 }
 
 const menu: MenuItem[] = [
-  { to: "/dashboard", label: "Dashboard", icon: "pi-home" },
+  { to: "/reports/dashboard", label: "Dashboard", icon: "pi-home" },
   { section: true, label: "Quản lý" },
   {
     label: "Cơ cấu tổ chức",

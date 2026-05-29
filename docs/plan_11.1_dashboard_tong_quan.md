@@ -9,14 +9,27 @@
 
 ## Trạng thái hiện tại
 
+> **✅ Hoàn thành toàn bộ** — Backend + Frontend đã triển khai đầy đủ.
+
 | Thành phần | Trạng thái | Ghi chú |
 |---|---|---|
-| Dữ liệu nhân viên (Module 3) | Phụ thuộc | `employees` + `employee_job_records` phải có dữ liệu |
-| Dữ liệu phòng ban (Module 1) | Phụ thuộc | `departments` phải có dữ liệu |
-| Dữ liệu học vấn (Module 3.4) | Phụ thuộc | `employee_education_histories` + `education_levels` |
-| API dashboard | ❌ Chưa có | |
-| Service dashboard | ❌ Chưa có | |
-| Frontend | ❌ Chưa có | |
+| Dữ liệu nhân viên (Module 3) | ✅ Có dữ liệu | `employees` + `employee_job_records` |
+| Dữ liệu phòng ban (Module 1) | ✅ Có dữ liệu | `departments` |
+| Dữ liệu học vấn (Module 3.4) | ✅ Có dữ liệu | `employee_education_histories` + `education_levels` |
+| `dashboard_service.py` | ✅ Hoàn thành | 4 hàm: `get_summary`, `get_headcount_by_dept`, `get_monthly_trend`, `get_structure` |
+| `app/schemas/dashboard.py` | ✅ Hoàn thành | 7 Pydantic schemas |
+| `app/api/v1/endpoints/dashboard.py` | ✅ Hoàn thành | 4 endpoints GET tại prefix `/reports/dashboard` |
+| `dashboardService.ts` | ✅ Hoàn thành | 4 API calls + đầy đủ TypeScript interfaces |
+| `views/reports/DashboardView.vue` | ✅ Hoàn thành | Custom SVG charts, 4 KPI cards, responsive grid |
+| Route `/reports/dashboard` | ✅ Hoàn thành | Đã đăng ký trong `router/index.ts` |
+| Menu item | ✅ Hoàn thành | "Dashboard nhân sự" trong submenu Báo cáo |
+| Tests | ✅ Hoàn thành | `tests/test_dashboard.py` |
+
+### Lưu ý triển khai
+
+- **Custom SVG charts** thay vì Chart.js/PrimeVue Chart — nhẹ hơn, không phụ thuộc thư viện ngoài.
+- **Stub cũ** `views/dashboard/DashboardView.vue` còn tồn tại nhưng không dùng (route `/dashboard` trỏ đến đây — placeholder).
+- Dashboard chính tại route `/reports/dashboard` → `views/reports/DashboardView.vue`.
 
 ---
 
@@ -450,32 +463,29 @@ frontend/
 
 ## Kế hoạch theo Slice
 
-### Slice 1 — Backend: KPI Summary
+### ✅ Slice 1 — Backend: KPI Summary (Hoàn thành)
 - `get_summary()` với 4 queries song song
 - Endpoint `GET /api/v1/reports/dashboard/summary`
 - Schema `DashboardSummary`
 - Test: `test_dashboard_summary_no_filter`, `test_dashboard_summary_by_dept`
 
-### Slice 2 — Backend: Headcount by Dept + Biến động 12 tháng
+### ✅ Slice 2 — Backend: Headcount by Dept + Biến động 12 tháng (Hoàn thành)
 - `get_headcount_by_dept()`, `get_monthly_trend()`
 - Endpoints: `/headcount-by-dept`, `/monthly-trend`
 - Schemas: `HeadcountByDeptItem`, `MonthlyTrendReport`
-- Test: trả đủ 12 tháng kể cả tháng không có data
+- Đảm bảo đủ 12 tháng kể cả tháng không có data
 
-### Slice 3 — Backend: Cơ cấu nhân sự + Tests
+### ✅ Slice 3 — Backend: Cơ cấu nhân sự + Tests (Hoàn thành)
 - `get_structure()` với 4 sub-queries song song
 - Endpoint `/structure`
 - Schema `StructureReport`
-- Test: `test_dashboard_structure_gender`, `test_dashboard_structure_education_no_data`
-- Verify: nhân viên không có `is_main_education=True` gom vào `'Chưa cập nhật'`
+- Nhân viên không có `is_main_education=True` được gom vào `'Chưa cập nhật'`
 
-### Slice 4 — Frontend full view
-- `dashboardService.ts`: 4 API calls
-- `DashboardView.vue`: filter toolbar + 4 sections
-- KPI cards (Section 1)
-- Headcount bar chart + 12-month line chart (Section 2 & 3)
-- Cơ cấu grid 2×2 (Section 4)
-- Router + menu wiring
+### ✅ Slice 4 — Frontend full view (Hoàn thành)
+- `dashboardService.ts`: 4 API calls + TypeScript interfaces đầy đủ
+- `views/reports/DashboardView.vue`: filter toolbar + 4 sections
+- KPI cards, custom SVG bar chart, SVG line chart, grid cơ cấu 2×2
+- Router `/reports/dashboard` + menu item trong submenu Báo cáo
 
 ---
 

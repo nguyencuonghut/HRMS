@@ -17,13 +17,11 @@ const router = createRouter({
       children: [
         {
           path: "",
-          redirect: "/dashboard",
+          redirect: "/reports/dashboard",
         },
         {
           path: "dashboard",
-          name: "dashboard",
-          component: () => import("@/views/dashboard/DashboardView.vue"),
-          meta: { title: "Dashboard", icon: "pi-home" },
+          redirect: "/reports/dashboard",
         },
         // Cơ cấu tổ chức
         {
