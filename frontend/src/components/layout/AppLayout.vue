@@ -1,4 +1,7 @@
 <template>
+  <!-- Skip to main content (keyboard accessibility) -->
+  <a href="#main-content" class="skip-to-content">Bỏ qua điều hướng</a>
+
   <div class="layout-wrapper" :class="{ 'dark-mode': darkMode }">
     <AppTopbar />
 
@@ -8,7 +11,7 @@
 
       <AppSidebar />
 
-      <main class="layout-content">
+      <main id="main-content" class="layout-content">
         <RouterView />
         <AppFooter />
       </main>

@@ -1239,3 +1239,87 @@ html.dark-mode {
 .expiry-critical { background-color: color-mix(in srgb, var(--p-red-500) 15%, var(--l-surface)) !important; }
 .expiry-warning  { background-color: color-mix(in srgb, var(--p-orange-500) 15%, var(--l-surface)) !important; }
 
+// ── 15.3 Accessibility & Mobile UX ────────────────────────────────────────────
+
+// Skip-to-content link (keyboard users)
+.skip-to-content {
+  position: absolute;
+  top: -100%;
+  left: 1rem;
+  z-index: 9999;
+  padding: 0.5rem 1rem;
+  background: var(--p-primary-500);
+  color: #fff;
+  border-radius: 0 0 0.5rem 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: top 0.15s;
+
+  &:focus {
+    top: 0;
+    outline: 3px solid var(--p-primary-300);
+    outline-offset: 2px;
+  }
+}
+
+// Focus visible — ensure keyboard focus ring is always visible
+:focus-visible {
+  outline: 2px solid var(--p-primary-500);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+// Touch targets — WCAG 2.5.8: interactive elements ≥ 48×48px on mobile
+@media (max-width: 768px) {
+  // Icon-only action buttons in DataTable rows
+  .p-button.p-button-rounded.p-button-text {
+    min-width: 2.5rem;
+    min-height: 2.5rem;
+  }
+
+  // Form inputs
+  .p-inputtext,
+  .p-select,
+  .p-datepicker-input {
+    min-height: 2.75rem;
+    font-size: 1rem; // prevent iOS auto-zoom (must be ≥ 16px)
+  }
+
+  // Primary action buttons
+  .p-button:not(.p-button-text):not(.p-button-outlined) {
+    min-height: 2.75rem;
+    padding-top: 0.625rem;
+    padding-bottom: 0.625rem;
+  }
+}
+
+// Bottom sheet — Dialog slides up from bottom on small screens
+@media (max-width: 640px) {
+  .p-dialog-mask {
+    align-items: flex-end !important;
+  }
+
+  .p-dialog {
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: 90dvh !important;
+    margin: 0 !important;
+    border-radius: 1rem 1rem 0 0 !important;
+    overflow: hidden;
+  }
+
+  .p-dialog .p-dialog-content {
+    overflow-y: auto;
+    max-height: calc(90dvh - 4rem); // subtract header height
+  }
+}
+
+// Mobile: prevent horizontal overflow on page content
+@media (max-width: 768px) {
+  .p-datatable-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+

@@ -28,11 +28,10 @@
 
 | Thành phần | Vấn đề | Ưu tiên |
 |---|---|---|
-| **i18n library** | Labels hardcoded — khó dịch/thay đổi sau này | 🟡 Medium |
 | **Accessibility (A11y)** | Chưa test ARIA labels, keyboard nav, contrast WCAG | 🟠 High |
 | **Responsive kiểm thử** | Chưa test trên thiết bị thật (iPad, iPhone 12) | 🟠 High |
 | **Lazy-loading routes** | Một số routes chưa dynamic import | 🟡 Medium |
-| **Mobile bottom navigation** | Trên mobile chỉ có sidebar overlay, chưa bottom nav | 🟡 Medium |
+| **Mobile UX** | Touch targets nhỏ, Dialog không tối ưu mobile | 🟡 Medium |
 
 ---
 
@@ -43,12 +42,11 @@
 1. **Accessibility audit** — ARIA labels, keyboard navigation, WCAG AA contrast
 2. **Responsive test & fix** — tablet (768px) và mobile (390px) thực tế
 3. **Lazy-loading routes** — tất cả views dùng dynamic `import()`
-4. **i18n chuẩn bị** — cấu trúc sẵn, không bắt buộc dịch ngay
-5. **Mobile UX improvements** — touch targets ≥ 48px, bottom sheet patterns
+4. **Mobile UX improvements** — touch targets ≥ 48px, bottom sheet Dialog
 
 ### Ngoài phạm vi
 
-- Đa ngôn ngữ (English UI) — chưa có yêu cầu từ khách hàng
+- **i18n / Đa ngôn ngữ** — bỏ qua theo quyết định dự án; UI hardcoded tiếng Việt là đủ
 - PWA (Progressive Web App) / offline support
 - Native mobile app (iOS/Android)
 - Custom theming per tenant
@@ -157,71 +155,7 @@ Tất cả routes trong `router/index.ts` phải dùng `() => import(...)`.
 
 ---
 
-### 4. i18n Chuẩn bị — Slice 2
-
-**Không bắt buộc dịch ngay**, chỉ cần cấu trúc sẵn để dễ bổ sung sau:
-
-**Cài đặt:**
-```bash
-npm install vue-i18n@9
-```
-
-**Cấu trúc file:**
-```
-frontend/src/
-└── locales/
-    └── vi.json    ← Tiếng Việt (primary)
-    └── en.json    ← (tương lai — bỏ trống hoặc copy từ vi.json)
-```
-
-**Nhóm keys theo module:**
-```json
-// locales/vi.json
-{
-  "common": {
-    "save": "Lưu",
-    "cancel": "Hủy",
-    "delete": "Xóa",
-    "search": "Tìm kiếm",
-    "loading": "Đang tải...",
-    "noData": "Không có dữ liệu"
-  },
-  "employee": {
-    "title": "Danh sách nhân viên",
-    "add": "Thêm nhân viên",
-    "status": {
-      "probation": "Thử việc",
-      "official": "Chính thức",
-      "long_leave": "Nghỉ dài hạn",
-      "resigned": "Đã nghỉ việc"
-    }
-  },
-  "nav": {
-    "dashboard": "Dashboard",
-    "employees": "Nhân sự",
-    "contracts": "Hợp đồng"
-  }
-}
-```
-
-**Setup trong main.ts:**
-```typescript
-import { createI18n } from 'vue-i18n'
-import vi from './locales/vi.json'
-
-const i18n = createI18n({
-  locale: 'vi',
-  fallbackLocale: 'vi',
-  messages: { vi },
-})
-app.use(i18n)
-```
-
-**Không migrate ngay** — chỉ setup, dùng `$t('common.save')` cho các string mới thêm; string cũ giữ nguyên hardcoded.
-
----
-
-### 5. Mobile UX Improvements — Slice 2
+### 4. Mobile UX Improvements — Slice 2
 
 **Touch targets (WCAG 2.5.8):**
 ```css
@@ -260,12 +194,10 @@ Trên màn hình nhỏ (< 640px), Dialog nên mở từ dưới lên thay vì ce
 
 ```
 frontend/src/
-├── locales/
-│   └── vi.json          ← NEW — i18n strings (optional)
 ├── router/
 │   └── index.ts         ← UPDATE — verify all lazy imports
 └── assets/styles/
-    └── main.scss        ← UPDATE — touch targets, mobile fixes
+    └── main.scss        ← UPDATE — touch targets, mobile fixes, aria improvements
 ```
 
 ---
@@ -285,13 +217,12 @@ frontend/src/
 
 ---
 
-### Slice 2 — i18n Setup + Mobile UX (Medium)
+### Slice 2 — Mobile UX (Medium)
 
 **Việc cần làm:**
-1. Cài `vue-i18n@9` + tạo `locales/vi.json` với ~100 common keys
-2. Setup i18n trong main.ts — chỉ register, chưa migrate cũ
-3. Thêm CSS mobile touch targets + bottom sheet Dialog pattern
-4. Test trên thiết bị thật (iOS Safari, Android Chrome) nếu có
+1. Thêm CSS mobile touch targets ≥ 48px vào `main.scss`
+2. Thêm bottom sheet Dialog pattern cho mobile (< 640px)
+3. Test trên thiết bị thật (iOS Safari, Android Chrome) nếu có
 
 ---
 
@@ -299,9 +230,9 @@ frontend/src/
 
 | Rủi ro | Cách xử lý |
 |---|---|
-| i18n làm vỡ layout (string dài hơn tiếng Việt) | Hardcode fallback, chỉ migrate dần; không migrate 100% một lúc |
 | PrimeVue v4 A11y issues | Report lên PrimeVue GitHub; workaround bằng wrapper component |
 | Responsive fix làm vỡ desktop layout | Test cả 2 breakpoints sau mỗi fix; không dùng !important khi có thể |
+| Touch target CSS conflict với PrimeVue | Dùng selector cụ thể hơn thay vì `.p-button` chung |
 
 ---
 
@@ -314,7 +245,9 @@ frontend/src/
 - [ ] Icon-only buttons có `aria-label`
 
 ### Medium priority
-- [ ] `vue-i18n` cài và config (không cần migrate toàn bộ)
-- [ ] `locales/vi.json` có ít nhất common.* keys
-- [ ] Mobile: touch targets ≥ 48px
+- [ ] Mobile: touch targets ≥ 48px trong main.scss
+- [ ] Bottom sheet Dialog pattern trên mobile
 - [ ] Dark mode: contrast ratio verify bằng Chrome DevTools
+
+### Không áp dụng (đã loại khỏi phạm vi)
+- i18n / vue-i18n — bỏ qua theo quyết định dự án

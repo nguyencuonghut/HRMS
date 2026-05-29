@@ -13,6 +13,7 @@
       rounded
       severity="secondary"
       class="hidden md:flex"
+      aria-label="Thu gọn menu"
       @click="toggleSidebar"
       v-tooltip.bottom="'Thu gọn menu'"
     />
@@ -24,6 +25,7 @@
       rounded
       severity="secondary"
       class="flex md:hidden"
+      aria-label="Mở menu"
       @click="toggleMobile"
     />
 
@@ -35,6 +37,7 @@
       text
       rounded
       severity="secondary"
+      :aria-label="darkMode ? 'Chuyển sang chế độ sáng' : 'Chuyển sang chế độ tối'"
       v-tooltip.bottom="darkMode ? 'Chế độ sáng' : 'Chế độ tối'"
       @click="toggleDarkMode"
     />
@@ -45,6 +48,7 @@
       text
       rounded
       severity="secondary"
+      aria-label="Thông báo"
       v-tooltip.bottom="'Thông báo'"
     />
 

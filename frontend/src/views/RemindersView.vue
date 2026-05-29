@@ -27,7 +27,7 @@
           placeholder="Lọc loại sự kiện"
           style="min-width:180px;"
         />
-        <Button icon="pi pi-refresh" text rounded :loading="loading" @click="load" v-tooltip.top="'Làm mới'" />
+        <Button icon="pi pi-refresh" text rounded :loading="loading" aria-label="Làm mới" @click="load" v-tooltip.top="'Làm mới'" />
       </div>
     </div>
 
