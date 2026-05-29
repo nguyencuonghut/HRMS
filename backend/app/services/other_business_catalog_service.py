@@ -7,6 +7,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.cache import cache_delete_pattern, cache_get, cache_set
 from app.models.catalog import (
     Bank,
     Certificate,
@@ -490,19 +491,38 @@ async def list_leave_types_page(session: AsyncSession, *, keyword: Optional[str]
 
 
 async def create_leave_type(session: AsyncSession, data) -> LeaveType:
-    return await _create_basic_row(session, model=LeaveType, data=data, code_label="Mã loại nghỉ phép", name_label="Tên loại nghỉ phép")
+    result = await _create_basic_row(session, model=LeaveType, data=data, code_label="Mã loại nghỉ phép", name_label="Tên loại nghỉ phép")
+    await _invalidate_leave_type_cache()
+    return result
 
 
 async def update_leave_type(session: AsyncSession, row_id: int, data) -> LeaveType:
-    return await _update_basic_row(session, model=LeaveType, row_id=row_id, data=data, code_label="Mã loại nghỉ phép", name_label="Tên loại nghỉ phép", not_found="Không tìm thấy loại nghỉ phép")
+    result = await _update_basic_row(session, model=LeaveType, row_id=row_id, data=data, code_label="Mã loại nghỉ phép", name_label="Tên loại nghỉ phép", not_found="Không tìm thấy loại nghỉ phép")
+    await _invalidate_leave_type_cache()
+    return result
 
 
 async def soft_delete_leave_type(session: AsyncSession, row_id: int) -> dict:
-    return await _soft_delete_basic_row(session, model=LeaveType, row_id=row_id, not_found="Không tìm thấy loại nghỉ phép", label="loại nghỉ phép")
+    result = await _soft_delete_basic_row(session, model=LeaveType, row_id=row_id, not_found="Không tìm thấy loại nghỉ phép", label="loại nghỉ phép")
+    await _invalidate_leave_type_cache()
+    return result
 
 
 async def lookup_leave_types(session: AsyncSession, *, keyword: Optional[str] = None, is_active: bool = True, limit: int = 20) -> list[LeaveType]:
+    # Cache chỉ khi lookup đơn giản (không có keyword filter)
+    if not keyword:
+        cache_key = f"cache:leave_types:lookup:{is_active}:{limit}"
+        cached = await cache_get(cache_key)
+        if cached is not None:
+            return [LeaveType.model_validate(d) for d in cached]
+        rows = await _lookup_basic(session, model=LeaveType, keyword=None, is_active=is_active, limit=limit, order_by=[LeaveType.name])
+        await cache_set(cache_key, [{"id": r.id, "code": r.code, "name": r.name, "color_tag": r.color_tag, "is_active": r.is_active} for r in rows], 3600)
+        return rows
     return await _lookup_basic(session, model=LeaveType, keyword=keyword, is_active=is_active, limit=limit, order_by=[LeaveType.name])
+
+
+async def _invalidate_leave_type_cache() -> None:
+    await cache_delete_pattern("cache:leave_types:*")
 
 
 async def get_contract_template_by_id(session: AsyncSession, row_id: int) -> ContractTemplate:

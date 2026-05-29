@@ -7,8 +7,12 @@ from fastapi import HTTPException, status
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.cache import cache_delete_pattern, cache_get, cache_set
 from app.models.org import Department, OrgChangeLog
 from app.schemas.department import DepartmentCreate, DepartmentTreeNode, DepartmentUpdate
+
+_CACHE_TTL = 3600          # 1 giờ
+_CACHE_KEY  = "cache:departments:{suffix}"
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
@@ -62,6 +66,10 @@ async def _get_descendant_ids(session: AsyncSession, dept_id: int) -> set[int]:
     return {row[0] for row in result.fetchall()}
 
 
+async def _invalidate_cache() -> None:
+    await cache_delete_pattern("cache:departments:*")
+
+
 # ── Public API ─────────────────────────────────────────────────────────────────
 
 async def get_by_id(session: AsyncSession, dept_id: int) -> Department:
@@ -78,12 +86,20 @@ async def get_list(
     session: AsyncSession,
     is_active: Optional[bool] = None,
 ) -> list[Department]:
+    cache_key = _CACHE_KEY.format(suffix=f"list:{is_active}")
+    cached = await cache_get(cache_key)
+    if cached is not None:
+        return [Department.model_validate(d) for d in cached]
+
     q = select(Department)
     if is_active is not None:
         q = q.where(Department.is_active == is_active)
     q = q.order_by(Department.order_no, Department.name)
     result = await session.execute(q)
-    return list(result.scalars().all())
+    rows = list(result.scalars().all())
+
+    await cache_set(cache_key, [_to_dict(r) for r in rows], _CACHE_TTL)
+    return rows
 
 
 async def get_tree(
@@ -155,6 +171,7 @@ async def create(
     await _log(session, dept, "create", None, _to_dict(dept), changed_by)
     await session.commit()
     await session.refresh(dept)
+    await _invalidate_cache()
     return dept
 
 
@@ -218,6 +235,7 @@ async def update(
     await _log(session, dept, "update", old_snapshot, _to_dict(dept), changed_by)
     await session.commit()
     await session.refresh(dept)
+    await _invalidate_cache()
     return dept
 
 
@@ -257,5 +275,6 @@ async def delete(
     await _log(session, dept, "delete", old_snapshot, None, changed_by)
     await session.delete(dept)
     await session.commit()
+    await _invalidate_cache()
 
     return {"message": f"Đã xóa phòng/ban '{dept_name}' thành công"}

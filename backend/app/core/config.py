@@ -16,6 +16,15 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str = "postgresql+asyncpg://postgres:password@localhost:5432/hrms"
 
+    # Database connection pool (tuned for ~200 concurrent users)
+    DB_POOL_SIZE:     int  = 20     # persistent connections
+    DB_MAX_OVERFLOW:  int  = 40     # burst headroom
+    DB_POOL_RECYCLE:  int  = 3600   # recycle every 1h, avoid idle disconnect
+    DB_POOL_PRE_PING: bool = True   # validate stale connections before use
+
+    # Monitoring
+    SENTRY_DSN: str = ""            # bỏ trống = disabled
+
     # Security
     SECRET_KEY: str = "change-this-secret-key-in-production"
     ENCRYPTION_KEY: str = ""

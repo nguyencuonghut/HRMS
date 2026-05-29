@@ -7,8 +7,16 @@ from fastapi import HTTPException, status
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.cache import cache_delete_pattern, cache_get, cache_set
 from app.models.org import JobTitle, OrgChangeLog
 from app.schemas.job_title import JobTitleCreate, JobTitleUpdate
+
+_CACHE_KEY = "cache:job_titles:{suffix}"
+_CACHE_TTL = 3600
+
+
+async def _invalidate_cache() -> None:
+    await cache_delete_pattern("cache:job_titles:*")
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
@@ -56,12 +64,20 @@ async def get_list(
     session: AsyncSession,
     is_active: Optional[bool] = None,
 ) -> list[JobTitle]:
+    cache_key = _CACHE_KEY.format(suffix=f"list:{is_active}")
+    cached = await cache_get(cache_key)
+    if cached is not None:
+        return [JobTitle.model_validate(d) for d in cached]
+
     q = select(JobTitle)
     if is_active is not None:
         q = q.where(JobTitle.is_active == is_active)
     q = q.order_by(JobTitle.level, JobTitle.name)
     result = await session.execute(q)
-    return list(result.scalars().all())
+    rows = list(result.scalars().all())
+
+    await cache_set(cache_key, [_to_dict(r) for r in rows], _CACHE_TTL)
+    return rows
 
 
 async def create(
@@ -83,6 +99,7 @@ async def create(
     await _log(session, jt, "create", None, _to_dict(jt), changed_by)
     await session.commit()
     await session.refresh(jt)
+    await _invalidate_cache()
     return jt
 
 
@@ -108,6 +125,7 @@ async def update(
     await _log(session, jt, "update", old_snapshot, _to_dict(jt), changed_by)
     await session.commit()
     await session.refresh(jt)
+    await _invalidate_cache()
     return jt
 
 
@@ -136,5 +154,6 @@ async def delete(
     await _log(session, jt, "delete", old_snapshot, None, changed_by)
     await session.delete(jt)
     await session.commit()
+    await _invalidate_cache()
 
     return {"message": f"Đã xóa chức danh '{jt_name}' thành công"}
