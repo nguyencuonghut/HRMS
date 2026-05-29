@@ -13,7 +13,6 @@ BASE_HD = "/api/v1/recruitment/hiring-decisions"
 
 _ADMIN_EMAIL = "admin@hrms.local"
 _ADMIN_PASSWORD = "Hrms@2026"
-_NATIONALITY_ID = 1374
 
 
 def _admin(client: TestClient) -> dict:
@@ -22,6 +21,18 @@ def _admin(client: TestClient) -> dict:
         json={"email": _ADMIN_EMAIL, "password": _ADMIN_PASSWORD},
     ).json()["access_token"]
     return {"Authorization": f"Bearer {token}"}
+
+
+def _get_nationality_id(client: TestClient, headers: dict) -> int:
+    res = client.get("/api/v1/nationalities", headers=headers)
+    assert res.status_code == 200, res.text
+    payload = res.json()
+    items = payload["items"] if isinstance(payload, dict) else payload
+    vn = next((item for item in items if item["code"] == "VN"), None)
+    if vn is not None:
+        return vn["id"]
+    assert items, "Không có nationality nào trong hệ thống"
+    return items[0]["id"]
 
 
 def _get_pos_dept(client: TestClient, h: dict) -> tuple[int, int]:
@@ -53,6 +64,21 @@ def _create_approved_jr(client: TestClient, h: dict, pos_id: int, dept_id: int, 
     ).json()
     client.post(f"{BASE_JR}/{jr['id']}/submit", headers=h)
     client.post(f"{BASE_JR}/{jr['id']}/approve", headers=h)
+    pipeline_res = client.post(
+        f"{BASE_JR}/{jr['id']}/pipeline",
+        json={
+            "stages": [
+                {
+                    "stage_order": 1,
+                    "stage_name": "Sàng lọc hồ sơ",
+                    "stage_type": "screening",
+                    "is_active": True,
+                }
+            ]
+        },
+        headers=h,
+    )
+    assert pipeline_res.status_code == 200, pipeline_res.text
     return client.get(f"{BASE_JR}/{jr['id']}", headers=h).json()
 
 
@@ -71,6 +97,7 @@ def _create_candidate(client: TestClient, h: dict, suffix: str) -> dict:
 
 def _create_candidate_full(client: TestClient, h: dict, suffix: str) -> dict:
     """Candidate with all fields required for convert_to_employee."""
+    nationality_id = _get_nationality_id(client, h)
     res = client.post(
         BASE_CAND,
         json={
@@ -80,7 +107,7 @@ def _create_candidate_full(client: TestClient, h: dict, suffix: str) -> dict:
             "personal_email": f"convert_{suffix}@example.com",
             "date_of_birth": "1990-01-01",
             "gender": "male",
-            "nationality_id": _NATIONALITY_ID,
+            "nationality_id": nationality_id,
             "id_number": f"0{suffix[:9]}",
             "id_issued_on": "2015-01-01",
             "id_issued_by": "Cục CSQLHC",
@@ -98,7 +125,35 @@ def _apply(client: TestClient, h: dict, candidate_id: int, jr_id: int) -> dict:
         headers=h,
     )
     assert res.status_code == 201, res.text
-    return res.json()
+    app = res.json()
+    return _advance_application_to_offer(client, h, app["id"], jr_id, app["current_stage"])
+
+
+def _advance_application_to_offer(
+    client: TestClient,
+    h: dict,
+    application_id: int,
+    jr_id: int,
+    current_stage: str,
+) -> dict:
+    pipeline_res = client.get(f"{BASE_JR}/{jr_id}/pipeline", headers=h)
+    assert pipeline_res.status_code == 200, pipeline_res.text
+    stages = pipeline_res.json()
+    assert stages, "JR không có pipeline stages"
+
+    application_stage = current_stage
+    while application_stage != "offer":
+        stage = next((item for item in stages if item["stage_type"] == application_stage), None)
+        assert stage is not None, f"Không tìm thấy stage '{application_stage}' trong pipeline"
+        advance_res = client.post(
+            f"/api/v1/recruitment/applications/{application_id}/advance",
+            json={"stage_id": stage["id"], "result": "pass"},
+            headers=h,
+        )
+        assert advance_res.status_code == 200, advance_res.text
+        application = advance_res.json()
+        application_stage = application["current_stage"]
+    return application
 
 
 def _create_offer(client: TestClient, h: dict, application_id: int, pos_id: int | None = None, dept_id: int | None = None, **overrides) -> dict:

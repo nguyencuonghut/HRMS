@@ -7,10 +7,12 @@ import uuid
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import text
+from sqlalchemy import delete, select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.core.config import settings
+from app.core.encryption import encrypt, hash_sensitive
+from app.models.employee import Employee
 
 BASE = "/api/v1/reports/dashboard"
 _ADMIN_EMAIL = "admin@hrms.local"
@@ -26,19 +28,12 @@ async def _cleanup() -> None:
     engine = _engine()
     Session = async_sessionmaker(engine, expire_on_commit=False)
     async with Session() as s:
-        await s.execute(text("""
-            DELETE FROM employee_education_histories
-            WHERE employee_id IN (
-                SELECT id FROM employees WHERE id_number LIKE :prefix
-            )
-        """), {"prefix": f"{_PREFIX}%"})
-        await s.execute(text("""
-            DELETE FROM employee_job_records
-            WHERE employee_id IN (
-                SELECT id FROM employees WHERE id_number LIKE :prefix
-            )
-        """), {"prefix": f"{_PREFIX}%"})
-        await s.execute(text("DELETE FROM employees WHERE id_number LIKE :prefix"), {"prefix": f"{_PREFIX}%"})
+        hashes = [hash_sensitive(f"{_PREFIX}{idx:03d}") for idx in range(1, 6)]
+        employee_ids = list((await s.execute(select(Employee.id).where(Employee.id_number_hash.in_(hashes)))).scalars().all())
+        if employee_ids:
+            await s.execute(text("DELETE FROM employee_education_histories WHERE employee_id = ANY(:employee_ids)"), {"employee_ids": employee_ids})
+            await s.execute(text("DELETE FROM employee_job_records WHERE employee_id = ANY(:employee_ids)"), {"employee_ids": employee_ids})
+            await s.execute(delete(Employee).where(Employee.id.in_(employee_ids)))
         await s.execute(text("DELETE FROM departments WHERE code LIKE :prefix"), {"prefix": f"{_PREFIX}%"})
         await s.commit()
     await engine.dispose()
@@ -151,7 +146,7 @@ async def _seed_dashboard_data() -> dict[str, int]:
                 INSERT INTO employees (
                     employee_seq, employee_code_sequence_id, full_name, normalized_name,
                     last_name, first_name, date_of_birth, gender, nationality_id,
-                    ethnicity_id, religion_id, id_number, id_issued_on, id_issued_by,
+                    ethnicity_id, religion_id, id_number, id_number_hash, id_issued_on, id_issued_by,
                     id_expires_on, passport_number, passport_issued_on, passport_expires_on,
                     work_permit_number, work_permit_issued_on, work_permit_expires_on,
                     phone_number, personal_email, personal_tax_code, bhxh_code, avatar_path,
@@ -159,7 +154,7 @@ async def _seed_dashboard_data() -> dict[str, int]:
                 ) VALUES (
                     :employee_seq, :sequence_id, :full_name, :normalized_name,
                     :last_name, :first_name, :date_of_birth, :gender, :nationality_id,
-                    NULL, NULL, :id_number, :id_issued_on, :id_issued_by,
+                    NULL, NULL, :id_number, :id_number_hash, :id_issued_on, :id_issued_by,
                     NULL, NULL, NULL, NULL,
                     NULL, NULL, NULL,
                     NULL, :personal_email, NULL, NULL, NULL,
@@ -176,7 +171,8 @@ async def _seed_dashboard_data() -> dict[str, int]:
                 "date_of_birth": employee["dob"],
                 "gender": employee["gender"],
                 "nationality_id": nationality_id,
-                "id_number": f"{_PREFIX}{idx:03d}",
+                "id_number": encrypt(f"{_PREFIX}{idx:03d}"),
+                "id_number_hash": hash_sensitive(f"{_PREFIX}{idx:03d}"),
                 "id_issued_on": date(2020, 1, 1),
                 "id_issued_by": "CA Test",
                 "personal_email": f"{_PREFIX.lower()}_{idx}@example.com",

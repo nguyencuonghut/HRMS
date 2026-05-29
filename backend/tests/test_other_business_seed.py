@@ -19,17 +19,55 @@ async def _scalar(sql: str, **params) -> int:
 
 async def test_required_other_business_catalog_seed_is_idempotent():
     async with _make_session()() as session:
+        contract_categories_before = await _scalar("SELECT COUNT(*) FROM contract_categories")
+        nationalities_before = await _scalar("SELECT COUNT(*) FROM nationalities")
+        ethnicities_before = await _scalar("SELECT COUNT(*) FROM ethnicities")
+        religions_before = await _scalar("SELECT COUNT(*) FROM religions")
+        banks_before = await _scalar("SELECT COUNT(*) FROM banks")
+        leave_types_before = await _scalar("SELECT COUNT(*) FROM leave_types")
+
         await other_business_catalog.seed_required_other_business_catalog(session)
         await session.commit()
         await other_business_catalog.seed_required_other_business_catalog(session)
         await session.commit()
 
-    assert await _scalar("SELECT COUNT(*) FROM contract_categories") == len(other_business_catalog.CONTRACT_CATEGORIES)
-    assert await _scalar("SELECT COUNT(*) FROM nationalities") == len(other_business_catalog.NATIONALITIES)
-    assert await _scalar("SELECT COUNT(*) FROM ethnicities") == len(other_business_catalog.ETHNICITIES)
-    assert await _scalar("SELECT COUNT(*) FROM religions") == len(other_business_catalog.RELIGIONS)
-    assert await _scalar("SELECT COUNT(*) FROM banks") == len(other_business_catalog.BANKS)
-    assert await _scalar("SELECT COUNT(*) FROM leave_types") == len(other_business_catalog.LEAVE_TYPES)
+    assert await _scalar("SELECT COUNT(*) FROM contract_categories") == contract_categories_before
+    assert await _scalar("SELECT COUNT(*) FROM nationalities") == nationalities_before
+    assert await _scalar("SELECT COUNT(*) FROM ethnicities") == ethnicities_before
+    assert await _scalar("SELECT COUNT(*) FROM religions") == religions_before
+    assert await _scalar("SELECT COUNT(*) FROM banks") == banks_before
+    assert await _scalar("SELECT COUNT(*) FROM leave_types") == leave_types_before
+
+    for item in other_business_catalog.CONTRACT_CATEGORIES:
+        assert await _scalar(
+            "SELECT COUNT(*) FROM contract_categories WHERE code = :code",
+            code=item["code"],
+        ) == 1
+    for item in other_business_catalog.NATIONALITIES:
+        assert await _scalar(
+            "SELECT COUNT(*) FROM nationalities WHERE code = :code",
+            code=item["code"],
+        ) == 1
+    for item in other_business_catalog.ETHNICITIES:
+        assert await _scalar(
+            "SELECT COUNT(*) FROM ethnicities WHERE code = :code",
+            code=item["code"],
+        ) == 1
+    for item in other_business_catalog.RELIGIONS:
+        assert await _scalar(
+            "SELECT COUNT(*) FROM religions WHERE code = :code",
+            code=item["code"],
+        ) == 1
+    for item in other_business_catalog.BANKS:
+        assert await _scalar(
+            "SELECT COUNT(*) FROM banks WHERE code = :code",
+            code=item["code"],
+        ) == 1
+    for item in other_business_catalog.LEAVE_TYPES:
+        assert await _scalar(
+            "SELECT COUNT(*) FROM leave_types WHERE code = :code",
+            code=item["code"],
+        ) == 1
 
 
 async def test_sample_other_business_catalog_seed_is_idempotent():

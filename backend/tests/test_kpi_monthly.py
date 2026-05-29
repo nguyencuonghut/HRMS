@@ -7,6 +7,10 @@ import uuid
 import openpyxl
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+from app.core.config import settings
 
 BASE_KPI       = "/api/v1/performance/kpi"
 BASE_EMPLOYEES = "/api/v1/employees"
@@ -20,6 +24,33 @@ _BASE       = 2000 + int(_RUN_ID[:2], 16) % 80   # 2000–2079
 _YEAR       = _BASE        # năm dùng cho TestKpiCRUD
 _MONTH      = 6
 _LIST_YEAR  = _BASE + 1    # năm riêng cho TestKpiList
+_IMPORT_YEAR = _BASE + 2   # năm riêng cho TestKpiImport
+
+
+def _make_session():
+    engine = create_async_engine(settings.DATABASE_URL, connect_args={"ssl": False})
+    return async_sessionmaker(engine, expire_on_commit=False)
+
+
+async def _cleanup_kpi_test_rows():
+    async with _make_session()() as session:
+        await session.execute(
+            text(
+                """
+                DELETE FROM employee_kpi_monthly
+                WHERE year = ANY(:years)
+                """
+            ),
+            {"years": [_YEAR, _LIST_YEAR, _IMPORT_YEAR]},
+        )
+        await session.commit()
+
+
+@pytest.fixture(autouse=True)
+async def cleanup_kpi_rows():
+    await _cleanup_kpi_test_rows()
+    yield
+    await _cleanup_kpi_test_rows()
 
 
 def _admin(client: TestClient) -> dict:
@@ -233,8 +264,6 @@ class TestKpiList:
 
 
 # ── Helpers cho Import ────────────────────────────────────────────────────────
-
-_IMPORT_YEAR = _BASE + 2   # năm riêng cho TestKpiImport
 
 
 def _make_xlsx(rows: list[tuple]) -> bytes:

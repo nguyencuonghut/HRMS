@@ -11,12 +11,14 @@ class Settings(BaseSettings):
     APP_NAME: str = "Hồng Hà HRMS"
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = False
+    ENVIRONMENT: str = "development"
 
     # Database
     DATABASE_URL: str = "postgresql+asyncpg://postgres:password@localhost:5432/hrms"
 
     # Security
     SECRET_KEY: str = "change-this-secret-key-in-production"
+    ENCRYPTION_KEY: str = ""
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
@@ -28,7 +30,7 @@ class Settings(BaseSettings):
     MINIO_ENDPOINT:   str  = "minio:9000"
     MINIO_ACCESS_KEY: str  = "minioadmin"
     MINIO_SECRET_KEY: str  = "minioadmin"
-    MINIO_BUCKET:     str  = "hrms-attachments"
+    MINIO_BUCKET:     str  = ""
     MINIO_SECURE:     bool = False
 
     # CORS
@@ -58,6 +60,18 @@ class Settings(BaseSettings):
     ADMINISTRATIVE_OLD_UNITS_CONFLICTS_JSON_PATH: str = str(
         _BASE_DIR / "app" / "seeds" / "data" / "old_administrative_units_conflicts.json"
     )
+
+    @property
+    def minio_bucket_name(self) -> str:
+        if self.MINIO_BUCKET.strip():
+            return self.MINIO_BUCKET.strip()
+        env_suffix = {
+            "development": "dev",
+            "staging": "stg",
+            "production": "prod",
+        }
+        suffix = env_suffix.get(self.ENVIRONMENT.strip().lower(), "dev")
+        return f"hrms-attachments-{suffix}"
 
 
 settings = Settings()

@@ -2,7 +2,7 @@ import asyncio
 
 import pytest
 from fastapi import HTTPException
-from sqlalchemy import select, text
+from sqlalchemy import delete, select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.core.config import settings
@@ -19,7 +19,9 @@ def _make_session():
 
 async def _cleanup():
     async with _make_session()() as s:
-        await s.execute(text("DELETE FROM employees WHERE id_number LIKE 'TESTSEQ4%'"))
+        employee_ids = [e.id for e in (await s.execute(select(Employee))).scalars().all() if e.id_number.startswith("TESTSEQ4")]
+        if employee_ids:
+            await s.execute(delete(Employee).where(Employee.id.in_(employee_ids)))
         await s.commit()
 
 

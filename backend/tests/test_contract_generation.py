@@ -9,10 +9,11 @@ from io import BytesIO
 import pytest
 from docx import Document
 from fastapi.testclient import TestClient
-from sqlalchemy import text
+from sqlalchemy import delete, select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.core.config import settings
+from app.models.employee import Employee
 from app.services.contract_generate_service import (
     fmt_vn_date,
     number_to_words_vn,
@@ -54,12 +55,12 @@ def _make_session():
 
 async def _cleanup():
     async with _make_session()() as s:
+        employee_ids = [e.id for e in (await s.execute(select(Employee))).scalars().all() if e.id_number.startswith(_PREFIX)]
         await s.execute(text(
             f"DELETE FROM employee_contracts WHERE contract_number LIKE '{_PREFIX}%'"
         ))
-        await s.execute(text(
-            f"DELETE FROM employees WHERE id_number LIKE '{_PREFIX}%'"
-        ))
+        if employee_ids:
+            await s.execute(delete(Employee).where(Employee.id.in_(employee_ids)))
         await s.execute(text(
             "DELETE FROM contract_template_placeholders WHERE template_id IN "
             f"(SELECT id FROM contract_templates WHERE code LIKE '{_PREFIX.lower()}%')"
@@ -103,6 +104,7 @@ def _make_split_run_docx(left: str, right: str) -> bytes:
 
 def _create_employee(client: TestClient, headers: dict, suffix: str) -> int:
     resp = client.post(BASE_EMP, json={
+        "employee_code_sequence_id": 1,
         "full_name": f"Test Gen {suffix}",
         "last_name": "Test",
         "first_name": f"Gen {suffix}",

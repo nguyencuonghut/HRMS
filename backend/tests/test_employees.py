@@ -5,10 +5,12 @@ import io
 import openpyxl
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import select, text
+from sqlalchemy import delete, select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.core.config import settings
+from app.core.encryption import hash_sensitive
+from app.models.employee import Employee
 from app.models.employee_insurance import EmployeeInsuranceProfile
 from app.seeds import employees as employees_seed
 from app.seeds import other_business_catalog
@@ -42,15 +44,18 @@ def _make_session():
 
 async def _cleanup_test_employees():
     async with _make_session()() as s:
+        employee_ids = [
+            employee.id
+            for employee in (await s.execute(select(Employee))).scalars().all()
+            if employee.id_number.startswith(("TEST001", "TEST999"))
+        ]
         await s.execute(text(
             "DELETE FROM employee_job_records WHERE department_id IN "
             "(SELECT id FROM departments WHERE code LIKE 'TESTDEPT%')"
         ))
-        await s.execute(text(
-            "DELETE FROM employee_bank_accounts WHERE employee_id IN "
-            "(SELECT id FROM employees WHERE id_number LIKE 'TEST%')"
-        ))
-        await s.execute(text("DELETE FROM employees WHERE id_number LIKE 'TEST%'"))
+        if employee_ids:
+            await s.execute(text("DELETE FROM employee_bank_accounts WHERE employee_id = ANY(:employee_ids)"), {"employee_ids": employee_ids})
+            await s.execute(delete(Employee).where(Employee.id.in_(employee_ids)))
         await s.execute(text("DELETE FROM departments WHERE code LIKE 'TESTDEPT%'"))
         await s.commit()
 
@@ -145,10 +150,10 @@ async def _set_employee_sequence_config(id_number: str, *, sequence_code: str, m
                 SET employee_code_sequence_id = (
                     SELECT id FROM employee_code_sequences WHERE code = :sequence_code
                 )
-                WHERE id_number = :id_number
+                WHERE id_number_hash = :id_number_hash
                 """
             ),
-            {"sequence_code": sequence_code, "id_number": id_number},
+            {"sequence_code": sequence_code, "id_number_hash": hash_sensitive(id_number)},
         )
         await s.commit()
 

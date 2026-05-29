@@ -272,7 +272,7 @@ def test_assign_and_remove_role(client: TestClient):
         await engine.dispose()
         return row[0]
 
-    role_id = asyncio.get_event_loop().run_until_complete(_get_role_id())
+    role_id = asyncio.run(_get_role_id())
 
     # Gán role
     resp = client.post(f"{BASE}/{user['id']}/roles",

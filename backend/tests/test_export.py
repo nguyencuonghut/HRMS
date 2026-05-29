@@ -10,10 +10,12 @@ import openpyxl
 import pytest
 from pypdf import PdfReader
 from fastapi.testclient import TestClient
-from sqlalchemy import text
+from sqlalchemy import delete, select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.core.config import settings
+from app.core.encryption import encrypt, hash_sensitive
+from app.models.employee import Employee
 from app.utils.excel_style import ExcelStyler
 from app.workers.export_tasks import run_export_task
 from app.services.export_service import cleanup_expired_exports_async
@@ -46,15 +48,12 @@ async def _cleanup() -> None:
         await s.execute(text("""
             DELETE FROM report_templates WHERE name LIKE :prefix
         """), {"prefix": f"{_PREFIX}%"})
-        await s.execute(text("""
-            DELETE FROM employee_contracts
-            WHERE employee_id IN (SELECT id FROM employees WHERE id_number LIKE :prefix)
-        """), {"prefix": f"{_PREFIX}%"})
-        await s.execute(text("""
-            DELETE FROM employee_job_records
-            WHERE employee_id IN (SELECT id FROM employees WHERE id_number LIKE :prefix)
-        """), {"prefix": f"{_PREFIX}%"})
-        await s.execute(text("DELETE FROM employees WHERE id_number LIKE :prefix"), {"prefix": f"{_PREFIX}%"})
+        await s.execute(text("DELETE FROM employee_contracts WHERE contract_number LIKE :prefix"), {"prefix": f"{_PREFIX}%"})
+        hashes = [hash_sensitive(f"{_PREFIX}{index:03d}") for index in range(1, 4)]
+        employee_ids = list((await s.execute(select(Employee.id).where(Employee.id_number_hash.in_(hashes)))).scalars().all())
+        if employee_ids:
+            await s.execute(text("DELETE FROM employee_job_records WHERE employee_id = ANY(:employee_ids)"), {"employee_ids": employee_ids})
+            await s.execute(delete(Employee).where(Employee.id.in_(employee_ids)))
         await s.execute(text("DELETE FROM contract_categories WHERE code LIKE :prefix"), {"prefix": f"{_PREFIX}%"})
         await s.execute(text("DELETE FROM job_titles WHERE code LIKE :prefix"), {"prefix": f"{_PREFIX}%"})
         await s.execute(text("DELETE FROM departments WHERE code LIKE :prefix"), {"prefix": f"{_PREFIX}%"})
@@ -94,7 +93,7 @@ async def _seed() -> None:
                 INSERT INTO employees (
                     employee_seq, employee_code_sequence_id, full_name, normalized_name,
                     last_name, first_name, date_of_birth, gender, nationality_id,
-                    ethnicity_id, religion_id, id_number, id_issued_on, id_issued_by,
+                    ethnicity_id, religion_id, id_number, id_number_hash, id_issued_on, id_issued_by,
                     id_expires_on, passport_number, passport_issued_on, passport_expires_on,
                     work_permit_number, work_permit_issued_on, work_permit_expires_on,
                     phone_number, personal_email, personal_tax_code, bhxh_code, avatar_path,
@@ -102,7 +101,7 @@ async def _seed() -> None:
                 ) VALUES (
                     :employee_seq, :sequence_id, :full_name, :normalized_name,
                     :last_name, :first_name, :date_of_birth, 'male', :nationality_id,
-                    NULL, NULL, :id_number, :id_issued_on, 'CA Test',
+                    NULL, NULL, :id_number, :id_number_hash, :id_issued_on, 'CA Test',
                     NULL, NULL, NULL, NULL,
                     NULL, NULL, NULL,
                     NULL, :personal_email, NULL, NULL, NULL,
@@ -117,7 +116,8 @@ async def _seed() -> None:
                 "first_name": _PREFIX,
                 "date_of_birth": date(1990, 1, min(index, 28)),
                 "nationality_id": nationality_id,
-                "id_number": f"{_PREFIX}{index:03d}",
+                "id_number": encrypt(f"{_PREFIX}{index:03d}"),
+                "id_number_hash": hash_sensitive(f"{_PREFIX}{index:03d}"),
                 "id_issued_on": date(2020, 1, 1),
                 "personal_email": f"{_PREFIX.lower()}_{index}@example.com",
                 "start_date": today - timedelta(days=120 * index),

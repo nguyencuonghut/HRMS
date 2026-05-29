@@ -22,11 +22,15 @@ def _client() -> Minio:
     )
 
 
+def bucket_name() -> str:
+    return settings.minio_bucket_name
+
+
 def ensure_bucket() -> None:
     """Tạo bucket nếu chưa tồn tại. Gọi một lần khi khởi động."""
     client = _client()
-    if not client.bucket_exists(settings.MINIO_BUCKET):
-        client.make_bucket(settings.MINIO_BUCKET)
+    if not client.bucket_exists(bucket_name()):
+        client.make_bucket(bucket_name())
 
 
 async def save_employee_attachment(employee_id: int, upload: UploadFile) -> tuple[str, int]:
@@ -40,7 +44,7 @@ async def save_employee_attachment(employee_id: int, upload: UploadFile) -> tupl
     content_type = upload.content_type or "application/octet-stream"
 
     _client().put_object(
-        bucket_name=settings.MINIO_BUCKET,
+        bucket_name=bucket_name(),
         object_name=object_name,
         data=BytesIO(content),
         length=len(content),
@@ -60,7 +64,7 @@ async def save_attachment(position_id: int, upload: UploadFile) -> tuple[str, in
     content_type = upload.content_type or "application/octet-stream"
 
     _client().put_object(
-        bucket_name=settings.MINIO_BUCKET,
+        bucket_name=bucket_name(),
         object_name=object_name,
         data=BytesIO(content),
         length=len(content),
@@ -71,7 +75,7 @@ async def save_attachment(position_id: int, upload: UploadFile) -> tuple[str, in
 
 def get_object_stream(object_name: str) -> Generator[bytes, None, None]:
     """Stream object từ MinIO, dùng cho StreamingResponse."""
-    response = _client().get_object(settings.MINIO_BUCKET, object_name)
+    response = _client().get_object(bucket_name(), object_name)
     try:
         yield from response
     finally:
@@ -81,7 +85,7 @@ def get_object_stream(object_name: str) -> Generator[bytes, None, None]:
 
 def get_object_bytes(object_name: str) -> bytes:
     """Tải toàn bộ object từ MinIO về bytes. Dùng cho xử lý in-memory (DOCX inspection)."""
-    response = _client().get_object(settings.MINIO_BUCKET, object_name)
+    response = _client().get_object(bucket_name(), object_name)
     try:
         return response.read()
     finally:
@@ -96,7 +100,7 @@ async def save_contract_file(contract_id: int, upload: UploadFile) -> tuple[str,
     object_name = f"contracts/{contract_id}/{uuid.uuid4().hex[:8]}_{safe_name}"
     content_type = upload.content_type or "application/octet-stream"
     _client().put_object(
-        bucket_name=settings.MINIO_BUCKET,
+        bucket_name=bucket_name(),
         object_name=object_name,
         data=BytesIO(content),
         length=len(content),
@@ -112,7 +116,7 @@ async def save_template_file(template_id: int, upload: UploadFile) -> tuple[str,
     object_name = f"templates/{template_id}/{uuid.uuid4().hex[:8]}_{safe_name}"
     content_type = upload.content_type or "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     _client().put_object(
-        bucket_name=settings.MINIO_BUCKET,
+        bucket_name=bucket_name(),
         object_name=object_name,
         data=BytesIO(content),
         length=len(content),
@@ -128,7 +132,7 @@ async def save_reward_file(reward_id: int, upload: UploadFile) -> tuple[str, int
     object_name = f"rewards/{reward_id}/{uuid.uuid4().hex[:8]}_{safe_name}"
     content_type = upload.content_type or "application/octet-stream"
     _client().put_object(
-        bucket_name=settings.MINIO_BUCKET,
+        bucket_name=bucket_name(),
         object_name=object_name,
         data=BytesIO(content),
         length=len(content),
@@ -144,7 +148,7 @@ async def save_discipline_file(discipline_id: int, upload: UploadFile) -> tuple[
     object_name = f"disciplines/{discipline_id}/{uuid.uuid4().hex[:8]}_{safe_name}"
     content_type = upload.content_type or "application/octet-stream"
     _client().put_object(
-        bucket_name=settings.MINIO_BUCKET,
+        bucket_name=bucket_name(),
         object_name=object_name,
         data=BytesIO(content),
         length=len(content),
@@ -160,7 +164,7 @@ async def save_certificate_file(cert_id: int, upload: UploadFile) -> tuple[str, 
     object_name = f"certificates/{cert_id}/{uuid.uuid4().hex[:8]}_{safe_name}"
     content_type = upload.content_type or "application/octet-stream"
     _client().put_object(
-        bucket_name=settings.MINIO_BUCKET,
+        bucket_name=bucket_name(),
         object_name=object_name,
         data=BytesIO(content),
         length=len(content),
@@ -172,6 +176,6 @@ async def save_certificate_file(cert_id: int, upload: UploadFile) -> tuple[str, 
 def delete_attachment(object_name: str) -> None:
     """Xóa object khỏi MinIO; bỏ qua nếu không tồn tại."""
     try:
-        _client().remove_object(settings.MINIO_BUCKET, object_name)
+        _client().remove_object(bucket_name(), object_name)
     except S3Error:
         pass

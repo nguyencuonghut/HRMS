@@ -14,8 +14,7 @@ from pydantic import BaseModel, ConfigDict
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import settings
-from app.core.storage import _client, delete_attachment
+from app.core.storage import _client, bucket_name, delete_attachment
 from app.models.employee import Employee
 from app.models.employee_job import EmployeeJobRecord
 from app.models.org import Department, JobPosition
@@ -202,7 +201,7 @@ async def upload_document_file(
     content_type = upload.content_type or "application/octet-stream"
 
     _client().put_object(
-        bucket_name=settings.MINIO_BUCKET,
+        bucket_name=bucket_name(),
         object_name=object_name,
         data=BytesIO(content),
         length=len(content),

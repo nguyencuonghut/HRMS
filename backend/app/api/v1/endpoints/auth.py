@@ -1,12 +1,14 @@
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from jose import JWTError
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.v1.deps import get_current_active_user
+from app.api.v1.deps import get_current_active_user, oauth2_scheme
 from app.core.database import get_session
+from app.core.rate_limit import limiter
 from app.core.security import (
     create_access_token,
     create_refresh_token,
@@ -15,6 +17,7 @@ from app.core.security import (
     verify_password,
 )
 from app.models.auth import User
+from app.schemas.user import validate_password_strength
 from app.services import auth_service
 
 router = APIRouter()
@@ -41,6 +44,11 @@ class ChangePasswordRequest(BaseModel):
     old_password: str
     new_password: str
 
+    @field_validator("new_password")
+    @classmethod
+    def _validate_password(cls, value: str) -> str:
+        return validate_password_strength(value)
+
 
 class UserMeResponse(BaseModel):
     id: int
@@ -66,8 +74,13 @@ async def login(
     request: Request,
     session: AsyncSession = Depends(get_session),
 ):
+    client_ip = request.headers.get("x-forwarded-for", request.client.host if request.client else "unknown").split(",")[0].strip()
+    await auth_service.check_login_rate_limit(client_ip)
+    await auth_service.check_login_allowed(payload.email)
     user = await auth_service.authenticate_user(session, payload.email, payload.password)
     if not user:
+        await auth_service.record_failed_login(payload.email)
+        await auth_service.record_login_rate_limit(client_ip)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Sai email hoặc mật khẩu",
@@ -84,6 +97,7 @@ async def login(
     )
     refresh_token = create_refresh_token(user.email)
 
+    await auth_service.clear_failed_login(payload.email)
     await auth_service.update_last_login(session, user)
     await auth_service.log_audit(
         session, user.id, "LOGIN",
@@ -96,8 +110,10 @@ async def login(
 
 
 @router.post("/refresh", response_model=TokenResponse, summary="Làm mới access token")
+@limiter.limit("20/hour")
 async def refresh_token(
     payload: RefreshRequest,
+    request: Request,
     session: AsyncSession = Depends(get_session),
 ):
     exc = HTTPException(
@@ -150,6 +166,36 @@ async def get_me(
     )
 
 
+@router.post("/logout", summary="Đăng xuất")
+async def logout(
+    request: Request,
+    token: str = Depends(oauth2_scheme),
+    current_user: User = Depends(get_current_active_user),
+    session: AsyncSession = Depends(get_session),
+):
+    try:
+        payload = decode_token(token)
+        jti = payload.get("jti")
+        exp = payload.get("exp")
+        if not jti or not exp:
+            raise ValueError("missing token claims")
+    except (JWTError, ValueError):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Không thể xác thực thông tin đăng nhập",
+        )
+
+    expires_at = datetime.fromtimestamp(exp, tz=timezone.utc)
+    await auth_service.blacklist_token(jti, expires_at)
+    await auth_service.log_audit(
+        session, current_user.id, "LOGOUT",
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
+    await session.commit()
+    return {"message": "Đăng xuất thành công"}
+
+
 @router.put("/me", response_model=UserMeResponse, summary="Cập nhật thông tin cá nhân")
 async def update_me(
     payload: UserMeUpdate,
@@ -191,12 +237,6 @@ async def change_password(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Mật khẩu cũ không đúng",
         )
-    if len(payload.new_password) < 8:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Mật khẩu mới phải có ít nhất 8 ký tự",
-        )
-
     current_user.hashed_password = hash_password(payload.new_password)
     session.add(current_user)
     await auth_service.log_audit(

@@ -9,10 +9,12 @@ import uuid
 import openpyxl
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import text
+from sqlalchemy import delete, select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.core.config import settings
+from app.core.encryption import encrypt, hash_sensitive
+from app.models.employee import Employee
 from app.services import hr_report_service
 
 BASE = "/api/v1/reports/hr"
@@ -37,19 +39,46 @@ async def _cleanup() -> None:
     engine = _engine()
     Session = async_sessionmaker(engine, expire_on_commit=False)
     async with Session() as s:
-        await s.execute(text("""
-            DELETE FROM employee_contracts
-            WHERE employee_id IN (
-                SELECT id FROM employees WHERE id_number LIKE :prefix
+        await s.execute(
+            text("DELETE FROM employee_contracts WHERE contract_number LIKE :prefix"),
+            {"prefix": f"{_PREFIX}%"},
+        )
+        dept_ids = list(
+            (
+                await s.execute(
+                    text("SELECT id FROM departments WHERE code LIKE :prefix"),
+                    {"prefix": f"{_PREFIX}%"},
+                )
             )
-        """), {"prefix": f"{_PREFIX}%"})
-        await s.execute(text("""
-            DELETE FROM employee_job_records
-            WHERE employee_id IN (
-                SELECT id FROM employees WHERE id_number LIKE :prefix
+            .scalars()
+            .all()
+        )
+        employee_ids = list(
+            (
+                await s.execute(
+                    select(Employee.id).where(
+                        Employee.personal_email.like(f"{_PREFIX.lower()}_%@example.com")
+                    )
+                )
             )
-        """), {"prefix": f"{_PREFIX}%"})
-        await s.execute(text("DELETE FROM employees WHERE id_number LIKE :prefix"), {"prefix": f"{_PREFIX}%"})
+            .scalars()
+            .all()
+        )
+        if employee_ids:
+            await s.execute(
+                text("DELETE FROM employee_contracts WHERE employee_id = ANY(:employee_ids)"),
+                {"employee_ids": employee_ids},
+            )
+            await s.execute(
+                text("DELETE FROM employee_job_records WHERE employee_id = ANY(:employee_ids)"),
+                {"employee_ids": employee_ids},
+            )
+            await s.execute(delete(Employee).where(Employee.id.in_(employee_ids)))
+        if dept_ids:
+            await s.execute(
+                text("DELETE FROM employee_job_records WHERE department_id = ANY(:department_ids)"),
+                {"department_ids": dept_ids},
+            )
         await s.execute(text("DELETE FROM contract_categories WHERE code LIKE :prefix"), {"prefix": f"{_PREFIX}%"})
         await s.execute(text("DELETE FROM job_titles WHERE code LIKE :prefix"), {"prefix": f"{_PREFIX}%"})
         await s.execute(text("DELETE FROM departments WHERE code LIKE :prefix"), {"prefix": f"{_PREFIX}%"})
@@ -135,7 +164,7 @@ async def _seed_hr_report_data() -> dict[str, int]:
                 INSERT INTO employees (
                     employee_seq, employee_code_sequence_id, full_name, normalized_name,
                     last_name, first_name, date_of_birth, gender, nationality_id,
-                    ethnicity_id, religion_id, id_number, id_issued_on, id_issued_by,
+                    ethnicity_id, religion_id, id_number, id_number_hash, id_issued_on, id_issued_by,
                     id_expires_on, passport_number, passport_issued_on, passport_expires_on,
                     work_permit_number, work_permit_issued_on, work_permit_expires_on,
                     phone_number, personal_email, personal_tax_code, bhxh_code, avatar_path,
@@ -143,7 +172,7 @@ async def _seed_hr_report_data() -> dict[str, int]:
                 ) VALUES (
                     :employee_seq, :sequence_id, :full_name, :normalized_name,
                     :last_name, :first_name, :date_of_birth, :gender, :nationality_id,
-                    NULL, NULL, :id_number, :id_issued_on, :id_issued_by,
+                    NULL, NULL, :id_number, :id_number_hash, :id_issued_on, :id_issued_by,
                     NULL, NULL, NULL, NULL,
                     NULL, NULL, NULL,
                     NULL, :personal_email, NULL, NULL, NULL,
@@ -160,7 +189,8 @@ async def _seed_hr_report_data() -> dict[str, int]:
                 "date_of_birth": date(1990, 1, min(index, 28)),
                 "gender": gender,
                 "nationality_id": nationality_id,
-                "id_number": f"{_PREFIX}{index:03d}",
+                "id_number": encrypt(f"{_PREFIX}{index:03d}"),
+                "id_number_hash": hash_sensitive(f"{_PREFIX}{index:03d}"),
                 "id_issued_on": date(2020, 1, 1),
                 "id_issued_by": "CA Test",
                 "personal_email": f"{_PREFIX.lower()}_{index}@example.com",
@@ -276,7 +306,7 @@ def test_get_employee_list_filters():
 
 
 def test_get_movement_report_groups_monthly_changes():
-    asyncio.run(_seed_hr_report_data())
+    refs = asyncio.run(_seed_hr_report_data())
     engine = _engine()
     Session = async_sessionmaker(engine, expire_on_commit=False)
     today = date.today()
@@ -290,6 +320,7 @@ def test_get_movement_report_groups_monthly_changes():
                 start_date=start_date,
                 end_date=end_date,
                 group_by="month",
+                department_id=refs["dept_root"],
             )
 
     report = asyncio.run(run())
@@ -367,7 +398,7 @@ def test_employee_list_endpoint_returns_filtered_page(client: TestClient):
 
 
 def test_movement_endpoint_returns_monthly_rows(client: TestClient):
-    asyncio.run(_seed_hr_report_data())
+    refs = asyncio.run(_seed_hr_report_data())
     headers = _admin_headers(client)
     today = date.today()
 
@@ -378,6 +409,7 @@ def test_movement_endpoint_returns_monthly_rows(client: TestClient):
             "start_date": (today - timedelta(days=120)).isoformat(),
             "end_date": today.isoformat(),
             "group_by": "month",
+            "department_id": refs["dept_root"],
         },
     )
     assert resp.status_code == 200, resp.text
@@ -401,7 +433,7 @@ def test_export_employee_list_returns_valid_xlsx(client: TestClient):
     assert "bao_cao_nhan_su_employee-list" in resp.headers.get("content-disposition", "")
 
     wb = openpyxl.load_workbook(io.BytesIO(resp.content))
-    ws = wb["Danh sach nhan su"]
+    ws = wb["Danh sách nhân sự"]
     assert ws.max_row >= 2
     assert ws["B2"].value is not None
 

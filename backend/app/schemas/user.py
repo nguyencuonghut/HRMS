@@ -5,6 +5,34 @@ from typing import Optional
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
+COMMON_PASSWORDS = {
+    "123456",
+    "12345678",
+    "password",
+    "qwerty",
+    "abc123",
+    "111111",
+    "admin123",
+    "welcome1",
+}
+
+
+def validate_password_strength(v: str) -> str:
+    has_letter = any(c.isalpha() for c in v)
+    has_digit = any(c.isdigit() for c in v)
+    has_special = any(not c.isalnum() for c in v)
+    if len(v) < 8:
+        raise ValueError("Mật khẩu phải có ít nhất 8 ký tự")
+    if not has_letter:
+        raise ValueError("Mật khẩu phải có ít nhất 1 chữ cái")
+    if not has_digit:
+        raise ValueError("Mật khẩu phải có ít nhất 1 chữ số")
+    if not has_special:
+        raise ValueError("Mật khẩu phải có ít nhất 1 ký tự đặc biệt")
+    if v.lower() in COMMON_PASSWORDS:
+        raise ValueError("Mật khẩu quá phổ biến, vui lòng chọn mật khẩu khác")
+    return v
+
 
 # ── Request schemas ────────────────────────────────────────────────────────────
 
@@ -29,11 +57,7 @@ class UserCreate(BaseModel):
     @field_validator("password")
     @classmethod
     def _validate_password(cls, v: str) -> str:
-        has_letter = any(c.isalpha() for c in v)
-        has_digit  = any(c.isdigit() for c in v)
-        if not (has_letter and has_digit):
-            raise ValueError("Mật khẩu phải có ít nhất 1 chữ cái và 1 chữ số")
-        return v
+        return validate_password_strength(v)
 
 
 class UserUpdate(BaseModel):
@@ -59,11 +83,7 @@ class PasswordReset(BaseModel):
     @field_validator("new_password")
     @classmethod
     def _validate_password(cls, v: str) -> str:
-        has_letter = any(c.isalpha() for c in v)
-        has_digit  = any(c.isdigit() for c in v)
-        if not (has_letter and has_digit):
-            raise ValueError("Mật khẩu phải có ít nhất 1 chữ cái và 1 chữ số")
-        return v
+        return validate_password_strength(v)
 
 
 class RoleAssign(BaseModel):

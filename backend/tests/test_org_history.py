@@ -1,4 +1,6 @@
 """Integration tests cho /api/v1/org-history."""
+from uuid import uuid4
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -7,9 +9,21 @@ DEPT_URL = "/api/v1/departments"
 JT_URL   = "/api/v1/job-titles"
 POS_URL  = "/api/v1/job-positions"
 
-_DEPT_CODE = "TEST_HIST_DEPT"
-_JT_CODE   = "TEST_HIST_JT"
-_POS_CODE  = "TEST_HIST_POS"
+_ADMIN_EMAIL = "admin@hrms.local"
+_ADMIN_PASSWORD = "Hrms@2026"
+
+_RUN_SUFFIX = uuid4().hex[:6].upper()
+_DEPT_CODE = f"THD{_RUN_SUFFIX}"
+_JT_CODE   = f"THJ{_RUN_SUFFIX}"
+_POS_CODE  = f"THP{_RUN_SUFFIX}"
+
+
+def _admin(client: TestClient) -> dict:
+    token = client.post(
+        "/api/v1/auth/login",
+        json={"email": _ADMIN_EMAIL, "password": _ADMIN_PASSWORD},
+    ).json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}
 
 
 # ── Setup / teardown ───────────────────────────────────────────────────────────
@@ -17,36 +31,55 @@ _POS_CODE  = "TEST_HIST_POS"
 @pytest.fixture(scope="session", autouse=True)
 def seed_history(client: TestClient):
     """Tạo một số thao tác để có dữ liệu log."""
-    # Dọn trước
-    for d in client.get(DEPT_URL).json():
-        if d["code"] == _DEPT_CODE:
-            client.delete(f"{DEPT_URL}/{d['id']}")
-    for jt in client.get(JT_URL).json():
-        if jt["code"] == _JT_CODE:
-            client.delete(f"{JT_URL}/{jt['id']}")
-    for p in client.get(POS_URL).json():
-        if p["code"] == _POS_CODE:
-            client.delete(f"{POS_URL}/{p['id']}")
+    headers = _admin(client)
 
     # Tạo dept → log create
-    dept = client.post(DEPT_URL, json={"code": _DEPT_CODE, "name": "Hist Dept", "dept_type": "PHONG"}).json()
+    dept_resp = client.post(
+        DEPT_URL,
+        json={"code": _DEPT_CODE, "name": "Hist Dept", "dept_type": "PHONG"},
+        headers=headers,
+    )
+    assert dept_resp.status_code == 201, dept_resp.text
+    dept = dept_resp.json()
     # Sửa dept → log update
-    client.put(f"{DEPT_URL}/{dept['id']}", json={"name": "Hist Dept Updated"})
+    dept_update = client.put(
+        f"{DEPT_URL}/{dept['id']}",
+        json={"name": "Hist Dept Updated"},
+        headers=headers,
+    )
+    assert dept_update.status_code == 200, dept_update.text
 
     # Tạo job_title → log create
-    jt = client.post(JT_URL, json={"code": _JT_CODE, "name": "Hist JT", "level": 3}).json()
+    jt_resp = client.post(
+        JT_URL,
+        json={"code": _JT_CODE, "name": "Hist JT", "level": 3},
+        headers=headers,
+    )
+    assert jt_resp.status_code == 201, jt_resp.text
+    jt = jt_resp.json()
 
     # Tạo job_position → log create
-    pos = client.post(POS_URL, json={"code": _POS_CODE, "name": "Hist Pos", "department_id": dept["id"]}).json()
+    pos_resp = client.post(
+        POS_URL,
+        json={"code": _POS_CODE, "name": "Hist Pos", "department_id": dept["id"]},
+        headers=headers,
+    )
+    assert pos_resp.status_code == 201, pos_resp.text
+    pos = pos_resp.json()
     # Sửa position → log update
-    client.put(f"{POS_URL}/{pos['id']}", json={"name": "Hist Pos Updated"})
+    pos_update = client.put(
+        f"{POS_URL}/{pos['id']}",
+        json={"name": "Hist Pos Updated"},
+        headers=headers,
+    )
+    assert pos_update.status_code == 200, pos_update.text
 
     yield
 
     # Cleanup
-    client.delete(f"{POS_URL}/{pos['id']}")
-    client.delete(f"{DEPT_URL}/{dept['id']}")
-    client.delete(f"{JT_URL}/{jt['id']}")
+    client.delete(f"{POS_URL}/{pos['id']}", headers=headers)
+    client.delete(f"{DEPT_URL}/{dept['id']}", headers=headers)
+    client.delete(f"{JT_URL}/{jt['id']}", headers=headers)
 
 
 # ── Tests ──────────────────────────────────────────────────────────────────────

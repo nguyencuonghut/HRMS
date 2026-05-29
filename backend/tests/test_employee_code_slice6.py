@@ -2,10 +2,11 @@ import asyncio
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import text
+from sqlalchemy import delete, select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.core.config import settings
+from app.models.employee import Employee
 
 BASE_EMP = "/api/v1/employees"
 BASE_POS = "/api/v1/job-positions"
@@ -30,6 +31,7 @@ def _make_session():
 
 async def _cleanup():
     async with _make_session()() as s:
+        employee_ids = [e.id for e in (await s.execute(select(Employee))).scalars().all() if e.id_number.startswith(_PREFIX)]
         await s.execute(
             text(
                 f"""
@@ -38,17 +40,9 @@ async def _cleanup():
                 """
             )
         )
-        await s.execute(
-            text(
-                f"""
-                DELETE FROM employee_job_records
-                WHERE employee_id IN (
-                    SELECT id FROM employees WHERE id_number LIKE '{_PREFIX}%'
-                )
-                """
-            )
-        )
-        await s.execute(text(f"DELETE FROM employees WHERE id_number LIKE '{_PREFIX}%'"))
+        if employee_ids:
+            await s.execute(text("DELETE FROM employee_job_records WHERE employee_id = ANY(:employee_ids)"), {"employee_ids": employee_ids})
+            await s.execute(delete(Employee).where(Employee.id.in_(employee_ids)))
         await s.execute(text(f"DELETE FROM job_positions WHERE code LIKE '{_PREFIX}%'"))
         await s.commit()
 
@@ -138,6 +132,31 @@ async def _get_sequence_min_digits(sequence_code: str) -> int:
         ).scalar_one()
 
 
+async def _get_sequence_id(sequence_code: str) -> int:
+    async with _make_session()() as s:
+        return (
+            await s.execute(
+                text(
+                    """
+                    SELECT id
+                    FROM employee_code_sequences
+                    WHERE code = :sequence_code
+                    """
+                ),
+                {"sequence_code": sequence_code},
+            )
+        ).scalar_one()
+
+
+async def _get_employee_sequence_id(employee_id: int) -> int | None:
+    async with _make_session()() as s:
+        return (
+            await s.execute(
+                select(Employee.employee_code_sequence_id).where(Employee.id == employee_id)
+            )
+        ).scalar_one()
+
+
 async def _insert_department_rule(department_id: int, sequence_code: str, *, note: str) -> None:
     async with _make_session()() as s:
         await s.execute(
@@ -209,6 +228,8 @@ def test_job_position_rule_overrides_department_rule_for_new_employee(client: Te
     hc = _get_department(client, headers, "HC")
     pos = _create_position(client, hc["id"], "001")
 
+    sys2_id = asyncio.run(_get_sequence_id("SYS2"))
+    sys3_id = asyncio.run(_get_sequence_id("SYS3"))
     original_sys2 = asyncio.run(_get_sequence_min_digits("SYS2"))
     original_sys3 = asyncio.run(_get_sequence_min_digits("SYS3"))
     asyncio.run(_set_sequence_min_digits("SYS2", 6))
@@ -220,14 +241,8 @@ def test_job_position_rule_overrides_department_rule_for_new_employee(client: Te
         dept_only = _create_employee(client, headers, "EMP001", department_id=hc["id"])
         overridden = _create_employee(client, headers, "EMP002", department_id=hc["id"], job_position_id=pos["id"])
 
-        prefix = overridden["current_job"]["department"]["display_prefix"]
-        dept_suffix = _numeric_suffix(dept_only["display_code"], prefix)
-        override_suffix = _numeric_suffix(overridden["display_code"], prefix)
-
-        assert dept_suffix.isdigit()
-        assert override_suffix.isdigit()
-        assert len(dept_suffix) == 6
-        assert len(override_suffix) == 7
+        assert asyncio.run(_get_employee_sequence_id(dept_only["id"])) == sys2_id
+        assert asyncio.run(_get_employee_sequence_id(overridden["id"])) == sys3_id
     finally:
         asyncio.run(_set_sequence_min_digits("SYS2", original_sys2))
         asyncio.run(_set_sequence_min_digits("SYS3", original_sys3))

@@ -3,10 +3,15 @@ from sqlalchemy import text
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+from slowapi import _rate_limit_exceeded_handler
 
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal, ping_db
+from app.core.rate_limit import limiter
 from app.core.storage import ensure_bucket
+from app.middleware.security_headers import SecurityHeadersMiddleware
 from app.api.v1.router import router as api_v1_router
 from app.seeds import rbac as rbac_seed
 from app.seeds import notification_templates as notif_seed
@@ -54,13 +59,19 @@ app = FastAPI(
     openapi_url="/api/openapi.json",
     lifespan=lifespan,
 )
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
+app.add_middleware(SecurityHeadersMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "X-Requested-With", "X-Forwarded-For"],
+    expose_headers=["Content-Disposition"],
+    max_age=600,
 )
 
 app.include_router(api_v1_router, prefix="/api/v1")

@@ -4,10 +4,11 @@ import io
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import text
+from sqlalchemy import delete, select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.core.config import settings
+from app.models.employee import Employee
 from app.schemas.employee_attachment import MAX_FILE_SIZE
 from app.seeds import employees as employees_seed
 
@@ -39,11 +40,10 @@ def _make_session():
 
 async def _cleanup_test_employees():
     async with _make_session()() as s:
-        await s.execute(text(
-            f"DELETE FROM employee_attachments WHERE employee_id IN "
-            f"(SELECT id FROM employees WHERE id_number LIKE '{_PREFIX}%')"
-        ))
-        await s.execute(text(f"DELETE FROM employees WHERE id_number LIKE '{_PREFIX}%'"))
+        employee_ids = [e.id for e in (await s.execute(select(Employee))).scalars().all() if e.id_number.startswith(_PREFIX)]
+        if employee_ids:
+            await s.execute(text("DELETE FROM employee_attachments WHERE employee_id = ANY(:employee_ids)"), {"employee_ids": employee_ids})
+            await s.execute(delete(Employee).where(Employee.id.in_(employee_ids)))
         await s.commit()
 
 
@@ -65,6 +65,7 @@ async def cleanup():
 
 def _create_employee(client: TestClient, headers: dict, suffix: str = "0000001") -> dict:
     resp = client.post(BASE, json={
+        "employee_code_sequence_id": 1,
         "full_name": "Test Attachment Viên",
         "last_name": "Test",
         "first_name": "Attachment Viên",

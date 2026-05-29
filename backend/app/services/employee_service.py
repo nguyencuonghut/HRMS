@@ -7,6 +7,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.encryption import hash_sensitive
 from app.models.catalog import AdministrativeUnit
 from app.models.employee import Employee, EmployeeAddress, EmployeeBankAccount
 from app.models.employee_code import EmployeeCodeSequence
@@ -30,6 +31,10 @@ from app.services.administrative_import_service import normalize_text
 
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def _id_number_equals(value: str):
+    return Employee.id_number_hash == hash_sensitive(value)
 
 
 def compute_display_code(employee_seq: int, dept_display_prefix: Optional[str] = None) -> str:
@@ -147,7 +152,7 @@ async def list_employees_page(
         filters.append(
             or_(
                 Employee.normalized_name.contains(norm),
-                Employee.id_number.ilike(f"%{keyword.strip()}%"),
+                _id_number_equals(keyword.strip()),
                 Employee.phone_number.ilike(f"%{keyword.strip()}%"),
             )
         )
@@ -189,7 +194,7 @@ async def lookup_employees(
         filters.append(
             or_(
                 Employee.normalized_name.contains(norm),
-                Employee.id_number.ilike(f"%{kw}%"),
+                _id_number_equals(kw),
                 *id_conditions,
             )
         )
@@ -232,7 +237,7 @@ async def create_employee(session: AsyncSession, payload: EmployeeCreate) -> Emp
 
     # Kiểm tra trùng CCCD
     existing_id = (await session.execute(
-        select(Employee).where(Employee.id_number == payload.id_number)
+        select(Employee).where(_id_number_equals(payload.id_number))
     )).scalar_one_or_none()
     if existing_id:
         raise HTTPException(
@@ -255,6 +260,7 @@ async def create_employee(session: AsyncSession, payload: EmployeeCreate) -> Emp
         ethnicity_id=payload.ethnicity_id,
         religion_id=payload.religion_id,
         id_number=payload.id_number,
+        id_number_hash=hash_sensitive(payload.id_number),
         id_issued_on=payload.id_issued_on,
         id_issued_by=payload.id_issued_by,
         id_expires_on=payload.id_expires_on,
@@ -308,7 +314,7 @@ async def update_employee(
     if payload.id_number and payload.id_number != emp.id_number:
         existing = (await session.execute(
             select(Employee).where(
-                Employee.id_number == payload.id_number,
+                _id_number_equals(payload.id_number),
                 Employee.id != employee_id,
             )
         )).scalar_one_or_none()
@@ -321,6 +327,8 @@ async def update_employee(
     update_data = payload.model_dump(exclude_unset=True)
     if "full_name" in update_data:
         update_data["normalized_name"] = normalize_text(update_data["full_name"])
+    if "id_number" in update_data:
+        update_data["id_number_hash"] = hash_sensitive(update_data["id_number"])
     if "bhxh_code" in update_data:
         update_data["bhxh_code"] = employee_insurance_service.normalize_bhxh_code(update_data["bhxh_code"])
 

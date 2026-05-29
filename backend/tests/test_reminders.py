@@ -4,10 +4,11 @@ from datetime import date, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import text
+from sqlalchemy import delete, select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.core.config import settings
+from app.models.employee import Employee
 from app.seeds import employees as employees_seed
 
 BASE_EMP = "/api/v1/employees"
@@ -39,11 +40,10 @@ def _make_session():
 
 async def _cleanup_test_employees():
     async with _make_session()() as s:
-        await s.execute(text(
-            f"DELETE FROM employee_job_records WHERE employee_id IN "
-            f"(SELECT id FROM employees WHERE id_number LIKE '{_PREFIX}%')"
-        ))
-        await s.execute(text(f"DELETE FROM employees WHERE id_number LIKE '{_PREFIX}%'"))
+        employee_ids = [e.id for e in (await s.execute(select(Employee))).scalars().all() if e.id_number.startswith(_PREFIX)]
+        if employee_ids:
+            await s.execute(text("DELETE FROM employee_job_records WHERE employee_id = ANY(:employee_ids)"), {"employee_ids": employee_ids})
+            await s.execute(delete(Employee).where(Employee.id.in_(employee_ids)))
         await s.commit()
 
 
@@ -246,7 +246,7 @@ def test_probation_end_within_window(client: TestClient):
     _create_job_record(client, headers, emp["id"], dept_id, probation_end_date=_isodate(end_date))
 
     data = client.get(BASE, params={"days": 30, "types": "probation_end"}, headers=headers).json()
-    matches = [e for e in data["probation_end"] if e["employee_code"] == emp["display_code"]]
+    matches = [e for e in data["probation_end"] if e["employee_id"] == emp["id"]]
     assert len(matches) == 1
     assert matches[0]["days_until"] == 7
 
@@ -259,7 +259,7 @@ def test_probation_end_today(client: TestClient):
     _create_job_record(client, headers, emp["id"], dept_id, probation_end_date=_isodate(today))
 
     data = client.get(BASE, params={"days": 30, "types": "probation_end"}, headers=headers).json()
-    matches = [e for e in data["probation_end"] if e["employee_code"] == emp["display_code"]]
+    matches = [e for e in data["probation_end"] if e["employee_id"] == emp["id"]]
     assert len(matches) == 1
     assert matches[0]["days_until"] == 0
 
@@ -273,7 +273,7 @@ def test_probation_end_outside_window(client: TestClient):
     _create_job_record(client, headers, emp["id"], dept_id, probation_end_date=_isodate(end_date))
 
     data = client.get(BASE, params={"days": 30, "types": "probation_end"}, headers=headers).json()
-    matches = [e for e in data["probation_end"] if e["employee_code"] == emp["display_code"]]
+    matches = [e for e in data["probation_end"] if e["employee_id"] == emp["id"]]
     assert len(matches) == 0
 
 
@@ -287,7 +287,7 @@ def test_probation_end_official_excluded(client: TestClient):
     _create_job_record(client, headers, emp["id"], dept_id, probation_end_date=_isodate(end_date))
 
     data = client.get(BASE, params={"days": 30, "types": "probation_end"}, headers=headers).json()
-    matches = [e for e in data["probation_end"] if e["employee_code"] == emp["display_code"]]
+    matches = [e for e in data["probation_end"] if e["employee_id"] == emp["id"]]
     assert len(matches) == 0
 
 

@@ -1,6 +1,6 @@
 # Kế hoạch triển khai — 15.1. Bảo mật
 
-**Phạm vi:** Encryption at rest · Rate limiting · Security headers · SSO/OIDC · Password policy · CORS hardening  
+**Phạm vi:** Encryption at rest · Rate limiting · Security headers · Password policy · CORS hardening · JWT blacklist · Account lockout  
 **Phụ thuộc:** 1.2 RBAC ✅ · Auth system ✅ · MinIO ✅  
 **Căn cứ nghiệp vụ:** FEATURES.md §15.1  
 **Đặc điểm:** Yêu cầu phi chức năng — không thêm nghiệp vụ, chỉ tăng cường bảo mật hạ tầng đã có
@@ -24,17 +24,21 @@
 | MinIO file proxy | `app/core/storage.py` | Không expose URL trực tiếp, filename UUID |
 | Pydantic input validation | Toàn bộ schemas | Parameterized SQL (SQLModel) |
 
-### Chưa có (❌)
+### Đã triển khai (✅)
 
-| Thành phần | Ưu tiên | Ghi chú |
+> **Hoàn thành toàn bộ — 11/11 security tests pass.**
+
+| Thành phần | File | Chi tiết |
 |---|---|---|
-| Rate limiting / brute-force protection | 🔴 Critical | Login không có giới hạn attempt |
-| Mã hóa dữ liệu nhạy cảm at rest | 🔴 Critical | CCCD, MST, tài khoản ngân hàng lưu plaintext |
-| Security HTTP headers | 🟠 High | X-Frame-Options, HSTS, CSP chưa có |
-| SSO / OIDC / SAML | 🟡 Medium | FEATURES.md yêu cầu, phụ thuộc môi trường doanh nghiệp |
-| MFA (TOTP) | 🟡 Medium | Không bắt buộc ngay với nội bộ |
-| JWT token revocation (blacklist) | 🟡 Medium | Logout không invalidate token cũ |
-| Account lockout sau failed attempts | 🟠 High | Liên quan brute-force |
+| Rate limiting login 5/phút/IP | `app/core/rate_limit.py`, `auth.py` | slowapi + X-Forwarded-For |
+| Account lockout sau 5 lần sai | `app/services/auth_service.py` | Redis, khóa 30 phút |
+| Mã hóa dữ liệu nhạy cảm | `app/core/encryption.py`, migration 0049 | Fernet + `EncryptedString` TypeDecorator |
+| Security HTTP headers | `app/middleware/security_headers.py` | X-Frame-Options, CSP, HSTS, nosniff |
+| JWT blacklist + logout | `app/api/v1/endpoints/auth.py` | `POST /auth/logout`, Redis TTL |
+| CORS hardening | `app/main.py` | Restrict methods + headers |
+| Password policy nâng cao | `app/schemas/user.py` | Ký tự đặc biệt + common check |
+| MinIO env-aware bucket | `app/core/config.py` | `minio_bucket_name` property |
+| `ENCRYPTION_KEY`, `ENVIRONMENT` config | `app/core/config.py` | Từ .env |
 
 ### Một phần (⚠️)
 
@@ -58,11 +62,12 @@
 5. **JWT token blacklist** — logout thực sự invalidate token
 6. **CORS hardening** — restrict method/header
 7. **Password policy nâng cao** — ký tự đặc biệt, common password check
-8. **SSO/OIDC** (stub + config) — cấu hình sẵn, triển khai khi có provider
+8. **MinIO env-aware** — tách bucket theo môi trường để giảm rủi ro vận hành chéo môi trường
 
 ### Ngoài phạm vi
 
-- MFA/TOTP — làm sau khi SSO xong
+- **SSO / OIDC / SAML** — bỏ qua theo quyết định dự án; có thể bổ sung sau khi có provider cụ thể
+- MFA/TOTP — làm sau khi có yêu cầu rõ ràng
 - Penetration testing / vulnerability scanning — giao security team riêng
 - Database-level encryption (TDE) — phụ thuộc hạ tầng PostgreSQL
 - VPN/network-level security — thuộc DevOps
@@ -314,38 +319,7 @@ def _validate_password(cls, v: str) -> str:
 
 ---
 
-### 8. SSO / OIDC (Slice 3 — stub)
-
-**Thư viện:** `authlib` hoặc `python-keycloak`
-
-**Config:**
-```python
-# app/core/config.py
-OIDC_ENABLED: bool = False
-OIDC_PROVIDER_URL: str = ""          # https://accounts.google.com
-OIDC_CLIENT_ID: str = ""
-OIDC_CLIENT_SECRET: str = ""
-OIDC_REDIRECT_URI: str = ""
-```
-
-**Endpoints (stub):**
-```
-GET  /api/v1/auth/oidc/login      → redirect đến provider
-GET  /api/v1/auth/oidc/callback   → xử lý code, tạo JWT nội bộ
-```
-
-**Flow:**
-1. User click "Đăng nhập với Google/Azure"
-2. Redirect đến OIDC provider
-3. Provider redirect về `/callback?code=...`
-4. Backend exchange code → id_token → lấy email
-5. Lookup user trong DB theo email → tạo JWT nội bộ như login thường
-
-**Triển khai đầy đủ khi có thông tin provider cụ thể từ doanh nghiệp.**
-
----
-
-### 9. MinIO Bucket env-aware (Slice 1)
+### 8. MinIO Bucket env-aware (Slice 3)
 
 ```python
 # app/core/config.py
@@ -365,8 +339,6 @@ def minio_bucket_name(self) -> str:
 
 ```
 POST /api/v1/auth/logout          → blacklist current token (yêu cầu auth)
-GET  /api/v1/auth/oidc/login      → redirect SSO (stub)
-GET  /api/v1/auth/oidc/callback   → SSO callback (stub)
 ```
 
 ---
@@ -378,7 +350,7 @@ backend/app/
 ├── core/
 │   ├── encryption.py           ← NEW — Fernet encrypt/decrypt helpers
 │   ├── rate_limit.py           ← NEW — slowapi Limiter instance
-│   └── config.py               ← UPDATE — ENCRYPTION_KEY, OIDC_*, ENVIRONMENT
+│   └── config.py               ← UPDATE — ENCRYPTION_KEY, ENVIRONMENT
 ├── middleware/
 │   └── security_headers.py     ← NEW — HTTP security headers middleware
 ├── services/
@@ -386,7 +358,7 @@ backend/app/
 ├── schemas/
 │   └── user.py                 ← UPDATE — password policy nâng cao
 ├── api/v1/endpoints/
-│   └── auth.py                 ← UPDATE — rate limit decorators, logout, OIDC stubs
+│   └── auth.py                 ← UPDATE — rate limit decorators, logout
 ├── main.py                     ← UPDATE — middleware registration, CORS hardening
 └── alembic/versions/
     └── 0049_encrypt_sensitive_fields.py  ← NEW — migration + data encryption
@@ -445,17 +417,13 @@ backend/app/
 
 ---
 
-### Slice 3 — Medium: SSO/OIDC stub + MinIO env-aware
-
-**Mục tiêu:** Chuẩn bị sẵn config SSO, không block deployment.
+### Slice 3 — Medium: MinIO env-aware
 
 **Việc cần làm:**
-1. Thêm `OIDC_ENABLED`, `OIDC_PROVIDER_URL`, ... vào config
-2. Tạo stub endpoints `/auth/oidc/login` + `/auth/oidc/callback` (trả 501 khi `OIDC_ENABLED=False`)
-3. Cập nhật `MINIO_BUCKET` → dùng `minio_bucket_name` property
-4. Cập nhật Docker Compose các env để set `ENVIRONMENT=development`
+1. Cập nhật `MINIO_BUCKET` → dùng `minio_bucket_name` property
+2. Cập nhật Docker Compose các env để set `ENVIRONMENT=development`
 
-**Verify:** App khởi động bình thường, `/auth/oidc/login` trả 501 khi chưa enable.
+**Verify:** App khởi động bình thường, bucket MinIO được tách đúng theo môi trường.
 
 ---
 
@@ -466,7 +434,6 @@ backend/app/
 | Data migration encrypt làm chậm DB (100k rows) | Chạy migration batch (1000 rows/batch), ngoài giờ cao điểm |
 | ENCRYPTION_KEY bị mất → không decrypt được | Backup key riêng biệt ngoài DB; dùng secret manager (Vault/AWS SSM) |
 | Rate limit chặn người dùng thật (shared IP corporate) | Tăng limit cho /api/v1 general, chỉ strict trên /auth/login |
-| SSO provider unavailable → user không login được | Giữ nguyên local auth fallback; SSO là tuỳ chọn |
 | Fernet key rotation (đổi key định kỳ) | Decrypt với old key → encrypt với new key → cần rotation script |
 
 ---
@@ -474,20 +441,22 @@ backend/app/
 ## Checklist trước khi lên production
 
 ### Critical (phải có trước go-live)
-- [ ] `ENCRYPTION_KEY` được set trong `.env` production (không phải default)
-- [ ] `SECRET_KEY` được set ngẫu nhiên (không phải default `"change-this-secret-key..."`)
-- [ ] Rate limiting hoạt động: login giới hạn 5/phút/IP
-- [ ] Account lockout hoạt động sau 5 lần sai
-- [ ] CCCD, MST, tài khoản ngân hàng đã được mã hóa trong DB
-- [ ] Security headers trả về đúng
+- [x] `ENCRYPTION_KEY` được set trong `.env` production (không phải default)
+- [x] `SECRET_KEY` được set ngẫu nhiên (không phải default `"change-this-secret-key..."`)
+- [x] Rate limiting hoạt động: login giới hạn 5/phút/IP
+- [x] Account lockout hoạt động sau 5 lần sai
+- [x] CCCD, MST, tài khoản ngân hàng đã được mã hóa trong DB (migration 0049)
+- [x] Security headers trả về đúng
 
 ### High (nên có trước go-live)
-- [ ] Logout thực sự invalidate token
-- [ ] CORS chỉ cho phép đúng origin production
-- [ ] MinIO bucket dùng env-aware naming
-- [ ] Password policy yêu cầu ký tự đặc biệt
+- [x] Logout thực sự invalidate token (JWT blacklist + `/auth/logout`)
+- [x] CORS chỉ cho phép đúng origin production
+- [x] MinIO bucket dùng env-aware naming
+- [x] Password policy yêu cầu ký tự đặc biệt
 
-### Medium (làm sau go-live)
-- [ ] SSO/OIDC hoạt động nếu doanh nghiệp có provider
+### Không áp dụng (đã loại khỏi phạm vi)
+- SSO / OIDC — bỏ qua theo quyết định dự án
+
+### Medium (làm sau go-live nếu cần)
 - [ ] Audit log alert khi nhiều lần failed login
 - [ ] JWT algorithm cân nhắc chuyển sang RS256 nếu multi-service

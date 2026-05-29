@@ -10,6 +10,7 @@ Tests này verify cả state sau migration và idempotency của seeder.
 
 from __future__ import annotations
 
+import asyncio
 from decimal import Decimal
 
 import pytest
@@ -18,6 +19,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.core.config import settings
+from app.core.database import engine as app_engine
 from app.seeds.required import seed_insurance_components, seed_insurance_policy_version_baseline
 
 BASE = "/api/v1/insurance"
@@ -58,8 +60,10 @@ def _admin(client: TestClient) -> dict:
 @pytest.fixture(scope="module")
 def client():
     from app.main import app
+    asyncio.run(app_engine.dispose())
     with TestClient(app) as c:
         yield c
+    asyncio.run(app_engine.dispose())
 
 
 @pytest.fixture(autouse=True, scope="module")

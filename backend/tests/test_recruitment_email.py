@@ -5,6 +5,7 @@ import uuid
 from datetime import date
 
 from fastapi.testclient import TestClient
+from app.core.config import settings
 
 BASE_CAND = "/api/v1/recruitment/candidates"
 BASE_TEMPLATES = "/api/v1/recruitment/email-templates"
@@ -277,10 +278,17 @@ class TestSendEmail:
         data = res.json()
         assert data.get("status") == "failed", f"Expected status=failed, got: {data}"
 
-    def test_send_email_with_invalid_smtp_returns_failed(self, client: TestClient) -> None:
+    def test_send_email_with_invalid_smtp_returns_failed(self, client: TestClient, monkeypatch) -> None:
         h = _auth_headers(client)
         cand = _create_candidate_with_email(client, h)
         tmpl_id = self._get_first_template_id(client, h)
+
+        monkeypatch.setattr(settings, "SMTP_HOST", "127.0.0.1")
+        monkeypatch.setattr(settings, "SMTP_PORT", 1)
+        monkeypatch.setattr(settings, "SMTP_USE_TLS", False)
+        monkeypatch.setattr(settings, "SMTP_USE_STARTTLS", False)
+        monkeypatch.setattr(settings, "SMTP_USERNAME", "")
+        monkeypatch.setattr(settings, "SMTP_PASSWORD", "")
 
         res = client.post(
             f"{BASE_CAND}/{cand['id']}/communications/send",

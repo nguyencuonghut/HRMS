@@ -62,11 +62,10 @@ async def save_candidate_attachment(
     safe_name = Path(upload.filename or "file").name
     object_name = f"recruitment/candidates/{candidate_id}/{attachment_type}/{uuid.uuid4().hex[:8]}_{safe_name}"
 
-    from app.core.storage import _client
-    from app.core.config import settings
+    from app.core.storage import _client, bucket_name
 
     _client().put_object(
-        bucket_name=settings.MINIO_BUCKET,
+        bucket_name=bucket_name(),
         object_name=object_name,
         data=BytesIO(content),
         length=len(content),

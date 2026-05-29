@@ -2,10 +2,11 @@
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import text
+from sqlalchemy import delete, select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.core.config import settings
+from app.models.employee import Employee
 from app.seeds import employees as employees_seed
 from app.seeds import other_business_catalog
 from app.seeds import employee_job_records as job_records_seed
@@ -38,17 +39,13 @@ def _make_session():
 
 async def _cleanup_test_employees():
     async with _make_session()() as s:
+        employee_ids = [e.id for e in (await s.execute(select(Employee))).scalars().all() if e.id_number.startswith("TESTJOB")]
         await s.execute(text("DELETE FROM job_positions WHERE code LIKE 'TESTJOBPOS%'"))
         await s.execute(text("DELETE FROM employee_job_records WHERE department_id IN (SELECT id FROM departments WHERE code LIKE 'TESTJOBDEPT%')"))
-        await s.execute(text(
-            "DELETE FROM employee_job_records WHERE employee_id IN "
-            "(SELECT id FROM employees WHERE id_number LIKE 'TESTJOB%')"
-        ))
-        await s.execute(text(
-            "DELETE FROM employee_bank_accounts WHERE employee_id IN "
-            "(SELECT id FROM employees WHERE id_number LIKE 'TESTJOB%')"
-        ))
-        await s.execute(text("DELETE FROM employees WHERE id_number LIKE 'TESTJOB%'"))
+        if employee_ids:
+            await s.execute(text("DELETE FROM employee_job_records WHERE employee_id = ANY(:employee_ids)"), {"employee_ids": employee_ids})
+            await s.execute(text("DELETE FROM employee_bank_accounts WHERE employee_id = ANY(:employee_ids)"), {"employee_ids": employee_ids})
+            await s.execute(delete(Employee).where(Employee.id.in_(employee_ids)))
         await s.execute(text("DELETE FROM departments WHERE code LIKE 'TESTJOBDEPT%'"))
         await s.commit()
 

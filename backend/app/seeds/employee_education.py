@@ -8,6 +8,7 @@ from datetime import date
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.encryption import hash_sensitive
 
 def _d(s: str) -> date:
     return date.fromisoformat(s)
@@ -46,7 +47,7 @@ async def seed_sample_education(session: AsyncSession) -> dict:
                     :major_id, :major_name, :level_id,
                     :grad_year, :diploma, :is_main, now()
                 FROM employees e
-                WHERE e.id_number = :employee_id_number
+                WHERE e.id_number_hash = :employee_id_number_hash
                   AND NOT EXISTS (
                       SELECT 1 FROM employee_education_histories h
                       WHERE h.employee_id = e.id
@@ -57,7 +58,7 @@ async def seed_sample_education(session: AsyncSession) -> dict:
                   )
             """),
             {
-                "employee_id_number": employee_id_number,
+                "employee_id_number_hash": hash_sensitive(employee_id_number),
                 "inst_id": inst_id,
                 "inst_name": inst_name,
                 "major_id": major_id,
@@ -88,7 +89,7 @@ async def seed_sample_education(session: AsyncSession) -> dict:
                     :company, :position,
                     :start, :end, now()
                 FROM employees e
-                WHERE e.id_number = :employee_id_number
+                WHERE e.id_number_hash = :employee_id_number_hash
                   AND NOT EXISTS (
                       SELECT 1 FROM employee_work_experiences w
                       WHERE w.employee_id = e.id
@@ -96,7 +97,7 @@ async def seed_sample_education(session: AsyncSession) -> dict:
                   )
             """),
             {
-                "employee_id_number": employee_id_number,
+                "employee_id_number_hash": hash_sensitive(employee_id_number),
                 "company": company,
                 "position": position,
                 "start": _d(start),
@@ -119,13 +120,13 @@ async def seed_sample_education(session: AsyncSession) -> dict:
                 )
                 SELECT e.id, :skill_id, :level, now()
                 FROM employees e
-                WHERE e.id_number = :employee_id_number
+                WHERE e.id_number_hash = :employee_id_number_hash
                   AND NOT EXISTS (
                       SELECT 1 FROM employee_skills s
                       WHERE s.employee_id = e.id AND s.skill_id = :skill_id
                   )
             """),
-            {"employee_id_number": employee_id_number, "skill_id": skill_id, "level": level},
+            {"employee_id_number_hash": hash_sensitive(employee_id_number), "skill_id": skill_id, "level": level},
         )
         counts["skills"] += result.rowcount
 
@@ -143,14 +144,14 @@ async def seed_sample_education(session: AsyncSession) -> dict:
                 )
                 SELECT e.id, :cert_id, :issued, :expires, now()
                 FROM employees e
-                WHERE e.id_number = :employee_id_number
+                WHERE e.id_number_hash = :employee_id_number_hash
                   AND NOT EXISTS (
                       SELECT 1 FROM employee_certificates c
                       WHERE c.employee_id = e.id AND c.certificate_id = :cert_id
                   )
             """),
             {
-                "employee_id_number": employee_id_number,
+                "employee_id_number_hash": hash_sensitive(employee_id_number),
                 "cert_id": cert_id,
                 "issued": _d(issued),
                 "expires": _d(expires) if expires else None,
@@ -173,14 +174,14 @@ async def seed_sample_education(session: AsyncSession) -> dict:
                 )
                 SELECT e.id, :lang, :level, now()
                 FROM employees e
-                WHERE e.id_number = :employee_id_number
+                WHERE e.id_number_hash = :employee_id_number_hash
                   AND NOT EXISTS (
                       SELECT 1 FROM employee_languages l
                       WHERE l.employee_id = e.id
                         AND l.language_name = CAST(:lang AS varchar)
                   )
             """),
-            {"employee_id_number": employee_id_number, "lang": lang, "level": level},
+            {"employee_id_number_hash": hash_sensitive(employee_id_number), "lang": lang, "level": level},
         )
         counts["languages"] += result.rowcount
 

@@ -8,6 +8,7 @@ from datetime import date
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.encryption import encrypt, hash_sensitive
 from app.services.administrative_import_service import normalize_text
 
 
@@ -244,7 +245,7 @@ async def seed_sample_employees(session: AsyncSession) -> int:
                 INSERT INTO employees (
                     employee_seq, employee_code_sequence_id, full_name, normalized_name, last_name, first_name,
                     date_of_birth, gender, nationality_id, ethnicity_id,
-                    id_number, id_issued_on, id_issued_by,
+                    id_number, id_number_hash, id_issued_on, id_issued_by,
                     phone_number, personal_email, personal_tax_code,
                     status, start_date, resigned_date,
                     is_active, created_at
@@ -256,11 +257,11 @@ async def seed_sample_employees(session: AsyncSession) -> int:
                     :date_of_birth, :gender,
                     (SELECT id FROM nationalities WHERE code = :nationality_code),
                     (SELECT id FROM ethnicities WHERE code = :ethnicity_code),
-                    :id_number, :id_issued_on, :id_issued_by,
+                    :id_number, :id_number_hash, :id_issued_on, :id_issued_by,
                     :phone_number, :personal_email, :personal_tax_code,
                     :status, :start_date, :resigned_date,
                     true, now()
-                ON CONFLICT (id_number) DO NOTHING
+                ON CONFLICT (id_number_hash) DO NOTHING
             """),
             {
                 "employee_seq": emp["employee_seq"],
@@ -273,12 +274,13 @@ async def seed_sample_employees(session: AsyncSession) -> int:
                 "gender": emp["gender"],
                 "nationality_code": emp["nationality_code"],
                 "ethnicity_code": emp["ethnicity_code"],
-                "id_number": emp["id_number"],
+                "id_number": encrypt(emp["id_number"]),
+                "id_number_hash": hash_sensitive(emp["id_number"]),
                 "id_issued_on": _d(emp["id_issued_on"]),
                 "id_issued_by": emp["id_issued_by"],
                 "phone_number": emp.get("phone_number"),
                 "personal_email": emp.get("personal_email"),
-                "personal_tax_code": emp.get("personal_tax_code"),
+                "personal_tax_code": encrypt(emp.get("personal_tax_code")),
                 "status": emp["status"],
                 "start_date": _d(emp["start_date"]),
                 "resigned_date": _d(emp.get("resigned_date")),
@@ -297,13 +299,13 @@ async def seed_sample_employees(session: AsyncSession) -> int:
                         e.id,
                         (SELECT id FROM banks WHERE code = :bank_code),
                         :account_number, :account_name, true, true, now()
-                    FROM employees e WHERE e.id_number = :id_number
+                    FROM employees e WHERE e.id_number_hash = :id_number_hash
                     ON CONFLICT DO NOTHING
                 """),
                 {
-                    "id_number": emp["id_number"],
+                    "id_number_hash": hash_sensitive(emp["id_number"]),
                     "bank_code": emp["bank_code"],
-                    "account_number": emp["bank_account_number"],
+                    "account_number": encrypt(emp["bank_account_number"]),
                     "account_name": emp["account_name"],
                 },
             )

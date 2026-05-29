@@ -25,9 +25,13 @@ async def get_current_user(
     try:
         payload = decode_token(token)
         email: str = payload.get("sub", "")
-        if not email:
+        jti: str = payload.get("jti", "")
+        if not email or not jti:
             raise exc
     except JWTError:
+        raise exc
+
+    if await auth_service.is_token_blacklisted(jti):
         raise exc
 
     user = await auth_service.get_user_by_email(session, email)

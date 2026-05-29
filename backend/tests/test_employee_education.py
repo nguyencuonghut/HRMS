@@ -2,10 +2,11 @@
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import text
+from sqlalchemy import delete, select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.core.config import settings
+from app.models.employee import Employee
 from app.seeds import employees as employees_seed
 from app.seeds import other_business_catalog
 from app.seeds import employee_education as education_seed
@@ -38,27 +39,14 @@ def _make_session():
 async def _cleanup_test_employees():
     async with _make_session()() as s:
         prefix = "TESTEDU"
-        await s.execute(text(
-            f"DELETE FROM employee_education_histories WHERE employee_id IN "
-            f"(SELECT id FROM employees WHERE id_number LIKE '{prefix}%')"
-        ))
-        await s.execute(text(
-            f"DELETE FROM employee_work_experiences WHERE employee_id IN "
-            f"(SELECT id FROM employees WHERE id_number LIKE '{prefix}%')"
-        ))
-        await s.execute(text(
-            f"DELETE FROM employee_skills WHERE employee_id IN "
-            f"(SELECT id FROM employees WHERE id_number LIKE '{prefix}%')"
-        ))
-        await s.execute(text(
-            f"DELETE FROM employee_certificates WHERE employee_id IN "
-            f"(SELECT id FROM employees WHERE id_number LIKE '{prefix}%')"
-        ))
-        await s.execute(text(
-            f"DELETE FROM employee_languages WHERE employee_id IN "
-            f"(SELECT id FROM employees WHERE id_number LIKE '{prefix}%')"
-        ))
-        await s.execute(text(f"DELETE FROM employees WHERE id_number LIKE '{prefix}%'"))
+        employee_ids = [e.id for e in (await s.execute(select(Employee))).scalars().all() if e.id_number.startswith(prefix)]
+        if employee_ids:
+            await s.execute(text("DELETE FROM employee_education_histories WHERE employee_id = ANY(:employee_ids)"), {"employee_ids": employee_ids})
+            await s.execute(text("DELETE FROM employee_work_experiences WHERE employee_id = ANY(:employee_ids)"), {"employee_ids": employee_ids})
+            await s.execute(text("DELETE FROM employee_skills WHERE employee_id = ANY(:employee_ids)"), {"employee_ids": employee_ids})
+            await s.execute(text("DELETE FROM employee_certificates WHERE employee_id = ANY(:employee_ids)"), {"employee_ids": employee_ids})
+            await s.execute(text("DELETE FROM employee_languages WHERE employee_id = ANY(:employee_ids)"), {"employee_ids": employee_ids})
+            await s.execute(delete(Employee).where(Employee.id.in_(employee_ids)))
         await s.commit()
 
 
@@ -83,6 +71,7 @@ async def cleanup():
 
 def _create_employee(client: TestClient, headers: dict, id_number: str = "TESTEDU0000001") -> dict:
     payload = {
+        "employee_code_sequence_id": 1,
         "full_name": "Test Education Viên",
         "last_name": "Test",
         "first_name": "Education Viên",

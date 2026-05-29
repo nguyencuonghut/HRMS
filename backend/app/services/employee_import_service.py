@@ -14,6 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.encryption import hash_sensitive
 from app.models.employee import Employee
 from app.models.employee_code import EmployeeCodeSequence
 from app.models.org import Department, JobPosition, JobTitle
@@ -329,7 +330,9 @@ async def process_import(session: AsyncSession, file_bytes: bytes) -> ImportResu
             continue
 
         # ── DB checks ─────────────────────────────────────────────────
-        existing = await session.execute(select(Employee).where(Employee.id_number == id_number))
+        existing = await session.execute(
+            select(Employee).where(Employee.id_number_hash == hash_sensitive(id_number))
+        )
         if existing.scalar_one_or_none():
             errors.append(ImportRowError(row=excel_row, column="Số CCCD/CMND", message=f"Số CCCD/CMND '{id_number}' đã tồn tại trong hệ thống"))
             failed += 1

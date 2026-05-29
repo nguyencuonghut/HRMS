@@ -16,7 +16,6 @@ BASE_REC = "/api/v1/recruitment"
 
 _ADMIN_EMAIL = "admin@hrms.local"
 _ADMIN_PASSWORD = "Hrms@2026"
-_NATIONALITY_ID = 1374
 
 
 # ── Auth helper ────────────────────────────────────────────────────────────────
@@ -27,6 +26,18 @@ def _admin(client: TestClient) -> dict:
         json={"email": _ADMIN_EMAIL, "password": _ADMIN_PASSWORD},
     ).json()["access_token"]
     return {"Authorization": f"Bearer {token}"}
+
+
+def _get_nationality_id(client: TestClient, headers: dict) -> int:
+    resp = client.get("/api/v1/nationalities", headers=headers)
+    assert resp.status_code == 200, resp.text
+    payload = resp.json()
+    items = payload["items"] if isinstance(payload, dict) else payload
+    vn = next((item for item in items if item["code"] == "VN"), None)
+    if vn is not None:
+        return vn["id"]
+    assert items, "Không có nationality nào trong hệ thống"
+    return items[0]["id"]
 
 
 # ── Data-setup helpers (mirrors test_recruitment_offer.py) ─────────────────────
@@ -51,10 +62,26 @@ def _create_approved_jr(client: TestClient, h: dict, pos_id: int, dept_id: int) 
     ).json()
     client.post(f"{BASE_JR}/{jr['id']}/submit", headers=h)
     client.post(f"{BASE_JR}/{jr['id']}/approve", headers=h)
+    pipeline_res = client.post(
+        f"{BASE_JR}/{jr['id']}/pipeline",
+        json={
+            "stages": [
+                {
+                    "stage_order": 1,
+                    "stage_name": "Sàng lọc hồ sơ",
+                    "stage_type": "screening",
+                    "is_active": True,
+                }
+            ]
+        },
+        headers=h,
+    )
+    assert pipeline_res.status_code == 200, pipeline_res.text
     return client.get(f"{BASE_JR}/{jr['id']}", headers=h).json()
 
 
 def _create_candidate_full(client: TestClient, h: dict, suffix: str) -> dict:
+    nationality_id = _get_nationality_id(client, h)
     res = client.post(
         BASE_CAND,
         json={
@@ -64,7 +91,7 @@ def _create_candidate_full(client: TestClient, h: dict, suffix: str) -> dict:
             "personal_email": f"doc_{suffix}@example.com",
             "date_of_birth": "1992-06-15",
             "gender": "male",
-            "nationality_id": _NATIONALITY_ID,
+            "nationality_id": nationality_id,
             "id_number": f"0{suffix[:9]}",
             "id_issued_on": "2015-06-01",
             "id_issued_by": "Cục CSQLHC",
@@ -83,6 +110,33 @@ def _apply(client: TestClient, h: dict, candidate_id: int, jr_id: int) -> dict:
     )
     assert res.status_code == 201, res.text
     return res.json()
+
+
+def _advance_application_to_offer(
+    client: TestClient,
+    h: dict,
+    application_id: int,
+    jr_id: int,
+    current_stage: str,
+) -> dict:
+    pipeline_res = client.get(f"{BASE_JR}/{jr_id}/pipeline", headers=h)
+    assert pipeline_res.status_code == 200, pipeline_res.text
+    stages = pipeline_res.json()
+    assert stages, "JR không có pipeline stages"
+
+    application_stage = current_stage
+    while application_stage != "offer":
+        stage = next((item for item in stages if item["stage_type"] == application_stage), None)
+        assert stage is not None, f"Không tìm thấy stage '{application_stage}' trong pipeline"
+        advance_res = client.post(
+            f"{BASE_REC}/applications/{application_id}/advance",
+            json={"stage_id": stage["id"], "result": "pass"},
+            headers=h,
+        )
+        assert advance_res.status_code == 200, advance_res.text
+        application = advance_res.json()
+        application_stage = application["current_stage"]
+    return application
 
 
 def _create_offer(client: TestClient, h: dict, application_id: int, pos_id: int, dept_id: int) -> dict:
@@ -113,6 +167,7 @@ def _setup_and_convert(client: TestClient, h: dict) -> int:
     jr = _create_approved_jr(client, h, pos_id, dept_id)
     cand = _create_candidate_full(client, h, suffix)
     app = _apply(client, h, cand["id"], jr["id"])
+    app = _advance_application_to_offer(client, h, app["id"], jr["id"], app["current_stage"])
     offer = _create_offer(client, h, app["id"], pos_id, dept_id)
 
     client.post(f"{BASE_OFFERS}/{offer['id']}/send", headers=h)

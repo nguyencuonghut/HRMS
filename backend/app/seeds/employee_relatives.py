@@ -8,6 +8,7 @@ from datetime import date
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.encryption import hash_sensitive
 
 def _d(s: str) -> date:
     return date.fromisoformat(s)
@@ -40,7 +41,7 @@ async def seed_sample_relatives(session: AsyncSession) -> int:
                     :dob, :occupation, :phone,
                     :is_emergency, now()
                 FROM employees e
-                WHERE e.id_number = :employee_id_number
+                WHERE e.id_number_hash = :employee_id_number_hash
                   AND NOT EXISTS (
                       SELECT 1 FROM employee_relatives r
                       WHERE r.employee_id = e.id
@@ -48,7 +49,7 @@ async def seed_sample_relatives(session: AsyncSession) -> int:
                   )
             """),
             {
-                "employee_id_number": employee_id_number,
+                "employee_id_number_hash": hash_sensitive(employee_id_number),
                 "full_name": full_name,
                 "rel_type": rel_type,
                 "dob": _d(dob),

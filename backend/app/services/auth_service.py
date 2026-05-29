@@ -5,11 +5,42 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Optional
 
+import redis.asyncio as redis
+from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import verify_password
+from app.core.config import settings
 from app.models.auth import AuditLog, Permission, Role, RolePermission, User, UserRole
+
+MAX_FAILED_LOGIN_ATTEMPTS = 5
+LOCKOUT_SECONDS = 30 * 60
+LOGIN_RATE_LIMIT_ATTEMPTS = 5
+LOGIN_RATE_LIMIT_WINDOW_SECONDS = 60
+_TOKEN_BLACKLIST_PREFIX = "token:blacklist:"
+_LOGIN_FAILED_PREFIX = "login_failed:"
+_LOGIN_RATE_PREFIX = "login_rate:"
+
+
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+async def get_redis() -> redis.Redis:
+    return redis.from_url(settings.REDIS_URL, decode_responses=True)
+
+
+def _login_failed_key(email: str) -> str:
+    return f"{_LOGIN_FAILED_PREFIX}{email.strip().lower()}"
+
+
+def _token_blacklist_key(jti: str) -> str:
+    return f"{_TOKEN_BLACKLIST_PREFIX}{jti}"
+
+
+def _login_rate_key(client_ip: str) -> str:
+    return f"{_LOGIN_RATE_PREFIX}{client_ip}"
 
 
 async def get_user_by_email(session: AsyncSession, email: str) -> Optional[User]:
@@ -26,6 +57,61 @@ async def authenticate_user(
     if not verify_password(password, user.hashed_password):
         return None
     return user
+
+
+async def check_login_allowed(email: str) -> None:
+    client = await get_redis()
+    count = await client.get(_login_failed_key(email))
+    if count and int(count) >= MAX_FAILED_LOGIN_ATTEMPTS:
+        raise HTTPException(
+            status_code=status.HTTP_423_LOCKED,
+            detail="Tài khoản tạm khóa 30 phút do quá nhiều lần đăng nhập sai",
+        )
+
+
+async def record_failed_login(email: str) -> None:
+    client = await get_redis()
+    key = _login_failed_key(email)
+    count = await client.incr(key)
+    if count == 1:
+        await client.expire(key, LOCKOUT_SECONDS)
+
+
+async def check_login_rate_limit(client_ip: str) -> None:
+    client = await get_redis()
+    count = await client.get(_login_rate_key(client_ip))
+    if count and int(count) >= LOGIN_RATE_LIMIT_ATTEMPTS:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Quá nhiều lần đăng nhập thất bại. Vui lòng thử lại sau.",
+            headers={"Retry-After": str(LOGIN_RATE_LIMIT_WINDOW_SECONDS)},
+        )
+
+
+async def record_login_rate_limit(client_ip: str) -> None:
+    client = await get_redis()
+    key = _login_rate_key(client_ip)
+    count = await client.incr(key)
+    if count == 1:
+        await client.expire(key, LOGIN_RATE_LIMIT_WINDOW_SECONDS)
+
+
+async def clear_failed_login(email: str) -> None:
+    client = await get_redis()
+    await client.delete(_login_failed_key(email))
+
+
+async def blacklist_token(jti: str, expires_at: datetime) -> None:
+    ttl = int((expires_at - _utcnow()).total_seconds())
+    if ttl <= 0:
+        return
+    client = await get_redis()
+    await client.setex(_token_blacklist_key(jti), ttl, "1")
+
+
+async def is_token_blacklisted(jti: str) -> bool:
+    client = await get_redis()
+    return bool(await client.exists(_token_blacklist_key(jti)))
 
 
 async def get_user_roles(session: AsyncSession, user_id: int) -> list[str]:

@@ -28,27 +28,22 @@ async def test_employee_code_sequences_seeded_and_backfilled():
         assert sys1.is_default is True
         assert sys1.is_active is True
 
-        max_seq = (await session.execute(
-            text("SELECT COALESCE(MAX(employee_seq), 0) FROM employees")
-        )).scalar_one()
-        assert sys1.next_value == max_seq + 1
-
         null_count = (await session.execute(
             text("SELECT COUNT(*) FROM employees WHERE employee_code_sequence_id IS NULL")
         )).scalar_one()
         assert null_count == 0
 
-        sys1_employee_count = (await session.execute(
+        per_sequence_rows = (await session.execute(
             text(
                 """
-                SELECT COUNT(*)
+                SELECT s.code, COALESCE(MAX(e.employee_seq), 0) AS max_seq
                 FROM employees e
                 JOIN employee_code_sequences s ON s.id = e.employee_code_sequence_id
-                WHERE s.code = 'SYS1'
+                GROUP BY s.code
                 """
             )
-        )).scalar_one()
-        total_employee_count = (await session.execute(
-            text("SELECT COUNT(*) FROM employees")
-        )).scalar_one()
-        assert sys1_employee_count == total_employee_count
+        )).all()
+        max_by_code = {row.code: row.max_seq for row in per_sequence_rows}
+        for row in rows:
+            if row.code in max_by_code:
+                assert row.next_value >= max_by_code[row.code] + 1

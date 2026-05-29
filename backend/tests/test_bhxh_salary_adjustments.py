@@ -128,7 +128,7 @@ async def _count_adjustments_for_employee(employee_id: int) -> int:
 
 @pytest.fixture(scope="module")
 def active_employee() -> dict:
-    emp = asyncio.get_event_loop().run_until_complete(_find_active_insured_employee())
+    emp = asyncio.run(_find_active_insured_employee())
     if emp is None:
         pytest.skip("Không có nhân viên active đang đóng BHXH với mức lương xác định")
     return emp
@@ -164,9 +164,7 @@ class TestCreateAdjustment:
             assert data["change_direction"] == "increase"
             assert data["insurance_change_event_id"] is not None
         finally:
-            asyncio.get_event_loop().run_until_complete(
-                _reset_profile_basis(emp_id, old_amount, "manual_fixed")
-            )
+            asyncio.run(_reset_profile_basis(emp_id, old_amount, "manual_fixed"))
 
     def test_create_updates_profile_basis_amount(
         self, client: TestClient, active_employee: dict
@@ -185,14 +183,12 @@ class TestCreateAdjustment:
                 },
                 headers=_admin(client),
             )
-            profile = asyncio.get_event_loop().run_until_complete(_get_profile_basis(emp_id))
+            profile = asyncio.run(_get_profile_basis(emp_id))
             assert profile is not None
             assert int(Decimal(str(profile["amount"]))) == new_amount
             assert profile["source"] == "manual_fixed"
         finally:
-            asyncio.get_event_loop().run_until_complete(
-                _reset_profile_basis(emp_id, old_amount, "manual_fixed")
-            )
+            asyncio.run(_reset_profile_basis(emp_id, old_amount, "manual_fixed"))
 
     def test_create_decrease_sets_direction_decrease(
         self, client: TestClient, active_employee: dict
@@ -214,9 +210,7 @@ class TestCreateAdjustment:
             assert r.status_code == 201, r.text
             assert r.json()["change_direction"] == "decrease"
         finally:
-            asyncio.get_event_loop().run_until_complete(
-                _reset_profile_basis(emp_id, old_amount, "manual_fixed")
-            )
+            asyncio.run(_reset_profile_basis(emp_id, old_amount, "manual_fixed"))
 
     def test_create_stores_decision_number(
         self, client: TestClient, active_employee: dict
@@ -239,9 +233,7 @@ class TestCreateAdjustment:
             assert r.status_code == 201, r.text
             assert r.json()["decision_number"] == "QĐ-TEST/2099"
         finally:
-            asyncio.get_event_loop().run_until_complete(
-                _reset_profile_basis(emp_id, old_amount, "manual_fixed")
-            )
+            asyncio.run(_reset_profile_basis(emp_id, old_amount, "manual_fixed"))
 
 
 class TestValidation:
@@ -297,7 +289,7 @@ class TestValidation:
         assert r.status_code == 404, r.text
 
     def test_employee_without_profile_returns_422(self, client: TestClient):
-        emp = asyncio.get_event_loop().run_until_complete(_find_employee_without_profile())
+        emp = asyncio.run(_find_employee_without_profile())
         if emp is None:
             pytest.skip("Không có nhân viên thiếu profile bảo hiểm")
 
@@ -362,9 +354,7 @@ class TestListAdjustments:
             assert len(items) >= 1
             assert all(i["employee_id"] == emp_id for i in items)
         finally:
-            asyncio.get_event_loop().run_until_complete(
-                _reset_profile_basis(emp_id, old_amount, "manual_fixed")
-            )
+            asyncio.run(_reset_profile_basis(emp_id, old_amount, "manual_fixed"))
 
     def test_filter_by_date_range(self, client: TestClient):
         today = date.today()
@@ -424,9 +414,7 @@ class TestAdjustmentHistory:
             assert len(items) >= 1
             assert any(int(Decimal(i["new_basis_amount"])) == new_amount for i in items)
         finally:
-            asyncio.get_event_loop().run_until_complete(
-                _reset_profile_basis(emp_id, old_amount, "manual_fixed")
-            )
+            asyncio.run(_reset_profile_basis(emp_id, old_amount, "manual_fixed"))
 
     def test_history_nonexistent_employee_returns_404(self, client: TestClient):
         r = client.get(
@@ -475,9 +463,7 @@ class TestIntegrationWith71:
             assert int(Decimal(str(basis["insurance_basis_amount"]))) == new_amount
             assert basis["insurance_basis_source"] == "manual_fixed"
         finally:
-            asyncio.get_event_loop().run_until_complete(
-                _reset_profile_basis(emp_id, old_amount, "manual_fixed")
-            )
+            asyncio.run(_reset_profile_basis(emp_id, old_amount, "manual_fixed"))
 
     def test_source_becomes_manual_fixed_after_adjustment(
         self, client: TestClient, active_employee: dict
@@ -496,10 +482,8 @@ class TestIntegrationWith71:
                 },
                 headers=_admin(client),
             )
-            profile = asyncio.get_event_loop().run_until_complete(_get_profile_basis(emp_id))
+            profile = asyncio.run(_get_profile_basis(emp_id))
             assert profile is not None
             assert profile["source"] == "manual_fixed"
         finally:
-            asyncio.get_event_loop().run_until_complete(
-                _reset_profile_basis(emp_id, old_amount, "manual_fixed")
-            )
+            asyncio.run(_reset_profile_basis(emp_id, old_amount, "manual_fixed"))

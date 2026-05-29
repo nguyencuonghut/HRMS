@@ -6,10 +6,11 @@ from datetime import date, timedelta
 import openpyxl
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import select, text
+from sqlalchemy import delete, select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.core.config import settings
+from app.core.encryption import hash_sensitive
 from app.models.employee import Employee
 from app.models.employee_code import EmployeeCodeSequence
 from app.models.employee_insurance import EmployeeInsuranceProfile
@@ -42,11 +43,14 @@ def _make_session():
 
 async def _cleanup():
     async with _make_session()() as s:
-        await s.execute(text(
-            f"DELETE FROM employee_job_records WHERE employee_id IN "
-            f"(SELECT id FROM employees WHERE id_number LIKE '{_PREFIX}%')"
-        ))
-        await s.execute(text(f"DELETE FROM employees WHERE id_number LIKE '{_PREFIX}%'"))
+        hashes = [hash_sensitive(f"{_PREFIX}{suffix}") for suffix in (
+            "0001", "0002", "0003", "0004", "0005", "0006", "0007", "0008", "0009",
+            "0010", "0011", "0012", "0013", "0014", "0014BH", "0015", "EXP001", "EXPBH001",
+        )]
+        employee_ids = list((await s.execute(select(Employee.id).where(Employee.id_number_hash.in_(hashes)))).scalars().all())
+        if employee_ids:
+            await s.execute(text("DELETE FROM employee_job_records WHERE employee_id = ANY(:employee_ids)"), {"employee_ids": employee_ids})
+            await s.execute(delete(Employee).where(Employee.id.in_(employee_ids)))
         await s.commit()
 
 
@@ -110,7 +114,7 @@ def _upload(client: TestClient, headers: dict, xlsx_bytes: bytes) -> dict:
 async def _get_employee_state(id_number: str) -> tuple[Employee, EmployeeJobRecord | None]:
     async with _make_session()() as s:
         employee = (
-            await s.execute(select(Employee).where(Employee.id_number == id_number))
+            await s.execute(select(Employee).where(Employee.id_number_hash == hash_sensitive(id_number)))
         ).scalar_one()
         job_record = (
             await s.execute(
@@ -134,7 +138,7 @@ async def _get_sequence_code(sequence_id: int | None) -> str | None:
 async def _get_employee_profile_by_id_number(id_number: str) -> EmployeeInsuranceProfile | None:
     async with _make_session()() as s:
         employee = (
-            await s.execute(select(Employee).where(Employee.id_number == id_number))
+            await s.execute(select(Employee).where(Employee.id_number_hash == hash_sensitive(id_number)))
         ).scalar_one_or_none()
         if not employee:
             return None

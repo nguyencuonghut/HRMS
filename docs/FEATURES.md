@@ -588,7 +588,7 @@
 ## 15. Yêu cầu Phi chức năng
 
 ### 15.1. Bảo mật
-- Xác thực: username/password, hỗ trợ SSO (OIDC/SAML)
+- Xác thực: username/password
 - Mã hóa dữ liệu nhạy cảm (CCCD, tài khoản ngân hàng, MST)
 - **Audit log** toàn bộ thao tác: ai, làm gì, lúc nào, dữ liệu trước/sau
 - Session timeout, chính sách mật khẩu mạnh

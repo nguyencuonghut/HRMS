@@ -29,7 +29,19 @@ def _admin(client: TestClient) -> dict:
 
 async def _get_first_employee_id() -> int:
     async with _make_session()() as s:
-        row = (await s.execute(text("SELECT id FROM employees ORDER BY id LIMIT 1"))).one()
+        row = (
+            await s.execute(
+                text(
+                    """
+                    SELECT e.id
+                    FROM employees e
+                    JOIN employee_insurance_profiles p ON p.employee_id = e.id
+                    ORDER BY e.id
+                    LIMIT 1
+                    """
+                )
+            )
+        ).one()
         return row[0]
 
 

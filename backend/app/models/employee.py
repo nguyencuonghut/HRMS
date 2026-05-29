@@ -6,6 +6,8 @@ from typing import Optional
 import sqlalchemy as sa
 from sqlmodel import Column, Field, SQLModel
 
+from app.core.encryption import EncryptedString
+
 
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
@@ -53,7 +55,10 @@ class Employee(SQLModel, table=True):
 
     # ── Giấy tờ nhận dạng (CCCD/CMND) ───────────────────────────────────
     id_number: str = Field(
-        sa_column=Column(sa.String(20), nullable=False, index=True)
+        sa_column=Column(EncryptedString(), nullable=False)
+    )
+    id_number_hash: str = Field(
+        sa_column=Column(sa.String(64), nullable=False, unique=True, index=True)
     )
     id_issued_on: date
     id_issued_by: str = Field(max_length=200)
@@ -61,7 +66,11 @@ class Employee(SQLModel, table=True):
     id_expires_on: Optional[date] = Field(default=None)
 
     # ── Hộ chiếu (nullable — chủ yếu người nước ngoài) ──────────────────
-    passport_number: Optional[str] = Field(default=None, max_length=50)
+    passport_number: Optional[str] = Field(
+        default=None,
+        max_length=50,
+        sa_column=Column(EncryptedString(), nullable=True),
+    )
     passport_issued_on: Optional[date] = Field(default=None)
     passport_expires_on: Optional[date] = Field(default=None)
 
@@ -73,7 +82,11 @@ class Employee(SQLModel, table=True):
     # ── Liên lạc & thuế ─────────────────────────────────────────────────
     phone_number: Optional[str] = Field(default=None, max_length=20)
     personal_email: Optional[str] = Field(default=None, max_length=200)
-    personal_tax_code: Optional[str] = Field(default=None, max_length=20)
+    personal_tax_code: Optional[str] = Field(
+        default=None,
+        max_length=20,
+        sa_column=Column(EncryptedString(), nullable=True),
+    )
     bhxh_code: Optional[str] = Field(default=None, max_length=20)
 
     # ── Ảnh thẻ nhân viên ────────────────────────────────────────────────
@@ -187,7 +200,10 @@ class EmployeeBankAccount(SQLModel, table=True):
         )
     )
     bank_id: int = Field(foreign_key="banks.id")
-    account_number: str = Field(max_length=50)
+    account_number: str = Field(
+        max_length=50,
+        sa_column=Column(EncryptedString(), nullable=False),
+    )
     # Tên chủ tài khoản — thường giống full_name nhưng cho phép khác
     account_name: str = Field(max_length=200)
     branch_name: Optional[str] = Field(default=None, max_length=200)

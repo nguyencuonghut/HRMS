@@ -1,4 +1,7 @@
 """Integration tests cho Auth endpoints."""
+import uuid
+from itertools import count
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import text
@@ -14,6 +17,7 @@ _ADMIN_PASSWORD = "Hrms@2026"
 _WRONG_PASSWORD = "wrongpassword"
 _OFFICER_EMAIL  = "hrofficer@hrms.local"
 _FINANCE_EMAIL  = "finance@hrms.local"
+_IP_COUNTER = count(50)
 
 
 # ── Fixtures ───────────────────────────────────────────────────────────────────
@@ -36,12 +40,24 @@ async def reset_officer_password():
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
 def _login(client: TestClient, email: str = _ADMIN_EMAIL, password: str = _ADMIN_PASSWORD):
-    return client.post(f"{BASE}/login", json={"email": email, "password": password})
+    return client.post(
+        f"{BASE}/login",
+        json={"email": email, "password": password},
+        headers={"X-Forwarded-For": f"198.18.0.{next(_IP_COUNTER)}"},
+    )
 
 
 def _bearer(client: TestClient, email: str = _ADMIN_EMAIL, password: str = _ADMIN_PASSWORD) -> dict:
     token = _login(client, email, password).json()["access_token"]
     return {"Authorization": f"Bearer {token}"}
+
+
+def _refresh(client: TestClient, refresh_token: str):
+    return client.post(
+        f"{BASE}/refresh",
+        json={"refresh_token": refresh_token},
+        headers={"X-Forwarded-For": f"198.18.1.{next(_IP_COUNTER)}"},
+    )
 
 
 # ── Login ──────────────────────────────────────────────────────────────────────
@@ -61,13 +77,17 @@ def test_login_wrong_password(client: TestClient):
 
 
 def test_login_unknown_email(client: TestClient):
-    resp = _login(client, email="nobody@hrms.local")
+    resp = _login(client, email=f"nobody-{uuid.uuid4().hex[:8]}@hrms.local")
     assert resp.status_code == 401
 
 
 def test_login_invalid_email_returns_401(client: TestClient):
     # email không tồn tại → 401 (login dùng str, không validate format)
-    resp = client.post(f"{BASE}/login", json={"email": "not-an-email", "password": "x"})
+    resp = client.post(
+        f"{BASE}/login",
+        json={"email": f"not-an-email-{uuid.uuid4().hex[:8]}", "password": "x"},
+        headers={"X-Forwarded-For": f"198.18.2.{next(_IP_COUNTER)}"},
+    )
     assert resp.status_code == 401
 
 
@@ -117,7 +137,7 @@ def test_me_line_manager_limited_permissions(client: TestClient):
 
 def test_refresh_returns_new_tokens(client: TestClient):
     login_data = _login(client).json()
-    resp = client.post(f"{BASE}/refresh", json={"refresh_token": login_data["refresh_token"]})
+    resp = _refresh(client, login_data["refresh_token"])
     assert resp.status_code == 200
     body = resp.json()
     assert "access_token" in body
@@ -127,12 +147,12 @@ def test_refresh_returns_new_tokens(client: TestClient):
 
 def test_refresh_with_access_token_fails(client: TestClient):
     login_data = _login(client).json()
-    resp = client.post(f"{BASE}/refresh", json={"refresh_token": login_data["access_token"]})
+    resp = _refresh(client, login_data["access_token"])
     assert resp.status_code == 401
 
 
 def test_refresh_with_invalid_token_fails(client: TestClient):
-    resp = client.post(f"{BASE}/refresh", json={"refresh_token": "invalid.token.here"})
+    resp = _refresh(client, "invalid.token.here")
     assert resp.status_code == 401
 
 

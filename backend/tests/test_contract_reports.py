@@ -126,9 +126,9 @@ def test_contract_summary(client: TestClient):
     assert "total_active" in data_before
 
     # 2. Tạo contract sắp hết hạn trong 15 ngày (nằm trong bucket 0-30)
-    emp_id, cat_id = asyncio.get_event_loop().run_until_complete(_get_employee_and_category_ids())
+    emp_id, cat_id = asyncio.run(_get_employee_and_category_ids())
     today = date.today()
-    asyncio.get_event_loop().run_until_complete(
+    asyncio.run(
         _create_test_contract(
             employee_id=emp_id,
             category_id=cat_id,
@@ -141,7 +141,7 @@ def test_contract_summary(client: TestClient):
     )
 
     # 3. Tạo contract đã hết hạn
-    asyncio.get_event_loop().run_until_complete(
+    asyncio.run(
         _create_test_contract(
             employee_id=emp_id,
             category_id=cat_id,
@@ -165,11 +165,11 @@ def test_contract_summary(client: TestClient):
 
 def test_contract_expiring_list(client: TestClient):
     headers = _login(client)
-    emp_id, cat_id = asyncio.get_event_loop().run_until_complete(_get_employee_and_category_ids())
+    emp_id, cat_id = asyncio.run(_get_employee_and_category_ids())
     today = date.today()
 
     # Tạo HĐ hết hạn trong 5 ngày (CRITICAL) và 45 ngày (NOTICE)
-    asyncio.get_event_loop().run_until_complete(
+    asyncio.run(
         _create_test_contract(
             employee_id=emp_id,
             category_id=cat_id,
@@ -180,7 +180,7 @@ def test_contract_expiring_list(client: TestClient):
             status="active"
         )
     )
-    asyncio.get_event_loop().run_until_complete(
+    asyncio.run(
         _create_test_contract(
             employee_id=emp_id,
             category_id=cat_id,
@@ -238,10 +238,10 @@ def test_contract_expiry_forecast(client: TestClient):
 
 def test_contract_history(client: TestClient):
     headers = _login(client)
-    emp_id, cat_id = asyncio.get_event_loop().run_until_complete(_get_employee_and_category_ids())
+    emp_id, cat_id = asyncio.run(_get_employee_and_category_ids())
     today = date.today()
 
-    asyncio.get_event_loop().run_until_complete(
+    asyncio.run(
         _create_test_contract(
             employee_id=emp_id,
             category_id=cat_id,

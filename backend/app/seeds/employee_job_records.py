@@ -9,6 +9,7 @@ from datetime import date
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.encryption import hash_sensitive
 
 def _d(s: str) -> date:
     return date.fromisoformat(s)
@@ -76,7 +77,7 @@ async def seed_sample_job_records(session: AsyncSession) -> int:
                 (SELECT id FROM job_titles WHERE code = :title_code),
                 :effective_from, :effective_to, false, now()
             FROM employees e
-            WHERE e.id_number = :employee_id_number
+            WHERE e.id_number_hash = :employee_id_number_hash
               AND NOT EXISTS (
                   SELECT 1 FROM employee_job_records r
                   WHERE r.employee_id = e.id
@@ -85,7 +86,7 @@ async def seed_sample_job_records(session: AsyncSession) -> int:
               )
         """),
         {
-            "employee_id_number": HISTORY_RECORD["employee_id_number"],
+            "employee_id_number_hash": hash_sensitive(HISTORY_RECORD["employee_id_number"]),
             "dept_code": HISTORY_RECORD["dept_code"],
             "title_code": HISTORY_RECORD["job_title_code"],
             "effective_from": _d(HISTORY_RECORD["effective_from"]),
@@ -107,14 +108,14 @@ async def seed_sample_job_records(session: AsyncSession) -> int:
                     (SELECT id FROM job_titles WHERE code = :title_code),
                     :effective_from, true, now()
                 FROM employees e
-                WHERE e.id_number = :employee_id_number
+                WHERE e.id_number_hash = :employee_id_number_hash
                   AND NOT EXISTS (
                       SELECT 1 FROM employee_job_records r
                       WHERE r.employee_id = e.id AND r.is_current = true
                   )
             """),
             {
-                "employee_id_number": employee_id_number,
+                "employee_id_number_hash": hash_sensitive(employee_id_number),
                 "dept_code": dept_code,
                 "title_code": title_code,
                 "effective_from": _d(effective_from),

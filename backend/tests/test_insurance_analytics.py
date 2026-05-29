@@ -1,6 +1,7 @@
 """Tests cho 11.4 — Insurance Analytics."""
 from __future__ import annotations
 
+import asyncio
 import io
 from datetime import date
 import pytest
@@ -110,9 +111,8 @@ def test_insurance_dashboard_kpi(client: TestClient):
     assert data["net_change"] == 0
 
     # 2. Tạo test event
-    import asyncio
-    emp_id = asyncio.get_event_loop().run_until_complete(_get_employee_id())
-    asyncio.get_event_loop().run_until_complete(
+    emp_id = asyncio.run(_get_employee_id())
+    asyncio.run(
         _create_test_event(emp_id, "increase", 15000000.0, date(_TEST_YEAR, _TEST_MONTH, 1))
     )
 
@@ -194,8 +194,7 @@ def test_insurance_department_breakdown(client: TestClient):
 
 def test_insurance_employee_history(client: TestClient):
     headers = _login(client)
-    import asyncio
-    emp_id = asyncio.get_event_loop().run_until_complete(_get_employee_id())
+    emp_id = asyncio.run(_get_employee_id())
 
     resp = client.get(
         f"{BASE}/employee-history",

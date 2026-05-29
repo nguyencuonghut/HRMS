@@ -8,6 +8,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.core.config import settings
+from app.core.encryption import hash_sensitive
 from app.services.notification_service import _render_template
 
 BASE = "/api/v1/notifications"
@@ -196,24 +197,25 @@ async def test_pending_notifications_birthday():
     emp_id = None
     try:
         async with Session() as session:
+            test_id_number = "ID-TEST-99999"
             # Tạo employee tạm với ngày sinh = hôm nay — phải điền đủ các cột NOT NULL
             result = await session.execute(
                 text("""
                     INSERT INTO employees
                         (employee_seq, employee_code_sequence_id, full_name, normalized_name,
                          last_name, first_name, date_of_birth, is_active, gender,
-                         nationality_id, id_number, id_issued_on, id_issued_by,
+                         nationality_id, id_number, id_number_hash, id_issued_on, id_issued_by,
                          start_date, created_at)
                     VALUES
                         (99999, (SELECT id FROM employee_code_sequences LIMIT 1),
                          'Test Birthday Employee', 'test birthday employee',
                          'Test', 'Birthday', :dob, true, 'male',
                          (SELECT id FROM nationalities LIMIT 1),
-                         'ID-TEST-99999', :dob, 'Test',
+                         :id_number, :id_number_hash, :dob, 'Test',
                          :dob, now())
                     RETURNING id
                 """),
-                {"dob": today},
+                {"dob": today, "id_number": test_id_number, "id_number_hash": hash_sensitive(test_id_number)},
             )
             emp_id = result.scalar_one()
             await session.commit()

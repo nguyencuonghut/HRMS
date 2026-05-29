@@ -9,6 +9,7 @@ Covers:
 """
 from __future__ import annotations
 
+import asyncio
 import io
 from datetime import date, datetime
 from decimal import Decimal
@@ -20,6 +21,8 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.core.config import settings
+from app.core.encryption import hash_sensitive
+from app.models.employee import Employee
 
 BASE = "/api/v1/insurance"
 _ADMIN_EMAIL = "admin@hrms.local"
@@ -28,6 +31,9 @@ _ADMIN_PASSWORD = "Hrms@2026"
 # Test period unlikely to collide with real events
 _TEST_YEAR = 2099
 _TEST_MONTH = 12
+_TEST_EMPLOYEE_ID_NUMBER = "TESTINSCHANGE0001"
+_TEST_EMPLOYEE_NAME = "Test Insurance Change"
+_TEST_CONTRACT_NUMBER = "TEST-INS-CHANGE-001"
 
 
 def _make_session():
@@ -43,24 +49,206 @@ def _admin(client: TestClient) -> dict:
     return {"Authorization": f"Bearer {token}"}
 
 
+async def _ensure_employee_with_basis() -> dict:
+    """Đảm bảo có 1 employee test với profile active + active contract + insurance_salary > 0."""
+    async with _make_session()() as s:
+        id_hash = hash_sensitive(_TEST_EMPLOYEE_ID_NUMBER)
+        employee = (
+            await s.execute(
+                text(
+                    """
+                    SELECT id, full_name
+                    FROM employees
+                    WHERE id_number_hash = :id_number_hash
+                    LIMIT 1
+                    """
+                ),
+                {"id_number_hash": id_hash},
+            )
+        ).fetchone()
+
+        if employee is None:
+            max_seq = (
+                await s.execute(text("SELECT COALESCE(MAX(employee_seq), 0) FROM employees"))
+            ).scalar_one()
+            nationality_id = (
+                await s.execute(
+                    text("SELECT id FROM nationalities WHERE iso2_code IS NOT NULL ORDER BY id LIMIT 1")
+                )
+            ).scalar_one()
+            ethnicity_id = (
+                await s.execute(
+                    text("SELECT id FROM ethnicities WHERE bhxh_code IS NOT NULL ORDER BY id LIMIT 1")
+                )
+            ).scalar_one()
+            employee_row = Employee(
+                employee_seq=max_seq + 1,
+                employee_code_sequence_id=1,
+                full_name=_TEST_EMPLOYEE_NAME,
+                normalized_name="test insurance change",
+                last_name="Test Insurance",
+                first_name="Change",
+                date_of_birth=date(1990, 1, 1),
+                gender="male",
+                nationality_id=nationality_id,
+                ethnicity_id=ethnicity_id,
+                religion_id=None,
+                id_number=_TEST_EMPLOYEE_ID_NUMBER,
+                id_number_hash=id_hash,
+                id_issued_on=date(2020, 1, 1),
+                id_issued_by="CA Test",
+                id_expires_on=None,
+                passport_number=None,
+                passport_issued_on=None,
+                passport_expires_on=None,
+                work_permit_number=None,
+                work_permit_issued_on=None,
+                work_permit_expires_on=None,
+                phone_number=None,
+                personal_email="test-insurance-change@example.com",
+                personal_tax_code=None,
+                bhxh_code=None,
+                avatar_path=None,
+                status="official",
+                start_date=date(2020, 1, 1),
+                resigned_date=None,
+                user_id=None,
+                is_active=True,
+            )
+            s.add(employee_row)
+            await s.flush()
+            employee_id = employee_row.id
+        else:
+            employee_id = employee[0]
+
+        department_id = (
+            await s.execute(text("SELECT id FROM departments ORDER BY id LIMIT 1"))
+        ).scalar_one()
+        job_title_id = (
+            await s.execute(text("SELECT id FROM job_titles ORDER BY id LIMIT 1"))
+        ).scalar()
+        category = (
+            await s.execute(
+                text(
+                    """
+                    SELECT id, document_kind
+                    FROM contract_categories
+                    ORDER BY id
+                    LIMIT 1
+                    """
+                )
+            )
+        ).fetchone()
+        assert category is not None, "Không tìm thấy contract category trong DB test"
+
+        await s.execute(
+            text(
+                """
+                UPDATE employees
+                SET status = 'official',
+                    is_active = TRUE,
+                    resigned_date = NULL,
+                    ethnicity_id = COALESCE(ethnicity_id, :ethnicity_id)
+                WHERE id = :employee_id
+                """
+            ),
+            {"employee_id": employee_id, "ethnicity_id": (
+                await s.execute(
+                    text("SELECT id FROM ethnicities WHERE bhxh_code IS NOT NULL ORDER BY id LIMIT 1")
+                )
+            ).scalar_one()},
+        )
+        await s.execute(
+            text("DELETE FROM employee_job_records WHERE employee_id = :employee_id AND is_current = TRUE"),
+            {"employee_id": employee_id},
+        )
+        await s.execute(
+            text(
+                """
+                INSERT INTO employee_job_records (
+                    employee_id, department_id, job_title_id, job_position_id,
+                    probation_start_date, probation_end_date, official_date,
+                    effective_from, effective_to, is_current, notes, changed_by, created_at, updated_at
+                ) VALUES (
+                    :employee_id, :department_id, :job_title_id, NULL,
+                    NULL, NULL, :official_date,
+                    :effective_from, NULL, TRUE, NULL, NULL, NOW(), NOW()
+                )
+                """
+            ),
+            {
+                "employee_id": employee_id,
+                "department_id": department_id,
+                "job_title_id": job_title_id,
+                "official_date": date(2020, 1, 1),
+                "effective_from": date(2020, 1, 1),
+            },
+        )
+
+        await s.execute(
+            text(
+                """
+                INSERT INTO employee_insurance_profiles (
+                    employee_id, bhxh_code, bhyt_initial_clinic_name, bhyt_initial_clinic_code,
+                    company_bhxh_joined_date, participation_status, status_effective_from, status_note,
+                    insurance_basis_source, insurance_basis_amount, insurance_policy_version_id,
+                    created_at, updated_at
+                ) VALUES (
+                    :employee_id, NULL, NULL, NULL,
+                    NULL, 'active', NULL, NULL,
+                    'contract', NULL, NULL,
+                    NOW(), NOW()
+                )
+                ON CONFLICT (employee_id) DO UPDATE
+                SET participation_status = 'active',
+                    status_effective_from = NULL,
+                    status_note = NULL,
+                    insurance_basis_source = 'contract',
+                    insurance_basis_amount = NULL,
+                    updated_at = NOW()
+                """
+            ),
+            {"employee_id": employee_id},
+        )
+
+        await s.execute(
+            text("DELETE FROM employee_contracts WHERE contract_number = :contract_number"),
+            {"contract_number": _TEST_CONTRACT_NUMBER},
+        )
+        await s.execute(
+            text(
+                """
+                INSERT INTO employee_contracts (
+                    employee_id, contract_category_id, document_kind,
+                    contract_number, signed_date, effective_from, effective_to,
+                    insurance_salary, status, created_at, updated_at
+                ) VALUES (
+                    :employee_id, :category_id, :document_kind,
+                    :contract_number, :signed_date, :effective_from, :effective_to,
+                    :insurance_salary, 'active', NOW(), NOW()
+                )
+                """
+            ),
+            {
+                "employee_id": employee_id,
+                "category_id": category[0],
+                "document_kind": category[1],
+                "contract_number": _TEST_CONTRACT_NUMBER,
+                "signed_date": date(2025, 1, 1),
+                "effective_from": date(2025, 1, 1),
+                "effective_to": date(2027, 12, 31),
+                "insurance_salary": Decimal("12000000"),
+            },
+        )
+        await s.commit()
+        return {"id": employee_id, "name": _TEST_EMPLOYEE_NAME, "status": "active"}
+
+
 # ── Shared helpers ─────────────────────────────────────────────────────────────
 
 async def _get_employee_with_basis() -> dict:
-    """Trả về employee có profile active và contract có insurance_salary."""
-    async with _make_session()() as s:
-        r = await s.execute(text("""
-            SELECT e.id, e.full_name, eip.participation_status
-            FROM employees e
-            JOIN employee_insurance_profiles eip ON eip.employee_id = e.id
-            JOIN employee_contracts ec ON ec.employee_id = e.id AND ec.status = 'active'
-            WHERE eip.participation_status = 'active'
-              AND ec.insurance_salary IS NOT NULL AND ec.insurance_salary > 0
-            ORDER BY e.id
-            LIMIT 1
-        """))
-        row = r.fetchone()
-        assert row is not None, "Không tìm thấy employee đủ điều kiện cho test"
-        return {"id": row[0], "name": row[1], "status": row[2]}
+    """Trả về employee test có profile active và contract active với insurance_salary."""
+    return await _ensure_employee_with_basis()
 
 
 async def _reset_profile_to_active(employee_id: int) -> None:
@@ -88,6 +276,12 @@ async def _delete_change_events_for_period(year: int, month: int) -> None:
             {"y": year, "m": month},
         )
         await s.commit()
+
+
+@pytest.fixture(autouse=True)
+async def ensure_test_employee_basis():
+    await _ensure_employee_with_basis()
+    yield
 
 
 def _upsert_payload(
@@ -362,13 +556,15 @@ class TestManualChangeEvents:
             await _reset_profile_to_active(eid)
             await _delete_change_events_for(eid)
 
-    def test_create_event_invalid_reason_type_mismatch(self, client: TestClient):
+    @pytest.mark.asyncio
+    async def test_create_event_invalid_reason_type_mismatch(self, client: TestClient):
         """change_type=increase không hợp với change_reason=resignation → 422."""
+        emp = await _get_employee_with_basis()
         headers = _admin(client)
         resp = client.post(
             f"{BASE}/change-events",
             json={
-                "employee_id": 1,
+                "employee_id": emp["id"],
                 "change_type": "increase",
                 "change_reason": "resignation",
                 "effective_date": "2026-06-15",
@@ -564,12 +760,11 @@ class TestExport:
     @pytest.fixture(autouse=True)
     def cleanup_test_period(self):
         """Xóa events test period trước và sau mỗi test."""
-        import asyncio
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             _delete_change_events_for_period(_TEST_YEAR, _TEST_MONTH)
         )
         yield
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             _delete_change_events_for_period(_TEST_YEAR, _TEST_MONTH)
         )
 
