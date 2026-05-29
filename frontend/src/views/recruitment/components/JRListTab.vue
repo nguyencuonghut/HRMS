@@ -82,7 +82,7 @@
         :lazy="true"
         paginator
         paginator-template="RowsPerPageDropdown FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport"
-        current-page-report-template="{first}–{last} / {totalRecords}"
+        current-page-report-template="Hiển thị từ {first} đến {last} trên tổng số {totalRecords} dòng"
         :rows-per-page-options="[20, 50, 100]"
         @page="onPage"
       >

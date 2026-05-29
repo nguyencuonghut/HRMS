@@ -113,7 +113,8 @@
 
             <DataTable :value="contractCategoryState.items" :loading="contractCategoryState.loading" stripedRows paginator lazy responsive-layout="scroll"
               :rows="contractCategoryState.pageSize" :first="(contractCategoryState.page - 1) * contractCategoryState.pageSize"
-              :total-records="contractCategoryState.total" :rows-per-page-options="[10,20,50]" paginator-template="RowsPerPageDropdown FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink"
+              :total-records="contractCategoryState.total" :rows-per-page-options="[10,20,50]" paginator-template="RowsPerPageDropdown FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport"
+              current-page-report-template="Hiển thị từ {first} đến {last} trên tổng số {totalRecords} dòng"
               @page="onPage(contractCategoryState, $event, loadContractCategories)">
               <template #empty><div class="empty-state"><i class="pi pi-inbox" /><span>Không có dữ liệu loại hợp đồng</span></div></template>
               <Column field="name" header="Tên loại" style="min-width: 260px" />
@@ -189,7 +190,8 @@
             </div>
             <DataTable :value="bankState.items" :loading="bankState.loading" stripedRows paginator lazy responsive-layout="scroll"
               :rows="bankState.pageSize" :first="(bankState.page - 1) * bankState.pageSize" :total-records="bankState.total" :rows-per-page-options="[10,20,50]"
-              paginator-template="RowsPerPageDropdown FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink"
+              paginator-template="RowsPerPageDropdown FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport"
+              current-page-report-template="Hiển thị từ {first} đến {last} trên tổng số {totalRecords} dòng"
               @page="onPage(bankState, $event, loadBanks)">
               <template #empty><div class="empty-state"><i class="pi pi-inbox" /><span>Không có dữ liệu ngân hàng</span></div></template>
               <Column field="name" header="Ngân hàng" style="min-width: 250px"><template #body="{ data }"><div class="stacked-cell"><strong>{{ data.name }}</strong><small>{{ data.short_name || '—' }}</small></div></template></Column>
@@ -249,7 +251,8 @@
             </div>
             <DataTable :value="leaveTypeState.items" :loading="leaveTypeState.loading" stripedRows paginator lazy responsive-layout="scroll"
               :rows="leaveTypeState.pageSize" :first="(leaveTypeState.page - 1) * leaveTypeState.pageSize" :total-records="leaveTypeState.total" :rows-per-page-options="[10,20,50]"
-              paginator-template="RowsPerPageDropdown FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink"
+              paginator-template="RowsPerPageDropdown FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport"
+              current-page-report-template="Hiển thị từ {first} đến {last} trên tổng số {totalRecords} dòng"
               @page="onPage(leaveTypeState, $event, loadLeaveTypes)">
               <template #empty><div class="empty-state"><i class="pi pi-inbox" /><span>Không có dữ liệu loại nghỉ</span></div></template>
               <Column field="name" header="Tên loại nghỉ" style="min-width: 220px" />
@@ -299,7 +302,8 @@
             </div>
             <DataTable :value="templateState.items" :loading="templateState.loading" stripedRows paginator lazy responsive-layout="scroll"
               :rows="templateState.pageSize" :first="(templateState.page - 1) * templateState.pageSize" :total-records="templateState.total" :rows-per-page-options="[10,20,50]"
-              paginator-template="RowsPerPageDropdown FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink"
+              paginator-template="RowsPerPageDropdown FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport"
+              current-page-report-template="Hiển thị từ {first} đến {last} trên tổng số {totalRecords} dòng"
               @page="onPage(templateState, $event, loadTemplates)">
               <template #empty><div class="empty-state"><i class="pi pi-inbox" /><span>Không có dữ liệu mẫu hợp đồng</span></div></template>
               <Column field="name" header="Tên mẫu" style="min-width: 260px"><template #body="{ data }"><div class="stacked-cell"><strong>{{ data.name }}</strong><small>{{ data.file_name }}</small></div></template></Column>

@@ -55,7 +55,8 @@
         :rows="pageRows"
         :rows-per-page-options="[10, 25, 50]"
         :first="first"
-        paginator-template="RowsPerPageDropdown FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink"
+        paginator-template="RowsPerPageDropdown FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport"
+        current-page-report-template="Hiển thị từ {first} đến {last} trên tổng số {totalRecords} dòng"
         sort-mode="single"
         @page="handlePage"
       >

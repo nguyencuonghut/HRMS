@@ -153,7 +153,8 @@
               :first="(levelState.page - 1) * levelState.pageSize"
               :total-records="levelState.total"
               :rows-per-page-options="[10, 20, 50]"
-              paginator-template="RowsPerPageDropdown FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink"
+              paginator-template="RowsPerPageDropdown FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport"
+              current-page-report-template="Hiển thị từ {first} đến {last} trên tổng số {totalRecords} dòng"
               @page="onLevelPage"
             >
               <template #paginatorstart>
@@ -246,7 +247,8 @@
               :first="(institutionState.page - 1) * institutionState.pageSize"
               :total-records="institutionState.total"
               :rows-per-page-options="[10, 20, 50]"
-              paginator-template="RowsPerPageDropdown FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink"
+              paginator-template="RowsPerPageDropdown FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport"
+              current-page-report-template="Hiển thị từ {first} đến {last} trên tổng số {totalRecords} dòng"
               @page="onInstitutionPage"
             >
               <template #paginatorstart>
@@ -350,7 +352,8 @@
               :first="(majorState.page - 1) * majorState.pageSize"
               :total-records="majorState.total"
               :rows-per-page-options="[10, 20, 50]"
-              paginator-template="RowsPerPageDropdown FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink"
+              paginator-template="RowsPerPageDropdown FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport"
+              current-page-report-template="Hiển thị từ {first} đến {last} trên tổng số {totalRecords} dòng"
               @page="onMajorPage"
             >
               <template #paginatorstart>

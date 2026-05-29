@@ -183,7 +183,8 @@
           :first="(listPage - 1) * listPageSize"
           :total-records="totalUnits"
           :rows-per-page-options="[10, 25, 50]"
-          paginator-template="RowsPerPageDropdown FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink"
+          paginator-template="RowsPerPageDropdown FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport"
+              current-page-report-template="Hiển thị từ {first} đến {last} trên tổng số {totalRecords} dòng"
           @page="onListPage"
         >
           <template #paginatorstart>

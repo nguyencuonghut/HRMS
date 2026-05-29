@@ -76,7 +76,8 @@
         :total-records="total"
         :rows-per-page-options="[10, 25, 50]"
         lazy
-        paginator-template="RowsPerPageDropdown FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink"
+        paginator-template="RowsPerPageDropdown FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport"
+        current-page-report-template="Hiển thị từ {first} đến {last} trên tổng số {totalRecords} dòng"
         row-hover
         @page="onPage"
         @update:rows="onRowsChange"
