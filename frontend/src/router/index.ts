@@ -307,6 +307,12 @@ const router = createRouter({
           component: () => import("@/views/reports/ExportCenterView.vue"),
           meta: { title: "Xuất báo cáo" },
         },
+        {
+          path: "data/import",
+          name: "data-import",
+          component: () => import("@/views/data/DataImportView.vue"),
+          meta: { title: "Nhập dữ liệu" },
+        },
         // Danh mục
         {
           path: "catalog",

@@ -221,6 +221,12 @@ const menu: MenuItem[] = [
       { to: "/reports", label: "Tổng quan báo cáo", icon: "pi-folder-open" },
     ],
   },
+  { section: true, label: "Nhập/Xuất" },
+  {
+    to: "/data/import",
+    label: "Nhập dữ liệu",
+    icon: "pi-upload",
+  },
   { section: true, label: "Hệ thống" },
   {
     label: "Danh mục",
