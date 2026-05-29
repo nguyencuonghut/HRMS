@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     DB_POOL_RECYCLE:  int  = 3600   # recycle every 1h, avoid idle disconnect
     DB_POOL_PRE_PING: bool = True   # validate stale connections before use
 
+    # File upload
+    MAX_UPLOAD_SIZE_MB: int = 50    # max file size for attachments
+
     # Monitoring
     SENTRY_DSN: str = ""            # bỏ trống = disabled
 

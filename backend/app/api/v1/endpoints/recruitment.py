@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import require_permission
 from app.core.database import get_session
+from app.core.storage import validate_upload
 from app.models.auth import User
 from app.schemas.recruitment import (
     ApplicationCreate,
@@ -735,7 +736,7 @@ async def import_candidates(
     session: AsyncSession = Depends(get_session),
 ):
     from app.services.candidate_import_service import import_candidates_excel
-    content = await file.read()
+    content = await validate_upload(file, check_type=False)
     result = await import_candidates_excel(session, content, current_user.id)
     await session.commit()
     return result

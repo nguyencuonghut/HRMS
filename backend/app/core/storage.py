@@ -6,11 +6,68 @@ from io import BytesIO
 from pathlib import Path
 from typing import Generator
 
-from fastapi import UploadFile
+from fastapi import HTTPException, UploadFile, status
 from minio import Minio
 from minio.error import S3Error
 
 from app.core.config import settings
+
+# ── File validation constants ─────────────────────────────────────────────────
+
+MAX_UPLOAD_SIZE_BYTES = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
+
+ALLOWED_EXTENSIONS = {
+    ".pdf", ".xlsx", ".xls", ".docx", ".doc",
+    ".jpg", ".jpeg", ".png", ".webp",
+}
+
+ALLOWED_CONTENT_TYPES = {
+    "application/pdf",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/msword",
+    "application/vnd.ms-excel",
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+}
+
+
+def validate_file_type(upload: UploadFile) -> None:
+    """Kiểm tra extension và content-type. Raise 400 nếu không hợp lệ."""
+    ext = Path(upload.filename or "").suffix.lower()
+    ct = (upload.content_type or "").split(";")[0].strip().lower()
+
+    if ext and ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail=f"Định dạng file không được phép: {ext}. Chỉ chấp nhận: {', '.join(sorted(ALLOWED_EXTENSIONS))}",
+        )
+    if ct and ct not in ALLOWED_CONTENT_TYPES and not ct.startswith("image/"):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail=f"Content-type không hợp lệ: {ct}",
+        )
+
+
+async def validate_upload(upload: UploadFile, *, check_type: bool = True) -> bytes:
+    """Đọc file và validate kích thước + loại. Raise HTTPException nếu vi phạm."""
+    if check_type:
+        validate_file_type(upload)
+
+    content = await upload.read()
+
+    if len(content) > MAX_UPLOAD_SIZE_BYTES:
+        raise HTTPException(
+            status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"File quá lớn ({len(content) / 1024 / 1024:.1f} MB). Tối đa {settings.MAX_UPLOAD_SIZE_MB} MB.",
+        )
+    if len(content) == 0:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail="File rỗng, vui lòng kiểm tra lại.",
+        )
+    return content
 
 
 def _client() -> Minio:
@@ -38,7 +95,7 @@ async def save_employee_attachment(employee_id: int, upload: UploadFile) -> tupl
     Upload file hồ sơ nhân viên lên MinIO.
     Trả về (object_name, file_size).
     """
-    content = await upload.read()
+    content = await validate_upload(upload)
     safe_name = Path(upload.filename or "file").name
     object_name = f"employees/{employee_id}/{uuid.uuid4().hex[:8]}_{safe_name}"
     content_type = upload.content_type or "application/octet-stream"
@@ -58,7 +115,7 @@ async def save_attachment(position_id: int, upload: UploadFile) -> tuple[str, in
     Upload file lên MinIO.
     Trả về (object_name, file_size).
     """
-    content = await upload.read()
+    content = await validate_upload(upload)
     safe_name = Path(upload.filename or "file").name
     object_name = f"attachments/{position_id}/{uuid.uuid4().hex[:8]}_{safe_name}"
     content_type = upload.content_type or "application/octet-stream"
@@ -95,7 +152,7 @@ def get_object_bytes(object_name: str) -> bytes:
 
 async def save_contract_file(contract_id: int, upload: UploadFile) -> tuple[str, int]:
     """Upload file hợp đồng (scan/PDF) lên MinIO. Trả về (object_name, file_size)."""
-    content = await upload.read()
+    content = await validate_upload(upload)
     safe_name = Path(upload.filename or "file").name
     object_name = f"contracts/{contract_id}/{uuid.uuid4().hex[:8]}_{safe_name}"
     content_type = upload.content_type or "application/octet-stream"
@@ -111,7 +168,7 @@ async def save_contract_file(contract_id: int, upload: UploadFile) -> tuple[str,
 
 async def save_template_file(template_id: int, upload: UploadFile) -> tuple[str, int]:
     """Upload file DOCX mẫu hợp đồng lên MinIO. Trả về (object_name, file_size)."""
-    content = await upload.read()
+    content = await validate_upload(upload)
     safe_name = Path(upload.filename or "template.docx").name
     object_name = f"templates/{template_id}/{uuid.uuid4().hex[:8]}_{safe_name}"
     content_type = upload.content_type or "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -127,7 +184,7 @@ async def save_template_file(template_id: int, upload: UploadFile) -> tuple[str,
 
 async def save_reward_file(reward_id: int, upload: UploadFile) -> tuple[str, int]:
     """Upload file quyết định khen thưởng lên MinIO. Trả về (object_name, file_size)."""
-    content = await upload.read()
+    content = await validate_upload(upload)
     safe_name = Path(upload.filename or "file").name
     object_name = f"rewards/{reward_id}/{uuid.uuid4().hex[:8]}_{safe_name}"
     content_type = upload.content_type or "application/octet-stream"
@@ -143,7 +200,7 @@ async def save_reward_file(reward_id: int, upload: UploadFile) -> tuple[str, int
 
 async def save_discipline_file(discipline_id: int, upload: UploadFile) -> tuple[str, int]:
     """Upload file quyết định kỷ luật lên MinIO. Trả về (object_name, file_size)."""
-    content = await upload.read()
+    content = await validate_upload(upload)
     safe_name = Path(upload.filename or "file").name
     object_name = f"disciplines/{discipline_id}/{uuid.uuid4().hex[:8]}_{safe_name}"
     content_type = upload.content_type or "application/octet-stream"
@@ -159,7 +216,7 @@ async def save_discipline_file(discipline_id: int, upload: UploadFile) -> tuple[
 
 async def save_certificate_file(cert_id: int, upload: UploadFile) -> tuple[str, int]:
     """Upload file chứng chỉ lên MinIO. Trả về (object_name, file_size)."""
-    content = await upload.read()
+    content = await validate_upload(upload)
     safe_name = Path(upload.filename or "file").name
     object_name = f"certificates/{cert_id}/{uuid.uuid4().hex[:8]}_{safe_name}"
     content_type = upload.content_type or "application/octet-stream"

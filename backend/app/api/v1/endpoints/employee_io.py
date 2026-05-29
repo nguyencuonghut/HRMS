@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import require_permission
 from app.core.database import get_session
+from app.core.storage import validate_upload
 from app.models.auth import User
 from app.schemas.employee_import import ImportResult
 from app.services import auth_service, employee_export_service, employee_import_service
@@ -65,7 +66,7 @@ async def import_employees(
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Chỉ chấp nhận file .xlsx")
 
     user_id = current_user.id   # cache trước khi session có thể expire
-    content = await file.read()
+    content = await validate_upload(file, check_type=False)  # xlsx checked by ext above
     try:
         result = await employee_import_service.process_import(session, content)
     except ValueError as exc:

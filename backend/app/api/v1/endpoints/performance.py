@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import require_permission
 from app.core.database import get_session
+from app.core.storage import validate_upload
 from app.models.auth import User
 from app.schemas.performance import (
     DepartmentKpiStat,
@@ -95,7 +96,7 @@ async def import_kpi(
     current_user: User = require_permission("performance:manage_kpi"),
     session: AsyncSession = Depends(get_session),
 ):
-    content = await file.read()
+    content = await validate_upload(file, check_type=False)
     result = await kpi_service.import_kpi_excel(session, content, current_user.id)
     await session.commit()
     return result
