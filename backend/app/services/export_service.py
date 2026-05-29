@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import io
-import unicodedata
 import uuid
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
@@ -9,6 +8,13 @@ from pathlib import Path
 from typing import Any, Awaitable, Callable, Optional
 
 from fastapi import HTTPException, status
+from openpyxl import load_workbook
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import A4, landscape
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -41,6 +47,20 @@ ASYNC_THRESHOLD_ROWS = 1_000
 EXPORT_DIR = Path("/tmp/hrms_exports")
 _XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 _PDF_MIME = "application/pdf"
+_PDF_FONT_NAME = "NotoSans"
+_PDF_FONT_PATH = Path(__file__).resolve().parent.parent / "assets" / "fonts" / "NotoSans-Regular.ttf"
+_REPORT_TYPE_LABELS: dict[str, str] = {
+    "dashboard": "Dashboard tổng quan",
+    "hr-employee-list": "Nhân sự: Danh sách nhân viên",
+    "hr-movement": "Nhân sự: Biến động nhân sự",
+    "hr-tenure": "Nhân sự: Thâm niên nhân sự",
+    "hr-org-structure": "Nhân sự: Cơ cấu tổ chức",
+    "leaves": "Nghỉ phép: Phân tích nghỉ phép",
+    "insurance": "Bảo hiểm: Phân tích bảo hiểm",
+    "contracts": "Hợp đồng: Báo cáo hợp đồng",
+    "recruitment": "Tuyển dụng: Báo cáo tuyển dụng",
+    "probation": "Thử việc: Báo cáo thử việc",
+}
 
 
 @dataclass(frozen=True)
@@ -54,44 +74,173 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
-def _sanitize_ascii(value: str) -> str:
-    normalized = unicodedata.normalize("NFKD", value)
-    return normalized.encode("ascii", "ignore").decode("ascii") or "report"
+def _stringify_cell(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, datetime):
+        return value.strftime("%d/%m/%Y %H:%M")
+    if isinstance(value, date):
+        return value.strftime("%d/%m/%Y")
+    return str(value)
 
 
-def _minimal_pdf(report_type: str, filters: dict[str, Any], row_count: int) -> bytes:
-    lines = [
-        f"Export report: {_sanitize_ascii(report_type)}",
-        f"Rows: {row_count}",
-        f"Filters: {_sanitize_ascii(str(filters))}",
-    ]
-    y_positions = [760, 740, 720]
-    text_ops = "\n".join(
-        f"BT /F1 12 Tf 50 {y} Td ({line.replace('(', '[').replace(')', ']')}) Tj ET"
-        for line, y in zip(lines, y_positions)
+def _sheet_rows(sheet: Any) -> list[list[str]]:
+    rows: list[list[str]] = []
+    max_len = 0
+    for row in sheet.iter_rows(values_only=True):
+        values = [_stringify_cell(cell).strip() for cell in row]
+        while values and values[-1] == "":
+            values.pop()
+        if not values:
+            continue
+        rows.append([value if value else "—" for value in values])
+        max_len = max(max_len, len(values))
+    for row in rows:
+        row.extend(["—"] * (max_len - len(row)))
+    return rows
+
+
+def _table_column_widths(rows: list[list[str]], usable_width: float) -> list[float]:
+    if not rows:
+        return [usable_width]
+    raw_widths: list[float] = []
+    for col_index in range(len(rows[0])):
+        longest = max(len(row[col_index]) for row in rows)
+        raw_widths.append(float(min(max(longest, 10), 28)))
+    scale = usable_width / sum(raw_widths)
+    return [width * scale for width in raw_widths]
+
+
+def _ensure_pdf_font() -> None:
+    if _PDF_FONT_NAME in pdfmetrics.getRegisteredFontNames():
+        return
+    if not _PDF_FONT_PATH.exists():
+        raise FileNotFoundError(f"Thiếu font PDF Unicode: {_PDF_FONT_PATH}")
+    pdfmetrics.registerFont(TTFont(_PDF_FONT_NAME, str(_PDF_FONT_PATH)))
+
+
+def _report_type_label(report_type: str) -> str:
+    return _REPORT_TYPE_LABELS.get(report_type, report_type)
+
+
+def _workbook_pdf(report_type: str, filters: dict[str, Any], row_count: int, workbook_bytes: bytes) -> bytes:
+    _ensure_pdf_font()
+    workbook = load_workbook(io.BytesIO(workbook_bytes), data_only=True)
+    is_landscape = any((sheet.max_column or 0) >= 8 for sheet in workbook.worksheets)
+    page_size = landscape(A4) if is_landscape else A4
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=page_size,
+        leftMargin=24,
+        rightMargin=24,
+        topMargin=28,
+        bottomMargin=24,
+        pageCompression=0,
+        title=_report_type_label(report_type),
     )
-    content = text_ops.encode("ascii", "ignore")
-    objects = [
-        b"1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n",
-        b"2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj\n",
-        b"3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >> endobj\n",
-        b"4 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj\n",
-        f"5 0 obj << /Length {len(content)} >> stream\n".encode("ascii") + content + b"\nendstream endobj\n",
-    ]
-    pdf = bytearray(b"%PDF-1.4\n")
-    offsets = [0]
-    for obj in objects:
-        offsets.append(len(pdf))
-        pdf.extend(obj)
-    xref_start = len(pdf)
-    pdf.extend(f"xref\n0 {len(offsets)}\n".encode("ascii"))
-    pdf.extend(b"0000000000 65535 f \n")
-    for offset in offsets[1:]:
-        pdf.extend(f"{offset:010d} 00000 n \n".encode("ascii"))
-    pdf.extend(
-        f"trailer << /Size {len(offsets)} /Root 1 0 R >>\nstartxref\n{xref_start}\n%%EOF".encode("ascii")
+
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        "ExportTitle",
+        parent=styles["Heading2"],
+        fontName=_PDF_FONT_NAME,
+        fontSize=14,
+        leading=18,
+        textColor=colors.HexColor("#1E3A5F"),
+        spaceAfter=8,
     )
-    return bytes(pdf)
+    meta_style = ParagraphStyle(
+        "ExportMeta",
+        parent=styles["BodyText"],
+        fontName=_PDF_FONT_NAME,
+        fontSize=9,
+        leading=12,
+        textColor=colors.HexColor("#4B5563"),
+        spaceAfter=10,
+    )
+    cell_style = ParagraphStyle(
+        "ExportCell",
+        parent=styles["BodyText"],
+        fontName=_PDF_FONT_NAME,
+        fontSize=8 if is_landscape else 9,
+        leading=10 if is_landscape else 11,
+        textColor=colors.HexColor("#111827"),
+    )
+    header_cell_style = ParagraphStyle(
+        "ExportHeaderCell",
+        parent=cell_style,
+        fontName=_PDF_FONT_NAME,
+        fontSize=8 if is_landscape else 9,
+        leading=10 if is_landscape else 11,
+        textColor=colors.white,
+    )
+    story: list[Any] = []
+
+    for index, sheet in enumerate(workbook.worksheets):
+        rows = _sheet_rows(sheet)
+        if not rows:
+            rows = [["Không có dữ liệu"]]
+
+        if index > 0:
+            story.append(PageBreak())
+
+        usable_width = doc.width
+        widths = _table_column_widths(rows, usable_width=usable_width)
+        story.append(Paragraph(f"Báo cáo: {_report_type_label(report_type)}", title_style))
+        if index == 0:
+            header = f"Sheet: {sheet.title} | Số dòng: {row_count} | Bộ lọc: {filters or '{}'}"
+        else:
+            header = f"Sheet: {sheet.title}"
+        story.append(Paragraph(header, meta_style))
+
+        table_data: list[list[Paragraph]] = []
+        for row_index, row in enumerate(rows):
+            style = header_cell_style if row_index == 0 else cell_style
+            table_data.append(
+                [
+                    Paragraph(
+                        cell.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"),
+                        style,
+                    )
+                    for cell in row
+                ]
+            )
+        table = Table(table_data, colWidths=widths, repeatRows=1, splitByRow=1)
+        table.setStyle(
+            TableStyle(
+                [
+                    ("FONTNAME", (0, 0), (-1, -1), _PDF_FONT_NAME),
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1E3A5F")),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                    ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#D1D5DB")),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F8FAFC")]),
+                    ("TOPPADDING", (0, 0), (-1, -1), 4),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 5),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+                ]
+            )
+        )
+        story.append(table)
+        story.append(Spacer(1, 8))
+
+    doc.build(story)
+    buffer.seek(0)
+    return buffer.getvalue()
+
+
+def _coerce_filter_value(key: str, value: Any) -> Any:
+    if value is None:
+        return None
+    if key in {"start_date", "end_date"} and isinstance(value, str):
+        return date.fromisoformat(value)
+    return value
+
+
+def _normalize_filters(filters: dict[str, Any]) -> dict[str, Any]:
+    return {key: _coerce_filter_value(key, value) for key, value in filters.items()}
 
 
 async def _estimate_dashboard_rows(session: AsyncSession, filters: dict[str, Any]) -> int:
@@ -109,25 +258,25 @@ async def _export_dashboard_xlsx(session: AsyncSession, filters: dict[str, Any])
     structure = await dashboard_service.get_structure(session, department_id=department_id)
 
     rows: list[list[object]] = [
-        ["Tong nhan su", summary.total_headcount],
-        ["Moi trong thang", summary.new_hires_this_month],
-        ["Nghi viec trong thang", summary.resigned_this_month],
-        ["Headcount dau thang", summary.headcount_start_of_month],
-        ["Turnover rate", summary.turnover_rate],
+        ["Tổng nhân sự", summary.total_headcount],
+        ["Mới trong tháng", summary.new_hires_this_month],
+        ["Nghỉ việc trong tháng", summary.resigned_this_month],
+        ["Số nhân sự đầu tháng", summary.headcount_start_of_month],
+        ["Tỷ lệ nghỉ việc", summary.turnover_rate],
         [],
-        ["Phong ban", "Headcount"],
+        ["Phòng ban", "Số nhân sự"],
     ]
-    rows.extend([[item.dept_name, item.headcount] for item in headcount])
+    rows.extend([[item.department_name, item.headcount] for item in headcount])
     rows.append([])
-    rows.append(["Thang", "Tuyen moi", "Nghi viec", "Net"])
-    rows.extend([[item.month_label, item.new_hires, item.resignations, item.net_change] for item in trend.items])
+    rows.append(["Tháng", "Tuyển mới", "Nghỉ việc", "Biến động ròng"])
+    rows.extend([[item.month, item.new_hires, item.resigned_count, item.net_change] for item in trend.monthly])
     rows.append([])
-    rows.append(["Co cau", "Gia tri"])
+    rows.append(["Cơ cấu", "Giá trị"])
     rows.extend([
-        [item.label, item.value]
-        for item in structure.gender + structure.age_groups + structure.education_levels + structure.tenure_groups
+        [item.label, item.count]
+        for item in structure.gender + structure.age_group + structure.education_level + structure.tenure_group
     ])
-    return ExcelStyler.build_table_workbook("Dashboard nhan su", ["Chi muc", "Gia tri"], rows, "Dashboard")
+    return ExcelStyler.build_table_workbook("Dashboard nhân sự", ["Chỉ mục", "Giá trị"], rows, "Dashboard")
 
 
 async def _estimate_hr_employee_list(session: AsyncSession, filters: dict[str, Any]) -> int:
@@ -487,8 +636,9 @@ class ExportService:
 
     async def _estimate_rows(self, report_type: str, filters: dict[str, Any]) -> int:
         handler = REPORT_HANDLERS[report_type]
+        normalized_filters = _normalize_filters(filters)
         try:
-            return max(int(await handler.estimate_rows(self.session, filters)), 0)
+            return max(int(await handler.estimate_rows(self.session, normalized_filters)), 0)
         except Exception:
             return 0
 
@@ -510,12 +660,13 @@ class ExportService:
 
     async def _build_file(self, report_type: str, fmt: ExportFormat, filters: dict[str, Any]) -> tuple[bytes, int]:
         handler = REPORT_HANDLERS[report_type]
-        workbook = await handler.export_xlsx(self.session, filters)
+        normalized_filters = _normalize_filters(filters)
+        workbook = await handler.export_xlsx(self.session, normalized_filters)
         xlsx_bytes = workbook.getvalue()
-        row_count = await self._estimate_rows(report_type, filters)
+        row_count = await self._estimate_rows(report_type, normalized_filters)
         if fmt == "xlsx":
             return xlsx_bytes, row_count
-        return _minimal_pdf(report_type, filters, row_count), row_count
+        return _workbook_pdf(report_type, normalized_filters, row_count, xlsx_bytes), row_count
 
     @staticmethod
     def _save_temp(job_id: uuid.UUID, fmt: str, payload: bytes) -> str:

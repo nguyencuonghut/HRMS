@@ -576,20 +576,20 @@ async def export_employee_list_excel(
     report = await get_employee_list(session, **normalized_filters)
     wb = Workbook()
     ws = wb.active
-    ws.title = "Danh sach nhan su"
+    ws.title = "Danh sách nhân sự"
     ws.append(
         [
-            "Ma NV",
-            "Ho ten",
-            "Gioi tinh",
-            "Trang thai",
-            "Ngay vao lam",
-            "Ngay nghi viec",
-            "Phong ban",
-            "Chuc danh",
-            "Loai hop dong",
-            "Loai van ban",
-            "Tham nien",
+            "Mã NV",
+            "Họ tên",
+            "Giới tính",
+            "Trạng thái",
+            "Ngày vào làm",
+            "Ngày nghỉ việc",
+            "Phòng ban",
+            "Chức danh",
+            "Loại hợp đồng",
+            "Loại văn bản",
+            "Thâm niên",
         ]
     )
     for item in report.items:
@@ -630,16 +630,16 @@ async def export_movement_excel(
     )
     wb = Workbook()
     ws = wb.active
-    ws.title = "Bien dong nhan su"
+    ws.title = "Biến động nhân sự"
     ws.append(
         [
-            "Ky",
-            "Tu ngay",
-            "Den ngay",
-            "Tuyen moi",
-            "Thoi viec",
-            "Chuyen bo phan",
-            "Bien dong rong",
+            "Kỳ",
+            "Từ ngày",
+            "Đến ngày",
+            "Tuyển mới",
+            "Thôi việc",
+            "Chuyển bộ phận",
+            "Biến động ròng",
         ]
     )
     for row in report.rows:
@@ -667,17 +667,17 @@ async def export_tenure_excel(
     report = await get_tenure_report(session, department_id=department_id)
     wb = Workbook()
     summary_ws = wb.active
-    summary_ws.title = "Tong hop tham nien"
+    summary_ws.title = "Tổng hợp thâm niên"
     summary_ws.append(
-        ["Nhom", "Headcount", "Ty le", "TB tham nien"]
+        ["Nhóm", "Số nhân sự", "Tỷ lệ", "TB thâm niên"]
     )
     for group in report.groups:
         summary_ws.append(
             [group.group_label, group.headcount, group.percentage, group.avg_tenure_years]
         )
 
-    detail_ws = wb.create_sheet("Chi tiet tham nien")
-    detail_ws.append(["Nhom", "Ho ten", "Phong ban", "Ngay vao lam", "Tham nien"])
+    detail_ws = wb.create_sheet("Chi tiết thâm niên")
+    detail_ws.append(["Nhóm", "Họ tên", "Phòng ban", "Ngày vào làm", "Thâm niên"])
     for group in report.groups:
         for employee in group.employees:
             detail_ws.append(
@@ -702,16 +702,16 @@ async def export_org_structure_excel(
     report = await get_org_structure(session, department_id=department_id)
     wb = Workbook()
     ws = wb.active
-    ws.title = "Co cau to chuc"
+    ws.title = "Cơ cấu tổ chức"
     ws.append(
         [
-            "Phong ban",
-            "Phong ban cha",
-            "Headcount tong",
-            "Headcount truc tiep",
-            "Chuc danh",
-            "Cap bac",
-            "Headcount chuc danh",
+            "Phòng ban",
+            "Phòng ban cha",
+            "Tổng nhân sự",
+            "Nhân sự trực tiếp",
+            "Chức danh",
+            "Cấp bậc",
+            "Số nhân sự theo chức danh",
         ]
     )
 

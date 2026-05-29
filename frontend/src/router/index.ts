@@ -301,6 +301,12 @@ const router = createRouter({
           component: () => import("@/views/reports/ContractReportView.vue"),
           meta: { title: "Báo cáo Hợp đồng", permission: "employees:read" },
         },
+        {
+          path: "reports/export",
+          name: "export-center",
+          component: () => import("@/views/reports/ExportCenterView.vue"),
+          meta: { title: "Xuất báo cáo" },
+        },
         // Danh mục
         {
           path: "catalog",

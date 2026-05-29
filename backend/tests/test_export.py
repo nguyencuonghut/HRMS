@@ -8,11 +8,13 @@ from pathlib import Path
 
 import openpyxl
 import pytest
+from pypdf import PdfReader
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.core.config import settings
+from app.utils.excel_style import ExcelStyler
 from app.workers.export_tasks import run_export_task
 from app.services.export_service import cleanup_expired_exports_async
 
@@ -187,8 +189,137 @@ def test_sync_export_xlsx(client: TestClient):
     assert download.status_code == 200
     assert download.headers["content-type"].startswith("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     workbook = openpyxl.load_workbook(io.BytesIO(download.content))
-    assert workbook.active.title == "Danh sach nhan su"
-    assert workbook.active["A1"].value == "Ma NV"
+    assert workbook.active.title == "Danh sách nhân sự"
+    assert workbook.active["A1"].value == "Mã NV"
+
+
+def test_sync_export_dashboard_xlsx(client: TestClient):
+    headers = _admin_headers(client)
+    response = client.post(
+        BASE,
+        headers=headers,
+        json={
+            "report_type": "dashboard",
+            "format": "xlsx",
+            "filename": f"{_PREFIX}_dashboard",
+            "filters": {},
+        },
+    )
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["status"] == "done"
+    assert payload["download_url"]
+
+    download = client.get(payload["download_url"], headers=headers)
+    assert download.status_code == 200
+    workbook = openpyxl.load_workbook(io.BytesIO(download.content))
+    assert workbook.active.title == "Dashboard"
+    assert workbook.active["A1"].value == "Dashboard nhân sự"
+    values = {
+        row[0]
+        for row in workbook.active.iter_rows(min_row=4, max_col=1, values_only=True)
+        if row[0] is not None
+    }
+    assert "Phòng ban" in values
+    assert f"{_PREFIX} Dept" in values
+
+
+def test_sync_export_pdf_contains_report_content(client: TestClient):
+    headers = _admin_headers(client)
+    response = client.post(
+        BASE,
+        headers=headers,
+        json={
+            "report_type": "hr-employee-list",
+            "format": "pdf",
+            "filename": f"{_PREFIX}_sync_pdf",
+            "filters": {"page_size": 20},
+        },
+    )
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["status"] == "done"
+    assert payload["download_url"]
+
+    download = client.get(payload["download_url"], headers=headers)
+    assert download.status_code == 200
+    assert download.headers["content-type"].startswith("application/pdf")
+    assert download.content.startswith(b"%PDF-1.4")
+    extracted = "\n".join(page.extract_text() or "" for page in PdfReader(io.BytesIO(download.content)).pages)
+    assert "Danh sách nhân sự" in extracted
+    assert "Mã NV" in extracted
+    assert "Họ tên" in extracted
+    assert "Phòng ban" in extracted
+    assert _PREFIX in extracted
+
+
+def test_export_normalizes_string_dates_for_date_based_reports(client: TestClient, monkeypatch: pytest.MonkeyPatch):
+    headers = _admin_headers(client)
+    captured: dict[str, tuple[object, object]] = {}
+
+    async def fake_movement_getter(session, *, start_date, end_date, group_by="month", department_id=None):
+        captured["hr-movement-estimate"] = (start_date, end_date)
+        return type("MovementEstimate", (), {"rows": []})()
+
+    async def fake_movement_exporter(session, *, start_date, end_date, group_by="month", department_id=None):
+        captured["hr-movement-export"] = (start_date, end_date)
+        return ExcelStyler.build_table_workbook("Movement", ["A"], [["ok"]], "Movement")
+
+    async def fake_funnel(session, start_date, end_date, department_id=None, job_requisition_id=None):
+        captured["recruitment-estimate"] = (start_date, end_date)
+        return type("FunnelReport", (), {"stages": []})()
+
+    async def fake_recruitment_export(session, start_date, end_date, department_id=None):
+        captured["recruitment-export"] = (start_date, end_date)
+        return ExcelStyler.build_table_workbook("Recruitment", ["A"], [["ok"]], "Recruitment")
+
+    async def fake_probation_history(
+        session,
+        *,
+        start_date=None,
+        end_date=None,
+        department_id=None,
+        keyword=None,
+        page=1,
+        page_size=1,
+    ):
+        captured["probation-estimate"] = (start_date, end_date)
+        return type("ProbationHistory", (), {"total": 0})()
+
+    async def fake_probation_export(session, *, start_date, end_date, department_id=None):
+        captured["probation-export"] = (start_date, end_date)
+        return ExcelStyler.build_table_workbook("Probation", ["A"], [["ok"]], "Probation")
+
+    monkeypatch.setattr("app.services.export_service.hr_report_service.get_movement_report", fake_movement_getter)
+    monkeypatch.setattr("app.services.export_service.hr_report_service.export_movement_excel", fake_movement_exporter)
+    monkeypatch.setattr("app.services.export_service.recruitment_report_service.get_funnel", fake_funnel)
+    monkeypatch.setattr("app.services.export_service.recruitment_report_service.export_excel", fake_recruitment_export)
+    monkeypatch.setattr("app.services.export_service.probation_report_service.get_probation_history", fake_probation_history)
+    monkeypatch.setattr("app.services.export_service.probation_report_service.export_excel", fake_probation_export)
+
+    for report_type in ("hr-movement", "recruitment", "probation"):
+        response = client.post(
+            BASE,
+            headers=headers,
+            json={
+                "report_type": report_type,
+                "format": "xlsx",
+                "filename": f"{_PREFIX}_{report_type}",
+                "filters": {
+                    "start_date": "2026-01-01",
+                    "end_date": "2026-03-31",
+                },
+            },
+        )
+        assert response.status_code == 200, response.text
+        assert response.json()["status"] == "done"
+
+    for key, value in captured.items():
+        start_date, end_date = value
+        assert isinstance(start_date, date), key
+        assert isinstance(end_date, date), key
+        assert start_date.isoformat() == "2026-01-01", key
+        assert end_date.isoformat() == "2026-03-31", key
 
 
 def test_async_export_history_status_and_delete(client: TestClient, monkeypatch: pytest.MonkeyPatch):
