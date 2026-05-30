@@ -13,6 +13,7 @@ from app.core.logging import setup_logging
 from app.core.rate_limit import limiter
 from app.core.storage import ensure_bucket
 from app.middleware.security_headers import SecurityHeadersMiddleware
+from app.middleware.request_id import RequestIDMiddleware
 from app.api.v1.router import router as api_v1_router
 from app.seeds import rbac as rbac_seed
 from app.seeds import notification_templates as notif_seed
