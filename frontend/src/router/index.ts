@@ -419,6 +419,13 @@ const router = createRouter({
 
 router.beforeEach(async (to) => {
   const auth = useAuthStore();
+  const shouldAttemptRestore =
+    !to.meta.public || Boolean(to.query.redirect);
+
+  // M5 bootstrap: restore session đúng 1 lần qua HttpOnly cookie trước khi quyết định redirect.
+  if (!auth.isAuthenticated && !auth.sessionResolved && shouldAttemptRestore) {
+    await auth.tryRefresh();
+  }
 
   // 1. Chưa đăng nhập → redirect login
   if (!to.meta.public && !auth.isAuthenticated) {
@@ -444,7 +451,7 @@ router.beforeEach(async (to) => {
 
   // 4. Đã đăng nhập → không cho vào trang login
   if (to.name === "login" && auth.isAuthenticated) {
-    return { name: "dashboard" };
+    return { name: "dashboard-overview" };
   }
 });
 

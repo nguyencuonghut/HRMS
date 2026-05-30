@@ -1,39 +1,45 @@
 /**
- * Axios instance dùng chung cho toàn bộ app.
+ * Axios instance — M5: Token migration localStorage → memory + HttpOnly cookie
  *
- * Tính năng:
- *  - Timeout 30s mặc định
- *  - Tự gắn Bearer token từ localStorage vào header
- *  - Network error → retry 1 lần sau 1 giây
- *  - 401 → thử refresh token → nếu fail → logout + redirect /login
- *  - 5xx → dispatch event 'api:server-error' để App.vue hiển thị toast
+ * - access_token: lấy từ Pinia store (in-memory), gắn vào Authorization header
+ * - refresh_token: HttpOnly cookie — browser tự gửi đến /api/v1/auth/refresh
+ *   → KHÔNG cần JS đọc/ghi localStorage cho refresh_token nữa
+ *
+ * Flow 401:
+ *   → POST /api/v1/auth/refresh (no body, browser sends cookie)
+ *   → nếu thành công: cập nhật accessToken in store → retry request gốc
+ *   → nếu fail: logout + redirect /login
  */
 import axios, { type AxiosRequestConfig } from 'axios'
-import { getActivePinia } from 'pinia'
+import { pinia } from '@/stores/pinia'
 
-// ── Khai báo custom fields trên config để theo dõi retry ─────────────────────
 declare module 'axios' {
   interface InternalAxiosRequestConfig {
-    _retried?: boolean        // đã retry do network error
-    _authRetried?: boolean    // đã retry sau khi refresh token
+    _retried?: boolean
+    _authRetried?: boolean
   }
 }
 
-// ── Tạo instance ──────────────────────────────────────────────────────────────
 const api = axios.create({
   baseURL: '/api/v1',
   timeout: 30_000,
   headers: { 'Content-Type': 'application/json' },
+  // Cookie được gửi tự động bởi browser (withCredentials không cần cho same-origin)
 })
 
-// ── Request interceptor — gắn auth token ─────────────────────────────────────
+function _isAuthEndpoint(url?: string): boolean {
+  if (!url) return false
+  return url.includes('/auth/login') || url.includes('/auth/refresh') || url.includes('/auth/logout')
+}
+
+// ── Request interceptor — gắn access_token từ Pinia store ─────────────────────
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('access_token')
+  const token = _getAccessToken()
   if (token) config.headers.Authorization = `Bearer ${token}`
   return config
 })
 
-// ── Response interceptor ──────────────────────────────────────────────────────
+// ── Response interceptor ───────────────────────────────────────────────────────
 api.interceptors.response.use(
   (res) => res,
 
@@ -43,7 +49,7 @@ api.interceptors.response.use(
       _authRetried?: boolean
     }
 
-    // ── Network error hoặc timeout → retry 1 lần sau 1 giây ─────────────────
+    // Network error / timeout → retry 1 lần sau 1 giây
     if (!error.response && !config._retried) {
       config._retried = true
       await _delay(1000)
@@ -52,96 +58,84 @@ api.interceptors.response.use(
 
     const status = error.response?.status
 
-    // ── 401 Unauthorized → thử refresh token ─────────────────────────────────
-    if (status === 401 && !config._authRetried) {
-      config._authRetried = true
-
-      const refreshToken = localStorage.getItem('refresh_token')
-      if (refreshToken) {
-        try {
-          // Dùng axios raw (không intercepted) để tránh vòng lặp vô hạn
-          const { data } = await axios.post('/api/v1/auth/refresh', {
-            refresh_token: refreshToken,
-          })
-          // Lưu token mới
-          localStorage.setItem('access_token', data.access_token)
-          if (data.refresh_token) {
-            localStorage.setItem('refresh_token', data.refresh_token)
-          }
-          // Cập nhật Pinia store nếu đang active
-          _syncAuthStore(data.access_token)
-
-          // Retry request gốc với token mới
-          if (config.headers) {
-            config.headers.Authorization = `Bearer ${data.access_token}`
-          }
-          return api(config)
-        } catch {
-          // Refresh thất bại → logout hoàn toàn
-          _logoutAndRedirect()
-          return Promise.reject(error)
-        }
-      }
-
-      // Không có refresh token → logout
-      _logoutAndRedirect()
+    // Không retry auth flow trên chính auth endpoints để tránh refresh recursion / rate-limit storm.
+    if (_isAuthEndpoint(config.url)) {
       return Promise.reject(error)
     }
 
-    // ── 5xx Server Error → thông báo cho user qua custom event ───────────────
+    // 401 → thử refresh qua HttpOnly cookie
+    if (status === 401 && !config._authRetried) {
+      config._authRetried = true
+      try {
+        // POST /auth/refresh không có body — browser gửi cookie tự động
+        const { data } = await axios.post('/api/v1/auth/refresh', undefined, {
+          withCredentials: true,
+        })
+        // Cập nhật access_token in-memory
+        _syncAuthStore(data.access_token)
+
+        if (config.headers) {
+          config.headers.Authorization = `Bearer ${data.access_token}`
+        }
+        return api(config)
+      } catch {
+        _logoutAndRedirect()
+        return Promise.reject(error)
+      }
+    }
+
+    // 5xx → toast
     if (status !== undefined && status >= 500) {
       const detail = error.response?.data?.detail ?? 'Máy chủ gặp sự cố, vui lòng thử lại.'
-      document.dispatchEvent(
-        new CustomEvent('api:server-error', {
-          detail: { status, message: detail },
-        })
-      )
+      document.dispatchEvent(new CustomEvent('api:server-error', { detail: { status, message: detail } }))
     }
 
     return Promise.reject(error)
   }
 )
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ── Helpers ────────────────────────────────────────────────────────────────────
+
+function _getAccessToken(): string | null {
+  try {
+    // Setup store trong Pinia được unwrap; accessToken ở đây là string | null, không phải ref.
+    const storeMap = (pinia as unknown as { _s: Map<string, { accessToken: string | null }> })._s
+    return storeMap?.get('auth')?.accessToken ?? null
+  } catch {
+    return null
+  }
+}
 
 function _delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 function _syncAuthStore(newToken: string) {
-  // Sync Pinia auth store nếu đã được khởi tạo
   try {
-    const pinia = getActivePinia()
-    if (!pinia) return
-    // Import động để tránh circular dependency
+    api.defaults.headers.common.Authorization = `Bearer ${newToken}`
     import('@/stores/auth').then(({ useAuthStore }) => {
       const store = useAuthStore(pinia)
       store.accessToken = newToken
     })
   } catch {
-    // Pinia chưa ready → bỏ qua, localStorage đã được cập nhật
+    // Pinia chưa ready
   }
 }
 
 function _logoutAndRedirect() {
-  // Xóa tokens
-  localStorage.removeItem('access_token')
-  localStorage.removeItem('refresh_token')
-
-  // Sync Pinia store
   try {
-    const pinia = getActivePinia()
-    if (pinia) {
-      import('@/stores/auth').then(({ useAuthStore }) => {
-        const store = useAuthStore(pinia)
-        store.logout()
-      })
-    }
+    delete api.defaults.headers.common.Authorization
+    import('@/stores/auth').then(({ useAuthStore }) => {
+      const store = useAuthStore(pinia)
+      store.logout()
+    })
   } catch {
     // Ignore
   }
 
-  // Redirect về login (chỉ nếu chưa ở trang login)
+  // Gọi logout endpoint để xóa cookie (fire-and-forget)
+  axios.post('/api/v1/auth/logout', undefined, { withCredentials: true }).catch(() => {})
+
   if (!window.location.pathname.startsWith('/login')) {
     window.location.href = '/login'
   }

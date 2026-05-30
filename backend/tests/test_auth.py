@@ -52,7 +52,16 @@ def _bearer(client: TestClient, email: str = _ADMIN_EMAIL, password: str = _ADMI
     return {"Authorization": f"Bearer {token}"}
 
 
+def _refresh_via_cookie(client: TestClient):
+    """Refresh dùng cookie (cách mới — cookie tự động gửi bởi TestClient session)."""
+    return client.post(
+        f"{BASE}/refresh",
+        headers={"X-Forwarded-For": f"198.18.1.{next(_IP_COUNTER)}"},
+    )
+
+
 def _refresh(client: TestClient, refresh_token: str):
+    """Backward-compat: refresh qua body (vẫn được hỗ trợ)."""
     return client.post(
         f"{BASE}/refresh",
         json={"refresh_token": refresh_token},
@@ -67,8 +76,12 @@ def test_login_success(client: TestClient):
     assert resp.status_code == 200
     body = resp.json()
     assert "access_token" in body
-    assert "refresh_token" in body
     assert body["token_type"] == "bearer"
+    assert resp.headers.get("content-length") != "0"
+    # refresh_token không còn trong body — được set qua HttpOnly cookie
+    assert "refresh_token" not in body
+    # Cookie được set bởi backend
+    assert "refresh_token" in resp.cookies or "Set-Cookie" in str(resp.headers)
 
 
 def test_login_wrong_password(client: TestClient):
@@ -136,24 +149,33 @@ def test_me_line_manager_limited_permissions(client: TestClient):
 # ── Refresh ────────────────────────────────────────────────────────────────────
 
 def test_refresh_returns_new_tokens(client: TestClient):
-    login_data = _login(client).json()
-    resp = _refresh(client, login_data["refresh_token"])
+    # Login → cookie được set trong TestClient session
+    _login(client)
+    # Refresh dùng cookie (browser gửi tự động)
+    resp = _refresh_via_cookie(client)
     assert resp.status_code == 200
     body = resp.json()
     assert "access_token" in body
+    assert resp.headers.get("content-length") != "0"
     me = client.get(f"{BASE}/me", headers={"Authorization": f"Bearer {body['access_token']}"})
     assert me.status_code == 200
 
 
-def test_refresh_with_access_token_fails(client: TestClient):
-    login_data = _login(client).json()
-    resp = _refresh(client, login_data["access_token"])
-    assert resp.status_code == 401
-
-
-def test_refresh_with_invalid_token_fails(client: TestClient):
+def test_refresh_with_invalid_token_body_fails(client: TestClient):
+    # Xóa cookie trước để test body-only path
+    client.cookies.clear()
     resp = _refresh(client, "invalid.token.here")
     assert resp.status_code == 401
+    # Re-login để các tests sau không bị ảnh hưởng
+    _login(client)
+
+
+def test_refresh_with_no_token_fails(client: TestClient):
+    # Không có cookie + không có body → 401
+    client.cookies.clear()
+    resp = client.post(f"{BASE}/refresh")
+    assert resp.status_code == 401
+    _login(client)
 
 
 # ── Change Password ────────────────────────────────────────────────────────────

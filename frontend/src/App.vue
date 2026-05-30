@@ -23,22 +23,11 @@
 </template>
 
 <script setup lang="ts">
-import { onErrorCaptured, onMounted, ref } from 'vue'
+import { onErrorCaptured, ref } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 
-const auth = useAuthStore()
+useAuthStore()
 const appError = ref<Error | null>(null)
-
-// Restore user info after page refresh
-onMounted(async () => {
-  if (auth.accessToken && !auth.user) {
-    try {
-      await auth.fetchMe()
-    } catch {
-      auth.logout()
-    }
-  }
-})
 
 // Global error boundary — catch mọi unhandled component error
 onErrorCaptured((err: Error, _instance, info) => {

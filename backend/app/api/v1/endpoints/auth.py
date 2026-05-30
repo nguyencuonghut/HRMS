@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.responses import JSONResponse, Response
 from jose import JWTError
 from pydantic import BaseModel, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,6 +17,7 @@ from app.core.security import (
     hash_password,
     verify_password,
 )
+from app.core.config import settings
 from app.models.auth import User
 from app.schemas.user import validate_password_strength
 from app.services import auth_service
@@ -32,12 +34,13 @@ class LoginRequest(BaseModel):
 
 class TokenResponse(BaseModel):
     access_token: str
-    refresh_token: str
     token_type: str = "bearer"
+    # refresh_token không còn trong body — được set qua HttpOnly cookie
 
 
 class RefreshRequest(BaseModel):
-    refresh_token: str
+    # Vẫn giữ để backward compat với client cũ; cookie được ưu tiên
+    refresh_token: Optional[str] = None
 
 
 class ChangePasswordRequest(BaseModel):
@@ -106,22 +109,42 @@ async def login(
     )
     await session.commit()
 
-    return TokenResponse(access_token=access_token, refresh_token=refresh_token)
+    data = TokenResponse(access_token=access_token).model_dump()
+    response = JSONResponse(content=data)
+    response.set_cookie(
+        key=settings.REFRESH_TOKEN_COOKIE_NAME,
+        value=refresh_token,
+        httponly=True,
+        secure=settings.REFRESH_TOKEN_COOKIE_SECURE,
+        samesite="strict",
+        max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 86_400,
+        path="/api/v1/auth",   # chỉ gửi đến auth endpoints
+    )
+    return response
 
 
 @router.post("/refresh", response_model=TokenResponse, summary="Làm mới access token")
 @limiter.limit("20/hour")
 async def refresh_token(
-    payload: RefreshRequest,
     request: Request,
+    payload: Optional[RefreshRequest] = None,
     session: AsyncSession = Depends(get_session),
 ):
     exc = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Refresh token không hợp lệ hoặc đã hết hạn",
     )
+
+    # Cookie ưu tiên → fallback sang request body (backward compat)
+    raw_token = (
+        request.cookies.get(settings.REFRESH_TOKEN_COOKIE_NAME)
+        or (payload.refresh_token if payload else None)
+    )
+    if not raw_token:
+        raise exc
+
     try:
-        data = decode_token(payload.refresh_token)
+        data = decode_token(raw_token)
         if data.get("type") != "refresh":
             raise exc
         email: str = data.get("sub", "")
@@ -140,7 +163,19 @@ async def refresh_token(
     )
     new_refresh = create_refresh_token(user.email)
 
-    return TokenResponse(access_token=new_access, refresh_token=new_refresh)
+    # Set cookie mới + trả access_token trong body
+    result = TokenResponse(access_token=new_access).model_dump()
+    response = JSONResponse(content=result)
+    response.set_cookie(
+        key=settings.REFRESH_TOKEN_COOKIE_NAME,
+        value=new_refresh,
+        httponly=True,
+        secure=settings.REFRESH_TOKEN_COOKIE_SECURE,
+        samesite="strict",
+        max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 86_400,
+        path="/api/v1/auth",
+    )
+    return response
 
 
 @router.get("/me", response_model=UserMeResponse, summary="Thông tin người dùng hiện tại")
@@ -193,7 +228,16 @@ async def logout(
         user_agent=request.headers.get("user-agent"),
     )
     await session.commit()
-    return {"message": "Đăng xuất thành công"}
+
+    # Xóa refresh_token cookie
+    resp = JSONResponse(content={"message": "Đăng xuất thành công"})
+    resp.delete_cookie(
+        key=settings.REFRESH_TOKEN_COOKIE_NAME,
+        path="/api/v1/auth",
+        httponly=True,
+        samesite="strict",
+    )
+    return resp
 
 
 @router.put("/me", response_model=UserMeResponse, summary="Cập nhật thông tin cá nhân")

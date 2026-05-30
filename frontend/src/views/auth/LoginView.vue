@@ -70,7 +70,7 @@ async function onSubmit() {
   error.value = ''
   try {
     await auth.login(email.value, password.value)
-    const redirect = (route.query.redirect as string) ?? '/dashboard'
+    const redirect = (route.query.redirect as string) ?? '/reports/dashboard'
     router.push(redirect)
   } catch {
     error.value = 'Sai email hoặc mật khẩu.'

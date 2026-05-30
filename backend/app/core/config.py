@@ -92,6 +92,11 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
+    # Refresh token cookie settings (M5)
+    REFRESH_TOKEN_COOKIE_NAME: str = "refresh_token"
+    # secure=True in production (HTTPS only); False in dev (HTTP)
+    REFRESH_TOKEN_COOKIE_SECURE: bool = False
+
     # Redis / Celery
     REDIS_URL:      str = "redis://localhost:6379/0"
     REDIS_PASSWORD: str = ""   # Nếu set → production mode có password
