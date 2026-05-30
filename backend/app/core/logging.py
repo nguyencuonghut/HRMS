@@ -25,7 +25,7 @@ def setup_logging(debug: bool = False) -> None:
         processors=[
             structlog.contextvars.merge_contextvars,
             structlog.stdlib.add_log_level,
-            structlog.stdlib.add_logger_name,
+            # add_logger_name không tương thích với PrintLoggerFactory — bỏ qua
             structlog.processors.TimeStamper(fmt="iso", utc=True),
             structlog.processors.StackInfoRenderer(),
             structlog.processors.format_exc_info,
@@ -33,5 +33,5 @@ def setup_logging(debug: bool = False) -> None:
         ],
         wrapper_class=structlog.make_filtering_bound_logger(level),
         logger_factory=structlog.PrintLoggerFactory(sys.stdout),
-        cache_logger_on_first_use=True,
+        cache_logger_on_first_use=False,  # phải False khi có contextvars
     )

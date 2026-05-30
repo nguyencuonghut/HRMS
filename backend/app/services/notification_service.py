@@ -15,6 +15,7 @@ import sqlalchemy as sa
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.circuit_breaker import smtp_circuit
 from app.core.config import settings
 from app.models.auth import Role, User, UserRole
 from app.models.employee import Employee
@@ -50,8 +51,9 @@ def _render_template(text: str, merge_data: dict) -> str:
 
 # ─── SMTP ─────────────────────────────────────────────────────────────────────
 
+@smtp_circuit.call
 def _send_email_smtp(to_email: str, subject: str, body_html: str) -> None:
-    """Gửi email qua SMTP. Raise exception nếu thất bại."""
+    """Gửi email qua SMTP. Circuit-protected — raise CircuitOpenError khi SMTP đang down."""
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
     msg["From"] = formataddr((settings.SMTP_FROM_NAME, settings.SMTP_FROM_EMAIL))
@@ -142,12 +144,17 @@ async def send_notification_email(
         )
         return True
 
-    # 4. Gửi email
+    # 4. Gửi email (circuit-protected — fail-fast nếu SMTP đang down)
+    from app.core.circuit_breaker import CircuitOpenError
     try:
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(None, _send_email_smtp, recipient_email, rendered_subject, rendered_body)
         status = "sent"
         error_message = None
+    except CircuitOpenError as exc:
+        # Circuit đang OPEN → không retry, log skipped để không block Celery task
+        status = "skipped"
+        error_message = f"SMTP circuit open: {exc}"
     except Exception as exc:
         status = "failed"
         error_message = str(exc)

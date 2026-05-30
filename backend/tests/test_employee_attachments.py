@@ -238,8 +238,8 @@ def test_upload_audit_log(client: TestClient):
     emp = _create_employee(client, headers)
     _upload(client, emp["id"], headers, document_type="passport")
 
-    logs = client.get("/api/v1/audit-logs", params={"entity_type": "employee_attachment"}, headers=headers).json()
-    actions = [l["action"] for l in logs]
+    resp = client.get("/api/v1/audit-logs", params={"entity_type": "employee_attachment"}, headers=headers).json()
+    actions = [l["action"] for l in resp["items"]]
     assert "UPLOAD_ATTACHMENT" in actions
 
 

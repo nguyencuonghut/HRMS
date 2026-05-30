@@ -10,6 +10,7 @@ from fastapi import HTTPException, UploadFile, status
 from minio import Minio
 from minio.error import S3Error
 
+from app.core.circuit_breaker import CircuitOpenError, minio_circuit
 from app.core.config import settings
 
 # ── File validation constants ─────────────────────────────────────────────────
@@ -79,6 +80,24 @@ def _client() -> Minio:
     )
 
 
+@minio_circuit.call
+def _minio_put(object_name: str, data: BytesIO, length: int, content_type: str) -> None:
+    """Circuit-protected MinIO put. Raises CircuitOpenError khi MinIO đang down."""
+    _client().put_object(
+        bucket_name=bucket_name(),
+        object_name=object_name,
+        data=data,
+        length=length,
+        content_type=content_type,
+    )
+
+
+@minio_circuit.call
+def _minio_get(object_name: str):  # type: ignore[return]
+    """Circuit-protected MinIO get. Raises CircuitOpenError khi MinIO đang down."""
+    return _client().get_object(bucket_name(), object_name)
+
+
 def bucket_name() -> str:
     return settings.minio_bucket_name
 
@@ -100,13 +119,10 @@ async def save_employee_attachment(employee_id: int, upload: UploadFile) -> tupl
     object_name = f"employees/{employee_id}/{uuid.uuid4().hex[:8]}_{safe_name}"
     content_type = upload.content_type or "application/octet-stream"
 
-    _client().put_object(
-        bucket_name=bucket_name(),
-        object_name=object_name,
-        data=BytesIO(content),
-        length=len(content),
-        content_type=content_type,
-    )
+    try:
+        _minio_put(object_name, BytesIO(content), len(content), content_type)
+    except CircuitOpenError as e:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e)) from e
     return object_name, len(content)
 
 
@@ -120,19 +136,19 @@ async def save_attachment(position_id: int, upload: UploadFile) -> tuple[str, in
     object_name = f"attachments/{position_id}/{uuid.uuid4().hex[:8]}_{safe_name}"
     content_type = upload.content_type or "application/octet-stream"
 
-    _client().put_object(
-        bucket_name=bucket_name(),
-        object_name=object_name,
-        data=BytesIO(content),
-        length=len(content),
-        content_type=content_type,
-    )
+    try:
+        _minio_put(object_name, BytesIO(content), len(content), content_type)
+    except CircuitOpenError as e:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e)) from e
     return object_name, len(content)
 
 
 def get_object_stream(object_name: str) -> Generator[bytes, None, None]:
     """Stream object từ MinIO, dùng cho StreamingResponse."""
-    response = _client().get_object(bucket_name(), object_name)
+    try:
+        response = _minio_get(object_name)
+    except CircuitOpenError as e:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e)) from e
     try:
         yield from response
     finally:
@@ -142,7 +158,10 @@ def get_object_stream(object_name: str) -> Generator[bytes, None, None]:
 
 def get_object_bytes(object_name: str) -> bytes:
     """Tải toàn bộ object từ MinIO về bytes. Dùng cho xử lý in-memory (DOCX inspection)."""
-    response = _client().get_object(bucket_name(), object_name)
+    try:
+        response = _minio_get(object_name)
+    except CircuitOpenError as e:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e)) from e
     try:
         return response.read()
     finally:
@@ -156,13 +175,10 @@ async def save_contract_file(contract_id: int, upload: UploadFile) -> tuple[str,
     safe_name = Path(upload.filename or "file").name
     object_name = f"contracts/{contract_id}/{uuid.uuid4().hex[:8]}_{safe_name}"
     content_type = upload.content_type or "application/octet-stream"
-    _client().put_object(
-        bucket_name=bucket_name(),
-        object_name=object_name,
-        data=BytesIO(content),
-        length=len(content),
-        content_type=content_type,
-    )
+    try:
+        _minio_put(object_name, BytesIO(content), len(content), content_type)
+    except CircuitOpenError as e:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e)) from e
     return object_name, len(content)
 
 
@@ -172,13 +188,10 @@ async def save_template_file(template_id: int, upload: UploadFile) -> tuple[str,
     safe_name = Path(upload.filename or "template.docx").name
     object_name = f"templates/{template_id}/{uuid.uuid4().hex[:8]}_{safe_name}"
     content_type = upload.content_type or "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-    _client().put_object(
-        bucket_name=bucket_name(),
-        object_name=object_name,
-        data=BytesIO(content),
-        length=len(content),
-        content_type=content_type,
-    )
+    try:
+        _minio_put(object_name, BytesIO(content), len(content), content_type)
+    except CircuitOpenError as e:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e)) from e
     return object_name, len(content)
 
 
@@ -188,13 +201,10 @@ async def save_reward_file(reward_id: int, upload: UploadFile) -> tuple[str, int
     safe_name = Path(upload.filename or "file").name
     object_name = f"rewards/{reward_id}/{uuid.uuid4().hex[:8]}_{safe_name}"
     content_type = upload.content_type or "application/octet-stream"
-    _client().put_object(
-        bucket_name=bucket_name(),
-        object_name=object_name,
-        data=BytesIO(content),
-        length=len(content),
-        content_type=content_type,
-    )
+    try:
+        _minio_put(object_name, BytesIO(content), len(content), content_type)
+    except CircuitOpenError as e:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e)) from e
     return object_name, len(content)
 
 
@@ -204,13 +214,10 @@ async def save_discipline_file(discipline_id: int, upload: UploadFile) -> tuple[
     safe_name = Path(upload.filename or "file").name
     object_name = f"disciplines/{discipline_id}/{uuid.uuid4().hex[:8]}_{safe_name}"
     content_type = upload.content_type or "application/octet-stream"
-    _client().put_object(
-        bucket_name=bucket_name(),
-        object_name=object_name,
-        data=BytesIO(content),
-        length=len(content),
-        content_type=content_type,
-    )
+    try:
+        _minio_put(object_name, BytesIO(content), len(content), content_type)
+    except CircuitOpenError as e:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e)) from e
     return object_name, len(content)
 
 
@@ -220,13 +227,10 @@ async def save_certificate_file(cert_id: int, upload: UploadFile) -> tuple[str, 
     safe_name = Path(upload.filename or "file").name
     object_name = f"certificates/{cert_id}/{uuid.uuid4().hex[:8]}_{safe_name}"
     content_type = upload.content_type or "application/octet-stream"
-    _client().put_object(
-        bucket_name=bucket_name(),
-        object_name=object_name,
-        data=BytesIO(content),
-        length=len(content),
-        content_type=content_type,
-    )
+    try:
+        _minio_put(object_name, BytesIO(content), len(content), content_type)
+    except CircuitOpenError as e:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e)) from e
     return object_name, len(content)
 
 
