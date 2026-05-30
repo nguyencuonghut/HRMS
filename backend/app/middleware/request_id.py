@@ -17,7 +17,7 @@ from starlette.responses import Response
 logger = structlog.get_logger(__name__)
 
 # Các path không cần log chi tiết (liveness probe, health, static)
-_SKIP_LOG_PATHS = frozenset({"/health", "/health/live", "/health/ready", "/metrics", "/favicon.ico"})
+_SKIP_LOG_PATHS = frozenset({"/health", "/health/live", "/health/ready", "/health/live", "/metrics", "/favicon.ico"})
 
 
 class RequestIDMiddleware(BaseHTTPMiddleware):

@@ -104,13 +104,12 @@ app.add_middleware(
 app.include_router(api_v1_router, prefix="/api/v1")
 
 
-@app.get("/health", tags=["System"], summary="Health check")
-async def health_check() -> dict:
-    """Kiểm tra trạng thái hệ thống: DB, Redis, MinIO."""
+async def _run_dependency_checks() -> tuple[dict[str, str], bool]:
+    """Chạy tất cả dependency checks, trả về (checks dict, all_ok)."""
     import redis.asyncio as aioredis
 
     checks: dict[str, str] = {}
-    overall = "ok"
+    all_ok = True
 
     # Database
     try:
@@ -119,30 +118,70 @@ async def health_check() -> dict:
         checks["database"] = "ok"
     except Exception as exc:
         checks["database"] = f"error: {exc}"
-        overall = "degraded"
+        all_ok = False
 
     # Redis
     try:
-        r = aioredis.from_url(settings.REDIS_URL, socket_timeout=2)
+        r = aioredis.from_url(settings.effective_redis_url, socket_timeout=2)
         await r.ping()
         await r.aclose()
         checks["redis"] = "ok"
     except Exception as exc:
         checks["redis"] = f"error: {exc}"
-        overall = "degraded"
+        all_ok = False
 
-    # MinIO (bucket_exists = lightweight HEAD request)
+    # MinIO
     try:
         from app.core.storage import _client, bucket_name
         _client().bucket_exists(bucket_name())
         checks["minio"] = "ok"
     except Exception as exc:
         checks["minio"] = f"error: {exc}"
-        overall = "degraded"
+        all_ok = False
 
-    return {
-        "status":      overall,
-        "version":     settings.APP_VERSION,
-        "environment": settings.ENVIRONMENT,
-        "checks":      checks,
-    }
+    return checks, all_ok
+
+
+@app.get("/health/live", tags=["System"], summary="Liveness probe")
+async def liveness() -> dict:
+    """Kubernetes liveness probe — app còn sống, không check dependencies.
+    Nếu endpoint này không trả về 200, k8s sẽ restart container.
+    """
+    return {"status": "alive", "version": settings.APP_VERSION}
+
+
+@app.get("/health/ready", tags=["System"], summary="Readiness probe")
+async def readiness():
+    """Kubernetes readiness probe — kiểm tra DB + Redis + MinIO.
+    Trả về 503 nếu bất kỳ dependency nào fail → k8s ngừng route traffic vào.
+    """
+    from fastapi.responses import JSONResponse
+
+    checks, all_ok = await _run_dependency_checks()
+    status_code = 200 if all_ok else 503
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "status":      "ready" if all_ok else "not_ready",
+            "version":     settings.APP_VERSION,
+            "environment": settings.ENVIRONMENT,
+            "checks":      checks,
+        },
+    )
+
+
+@app.get("/health", tags=["System"], summary="Health check (full)")
+async def health_check():
+    """Backward-compat health check — tương đương /health/ready nhưng luôn trả 200."""
+    from fastapi.responses import JSONResponse
+
+    checks, all_ok = await _run_dependency_checks()
+    return JSONResponse(
+        status_code=200,   # luôn 200 để không break monitoring cũ
+        content={
+            "status":      "ok" if all_ok else "degraded",
+            "version":     settings.APP_VERSION,
+            "environment": settings.ENVIRONMENT,
+            "checks":      checks,
+        },
+    )
