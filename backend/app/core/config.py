@@ -1,5 +1,25 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict
+import logging
 from pathlib import Path
+
+from pydantic import field_validator, model_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_log = logging.getLogger(__name__)
+
+# Giá trị default không an toàn — sẽ bị reject trong production
+_UNSAFE_SECRET_KEYS = frozenset({
+    "change-this-secret-key-in-production",
+    "dev-secret-key-change-in-prod",
+    "secret",
+    "your-secret-key",
+})
+
+_UNSAFE_MINIO_CREDS = frozenset({
+    "minioadmin",
+    "minio",
+    "password",
+    "admin",
+})
 
 
 _BASE_DIR = Path(__file__).resolve().parents[2]
@@ -33,6 +53,41 @@ class Settings(BaseSettings):
     # Security
     SECRET_KEY: str = "change-this-secret-key-in-production"
     ENCRYPTION_KEY: str = ""
+
+    @field_validator("SECRET_KEY")
+    @classmethod
+    def validate_secret_key(cls, v: str, info) -> str:
+        env = (info.data.get("ENVIRONMENT") or "development").lower()
+        is_prod = env == "production"
+
+        if is_prod:
+            if len(v) < 32:
+                raise ValueError(
+                    "SECRET_KEY phải có ít nhất 32 ký tự trong production. "
+                    "Sinh key: python -c \"import secrets; print(secrets.token_hex(32))\""
+                )
+            if v.lower() in _UNSAFE_SECRET_KEYS:
+                raise ValueError(
+                    "SECRET_KEY đang dùng giá trị mặc định không an toàn. "
+                    "Đặt SECRET_KEY ngẫu nhiên trong .env trước khi deploy."
+                )
+        elif v.lower() in _UNSAFE_SECRET_KEYS:
+            _log.warning(
+                "SECRET_KEY đang dùng giá trị mặc định — "
+                "KHÔNG an toàn cho production. Thay bằng giá trị ngẫu nhiên."
+            )
+        return v
+
+    @field_validator("ENCRYPTION_KEY")
+    @classmethod
+    def validate_encryption_key(cls, v: str, info) -> str:
+        env = (info.data.get("ENVIRONMENT") or "development").lower()
+        if env == "production" and not v.strip():
+            raise ValueError(
+                "ENCRYPTION_KEY bắt buộc trong production. "
+                "Sinh key: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\""
+            )
+        return v
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
@@ -47,6 +102,26 @@ class Settings(BaseSettings):
     MINIO_SECRET_KEY: str  = "minioadmin"
     MINIO_BUCKET:     str  = ""
     MINIO_SECURE:     bool = False
+
+    @model_validator(mode="after")
+    def validate_minio_credentials(self) -> "Settings":
+        if self.ENVIRONMENT.lower() == "production":
+            if self.MINIO_ACCESS_KEY.lower() in _UNSAFE_MINIO_CREDS:
+                raise ValueError(
+                    "MINIO_ACCESS_KEY đang dùng giá trị mặc định 'minioadmin' — "
+                    "KHÔNG an toàn cho production. Đổi trong .env."
+                )
+            if self.MINIO_SECRET_KEY.lower() in _UNSAFE_MINIO_CREDS:
+                raise ValueError(
+                    "MINIO_SECRET_KEY đang dùng giá trị mặc định 'minioadmin' — "
+                    "KHÔNG an toàn cho production. Đổi trong .env."
+                )
+        elif self.MINIO_SECRET_KEY.lower() in _UNSAFE_MINIO_CREDS:
+            _log.warning(
+                "MINIO credentials đang dùng giá trị mặc định — "
+                "KHÔNG an toàn cho production."
+            )
+        return self
 
     # CORS
     CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://localhost:3000"]
