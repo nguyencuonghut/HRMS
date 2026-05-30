@@ -104,12 +104,34 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./nginx/conf.d:/etc/nginx/conf.d
-      - ./nginx/ssl:/etc/nginx/ssl
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - certbot_www:/var/www/certbot:ro   # Let's Encrypt ACME webroot
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
     depends_on:
-      - backend
-      - frontend
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_started
+
+  # Certbot — tự động renew SSL certificate
+  # Chạy riêng: docker compose run --rm certbot
+  certbot:
+    image: certbot/certbot:latest
+    volumes:
+      - ./nginx/ssl:/etc/letsencrypt/live
+      - certbot_www:/var/www/certbot
+    entrypoint: >
+      sh -c "certbot certonly --webroot -w /var/www/certbot
+             --email \$$CERTBOT_EMAIL --agree-tos --no-eff-email
+             -d \$$DOMAIN"
+    profiles: ["certbot"]   # chỉ chạy khi gọi trực tiếp
 
 volumes:
   postgres_data:
   minio_data:
+  certbot_www:
