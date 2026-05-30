@@ -12,6 +12,7 @@
  */
 import axios, { type AxiosRequestConfig } from 'axios'
 import { pinia } from '@/stores/pinia'
+import { isOffline } from '@/utils/network'
 
 declare module 'axios' {
   interface InternalAxiosRequestConfig {
@@ -32,6 +33,11 @@ function _isAuthEndpoint(url?: string): boolean {
   return url.includes('/auth/login') || url.includes('/auth/refresh') || url.includes('/auth/logout')
 }
 
+function _isRetryableMethod(method?: string): boolean {
+  if (!method) return true
+  return ['get', 'head', 'options'].includes(method.toLowerCase())
+}
+
 // ── Request interceptor — gắn access_token từ Pinia store ─────────────────────
 api.interceptors.request.use((config) => {
   const token = _getAccessToken()
@@ -49,8 +55,14 @@ api.interceptors.response.use(
       _authRetried?: boolean
     }
 
-    // Network error / timeout → retry 1 lần sau 1 giây
-    if (!error.response && !config._retried) {
+    // Network error / timeout:
+    // - offline thật sự: fail fast để UI hiển thị trạng thái mất mạng
+    // - online nhưng request idempotent lỗi: retry 1 lần
+    if (!error.response && isOffline()) {
+      return Promise.reject(error)
+    }
+
+    if (!error.response && !config._retried && _isRetryableMethod(config.method)) {
       config._retried = true
       await _delay(1000)
       return api(config)
@@ -78,7 +90,10 @@ api.interceptors.response.use(
           config.headers.Authorization = `Bearer ${data.access_token}`
         }
         return api(config)
-      } catch {
+      } catch (refreshError) {
+        if (!axios.isAxiosError(refreshError) || !refreshError.response) {
+          return Promise.reject(refreshError)
+        }
         _logoutAndRedirect()
         return Promise.reject(error)
       }

@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
+import { isNetworkError } from "@/utils/network";
 
 // Khai báo kiểu cho route meta
 declare module "vue-router" {
@@ -436,7 +437,10 @@ router.beforeEach(async (to) => {
   if (auth.isAuthenticated && !auth.user) {
     try {
       await auth.fetchMe();
-    } catch {
+    } catch (error) {
+      if (isNetworkError(error)) {
+        return false;
+      }
       // Token hết hạn hoặc invalid → force logout
       auth.logout();
       return { name: "login", query: { redirect: to.fullPath } };

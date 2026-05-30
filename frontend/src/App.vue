@@ -1,4 +1,17 @@
 <template>
+  <div
+    v-if="!isOnline || showRecoveredBanner"
+    class="app-network-banner"
+    :class="{ 'app-network-banner-offline': !isOnline, 'app-network-banner-online': isOnline }"
+    role="status"
+    aria-live="polite"
+  >
+    <i :class="!isOnline ? 'pi pi-wifi' : 'pi pi-check-circle'" />
+    <span>
+      {{ !isOnline ? 'Mất kết nối Internet. Một số thao tác có thể bị gián đoạn.' : 'Kết nối Internet đã được khôi phục.' }}
+    </span>
+  </div>
+
   <!-- Global Error Boundary — hiện khi component nào đó throw unhandled error -->
   <div v-if="appError" class="app-error-boundary">
     <div class="app-error-card">
@@ -23,11 +36,37 @@
 </template>
 
 <script setup lang="ts">
-import { onErrorCaptured, ref } from 'vue'
+import { onErrorCaptured, onUnmounted, ref, watch } from 'vue'
 import { useAuthStore } from '@/stores/auth'
+import { useOnline } from '@/composables/useOnline'
 
 useAuthStore()
 const appError = ref<Error | null>(null)
+const { isOnline } = useOnline()
+const showRecoveredBanner = ref(false)
+let recoveredTimer: number | null = null
+
+watch(isOnline, (online, previous) => {
+  if (online && previous === false) {
+    showRecoveredBanner.value = true
+    if (recoveredTimer !== null) {
+      window.clearTimeout(recoveredTimer)
+    }
+    recoveredTimer = window.setTimeout(() => {
+      showRecoveredBanner.value = false
+      recoveredTimer = null
+    }, 3500)
+    return
+  }
+
+  if (!online) {
+    showRecoveredBanner.value = false
+    if (recoveredTimer !== null) {
+      window.clearTimeout(recoveredTimer)
+      recoveredTimer = null
+    }
+  }
+})
 
 // Global error boundary — catch mọi unhandled component error
 onErrorCaptured((err: Error, _instance, info) => {
@@ -49,9 +88,55 @@ function clearError() {
   // Cho phép user thử tiếp tục — xóa error state
   appError.value = null
 }
+
+onUnmounted(() => {
+  if (recoveredTimer !== null) {
+    window.clearTimeout(recoveredTimer)
+  }
+})
 </script>
 
 <style>
+.app-network-banner {
+  position: fixed;
+  top: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1600;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  max-width: min(92vw, 38rem);
+  padding: 0.75rem 1rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.18);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.app-network-banner-offline {
+  background: #7f1d1d;
+  color: #fef2f2;
+  border-color: #991b1b;
+}
+
+.app-network-banner-online {
+  background: #14532d;
+  color: #ecfdf5;
+  border-color: #166534;
+}
+
+html.dark-mode .app-network-banner-offline {
+  background: #450a0a;
+  border-color: #7f1d1d;
+}
+
+html.dark-mode .app-network-banner-online {
+  background: #052e16;
+  border-color: #166534;
+}
+
 .app-error-boundary {
   display: flex;
   align-items: center;

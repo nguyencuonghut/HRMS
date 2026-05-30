@@ -5,7 +5,7 @@
  * - refresh_token: HttpOnly cookie — set/cleared by backend, JS không thể đọc
  *
  * Page refresh flow:
- *   App.vue onMounted → auth.tryRefresh() → POST /auth/refresh (cookie auto-sent)
+ *   router.beforeEach → auth.tryRefresh() → POST /auth/refresh (cookie auto-sent)
  *   → nếu thành công: accessToken updated in memory → fetchMe()
  *   → nếu fail: stay unauthenticated → router guard redirect to /login
  */
@@ -13,6 +13,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import axios from 'axios'
 import api from '@/services/api'
+import { isNetworkError } from '@/utils/network'
 
 interface User {
   id: number
@@ -67,6 +68,7 @@ export const useAuthStore = defineStore('auth', () => {
     }
 
     refreshPromise = (async () => {
+      let resolved = true
       try {
         // Dùng raw axios để tránh response interceptor của api.ts tự refresh lại chính /auth/refresh.
         const { data } = await axios.post('/api/v1/auth/refresh', undefined, {
@@ -76,13 +78,17 @@ export const useAuthStore = defineStore('auth', () => {
         api.defaults.headers.common.Authorization = `Bearer ${data.access_token}`
         await fetchMe()
         return true
-      } catch {
+      } catch (error) {
+        if (isNetworkError(error)) {
+          resolved = false
+          return false
+        }
         accessToken.value = null
         user.value = null
         delete api.defaults.headers.common.Authorization
         return false
       } finally {
-        sessionResolved.value = true
+        sessionResolved.value = resolved
         refreshPromise = null
       }
     })()

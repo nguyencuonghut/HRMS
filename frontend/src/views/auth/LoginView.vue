@@ -54,6 +54,7 @@ import Password from 'primevue/password'
 import Button from 'primevue/button'
 import Message from 'primevue/message'
 import { useAuthStore } from '@/stores/auth'
+import { isOffline, isNetworkError } from '@/utils/network'
 
 const router = useRouter()
 const route = useRoute()
@@ -72,8 +73,12 @@ async function onSubmit() {
     await auth.login(email.value, password.value)
     const redirect = (route.query.redirect as string) ?? '/reports/dashboard'
     router.push(redirect)
-  } catch {
-    error.value = 'Sai email hoặc mật khẩu.'
+  } catch (err) {
+    if (isOffline() || isNetworkError(err)) {
+      error.value = 'Không có kết nối Internet. Vui lòng kiểm tra mạng và thử lại.'
+    } else {
+      error.value = 'Sai email hoặc mật khẩu.'
+    }
   } finally {
     loading.value = false
   }
