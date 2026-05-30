@@ -640,7 +640,7 @@ def test_create_employee_writes_audit_log(client: TestClient):
     logs = client.get(
         f"{AUDIT_BASE}?entity_type=employee&entity_id={emp_id}",
         headers=headers,
-    ).json()
+    ).json()["items"]
     assert any(
         log["action"] == "CREATE" and log["entity_type"] == "employee"
         for log in logs
@@ -657,7 +657,7 @@ def test_update_employee_writes_audit_log(client: TestClient):
     logs = client.get(
         f"{AUDIT_BASE}?entity_type=employee&entity_id={emp_id}",
         headers=headers,
-    ).json()
+    ).json()["items"]
     assert any(log["action"] == "UPDATE" for log in logs)
 
 
@@ -671,7 +671,7 @@ def test_delete_employee_writes_audit_log(client: TestClient):
     logs = client.get(
         f"{AUDIT_BASE}?entity_type=employee&entity_id={emp_id}",
         headers=headers,
-    ).json()
+    ).json()["items"]
     assert any(log["action"] == "DELETE" for log in logs)
 
 

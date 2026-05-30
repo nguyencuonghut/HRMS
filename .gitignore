@@ -16,6 +16,19 @@ build/
 .ruff_cache/
 htmlcov/
 .coverage
+.coverage.*
+
+# pip user install (Docker mounts, coverage tools)
+backend/.local/
+frontend/.local/
+
+# Celery beat state file (binary, auto-regenerated)
+backend/celerybeat-schedule
+backend/celerybeat.pid
+
+# pip cache (Docker mount artifacts)
+backend/.cache/
+frontend/.cache/
 
 # Node / Frontend
 node_modules/

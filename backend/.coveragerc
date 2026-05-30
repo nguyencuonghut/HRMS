@@ -1,0 +1,31 @@
+[run]
+source = app
+branch = true
+omit =
+    # Seeds — không test trực tiếp (tested indirectly)
+    app/seeds/*
+    # Migrations — không test
+    alembic/*
+    # Dev tools
+    app/main.py
+
+[report]
+# Không hiển thị file đã cover 100%
+skip_covered = true
+# Threshold tối thiểu — fail nếu xuống dưới
+fail_under = 0
+
+# Bỏ qua các dòng không cần cover
+exclude_lines =
+    # Abstract methods
+    raise NotImplementedError
+    # Type checking imports (chỉ chạy lúc type-check, không lúc runtime)
+    if TYPE_CHECKING:
+    # Protocol/abstract class
+    \.\.\.
+    # Debug-only
+    if settings\.DEBUG
+
+[html]
+directory = htmlcov
+title = HRMS Test Coverage
