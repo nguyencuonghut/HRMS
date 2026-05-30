@@ -1,7 +1,10 @@
 """Service quy trình tuyển chọn (13.4)."""
 from __future__ import annotations
 
+import structlog
 from datetime import datetime, timezone
+
+logger = structlog.get_logger(__name__)
 from decimal import Decimal
 from typing import Iterable, Optional
 
@@ -553,20 +556,20 @@ async def advance_application(
         try:
             from app.services.recruitment_email_service import auto_send_on_stage_change
             await auto_send_on_stage_change(session, application_id, app.current_stage, user_id)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("pipeline_step_error", trigger="auto_send_on_stage_change", error=str(exc))
     elif data.result == "fail":
         try:
             from app.services.recruitment_email_service import auto_send_on_fail
             await auto_send_on_fail(session, application_id, stage.stage_type, user_id)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("pipeline_step_error", trigger="auto_send_on_fail", error=str(exc))
     elif data.result == "hold":
         try:
             from app.services.recruitment_email_service import auto_send_on_hold
             await auto_send_on_hold(session, application_id, user_id)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("pipeline_step_error", trigger="auto_send_on_hold", error=str(exc))
 
     return await _application_read(session, app)
 
@@ -597,8 +600,8 @@ async def hold_application(
     try:
         from app.services.recruitment_email_service import auto_send_on_hold
         await auto_send_on_hold(session, application_id, user_id)
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("pipeline_step_error", trigger="hold_auto_send_on_hold", error=str(exc))
 
     return await _application_read(session, app)
 

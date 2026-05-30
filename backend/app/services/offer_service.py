@@ -1,7 +1,10 @@
 """Service Offer & Quyết định tuyển dụng (13.5)."""
 from __future__ import annotations
 
+import structlog
 from datetime import datetime, timezone
+
+logger = structlog.get_logger(__name__)
 from decimal import Decimal
 from typing import Optional
 
@@ -215,8 +218,8 @@ async def send_offer(session: AsyncSession, offer_id: int, user_id: int) -> Offe
     try:
         from app.services.recruitment_email_service import auto_send_on_offer_event
         await auto_send_on_offer_event(session, offer.application_id, "offer_sent", user_id)
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("offer_operation_error", error=str(exc))
 
     return await _build_offer_read(session, offer)
 
@@ -245,8 +248,8 @@ async def accept_offer(session: AsyncSession, offer_id: int, user_id: int) -> Of
     try:
         from app.services.recruitment_email_service import auto_send_on_offer_event
         await auto_send_on_offer_event(session, offer.application_id, "offer_accepted", user_id)
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("offer_operation_error", error=str(exc))
 
     return await _build_offer_read(session, offer)
 
@@ -281,8 +284,8 @@ async def reject_offer(
     try:
         from app.services.recruitment_email_service import auto_send_on_offer_event
         await auto_send_on_offer_event(session, offer.application_id, "offer_rejected", user_id)
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("offer_operation_error", error=str(exc))
 
     return await _build_offer_read(session, offer)
 

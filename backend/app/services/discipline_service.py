@@ -273,8 +273,8 @@ async def update_discipline(
         if record.file_path:
             try:
                 storage.delete_attachment(record.file_path)
-            except Exception:
-                logger.warning("Không thể xóa file MinIO cũ: %s", record.file_path)
+            except Exception as exc:
+                logger.warning("Không thể xóa file MinIO cũ: %s — %s", record.file_path, exc)
         file_path, file_size = await storage.save_discipline_file(record.id, file)
         record.file_path = file_path
         record.file_name = file.filename
@@ -292,8 +292,8 @@ async def delete_discipline(session: AsyncSession, discipline_id: int) -> None:
     if record.file_path:
         try:
             storage.delete_attachment(record.file_path)
-        except Exception:
-            logger.warning("Không thể xóa file MinIO: %s", record.file_path)
+        except Exception as exc:
+            logger.warning("Không thể xóa file MinIO: %s — %s", record.file_path, exc)
     await session.delete(record)
 
 

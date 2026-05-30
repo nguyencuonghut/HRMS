@@ -2,6 +2,9 @@
 from __future__ import annotations
 
 import re
+import structlog
+
+logger = structlog.get_logger(__name__)
 from datetime import date
 from decimal import Decimal
 from io import BytesIO
@@ -134,8 +137,8 @@ def _iter_paragraphs(doc: Document):
             try:
                 if not hdr_ftr.is_linked_to_previous:
                     yield from hdr_ftr.paragraphs
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("contract_generate_step_error", error=str(exc))
 
 
 def _replace_paragraph(paragraph, context: dict[str, str]) -> None:
@@ -281,7 +284,8 @@ async def generate_contract_document(
     # Thử MinIO trước; fallback sang đường dẫn local (seed data)
     try:
         docx_source: Union[Path, bytes] = get_object_bytes(template.storage_path)
-    except Exception:
+    except Exception as exc:
+        logger.warning("minio_template_fetch_fallback", path=template.storage_path, error=str(exc))
         from app.services.contract_template_docx import resolve_template_storage_path
         local_path = resolve_template_storage_path(template.storage_path)
         if not local_path.exists():

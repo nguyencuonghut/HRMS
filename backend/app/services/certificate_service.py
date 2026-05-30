@@ -298,8 +298,8 @@ async def delete_certificate(session: AsyncSession, cert_id: int) -> None:
     if cert.file_path:
         try:
             storage.delete_attachment(cert.file_path)
-        except Exception:
-            log.warning("Failed to delete MinIO object %s", cert.file_path)
+        except Exception as exc:
+            log.warning("Failed to delete MinIO object %s: %s", cert.file_path, exc)
     await session.delete(cert)
 
 

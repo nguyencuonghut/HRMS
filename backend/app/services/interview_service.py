@@ -1,7 +1,10 @@
 """Service phỏng vấn và scorecard (13.4)."""
 from __future__ import annotations
 
+import structlog
 from datetime import datetime, timezone
+
+logger = structlog.get_logger(__name__)
 from decimal import Decimal
 from typing import Optional
 
@@ -144,8 +147,8 @@ async def create_interview(
     try:
         from app.services.recruitment_email_service import auto_send_on_interview_scheduled
         await auto_send_on_interview_scheduled(session, application_id, created_by_id)
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("interview_step_error", error=str(exc))
 
     return await _interview_read(session, interview)
 
@@ -218,7 +221,8 @@ def _derive_overall_score(criteria_scores: list[dict]) -> Optional[Decimal]:
             score = Decimal(str(item["score"]))
             total += score
             count += 1
-        except Exception:
+        except Exception as exc:
+            logger.warning("interview_candidate_error", error=str(exc))
             continue
     if count == 0:
         return None

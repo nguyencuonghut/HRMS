@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import structlog
 from datetime import datetime, timezone
+
+logger = structlog.get_logger(__name__)
 from typing import Optional
 
 from fastapi import HTTPException, status
@@ -745,7 +748,8 @@ async def inspect_contract_template_docx(session: AsyncSession, template_id: int
     from app.core.storage import get_object_bytes
     try:
         docx_source = get_object_bytes(template.storage_path)
-    except Exception:
+    except Exception as exc:
+        logger.warning("template_resolve_error", error=str(exc))
         docx_source = resolve_template_storage_path(template.storage_path)
         if not docx_source.exists():
             raise HTTPException(status.HTTP_404_NOT_FOUND, detail=f"Không tìm thấy file mẫu tại '{template.storage_path}'")

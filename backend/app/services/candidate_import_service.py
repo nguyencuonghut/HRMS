@@ -2,6 +2,9 @@
 from __future__ import annotations
 
 import uuid
+import structlog
+
+logger = structlog.get_logger(__name__)
 from io import BytesIO
 from pathlib import Path
 from typing import Optional
@@ -207,8 +210,8 @@ def _parse_date(val):
     for fmt in ("%d/%m/%Y", "%Y-%m-%d", "%d-%m-%Y"):
         try:
             return datetime.strptime(str(val).strip(), fmt).date()
-        except Exception:
-            pass
+        except Exception as exc:  # noqa: BLE001 — expected multi-format date parse
+            logger.warning("candidate_import_date_parse_error", error=str(exc))
     return None
 
 
@@ -219,8 +222,9 @@ async def import_candidates_excel(
 ) -> ImportResult:
     try:
         wb = load_workbook(BytesIO(content), read_only=True, data_only=True)
-    except Exception:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail="File Excel không hợp lệ")
+    except Exception as exc:
+        logger.warning("candidate_import_read_error", error=str(exc))
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail="File Excel không hợp lệ") from exc
 
     ws = wb.active
     rows = list(ws.iter_rows(min_row=2, values_only=True))
@@ -262,8 +266,8 @@ async def import_candidates_excel(
         if salary_raw is not None:
             try:
                 expected_salary = float(str(salary_raw).replace(",", "").replace(".", ""))
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("candidate_import_row_error", row=row_num, error=str(exc))
 
         # Upsert by personal_email
         existing = None

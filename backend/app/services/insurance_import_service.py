@@ -2,6 +2,9 @@
 from __future__ import annotations
 
 import re
+import structlog
+
+logger = structlog.get_logger(__name__)
 from datetime import date, datetime, timezone
 from decimal import Decimal, InvalidOperation
 from io import BytesIO
@@ -139,8 +142,9 @@ async def _find_existing_profile(session: AsyncSession, employee_id: int) -> Opt
 async def process_import(session: AsyncSession, file_bytes: bytes) -> ImportResult:
     try:
         wb = load_workbook(BytesIO(file_bytes), read_only=True, data_only=True)
-    except Exception:
-        raise ValueError("Không đọc được file Excel. Hãy dùng file .xlsx hợp lệ.")
+    except Exception as exc:
+        logger.warning("excel_read_error", error=str(exc))
+        raise ValueError("Không đọc được file Excel. Hãy dùng file .xlsx hợp lệ.") from exc
 
     ws = wb.worksheets[0]
     all_rows = list(ws.iter_rows(values_only=True))

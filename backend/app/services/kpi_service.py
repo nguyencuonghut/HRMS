@@ -244,8 +244,9 @@ async def import_kpi_excel(
 
     try:
         wb = openpyxl.load_workbook(BytesIO(file_bytes), read_only=True, data_only=True)
-    except Exception:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail="File không hợp lệ hoặc không phải định dạng .xlsx")
+    except Exception as exc:
+        log.warning("kpi_excel_parse_error", extra={"error": str(exc)})
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail="File không hợp lệ hoặc không phải định dạng .xlsx") from exc
 
     ws = wb.worksheets[0]
     rows = list(ws.iter_rows(min_row=2, values_only=True))

@@ -387,6 +387,29 @@ smtp_circuit  = CircuitBreaker("smtp",  failure_threshold=2, recovery_timeout=60
 
 ### H5. Database — Soft Delete Mixin
 
+> **✅ Phase 1 hoàn thành** — Department, JobTitle, JobPosition (migration 0051 + 0052).  
+> **⏳ Phase 2 (Employee, EmployeeContract, Leave, Training)** — Xem lịch bên dưới.
+
+#### Lịch Phase 2
+
+**Điều kiện tiên quyết** (phải đủ trước khi bắt đầu):
+- [ ] H6 (exception logging) xong — để phát hiện bugs trong quá trình migrate
+- [ ] Test coverage ≥ 70% — 40+ bảng thay đổi cần safety net
+- [ ] Môi trường staging có dữ liệu đầy đủ để test
+- [ ] Sprint không có feature mới song song — tránh conflict
+
+**Thời điểm:** Sprint đầu tiên **sau go-live**, khi codebase đã ổn định.
+
+**Scope Phase 2:**
+- `employees` (god table — 40+ dependent tables, cần CASCADE soft-delete ở service layer)
+- `employee_contracts` (có status machine phức tạp)
+- `leave_records`, `leave_entitlements`
+- `training_courses`, `training_plans`, `employee_training_records`
+
+**Effort ước tính:** 3–5 ngày (code + test + review).
+
+---
+
 **Vấn đề:** Hard delete mất data vĩnh viễn; không đáp ứng compliance (dữ liệu nhân sự giữ 10 năm).
 
 ```python
@@ -1049,7 +1072,8 @@ IMPACT  │ M12 Max limit  │                 │ L3 Multi-tenant    │
 - [ ] HEALTHCHECK_PING_URL configured
 
 ### 🗄️ Data
-- [ ] H5: Soft delete on critical entities
+- [x] H5 Phase 1: Soft delete — Department, JobTitle, JobPosition (migration 0051+0052)
+- [ ] H5 Phase 2: Soft delete — Employee, Contract, Leave, Training (sau go-live)
 - [ ] Database backup running + verified
 - [ ] H6: No bare except without logging
 

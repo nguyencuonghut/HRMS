@@ -70,7 +70,7 @@ def _extract_user_id(request: Request) -> int | None:
         from jose import jwt as _jwt
         payload = _jwt.get_unverified_claims(auth[7:])
         return payload.get("user_id")
-    except Exception:
+    except Exception:  # noqa: BLE001 — JWT decode không bắt buộc thành công
         return None
 
 

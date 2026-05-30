@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import io
+import structlog
+
+logger = structlog.get_logger(__name__)
 import uuid
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
@@ -639,7 +642,8 @@ class ExportService:
         normalized_filters = _normalize_filters(filters)
         try:
             return max(int(await handler.estimate_rows(self.session, normalized_filters)), 0)
-        except Exception:
+        except Exception as exc:
+            logger.warning("export_size_estimate_error", error=str(exc))
             return 0
 
     async def _run_sync(self, job: ExportJob) -> None:

@@ -2,6 +2,9 @@
 from __future__ import annotations
 
 import asyncio
+import structlog
+
+logger = structlog.get_logger(__name__)
 import json
 import re
 import smtplib
@@ -125,7 +128,8 @@ def _parse_fields(raw: Optional[str]) -> list[str]:
         return []
     try:
         return json.loads(raw)
-    except Exception:
+    except Exception as exc:
+        logger.warning("email_send_failed", error=str(exc))
         return []
 
 def _to_template_read(t: RecruitmentEmailTemplate) -> EmailTemplateRead:
@@ -525,8 +529,8 @@ async def auto_send_on_stage_change(
             trigger_event=trigger_event,
             auto_send=True,
         )
-    except Exception:
-        pass  # never rollback pipeline for email failure
+    except Exception as exc:
+        logger.warning("email_send_failed", error=str(exc))  # never rollback pipeline for email failure
 
 
 async def auto_send_on_offer_event(
@@ -564,8 +568,8 @@ async def auto_send_on_offer_event(
             trigger_event=event,
             auto_send=True,
         )
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("email_send_failed", error=str(exc))
 
 
 async def auto_send_on_hold(
@@ -604,8 +608,8 @@ async def auto_send_on_hold(
             trigger_event=trigger_event,
             auto_send=True,
         )
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("email_send_failed", error=str(exc))
 
 
 _STAGES_WITH_INTERVIEW_REJECTION = {"interview", "final"}
@@ -656,8 +660,8 @@ async def auto_send_on_fail(
             trigger_event=trigger_event,
             auto_send=True,
         )
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("email_send_failed", error=str(exc))
 
 
 async def auto_send_on_interview_scheduled(
@@ -696,5 +700,5 @@ async def auto_send_on_interview_scheduled(
             trigger_event=trigger_event,
             auto_send=True,
         )
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("email_send_failed", error=str(exc))

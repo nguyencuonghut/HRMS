@@ -381,8 +381,8 @@ async def update_reward(
         if record.file_path:
             try:
                 storage.delete_attachment(record.file_path)
-            except Exception:
-                logger.warning("Không thể xóa file MinIO cũ: %s", record.file_path)
+            except Exception as exc:
+                logger.warning("Không thể xóa file MinIO cũ: %s — %s", record.file_path, exc)
 
         file_path, file_size_val = await storage.save_reward_file(record.id, file)
         record.file_path = file_path
@@ -401,8 +401,8 @@ async def delete_reward(session: AsyncSession, reward_id: int) -> None:
     if record.file_path:
         try:
             storage.delete_attachment(record.file_path)
-        except Exception:
-            logger.warning("Không thể xóa file MinIO: %s", record.file_path)
+        except Exception as exc:
+            logger.warning("Không thể xóa file MinIO: %s — %s", record.file_path, exc)
     await session.delete(record)
 
 
