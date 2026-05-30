@@ -1050,9 +1050,9 @@ IMPACT  │ M12 Max limit  │                 │ L3 Multi-tenant    │
 
 ### 🔐 Security
 - [ ] C1: Default secrets removed + validation added
-- [ ] C2: Docker non-root user
-- [ ] C3: DOMPurify for v-html
-- [ ] C5: Gunicorn timeout configured
+- [x] C2: Docker non-root user (appuser uid=1000)
+- [x] C3: DOMPurify for v-html (4 components)
+- [x] C5: Gunicorn timeout configured (--timeout 120 --graceful-timeout 30)
 - [ ] H7: Redis password protected
 - [ ] H12: Nginx config in repo + SSL
 
