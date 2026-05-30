@@ -28,7 +28,7 @@ def _utcnow() -> datetime:
 
 
 async def get_redis() -> redis.Redis:
-    return redis.from_url(settings.REDIS_URL, decode_responses=True)
+    return redis.from_url(settings.effective_redis_url, decode_responses=True)
 
 
 def _login_failed_key(email: str) -> str:

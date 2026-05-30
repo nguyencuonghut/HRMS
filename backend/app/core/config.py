@@ -37,7 +37,8 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
     # Redis / Celery
-    REDIS_URL: str = "redis://localhost:6379/0"
+    REDIS_URL:      str = "redis://localhost:6379/0"
+    REDIS_PASSWORD: str = ""   # Nếu set → production mode có password
 
     # MinIO object storage
     MINIO_ENDPOINT:   str  = "minio:9000"
@@ -73,6 +74,30 @@ class Settings(BaseSettings):
     ADMINISTRATIVE_OLD_UNITS_CONFLICTS_JSON_PATH: str = str(
         _BASE_DIR / "app" / "seeds" / "data" / "old_administrative_units_conflicts.json"
     )
+
+    @property
+    def effective_redis_url(self) -> str:
+        """Trả về REDIS_URL đầy đủ.
+
+        Nếu REDIS_URL đã chứa password (redis://:pass@...) → dùng nguyên.
+        Nếu REDIS_PASSWORD được set riêng → tự inject vào URL.
+        """
+        url = self.REDIS_URL.strip()
+        password = self.REDIS_PASSWORD.strip()
+
+        # Đã có password trong URL → dùng nguyên
+        if "@" in url:
+            return url
+
+        # Có REDIS_PASSWORD riêng → inject vào URL
+        if password:
+            # redis://host:port/db → redis://:password@host:port/db
+            prefix = "redis://"
+            if url.startswith(prefix):
+                rest = url[len(prefix):]
+                return f"{prefix}:{password}@{rest}"
+
+        return url
 
     @property
     def minio_bucket_name(self) -> str:

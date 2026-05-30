@@ -4,10 +4,12 @@ from celery.schedules import crontab
 
 from app.core.config import settings
 
+_redis_url = settings.effective_redis_url
+
 celery_app = Celery(
     "hrms",
-    broker=settings.REDIS_URL,
-    backend=settings.REDIS_URL,
+    broker=_redis_url,
+    backend=_redis_url,
     include=["app.workers.tasks", "app.workers.export_tasks"],
 )
 

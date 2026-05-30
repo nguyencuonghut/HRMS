@@ -17,21 +17,78 @@ services:
   redis:
     image: redis:7-alpine
     restart: always
+    # Password bắt buộc trong production; maxmemory tránh OOM
+    command: >
+      redis-server
+      --requirepass ${REDIS_PASSWORD}
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      --save ""
+    # KHÔNG expose port ra ngoài — chỉ backend/celery truy cập qua internal network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
 
   backend:
     build: ./backend
     restart: always
-    command: gunicorn app.main:app -w 4 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000
+    command: >
+      gunicorn app.main:app
+        -w 4
+        -k uvicorn.workers.UvicornWorker
+        --bind 0.0.0.0:8000
+        --timeout 120
+        --graceful-timeout 30
+        --max-requests 1000
+        --max-requests-jitter 100
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-hrms}
-      REDIS_URL: redis://redis:6379/0
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
       SECRET_KEY: ${SECRET_KEY}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
       DEBUG: "false"
+      ENVIRONMENT: production
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      HEALTHCHECK_PING_URL: ${HEALTHCHECK_PING_URL:-}
     depends_on:
       db:
         condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
+
+  celery_worker:
+    build: ./backend
+    restart: always
+    command: celery -A app.core.celery_app.celery_app worker --loglevel=info --concurrency=4
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-hrms}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      SECRET_KEY: ${SECRET_KEY}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      ENVIRONMENT: production
+      SENTRY_DSN: ${SENTRY_DSN:-}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  celery_beat:
+    build: ./backend
+    restart: always
+    command: celery -A app.core.celery_app.celery_app beat --loglevel=info --scheduler redbeat.RedBeatScheduler
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-hrms}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      SECRET_KEY: ${SECRET_KEY}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      ENVIRONMENT: production
+      SENTRY_DSN: ${SENTRY_DSN:-}
+    depends_on:
+      - redis
+      - celery_worker
 
   frontend:
     build:
@@ -54,3 +111,4 @@ services:
 
 volumes:
   postgres_data:
+  minio_data:

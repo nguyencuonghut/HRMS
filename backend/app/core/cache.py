@@ -22,7 +22,7 @@ def get_cache_client() -> aioredis.Redis:
     global _client
     if _client is None:
         _client = aioredis.from_url(
-            settings.REDIS_URL,
+            settings.effective_redis_url,
             decode_responses=True,
             socket_timeout=2,
             socket_connect_timeout=2,

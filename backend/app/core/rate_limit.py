@@ -14,5 +14,5 @@ def _client_key(request) -> str:
 
 limiter = Limiter(
     key_func=_client_key,
-    storage_uri=settings.REDIS_URL,
+    storage_uri=settings.effective_redis_url,
 )
