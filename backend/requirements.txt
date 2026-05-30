@@ -21,6 +21,7 @@ cryptography>=42.0.0
 # Background tasks
 celery[redis]>=5.4.0
 redis>=5.0.0
+celery-redbeat>=2.3.0   # distributed beat scheduler — tránh duplicate khi scale
 
 # Observability
 structlog>=24.0.0

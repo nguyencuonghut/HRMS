@@ -19,21 +19,38 @@ celery_app.conf.update(
     task_serializer="json",
     result_serializer="json",
     accept_content=["json"],
+
+    # ── Reliability ─────────────────────────────────────────────────────────
+    # acks_late=True: task chỉ được ACK sau khi hoàn thành (không mất khi worker crash)
+    task_acks_late=True,
+    # Reject (not requeue) task nếu worker bị SIGKILL giữa chừng
+    task_reject_on_worker_lost=True,
+    # Kết quả giữ 24h trong Redis
+    result_expires=86400,
+
+    # ── Routing ─────────────────────────────────────────────────────────────
     task_routes={
         "app.workers.export_tasks.run_export_task": {"queue": "exports"},
     },
+
+    # ── RedBeat distributed scheduler ───────────────────────────────────────
+    # Ngăn duplicate schedule khi scale nhiều celery_beat instance.
+    # Chỉ 1 instance giữ lock tại một thời điểm.
+    redbeat_redis_url=_redis_url,
+    redbeat_lock_timeout=60 * 5,   # 5 phút — tự động giải phóng nếu beat crash
+
     beat_schedule={
         "expire-overdue-contracts": {
             "task": "app.workers.tasks.expire_overdue_contracts",
-            "schedule": crontab(hour=0, minute=5),              # 00:05 hàng ngày
+            "schedule": crontab(hour=0, minute=5),
         },
         "reset-expired-carryover": {
             "task": "app.workers.tasks.reset_expired_carryover",
-            "schedule": crontab(hour=0, minute=5, day_of_month=1, month_of_year=4),  # 00:05 ngày 01/04
+            "schedule": crontab(hour=0, minute=5, day_of_month=1, month_of_year=4),
         },
         "expire-stale-postings": {
             "task": "app.workers.tasks.expire_stale_postings",
-            "schedule": crontab(hour=0, minute=10),  # 00:10 hàng ngày
+            "schedule": crontab(hour=0, minute=10),
         },
         "cleanup-expired-exports": {
             "task": "app.workers.export_tasks.cleanup_expired_exports",
@@ -41,11 +58,11 @@ celery_app.conf.update(
         },
         "send-daily-notifications": {
             "task": "app.workers.tasks.send_daily_notifications",
-            "schedule": crontab(hour=8, minute=0),  # 08:00 hàng ngày
+            "schedule": crontab(hour=8, minute=0),
         },
         "ping-healthcheck": {
             "task": "app.workers.tasks.ping_healthcheck",
-            "schedule": 60.0,  # mỗi 60 giây — nếu miss 5 lần → uptime alert
+            "schedule": 60.0,
         },
     },
 )
