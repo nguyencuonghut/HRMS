@@ -86,7 +86,9 @@ async def _has_current_assignee(session: AsyncSession, pos_id: int) -> bool:
 # ── Public API ─────────────────────────────────────────────────────────────────
 
 async def get_by_id(session: AsyncSession, pos_id: int) -> JobPosition:
-    r = await session.execute(select(JobPosition).where(JobPosition.id == pos_id))
+    r = await session.execute(
+        select(JobPosition).where(JobPosition.id == pos_id, JobPosition.deleted_at.is_(None))
+    )
     pos = r.scalar_one_or_none()
     if not pos:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Không tìm thấy vị trí công việc")
@@ -107,6 +109,7 @@ async def get_list(
         )
         .join(Department, JobPosition.department_id == Department.id)
         .outerjoin(JobTitle, JobPosition.job_title_id == JobTitle.id)
+        .where(JobPosition.deleted_at.is_(None))
     )
 
     if department_id is not None:
@@ -147,7 +150,9 @@ async def create(
     data: JobPositionCreate,
     changed_by: Optional[int] = None,
 ) -> JobPosition:
-    existing = await session.execute(select(JobPosition).where(JobPosition.code == data.code))
+    existing = await session.execute(
+        select(JobPosition).where(JobPosition.code == data.code, JobPosition.deleted_at.is_(None))
+    )
     if existing.scalar_one_or_none():
         raise HTTPException(status.HTTP_409_CONFLICT, detail=f"Mã vị trí '{data.code}' đã tồn tại")
 
@@ -240,7 +245,8 @@ async def delete(
     pos_name = pos.name
 
     await _log(session, pos, "delete", old_snapshot, None, changed_by)
-    await session.delete(pos)
+    # Soft delete — không xóa khỏi DB
+    pos.soft_delete()
     await session.commit()
 
     return {"message": f"Đã xóa vị trí '{pos_name}' thành công"}

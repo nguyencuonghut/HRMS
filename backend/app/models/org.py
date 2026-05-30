@@ -7,13 +7,15 @@ import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, SQLModel, Column
 
+from app.models.mixins import SoftDeleteMixin
+
 
 def _utcnow() -> datetime:
     # Trả về naive UTC — SQLModel map datetime → TIMESTAMP WITHOUT TIME ZONE
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
-class Department(SQLModel, table=True):
+class Department(SoftDeleteMixin, SQLModel, table=True):
     """Phòng / Ban / Bộ phận / Nhóm / Tổ — cây phân cấp tùy độ sâu."""
 
     __tablename__ = "departments"
@@ -35,7 +37,7 @@ class Department(SQLModel, table=True):
     updated_at: Optional[datetime] = Field(default=None)
 
 
-class JobTitle(SQLModel, table=True):
+class JobTitle(SoftDeleteMixin, SQLModel, table=True):
     """Chức danh (Director, Manager, Staff, ...) — dùng trong thang bảng lương."""
 
     __tablename__ = "job_titles"
@@ -50,7 +52,7 @@ class JobTitle(SQLModel, table=True):
     updated_at: Optional[datetime] = Field(default=None)
 
 
-class JobPosition(SQLModel, table=True):
+class JobPosition(SoftDeleteMixin, SQLModel, table=True):
     """Vị trí công việc — gắn với một phòng/ban và một chức danh."""
 
     __tablename__ = "job_positions"

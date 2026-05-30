@@ -53,7 +53,9 @@ async def _log(
 # ── Public API ─────────────────────────────────────────────────────────────────
 
 async def get_by_id(session: AsyncSession, jt_id: int) -> JobTitle:
-    result = await session.execute(select(JobTitle).where(JobTitle.id == jt_id))
+    result = await session.execute(
+        select(JobTitle).where(JobTitle.id == jt_id, JobTitle.deleted_at.is_(None))
+    )
     jt = result.scalar_one_or_none()
     if not jt:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Không tìm thấy chức danh")
@@ -69,7 +71,7 @@ async def get_list(
     if cached is not None:
         return [JobTitle.model_validate(d) for d in cached]
 
-    q = select(JobTitle)
+    q = select(JobTitle).where(JobTitle.deleted_at.is_(None))
     if is_active is not None:
         q = q.where(JobTitle.is_active == is_active)
     q = q.order_by(JobTitle.level, JobTitle.name)
@@ -85,7 +87,9 @@ async def create(
     data: JobTitleCreate,
     changed_by: Optional[int] = None,
 ) -> JobTitle:
-    existing = await session.execute(select(JobTitle).where(JobTitle.code == data.code))
+    existing = await session.execute(
+        select(JobTitle).where(JobTitle.code == data.code, JobTitle.deleted_at.is_(None))
+    )
     if existing.scalar_one_or_none():
         raise HTTPException(
             status.HTTP_409_CONFLICT,
@@ -136,9 +140,9 @@ async def delete(
 ) -> dict:
     jt = await get_by_id(session, jt_id)
 
-    # Chặn xóa nếu đang được dùng bởi vị trí công việc
+    # Chặn xóa nếu đang được dùng bởi vị trí công việc chưa bị xóa mềm
     pos_count_result = await session.execute(
-        text("SELECT COUNT(*) FROM job_positions WHERE job_title_id = :jt_id"),
+        text("SELECT COUNT(*) FROM job_positions WHERE job_title_id = :jt_id AND deleted_at IS NULL"),
         {"jt_id": jt_id},
     )
     pos_count = pos_count_result.scalar_one()
@@ -152,7 +156,8 @@ async def delete(
     jt_name = jt.name
 
     await _log(session, jt, "delete", old_snapshot, None, changed_by)
-    await session.delete(jt)
+    # Soft delete — không xóa khỏi DB
+    jt.soft_delete()
     await session.commit()
     await _invalidate_cache()
 

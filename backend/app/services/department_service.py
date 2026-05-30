@@ -74,7 +74,7 @@ async def _invalidate_cache() -> None:
 
 async def get_by_id(session: AsyncSession, dept_id: int) -> Department:
     result = await session.execute(
-        select(Department).where(Department.id == dept_id)
+        select(Department).where(Department.id == dept_id, Department.deleted_at.is_(None))
     )
     dept = result.scalar_one_or_none()
     if not dept:
@@ -91,7 +91,7 @@ async def get_list(
     if cached is not None:
         return [Department.model_validate(d) for d in cached]
 
-    q = select(Department)
+    q = select(Department).where(Department.deleted_at.is_(None))
     if is_active is not None:
         q = q.where(Department.is_active == is_active)
     q = q.order_by(Department.order_no, Department.name)
@@ -135,9 +135,9 @@ async def create(
     data: DepartmentCreate,
     changed_by: Optional[int] = None,
 ) -> Department:
-    # Kiểm tra mã trùng
+    # Kiểm tra mã trùng (chỉ kiểm tra các phòng ban chưa bị xóa mềm)
     existing = await session.execute(
-        select(Department).where(Department.code == data.code)
+        select(Department).where(Department.code == data.code, Department.deleted_at.is_(None))
     )
     if existing.scalar_one_or_none():
         raise HTTPException(
@@ -145,10 +145,10 @@ async def create(
             detail=f"Mã phòng/ban '{data.code}' đã tồn tại",
         )
 
-    # Kiểm tra phòng/ban cha tồn tại
+    # Kiểm tra phòng/ban cha tồn tại (và chưa bị xóa mềm)
     if data.parent_id is not None:
         parent = await session.execute(
-            select(Department).where(Department.id == data.parent_id)
+            select(Department).where(Department.id == data.parent_id, Department.deleted_at.is_(None))
         )
         if not parent.scalar_one_or_none():
             raise HTTPException(
@@ -219,9 +219,9 @@ async def update(
                     status.HTTP_409_CONFLICT,
                     detail="Không thể chuyển phòng/ban thành con của đơn vị trực thuộc nó",
                 )
-            # Kiểm tra parent tồn tại
+            # Kiểm tra parent tồn tại và chưa bị xóa mềm
             parent = await session.execute(
-                select(Department).where(Department.id == new_parent_id)
+                select(Department).where(Department.id == new_parent_id, Department.deleted_at.is_(None))
             )
             if not parent.scalar_one_or_none():
                 raise HTTPException(
@@ -246,9 +246,9 @@ async def delete(
 ) -> dict:
     dept = await get_by_id(session, dept_id)
 
-    # Kiểm tra còn đơn vị con
+    # Kiểm tra còn đơn vị con chưa bị xóa mềm
     child_count_result = await session.execute(
-        select(func.count()).where(Department.parent_id == dept_id)
+        select(func.count()).where(Department.parent_id == dept_id, Department.deleted_at.is_(None))
     )
     child_count = child_count_result.scalar_one()
     if child_count > 0:
@@ -257,9 +257,9 @@ async def delete(
             detail=f"Không thể xóa: phòng/ban này còn {child_count} đơn vị con",
         )
 
-    # Kiểm tra còn vị trí công việc
+    # Kiểm tra còn vị trí công việc chưa bị xóa mềm
     pos_count_result = await session.execute(
-        text("SELECT COUNT(*) FROM job_positions WHERE department_id = :dept_id"),
+        text("SELECT COUNT(*) FROM job_positions WHERE department_id = :dept_id AND deleted_at IS NULL"),
         {"dept_id": dept_id},
     )
     pos_count = pos_count_result.scalar_one()
@@ -273,7 +273,8 @@ async def delete(
     dept_name = dept.name
 
     await _log(session, dept, "delete", old_snapshot, None, changed_by)
-    await session.delete(dept)
+    # Soft delete — không xóa khỏi DB
+    dept.soft_delete()
     await session.commit()
     await _invalidate_cache()
 
