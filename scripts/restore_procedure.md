@@ -59,6 +59,10 @@ docker exec hrms-db-1 psql -U postgres hrms_restore -c "
   UNION ALL
   SELECT 'users', count(*) FROM users;
 "
+
+# Hoặc verify nhanh bằng script tự động:
+DB_HOST=127.0.0.1 DB_PORT=5433 DB_PASSWORD=your_password \
+  bash scripts/verify_backup.sh "$BACKUP_FILE"
 ```
 
 ### 1.3 Swap sang production (khi đã verify OK)
@@ -160,11 +164,19 @@ mc ls local/hrms-attachments-prod/employees/ --recursive | wc -l
 ```bash
 # Thêm vào crontab của backup container hoặc host:
 # DB backup lúc 02:00 hàng ngày
-0 2 * * * DB_HOST=db DB_PASSWORD=your_password bash /scripts/backup_db.sh >> /logs/backup_db.log 2>&1
+0 2 * * * DB_HOST=db DB_PASSWORD=your_password \
+BACKUP_NOTIFY_COMMAND='docker compose exec -T backend python -m app.scripts.send_backup_notification' \
+bash /scripts/backup_db.sh >> /logs/backup_db.log 2>&1
 
 # MinIO backup lúc 03:00 hàng ngày
-0 3 * * * bash /scripts/backup_minio.sh >> /logs/backup_minio.log 2>&1
+0 3 * * * BACKUP_NOTIFY_COMMAND='docker compose exec -T backend python -m app.scripts.send_backup_notification' \
+bash /scripts/backup_minio.sh >> /logs/backup_minio.log 2>&1
 ```
+
+`send_backup_notification` sẽ:
+- lấy recipient từ `BACKUP_NOTIFY_EMAILS` nếu có
+- nếu không có thì lấy email admin / HR manager trong DB
+- gửi mail cả khi `success` lẫn `failed`
 
 ---
 

@@ -26,8 +26,38 @@ RETENTION_DAYS="${RETENTION_DAYS:-90}"
 LOG_DIR="${LOG_DIR:-/logs}"
 DATE=$(date +%Y%m%d)
 LOG_FILE="$LOG_DIR/backup_minio_${DATE}.log"
+BACKUP_NOTIFY_COMMAND="${BACKUP_NOTIFY_COMMAND:-}"
+STARTED_AT="$(date -Iseconds)"
+BACKUP_NOTIFY_SENT=0
 
 mkdir -p "$LOG_DIR"
+
+notify_backup_status() {
+    local status="$1"
+    local summary="$2"
+    local details="$3"
+    if [ -z "$BACKUP_NOTIFY_COMMAND" ] || [ "$BACKUP_NOTIFY_SENT" -eq 1 ]; then
+        return 0
+    fi
+    BACKUP_NOTIFY_SENT=1
+    BACKUP_NOTIFY_JOB_NAME="MinIO backup" \
+    BACKUP_NOTIFY_STATUS="$status" \
+    BACKUP_NOTIFY_SUMMARY="$summary" \
+    BACKUP_NOTIFY_DETAILS="$details" \
+    BACKUP_NOTIFY_STARTED_AT="$STARTED_AT" \
+    BACKUP_NOTIFY_FINISHED_AT="$(date -Iseconds)" \
+    BACKUP_NOTIFY_HOSTNAME="$(hostname)" \
+    sh -lc "$BACKUP_NOTIFY_COMMAND" || echo "[$(date -Iseconds)] WARNING: backup notification command failed" | tee -a "$LOG_FILE" >&2
+}
+
+on_error() {
+    local exit_code=$?
+    set +e
+    notify_backup_status "failed" "Backup MinIO thất bại" "exit_code=${exit_code}; source=${SOURCE_ALIAS}/${SOURCE_BUCKET}; dest=${DEST_ALIAS}/${DEST_BUCKET}"
+    exit "$exit_code"
+}
+
+trap on_error ERR
 
 echo "[$(date -Iseconds)] Starting MinIO mirror: ${SOURCE_ALIAS}/${SOURCE_BUCKET} → ${DEST_ALIAS}/${DEST_BUCKET}/files-${DATE}/" | tee -a "$LOG_FILE"
 
@@ -69,3 +99,4 @@ mc ls "${DEST_ALIAS}/${DEST_BUCKET}/" 2>/dev/null | awk '{print $NF}' | while re
 done
 
 echo "[$(date -Iseconds)] Backup MinIO complete ✓" | tee -a "$LOG_FILE"
+notify_backup_status "success" "Backup MinIO hoàn tất" "source=${SOURCE_ALIAS}/${SOURCE_BUCKET}; dest=${DEST_ALIAS}/${DEST_BUCKET}/files-${DATE}/; objects=${OBJECT_COUNT}"
