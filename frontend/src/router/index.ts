@@ -1,6 +1,15 @@
 import { createRouter, createWebHistory } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
 
+// Khai báo kiểu cho route meta
+declare module "vue-router" {
+  interface RouteMeta {
+    title?: string
+    public?: boolean
+    permission?: string   // permission code cần có — VD: 'users:view'
+  }
+}
+
 const router = createRouter({
   history: createWebHistory(),
   routes: [
@@ -8,6 +17,12 @@ const router = createRouter({
       path: "/login",
       name: "login",
       component: () => import("@/views/auth/LoginView.vue"),
+      meta: { public: true },
+    },
+    {
+      path: "/forbidden",
+      name: "forbidden",
+      component: () => import("@/views/ForbiddenView.vue"),
       meta: { public: true },
     },
     {
@@ -377,24 +392,24 @@ const router = createRouter({
           component: () => import("@/views/settings/NotificationSettingsView.vue"),
           meta: { title: "Cài đặt thông báo" },
         },
-        // Quản trị hệ thống
+        // Quản trị hệ thống — yêu cầu permission tương ứng
         {
           path: "admin/users",
           name: "admin-users",
           component: () => import("@/views/admin/UserListView.vue"),
-          meta: { title: "Tài khoản người dùng" },
+          meta: { title: "Tài khoản người dùng", permission: "users:view" },
         },
         {
           path: "admin/roles",
           name: "admin-roles",
           component: () => import("@/views/admin/RoleListView.vue"),
-          meta: { title: "Vai trò & Quyền" },
+          meta: { title: "Vai trò & Quyền", permission: "roles:view" },
         },
         {
           path: "admin/audit-logs",
           name: "admin-audit-logs",
           component: () => import("@/views/admin/AuditLogView.vue"),
-          meta: { title: "Nhật ký hệ thống" },
+          meta: { title: "Nhật ký hệ thống", permission: "audit_logs:view" },
         },
       ],
     },
@@ -402,11 +417,32 @@ const router = createRouter({
   ],
 });
 
-router.beforeEach((to) => {
+router.beforeEach(async (to) => {
   const auth = useAuthStore();
+
+  // 1. Chưa đăng nhập → redirect login
   if (!to.meta.public && !auth.isAuthenticated) {
     return { name: "login", query: { redirect: to.fullPath } };
   }
+
+  // 2. Đã đăng nhập nhưng chưa load user data → fetch trước khi check permission
+  if (auth.isAuthenticated && !auth.user) {
+    try {
+      await auth.fetchMe();
+    } catch {
+      // Token hết hạn hoặc invalid → force logout
+      auth.logout();
+      return { name: "login", query: { redirect: to.fullPath } };
+    }
+  }
+
+  // 3. Check permission nếu route yêu cầu
+  const requiredPermission = to.meta.permission;
+  if (requiredPermission && !auth.hasPermission(requiredPermission)) {
+    return { name: "forbidden" };
+  }
+
+  // 4. Đã đăng nhập → không cho vào trang login
   if (to.name === "login" && auth.isAuthenticated) {
     return { name: "dashboard" };
   }
