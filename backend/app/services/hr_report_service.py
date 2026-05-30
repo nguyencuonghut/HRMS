@@ -211,6 +211,19 @@ async def get_employee_list(
         .outerjoin(ContractCategory, ContractCategory.id == EmployeeContract.contract_category_id)
     )
 
+    # tenure_years computed in SQL:
+    # EXTRACT(year FROM AGE(COALESCE(resigned_date, CURRENT_DATE), start_date))
+    tenure_expr = func.extract(
+        "year",
+        func.age(
+            func.coalesce(Employee.resigned_date, func.current_date()),
+            Employee.start_date,
+        ),
+    ).cast(sa.Integer)
+
+    # Thêm tenure_years vào select
+    stmt = stmt.add_columns(tenure_expr.label("tenure_years"))
+
     filters: list[sa.ColumnElement[bool]] = []
     if status:
         filters.append(Employee.status == status)
@@ -218,7 +231,6 @@ async def get_employee_list(
         filters.append(Employee.gender == gender)
     if document_kind:
         if document_kind == "probation":
-            # Thử việc có document_kind = 'labor_contract', phân biệt qua business_group
             filters.append(ContractCategory.business_group == "probation")
         else:
             filters.append(EmployeeContract.document_kind == document_kind)
@@ -231,41 +243,47 @@ async def get_employee_list(
             filters.append(sa.false())
         else:
             filters.append(EmployeeJobRecord.department_id.in_(scope_ids))
+    # Tenure filter trong SQL — tránh fetch toàn bộ rồi lọc Python
+    if tenure_min is not None:
+        filters.append(tenure_expr >= tenure_min)
+    if tenure_max is not None:
+        filters.append(tenure_expr < tenure_max)
 
-    rows = (await session.execute(stmt.where(*filters).order_by(Employee.full_name, Employee.id))).all()
+    filtered_stmt = stmt.where(*filters).order_by(Employee.full_name, Employee.id)
 
-    items: list[EmployeeListItem] = []
-    for employee, dept_id, dept_name, job_title_name, contract_category_name, row_document_kind in rows:
-        tenure_years = _tenure_years(employee.start_date, employee.resigned_date)
-        if tenure_min is not None and tenure_years < tenure_min:
-            continue
-        if tenure_max is not None and tenure_years >= tenure_max:
-            continue
-        items.append(
-            EmployeeListItem(
-                id=employee.id,
-                employee_code=str(employee.employee_seq),
-                full_name=employee.full_name,
-                gender=employee.gender,
-                date_of_birth=employee.date_of_birth,
-                status=employee.status,
-                start_date=employee.start_date,
-                resigned_date=employee.resigned_date,
-                is_active=employee.is_active,
-                department_id=dept_id,
-                department_name=dept_name,
-                job_title_name=job_title_name,
-                contract_category_name=contract_category_name,
-                document_kind=row_document_kind,
-                tenure_years=tenure_years,
-            )
+    # Count query dùng subquery để giữ WHERE conditions
+    count_q = select(func.count()).select_from(filtered_stmt.subquery())
+    total: int = (await session.execute(count_q)).scalar_one()
+
+    # Paginate trong SQL
+    page_rows = (await session.execute(
+        filtered_stmt.offset((page - 1) * page_size).limit(page_size)
+    )).all()
+
+    items: list[EmployeeListItem] = [
+        EmployeeListItem(
+            id=employee.id,
+            employee_code=str(employee.employee_seq),
+            full_name=employee.full_name,
+            gender=employee.gender,
+            date_of_birth=employee.date_of_birth,
+            status=employee.status,
+            start_date=employee.start_date,
+            resigned_date=employee.resigned_date,
+            is_active=employee.is_active,
+            department_id=dept_id,
+            department_name=dept_name,
+            job_title_name=job_title_name,
+            contract_category_name=contract_category_name,
+            document_kind=row_document_kind,
+            tenure_years=tenure_yrs,
         )
+        for employee, dept_id, dept_name, job_title_name, contract_category_name, row_document_kind, tenure_yrs
+        in page_rows
+    ]
 
-    total = len(items)
-    start = (page - 1) * page_size
-    end = start + page_size
     return EmployeeListResponse(
-        items=items[start:end],
+        items=items,
         total=total,
         page=page,
         page_size=page_size,

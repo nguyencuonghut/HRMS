@@ -37,19 +37,19 @@ def _compute_remaining(ent: LeaveEntitlement) -> float:
     return allocated + carryover - used
 
 
-async def _build_read(
-    session: AsyncSession,
+def _make_read(
     record: LeaveRecord,
+    emp: Optional[Employee],
+    lt: Optional[LeaveType],
+    employee_code: str = "",
     warning: Optional[str] = None,
     remaining_days_after: Optional[float] = None,
-    employee_code: Optional[str] = None,
 ) -> LeaveRecordRead:
-    emp = await session.get(Employee, record.employee_id)
-    lt = await session.get(LeaveType, record.leave_type_id)
+    """Tạo LeaveRecordRead từ object đã load sẵn — KHÔNG hit DB."""
     return LeaveRecordRead(
         id=record.id,
         employee_id=record.employee_id,
-        employee_code=employee_code or (await employee_code_service.build_employee_display_code(session, emp) if emp else ""),
+        employee_code=employee_code,
         employee_name=emp.full_name if emp else "",
         leave_type_id=record.leave_type_id,
         leave_type_code=lt.code if lt else "",
@@ -70,6 +70,22 @@ async def _build_read(
         remaining_days_after=remaining_days_after,
         warning=warning,
     )
+
+
+async def _build_read(
+    session: AsyncSession,
+    record: LeaveRecord,
+    warning: Optional[str] = None,
+    remaining_days_after: Optional[float] = None,
+    employee_code: Optional[str] = None,
+) -> LeaveRecordRead:
+    """Dùng cho single-record ops (create/update/get). Với list dùng _make_read."""
+    emp = await session.get(Employee, record.employee_id)
+    lt = await session.get(LeaveType, record.leave_type_id)
+    code = employee_code or (
+        await employee_code_service.build_employee_display_code(session, emp) if emp else ""
+    )
+    return _make_read(record, emp, lt, code, warning, remaining_days_after)
 
 
 async def _get_record_or_404(session: AsyncSession, record_id: int) -> LeaveRecord:
@@ -147,12 +163,39 @@ async def list_records(
         .limit(page_size)
     )
     rows = (await session.execute(stmt)).scalars().all()
-    employee_ids = {row.employee_id for row in rows}
-    employees = []
+
+    # Batch load Employee + LeaveType — tránh N+1
+    employee_ids  = {r.employee_id  for r in rows}
+    leave_type_ids = {r.leave_type_id for r in rows}
+
+    emp_map: dict[int, Employee] = {}
+    lt_map:  dict[int, LeaveType] = {}
+
     if employee_ids:
-        employees = list((await session.execute(select(Employee).where(Employee.id.in_(employee_ids)))).scalars().all())
-    code_map = await employee_code_service.batch_build_employee_display_codes(session, employees)
-    items = [await _build_read(session, r, employee_code=code_map.get(r.employee_id, "")) for r in rows]
+        emps = (await session.execute(
+            select(Employee).where(Employee.id.in_(employee_ids))
+        )).scalars().all()
+        emp_map = {e.id: e for e in emps}
+
+    if leave_type_ids:
+        lts = (await session.execute(
+            select(LeaveType).where(LeaveType.id.in_(leave_type_ids))
+        )).scalars().all()
+        lt_map = {lt.id: lt for lt in lts}
+
+    code_map = await employee_code_service.batch_build_employee_display_codes(
+        session, list(emp_map.values())
+    )
+
+    items = [
+        _make_read(
+            r,
+            emp_map.get(r.employee_id),
+            lt_map.get(r.leave_type_id),
+            employee_code=code_map.get(r.employee_id, ""),
+        )
+        for r in rows
+    ]
     return {"items": items, "total": total, "page": page, "page_size": page_size}
 
 
