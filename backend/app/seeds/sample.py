@@ -130,7 +130,7 @@ async def seed_job_titles(session: AsyncSession) -> int:
             text("""
                 INSERT INTO job_titles (code, name, level, is_active)
                 VALUES (:code, :name, :level, true)
-                ON CONFLICT (code) DO NOTHING
+                ON CONFLICT (code) WHERE deleted_at IS NULL DO NOTHING
             """),
             t,
         )
@@ -208,7 +208,7 @@ async def seed_departments(session: AsyncSession) -> int:
                 INSERT INTO departments
                     (code, name, short_name, parent_id, dept_type, order_no, is_active)
                 VALUES (:code, :name, NULL, NULL, :dept_type, :order_no, true)
-                ON CONFLICT (code) DO NOTHING
+                ON CONFLICT (code) WHERE deleted_at IS NULL DO NOTHING
                 RETURNING id, code
             """),
             {"code": code, "name": name, "dept_type": dept_type, "order_no": order_no},
@@ -241,7 +241,7 @@ async def seed_departments(session: AsyncSession) -> int:
                 INSERT INTO departments
                     (code, name, short_name, parent_id, dept_type, order_no, is_active)
                 VALUES (:code, :name, NULL, :parent_id, :dept_type, :order_no, true)
-                ON CONFLICT (code) DO NOTHING
+                ON CONFLICT (code) WHERE deleted_at IS NULL DO NOTHING
                 RETURNING id, code
             """),
             {

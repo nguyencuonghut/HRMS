@@ -519,7 +519,19 @@ async def lookup_leave_types(session: AsyncSession, *, keyword: Optional[str] = 
         if cached is not None:
             return [LeaveType.model_validate(d) for d in cached]
         rows = await _lookup_basic(session, model=LeaveType, keyword=None, is_active=is_active, limit=limit, order_by=[LeaveType.name])
-        await cache_set(cache_key, [{"id": r.id, "code": r.code, "name": r.name, "color_tag": r.color_tag, "is_active": r.is_active} for r in rows], 3600)
+        await cache_set(cache_key, [
+            {
+                "id": r.id,
+                "code": r.code,
+                "name": r.name,
+                "normalized_name": r.normalized_name,
+                "color_tag": r.color_tag,
+                "is_active": r.is_active,
+                "allow_half_day": r.allow_half_day,
+                "carryover_allowed": r.carryover_allowed,
+            }
+            for r in rows
+        ], 3600)
         return rows
     return await _lookup_basic(session, model=LeaveType, keyword=keyword, is_active=is_active, limit=limit, order_by=[LeaveType.name])
 
