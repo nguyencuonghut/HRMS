@@ -24,7 +24,7 @@ Các vấn đề được chia theo **4 nhóm ưu tiên**:
 
 ## 🔴 CRITICAL — Phải có trước go-live
 
-### C1. Secrets Management — Loại bỏ default hardcoded secrets
+### C1. Secrets Management — Loại bỏ default hardcoded secrets `✅ Hoàn thành`
 
 **Vấn đề:** `config.py` có default values không an toàn cho production:
 ```python
@@ -64,9 +64,11 @@ class Settings(BaseSettings):
 
 **Effort:** 2 giờ | **Files:** `config.py` | **Risk nếu không làm:** Data breach
 
+**Trạng thái hiện tại đã xác nhận:** `backend/app/core/config.py` đã có validator cho `SECRET_KEY`, `ENCRYPTION_KEY`, và reject/warn với default secrets; `docker-compose.prod.yml` đã không còn truyền secret mặc định cho production.
+
 ---
 
-### C2. Docker Security — Không chạy container với root user
+### C2. Docker Security — Không chạy container với root user `✅ Hoàn thành`
 
 **Vấn đề:** `backend/Dockerfile` không có `USER` directive → container chạy root → nếu bị exploit, attacker có full system access.
 
@@ -99,9 +101,11 @@ CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 
 **Effort:** 30 phút | **Files:** `backend/Dockerfile`, `frontend/Dockerfile`
 
+**Trạng thái hiện tại đã xác nhận:** `backend/Dockerfile` đã có `USER appuser`.
+
 ---
 
-### C3. v-html XSS — Sanitize tất cả HTML từ server
+### C3. v-html XSS — Sanitize tất cả HTML từ server `✅ Hoàn thành`
 
 **Vấn đề:** 4 component dùng `v-html` để render HTML từ backend/database mà không sanitize:
 - `NotificationSettingsView.vue:152` — email template preview
@@ -133,9 +137,11 @@ export function sanitizeHtml(html: string): string {
 
 **Effort:** 2 giờ | **Files:** 4 Vue components | **Risk:** Stored XSS → account takeover
 
+**Trạng thái hiện tại đã xác nhận:** `frontend/src/composables/useSanitize.ts` đã tồn tại và 4 component nêu trong mục này đã dùng `sanitizeHtml(...)` trước khi `v-html`.
+
 ---
 
-### C4. Frontend Global Error Boundary
+### C4. Frontend Global Error Boundary `✅ Hoàn thành`
 
 **Vấn đề:** Khi một component Vue throw error không được catch → toàn bộ app crash, user thấy màn hình trắng.
 
@@ -171,9 +177,11 @@ onErrorCaptured((err: Error, instance, info) => {
 
 **Effort:** 2 giờ
 
+**Trạng thái hiện tại đã xác nhận:** `frontend/src/App.vue` đã có `onErrorCaptured(...)` và UI fallback toàn app.
+
 ---
 
-### C5. Gunicorn Graceful Timeout — Tránh mất dữ liệu khi deploy
+### C5. Gunicorn Graceful Timeout — Tránh mất dữ liệu khi deploy `✅ Hoàn thành`
 
 **Vấn đề:** `docker-compose.prod.yml` dùng `gunicorn` nhưng không có timeout config → khi deploy mới, worker bị SIGKILL giữa transaction.
 
@@ -197,11 +205,13 @@ backend:
 
 **Effort:** 15 phút
 
+**Trạng thái hiện tại đã xác nhận:** `docker-compose.prod.yml` đã cấu hình `gunicorn --timeout 120 --graceful-timeout 30`.
+
 ---
 
 ## 🟠 HIGH — Nên có trong 30 ngày đầu
 
-### H1. Axios — Timeout, Retry, Error Handling
+### H1. Axios — Timeout, Retry, Error Handling `✅ Hoàn thành`
 
 **Vấn đề:** `api.ts` không có timeout → request có thể hang vô hạn. Không có retry cho lỗi mạng thoáng qua.
 
@@ -259,9 +269,11 @@ api.interceptors.response.use(
 
 **Effort:** 4 giờ
 
+**Trạng thái hiện tại đã xác nhận:** `frontend/src/services/api.ts` đã có `timeout=30000`, retry cho request idempotent, và xử lý 401/5xx nhất quán. Phần triển khai thực tế đã đi xa hơn snippet cũ vì dùng access token in-memory + refresh cookie.
+
 ---
 
-### H2. N+1 Query — Eager Loading
+### H2. N+1 Query — Eager Loading `⏳ Chưa làm`
 
 **Vấn đề:** List endpoints trả về employees/contracts kèm related data (department, job_title...) nhưng không dùng `selectinload` → N+1 queries.
 
@@ -288,7 +300,7 @@ async def list_employees_page(session: AsyncSession, ...) -> ...:
 
 ---
 
-### H3. Request Tracing — Correlation ID
+### H3. Request Tracing — Correlation ID `✅ Hoàn thành`
 
 **Vấn đề:** Không thể trace một request cụ thể qua logs vì không có request ID.
 
@@ -331,9 +343,11 @@ app.add_middleware(RequestIDMiddleware)
 
 **Effort:** 2 giờ
 
+**Trạng thái hiện tại đã xác nhận:** `backend/app/middleware/request_id.py` đã tồn tại, được đăng ký trong `backend/app/main.py`, log bind `request_id`, và response trả `X-Request-ID`.
+
 ---
 
-### H4. Circuit Breaker cho MinIO và SMTP
+### H4. Circuit Breaker cho MinIO và SMTP `✅ Hoàn thành`
 
 **Vấn đề:** Nếu MinIO down → mọi upload endpoint trả 500 và không có retry. Nếu SMTP down → notification service crash silently.
 
@@ -383,9 +397,11 @@ smtp_circuit  = CircuitBreaker("smtp",  failure_threshold=2, recovery_timeout=60
 
 **Effort:** 4 giờ
 
+**Trạng thái hiện tại đã xác nhận:** `backend/app/core/circuit_breaker.py` đã có `minio_circuit` và `smtp_circuit`; `notification_service.py` đã dùng `smtp_circuit`. MinIO env/runtime seam hiện đã có singleton circuit, nhưng tài liệu này chỉ nên coi là hoàn thành ở mức code path external service protection đã có.
+
 ---
 
-### H5. Database — Soft Delete Mixin
+### H5. Database — Soft Delete Mixin `🟡 Một phần`
 
 > **✅ Phase 1 hoàn thành** — Department, JobTitle, JobPosition (migration 0051 + 0052).  
 > **⏳ Phase 2 (Employee, EmployeeContract, Leave, Training)** — Xem lịch bên dưới.
@@ -456,9 +472,11 @@ stmt = select(Employee).where(Employee.deleted_at.is_(None))
 
 **Effort:** 1 ngày
 
+**Trạng thái hiện tại đã xác nhận:** Phase 1 xong; Phase 2 chưa triển khai.
+
 ---
 
-### H6. Bare Exception Handling
+### H6. Bare Exception Handling `⏳ Chưa làm`
 
 **Vấn đề:** 30+ chỗ dùng `except Exception:` hoặc `except:` mà không log → bugs ẩn, debugging khó.
 
@@ -490,7 +508,7 @@ except Exception:
 
 ---
 
-### H7. Redis Password Protection
+### H7. Redis Password Protection `✅ Hoàn thành trong docker-compose.prod.yml`
 
 **Vấn đề:** Redis expose port 6380 ra ngoài (dev compose) không có password → bất kỳ ai trong network có thể đọc cache, queue.
 
@@ -511,9 +529,11 @@ REDIS_URL: str = "redis://:${REDIS_PASSWORD}@redis:6379/0"
 
 **Effort:** 1 giờ
 
+**Trạng thái hiện tại đã xác nhận:** `docker-compose.prod.yml` đã dùng `redis-server --requirepass ${REDIS_PASSWORD}` và không expose port Redis ra ngoài.
+
 ---
 
-### H8. Slow Query Monitoring
+### H8. Slow Query Monitoring `✅ Hoàn thành`
 
 **Vấn đề:** Không có visibility vào slow queries trong production.
 
@@ -544,9 +564,11 @@ def after_cursor_execute(conn, cursor, statement, parameters, context, executema
 
 **Effort:** 2 giờ
 
+**Trạng thái hiện tại đã xác nhận:** `backend/app/core/database.py` đã có SQLAlchemy event hooks log `slow_query` theo `settings.SLOW_QUERY_THRESHOLD_MS`.
+
 ---
 
-### H9. Celery — Exponential Backoff + Task Isolation
+### H9. Celery — Exponential Backoff + Task Isolation `🟡 Một phần`
 
 **Vấn đề:** Retry delay cố định 10s; beat và worker không isolated.
 
@@ -579,9 +601,11 @@ celery_app.conf.redbeat_redis_url = settings.REDIS_URL
 
 **Effort:** 4 giờ
 
+**Trạng thái hiện tại đã xác nhận:** `acks_late`, `time_limit`, `soft_time_limit`, và `redbeat_redis_url` đã có trong code production path; tuy nhiên `retry_backoff=True` / `autoretry_for=...` chưa được áp dụng nhất quán cho toàn bộ task decorators, nên mục này mới hoàn thành một phần.
+
 ---
 
-### H10. Healthcheck — Readiness vs Liveness
+### H10. Healthcheck — Readiness vs Liveness `✅ Hoàn thành`
 
 **Vấn đề:** Chỉ có 1 endpoint `/health`; cần tách readiness (có thể nhận traffic?) và liveness (app còn sống?).
 
@@ -625,9 +649,11 @@ async def readiness() -> dict:
 
 **Effort:** 2 giờ
 
+**Trạng thái hiện tại đã xác nhận:** `backend/app/main.py` đã có `/health/live`, `/health/ready`, và `/health` backward-compatible.
+
 ---
 
-### H11. Frontend — Route Permission Guards
+### H11. Frontend — Route Permission Guards `✅ Hoàn thành`
 
 **Vấn đề:** `beforeEach` chỉ check `isAuthenticated` nhưng không check quyền → user có thể navigate đến trang admin.
 
@@ -660,9 +686,11 @@ router.beforeEach(async (to) => {
 
 **Effort:** 4 giờ
 
+**Trạng thái hiện tại đã xác nhận:** `frontend/src/router/index.ts` đã check `to.meta.permission` và redirect `forbidden` khi user không có quyền.
+
 ---
 
-### H12. Nginx Configuration — Reverse Proxy Production
+### H12. Nginx Configuration — Reverse Proxy Production `✅ Hoàn thành`
 
 **Vấn đề:** File nginx config không có trong repo → deployment bí ẩn.
 
@@ -734,11 +762,13 @@ limit_req_zone $binary_remote_addr zone=api_limit:10m rate=30r/s;
 
 **Effort:** 4 giờ
 
+**Trạng thái hiện tại đã xác nhận:** `docker-compose.prod.yml` đã mount `./nginx/conf.d` và `./nginx/ssl`; cấu hình reverse proxy production đã nằm trong repo.
+
 ---
 
 ## 🟡 MEDIUM — Roadmap Q3/Q4
 
-### M1. CSRF Protection
+### M1. CSRF Protection `⏳ Chưa làm riêng như roadmap này`
 
 Dùng `SameSite=Strict` cookie cho session indicator; double-submit cookie pattern cho state-changing ops.
 
@@ -746,7 +776,7 @@ Dùng `SameSite=Strict` cookie cho session indicator; double-submit cookie patte
 
 ---
 
-### M2. DOMPurify — Nâng cấp CSP
+### M2. DOMPurify — Nâng cấp CSP `⏳ Chưa làm`
 
 Bỏ `'unsafe-inline'` khỏi `style-src`; dùng CSS hash hoặc `nonce` cho inline styles từ PrimeVue.
 
@@ -754,7 +784,7 @@ Bỏ `'unsafe-inline'` khỏi `style-src`; dùng CSS hash hoặc `nonce` cho inl
 
 ---
 
-### M3. Test Coverage Report
+### M3. Test Coverage Report `⏳ Chưa làm`
 
 ```ini
 # pytest.ini
@@ -768,7 +798,7 @@ Mục tiêu: **≥ 75% coverage** trước khi merge vào `main`.
 
 ---
 
-### M4. Database Index Audit
+### M4. Database Index Audit `⏳ Chưa làm`
 
 Chạy `EXPLAIN ANALYZE` trên 10 query chậm nhất, bổ sung composite indexes:
 ```sql
@@ -784,7 +814,7 @@ CREATE INDEX CONCURRENTLY ix_audit_logs_user_action_date
 
 ---
 
-### M5. Migrate Tokens từ localStorage → Memory + HttpOnly Cookie
+### M5. Migrate Tokens từ localStorage → Memory + HttpOnly Cookie `✅ Hoàn thành`
 
 localStorage dễ bị XSS đánh cắp. Giải pháp tốt nhất:
 - `access_token` lưu **in-memory** (biến JS, không persist)
@@ -793,9 +823,11 @@ localStorage dễ bị XSS đánh cắp. Giải pháp tốt nhất:
 
 **Effort:** 3–4 ngày (cần thay đổi cả FE và BE)
 
+**Trạng thái hiện tại đã xác nhận:** flow M5 đã được triển khai và verify browser-level: access token ở memory/Pinia, refresh token qua HttpOnly cookie, login/refresh/reload đều pass.
+
 ---
 
-### M6. Offline Detection + UX
+### M6. Offline Detection + UX `✅ Hoàn thành`
 
 ```typescript
 // src/composables/useOnline.ts
@@ -820,9 +852,11 @@ export function useOnline() {
 
 **Effort:** 4 giờ
 
+**Trạng thái hiện tại đã xác nhận:** `frontend/src/composables/useOnline.ts`, offline banner trong `App.vue`, và network-aware auth/API behavior đã được triển khai và verify browser-level.
+
 ---
 
-### M7. Bundle Size Monitoring
+### M7. Bundle Size Monitoring `⏳ Chưa làm`
 
 ```typescript
 // vite.config.ts
@@ -853,7 +887,7 @@ Thêm vào CI: fail nếu bundle > 2MB.
 
 ---
 
-### M8. API Response Wrapper Nhất quán
+### M8. API Response Wrapper Nhất quán `⏳ Chưa làm`
 
 **Vấn đề:** Một số endpoint trả `list[T]`, một số trả `{items, total}`, gây confusion cho client.
 
@@ -878,7 +912,7 @@ class PageResponse(BaseModel, Generic[T]):
 
 ---
 
-### M9. Liveness & Alerting Stack
+### M9. Liveness & Alerting Stack `⏳ Chưa làm`
 
 Cài đặt stack monitoring nhẹ:
 ```yaml
@@ -910,29 +944,22 @@ Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 
 ---
 
-### M10. Database Backup Automation
+### M10. Database Backup Automation `✅ Hoàn thành`
 
-```bash
-# scripts/backup_db.sh — đã có ✅
-# Cần thêm: verify backup integrity
-```
-
-```bash
-# scripts/verify_backup.sh
-#!/bin/bash
-BACKUP_FILE="$1"
-# Restore vào DB test
-pg_restore -d hrms_verify "$BACKUP_FILE" 2>&1 | tail -5
-# Check row counts
-psql -d hrms_verify -c "SELECT count(*) FROM employees" || exit 1
-echo "Backup verified OK"
-```
+Hiện tại đã có:
+- `scripts/backup_db.sh`
+- `scripts/verify_backup.sh` cho plain `.sql.gz`
+- hook email notify success/failure
+- Mailpit dev loop để test mail backup
 
 **Effort:** 2 giờ
 
+**Trạng thái hiện tại đã xác nhận:** backup PostgreSQL plain-SQL `.sql.gz` đã verify restore được; script verify chạy được; notification mail success/failure đã gửi được vào Mailpit trong local test loop.  
+**Chưa xác nhận:** cron/scheduler production có đang chạy định kỳ thực tế hay chưa.
+
 ---
 
-### M11. Celery Worker Monitoring — Flower
+### M11. Celery Worker Monitoring — Flower `⏳ Chưa làm`
 
 ```yaml
 # docker-compose.prod.yml (thêm)
@@ -949,7 +976,7 @@ flower:
 
 ---
 
-### M12. Pagination Max Limit
+### M12. Pagination Max Limit `⏳ Chưa làm toàn cục`
 
 **Vấn đề:** Một số endpoint cho phép `page_size=200` → 200 items × N relationships = hàng nghìn rows.
 
@@ -962,7 +989,7 @@ page_size: int = Query(20, ge=1, le=100)  # Không cho phép > 100
 
 ---
 
-### M13. Migration Safety — Zero-Downtime Pattern
+### M13. Migration Safety — Zero-Downtime Pattern `⏳ Chưa làm`
 
 **Vấn đề:** Thêm NOT NULL column không có default sẽ fail trên prod với dữ liệu hiện tại.
 
@@ -979,10 +1006,10 @@ Thêm `migration_check.sh` vào CI để verify không có breaking changes.
 
 ---
 
-### M14. Encrypt thêm PII Fields
+### M14. Encrypt thêm PII Fields `🟡 Một phần`
 
-**Hiện tại:** `id_number`, `passport_number`, `personal_tax_code` đã encrypt ✅  
-**Cần thêm:** `phone_number`, `personal_email` cũng là PII theo PDPA.
+**Hiện tại:** `id_number`, `passport_number`, `personal_tax_code`, `employee_bank_accounts.account_number` đã encrypt ✅  
+**Cần thêm:** `phone_number`, `personal_email` vẫn chưa encrypt.
 
 ```python
 # models/employee.py
@@ -1049,25 +1076,26 @@ IMPACT  │ M12 Max limit  │                 │ L3 Multi-tenant    │
 ## Checklist Go-Live Production
 
 ### 🔐 Security
-- [ ] C1: Default secrets removed + validation added
+- [x] C1: Default secrets removed + validation added
 - [x] C2: Docker non-root user (appuser uid=1000)
 - [x] C3: DOMPurify for v-html (4 components)
 - [x] C5: Gunicorn timeout configured (--timeout 120 --graceful-timeout 30)
-- [ ] H7: Redis password protected
-- [ ] H12: Nginx config in repo + SSL
+- [x] H7: Redis password protected
+- [x] H12: Nginx config in repo + SSL
 
 ### 🚀 Performance & Reliability
-- [ ] C4: Global error boundary in App.vue
-- [ ] H1: Axios timeout + retry
+- [x] C4: Global error boundary in App.vue
+- [x] H1: Axios timeout + retry
 - [ ] H2: Top 5 N+1 queries fixed
-- [ ] H3: Request correlation ID
-- [ ] H4: Circuit breaker MinIO/SMTP
+- [x] H3: Request correlation ID
+- [x] H4: Circuit breaker MinIO/SMTP
 - [ ] H9: Celery exponential backoff + soft time limit
-- [ ] H10: `/health/live` + `/health/ready` separated
+- [x] H10: `/health/live` + `/health/ready` separated
+- [x] H11: Frontend route permission guards
 
 ### 📊 Observability
-- [ ] H8: Slow query monitoring (>500ms)
-- [ ] H3: Request ID in all logs
+- [x] H8: Slow query monitoring (>500ms)
+- [x] H3: Request ID in all logs
 - [ ] Sentry DSN configured in production
 - [ ] HEALTHCHECK_PING_URL configured
 
@@ -1075,12 +1103,15 @@ IMPACT  │ M12 Max limit  │                 │ L3 Multi-tenant    │
 - [x] H5 Phase 1: Soft delete — Department, JobTitle, JobPosition (migration 0051+0052)
 - [ ] H5 Phase 2: Soft delete — Employee, Contract, Leave, Training (sau go-live)
 - [ ] Database backup running + verified
+- [x] Backup notify mail (success/failure) + Mailpit local verification
 - [ ] H6: No bare except without logging
+- [x] M5: access token memory + refresh cookie
+- [x] M6: offline detection + UX
 
 ### 🔧 Infrastructure  
 - [ ] Load test: 200 concurrent users, p95 < 800ms
 - [ ] Smoke test after each deploy
-- [ ] Rollback plan documented
+- [x] Rollback plan documented
 - [ ] On-call runbook written
 
 ---
