@@ -16,6 +16,14 @@ export interface AuditLogItem {
   created_at:  string
 }
 
+export interface AuditLogPageResponse {
+  items:       AuditLogItem[]
+  total:       number
+  page:        number
+  page_size:   number
+  total_pages: number
+}
+
 export interface AuditLogFilter {
   user_id?:     number
   action?:      string
@@ -23,11 +31,13 @@ export interface AuditLogFilter {
   entity_id?:   number
   date_from?:   string
   date_to?:     string
-  limit?:       number
+  keyword?:     string
+  page?:        number
+  page_size?:   number
 }
 
 export default {
   getList(params?: AuditLogFilter) {
-    return api.get<AuditLogItem[]>('/audit-logs', { params })
+    return api.get<AuditLogPageResponse>('/audit-logs', { params })
   },
 }

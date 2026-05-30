@@ -1,11 +1,12 @@
 """Audit Log API — xem lịch sử thao tác toàn hệ thống."""
 
 from datetime import date, timedelta
+from math import ceil
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
-from sqlalchemy import outerjoin, select
+from sqlalchemy import func, or_, outerjoin, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import require_permission
@@ -51,38 +52,69 @@ class AuditLogRead(BaseModel):
         )
 
 
-@router.get("", response_model=list[AuditLogRead], summary="Lịch sử thao tác hệ thống")
+class AuditLogPageResponse(BaseModel):
+    items:       list[AuditLogRead]
+    total:       int
+    page:        int
+    page_size:   int
+    total_pages: int
+
+
+@router.get("", response_model=AuditLogPageResponse, summary="Lịch sử thao tác hệ thống")
 async def list_audit_logs(
-    user_id:     Optional[int]  = Query(None, description="Lọc theo user_id"),
-    action:      Optional[str]  = Query(None, description="Lọc theo action: LOGIN, CREATE, UPDATE, DELETE, ..."),
-    entity_type: Optional[str]  = Query(None, description="Lọc theo loại đối tượng"),
-    entity_id:   Optional[int]  = Query(None, description="Lọc theo ID đối tượng"),
-    date_from:   Optional[date] = Query(None, description="Từ ngày (YYYY-MM-DD)"),
-    date_to:     Optional[date] = Query(None, description="Đến ngày (YYYY-MM-DD)"),
-    limit:       int            = Query(100, ge=1, le=500, description="Số bản ghi tối đa"),
+    user_id:     Optional[int]  = Query(None),
+    action:      Optional[str]  = Query(None),
+    entity_type: Optional[str]  = Query(None),
+    entity_id:   Optional[int]  = Query(None),
+    date_from:   Optional[date] = Query(None),
+    date_to:     Optional[date] = Query(None),
+    keyword:     Optional[str]  = Query(None, description="Tìm theo tên đối tượng / email / IP"),
+    page:        int            = Query(1, ge=1),
+    page_size:   int            = Query(20, ge=1, le=100),
     _:           User           = require_permission("audit_logs:view"),
     session:     AsyncSession   = Depends(get_session),
 ):
     j = outerjoin(AuditLog, User, AuditLog.user_id == User.id)
-    q = (
-        select(AuditLog, User)
-        .select_from(j)
-        .order_by(AuditLog.created_at.desc())
-        .limit(limit)
-    )
+    base = select(AuditLog, User).select_from(j)
 
     if user_id is not None:
-        q = q.where(AuditLog.user_id == user_id)
+        base = base.where(AuditLog.user_id == user_id)
     if action:
-        q = q.where(AuditLog.action == action.upper())
+        base = base.where(AuditLog.action == action.upper())
     if entity_type:
-        q = q.where(AuditLog.entity_type == entity_type)
+        base = base.where(AuditLog.entity_type == entity_type)
     if entity_id is not None:
-        q = q.where(AuditLog.entity_id == entity_id)
+        base = base.where(AuditLog.entity_id == entity_id)
     if date_from:
-        q = q.where(AuditLog.created_at >= date_from)
+        base = base.where(AuditLog.created_at >= date_from)
     if date_to:
-        q = q.where(AuditLog.created_at < date_to + timedelta(days=1))
+        base = base.where(AuditLog.created_at < date_to + timedelta(days=1))
+    if keyword:
+        kw = f"%{keyword.strip()}%"
+        base = base.where(
+            or_(
+                AuditLog.entity_name.ilike(kw),
+                AuditLog.ip_address.ilike(kw),
+                User.email.ilike(kw),
+                User.full_name.ilike(kw),
+            )
+        )
 
-    rows = (await session.execute(q)).all()
-    return [AuditLogRead.from_row(log, user) for log, user in rows]
+    # Count
+    count_q = select(func.count()).select_from(base.subquery())
+    total: int = (await session.execute(count_q)).scalar_one()
+
+    # Page
+    rows = (await session.execute(
+        base.order_by(AuditLog.created_at.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+    )).all()
+
+    return AuditLogPageResponse(
+        items=[AuditLogRead.from_row(log, user) for log, user in rows],
+        total=total,
+        page=page,
+        page_size=page_size,
+        total_pages=ceil(total / page_size) if total else 0,
+    )

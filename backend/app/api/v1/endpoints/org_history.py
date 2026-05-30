@@ -1,8 +1,10 @@
 from datetime import date, timedelta
+from math import ceil
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import select
+from pydantic import BaseModel
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_session
@@ -12,22 +14,46 @@ from app.schemas.org_history import OrgHistoryRead
 router = APIRouter()
 
 
-@router.get("", response_model=list[OrgHistoryRead], summary="Lịch sử thay đổi cơ cấu tổ chức")
+class OrgHistoryPageResponse(BaseModel):
+    items:       list[OrgHistoryRead]
+    total:       int
+    page:        int
+    page_size:   int
+    total_pages: int
+
+
+@router.get("", response_model=OrgHistoryPageResponse, summary="Lịch sử thay đổi cơ cấu tổ chức")
 async def list_org_history(
-    entity_type: Optional[str] = Query(None, description="Lọc theo loại: department | job_title | job_position"),
-    date_from:   Optional[date] = Query(None, description="Từ ngày (YYYY-MM-DD)"),
-    date_to:     Optional[date] = Query(None, description="Đến ngày (YYYY-MM-DD)"),
-    limit:       int            = Query(200, ge=1, le=1000, description="Số bản ghi tối đa"),
+    entity_type: Optional[str] = Query(None),
+    date_from:   Optional[date] = Query(None),
+    date_to:     Optional[date] = Query(None),
+    page:        int            = Query(1, ge=1),
+    page_size:   int            = Query(20, ge=1, le=100),
     session: AsyncSession = Depends(get_session),
 ):
-    q = select(OrgChangeLog).order_by(OrgChangeLog.changed_at.desc()).limit(limit)
+    base = select(OrgChangeLog)
 
     if entity_type:
-        q = q.where(OrgChangeLog.entity_type == entity_type)
+        base = base.where(OrgChangeLog.entity_type == entity_type)
     if date_from:
-        q = q.where(OrgChangeLog.changed_at >= date_from)
+        base = base.where(OrgChangeLog.changed_at >= date_from)
     if date_to:
-        q = q.where(OrgChangeLog.changed_at < date_to + timedelta(days=1))
+        base = base.where(OrgChangeLog.changed_at < date_to + timedelta(days=1))
 
-    rows = (await session.execute(q)).scalars().all()
-    return [OrgHistoryRead.from_orm_row(r) for r in rows]
+    total: int = (await session.execute(
+        select(func.count()).select_from(base.subquery())
+    )).scalar_one()
+
+    rows = (await session.execute(
+        base.order_by(OrgChangeLog.changed_at.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+    )).scalars().all()
+
+    return OrgHistoryPageResponse(
+        items=[OrgHistoryRead.from_orm_row(r) for r in rows],
+        total=total,
+        page=page,
+        page_size=page_size,
+        total_pages=ceil(total / page_size) if total else 0,
+    )

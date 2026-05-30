@@ -47,10 +47,10 @@
       <IconField class="toolbar-search">
         <InputIcon class="pi pi-search" />
         <InputText
-          v-model="filters.global.value"
-          placeholder="Tìm kiếm..."
+          v-model="filterKeyword"
+          placeholder="Tên, email, IP..."
           class="w-full"
-          @input="first = 0"
+          @keyup.enter="applyFilter"
         />
       </IconField>
       <Button label="Lọc" icon="pi pi-filter" @click="applyFilter" />
@@ -69,23 +69,18 @@
       <DataTable
         :value="list"
         :loading="loading"
-        v-model:filters="filters"
-        :global-filter-fields="['user_name', 'user_email', 'action', 'entity_type', 'entity_name', 'ip_address']"
+        lazy
+        :total-records="total"
         responsive-layout="scroll"
         :paginator="true"
-        :rows="pageRows"
+        :rows="pageSize"
         :rows-per-page-options="[10, 25, 50]"
-        :first="first"
+        :first="(page - 1) * pageSize"
         paginator-template="RowsPerPageDropdown FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport"
         current-page-report-template="Hiển thị từ {first} đến {last} trên tổng số {totalRecords} dòng"
         sort-mode="single"
         @page="handlePage"
       >
-        <template #paginatorstart>
-          <span class="paginator-info" v-if="displayedTotal > 0">
-            Hiển thị {{ first + 1 }}–{{ Math.min(first + pageRows, displayedTotal) }} trên tổng số {{ displayedTotal }} dòng
-          </span>
-        </template>
         <template #empty>
           <div class="empty-state">
             <i class="pi pi-history" />
@@ -210,8 +205,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
-import { FilterMatchMode } from '@primevue/core/api'
+import { ref, onMounted } from 'vue'
 import { useToast } from 'primevue/usetoast'
 import Button from 'primevue/button'
 import Column from 'primevue/column'
@@ -230,32 +224,21 @@ import { toLocalIso } from '@/utils/format'
 const toast    = useToast()
 const loading  = ref(false)
 const list     = ref<AuditLogItem[]>([])
-const pageRows = ref(10)
-const first    = ref(0)
-
-const filters = ref({ global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS } })
-
-const FILTER_FIELDS = ['user_name', 'user_email', 'action', 'entity_type', 'entity_name', 'ip_address'] as const
-
-const displayedTotal = computed(() => {
-  const q = filters.value.global.value?.trim().toLowerCase()
-  if (!q) return list.value.length
-  return list.value.filter(item =>
-    FILTER_FIELDS.some(f => String(item[f] ?? '').toLowerCase().includes(q))
-  ).length
-})
-
-watch(() => filters.value.global.value, () => { first.value = 0 })
+const total    = ref(0)
+const page     = ref(1)
+const pageSize = ref(20)
 
 function handlePage(e: { first: number; rows: number }) {
-  first.value    = e.first
-  pageRows.value = e.rows
+  page.value     = Math.floor(e.first / e.rows) + 1
+  pageSize.value = e.rows
+  loadData()
 }
 
 const filterAction     = ref<string | null>(null)
 const filterEntityType = ref<string | null>(null)
 const filterDateFrom   = ref<Date | null>(null)
 const filterDateTo     = ref<Date | null>(null)
+const filterKeyword    = ref('')
 
 const detailVisible = ref(false)
 const detailItem    = ref<AuditLogItem | null>(null)
@@ -281,8 +264,8 @@ const entityTypeOptions = [
   { label: 'Hợp đồng',      value: 'contract' },
 ]
 
-async function loadData() {
-  first.value   = 0
+async function loadData(resetPage = false) {
+  if (resetPage) page.value = 1
   loading.value = true
   try {
     const { data } = await auditLogService.getList({
@@ -290,9 +273,12 @@ async function loadData() {
       entity_type: filterEntityType.value ?? undefined,
       date_from:   filterDateFrom.value ? toISODate(filterDateFrom.value) : undefined,
       date_to:     filterDateTo.value   ? toISODate(filterDateTo.value)   : undefined,
-      limit:       500,
+      keyword:     filterKeyword.value?.trim() || undefined,
+      page:        page.value,
+      page_size:   pageSize.value,
     })
-    list.value = data
+    list.value  = data.items
+    total.value = data.total
   } catch (e) {
     const err = e as { response?: { data?: { detail?: string } } }
     toast.add({ severity: 'error', summary: 'Lỗi', detail: err.response?.data?.detail ?? 'Không thể tải dữ liệu', life: 4000 })
@@ -301,15 +287,15 @@ async function loadData() {
   }
 }
 
-function applyFilter() { loadData() }
+function applyFilter() { loadData(true) }
 
 function resetAndLoad() {
-  filterAction.value        = null
-  filterEntityType.value    = null
-  filterDateFrom.value      = null
-  filterDateTo.value        = null
-  filters.value.global.value = null
-  loadData()
+  filterAction.value   = null
+  filterEntityType.value = null
+  filterDateFrom.value = null
+  filterDateTo.value   = null
+  filterKeyword.value  = ''
+  loadData(true)
 }
 
 function openDetail(item: AuditLogItem) {

@@ -1,4 +1,4 @@
-import axios from 'axios'
+import api from './api'
 
 export interface OrgHistoryItem {
   id:           number
@@ -14,13 +14,23 @@ export interface OrgHistoryItem {
   new_data:     Record<string, unknown> | null
 }
 
-const BASE = '/api/v1/org-history'
+export interface OrgHistoryPageResponse {
+  items:       OrgHistoryItem[]
+  total:       number
+  page:        number
+  page_size:   number
+  total_pages: number
+}
+
+export interface OrgHistoryFilter {
+  entity_type?: string
+  date_from?:   string
+  date_to?:     string
+  page?:        number
+  page_size?:   number
+}
 
 export default {
-  getList: (params?: {
-    entity_type?: string
-    date_from?: string
-    date_to?: string
-    limit?: number
-  }) => axios.get<OrgHistoryItem[]>(BASE, { params }),
+  getList: (params?: OrgHistoryFilter) =>
+    api.get<OrgHistoryPageResponse>('/org-history', { params }),
 }

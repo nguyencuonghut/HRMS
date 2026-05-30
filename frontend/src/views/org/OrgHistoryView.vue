@@ -33,7 +33,7 @@
         show-button-bar
         class="toolbar-date"
       />
-      <Button label="Lọc" icon="pi pi-filter" @click="loadData" />
+      <Button label="Lọc" icon="pi pi-filter" @click="loadData(true)" />
       <Button
         icon="pi pi-refresh"
         severity="secondary"
@@ -49,19 +49,18 @@
       <DataTable
         :value="list"
         :loading="loading"
+        lazy
+        :total-records="total"
         responsive-layout="scroll"
         :paginator="true"
-        :rows="pageRows"
+        :rows="pageSize"
         :rows-per-page-options="[10, 25, 50]"
-        :first="first"
+        :first="(page - 1) * pageSize"
         paginator-template="RowsPerPageDropdown FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport"
         current-page-report-template="Hiển thị từ {first} đến {last} trên tổng số {totalRecords} dòng"
         sort-mode="single"
         @page="handlePage"
       >
-        <template #paginatorstart>
-          <span class="paginator-info" v-if="paginatorInfo">{{ paginatorInfo }}</span>
-        </template>
         <template #empty>
           <div class="empty-state">
             <i class="pi pi-history" />
@@ -169,7 +168,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useToast } from 'primevue/usetoast'
 import Button from 'primevue/button'
 import Column from 'primevue/column'
@@ -184,25 +183,18 @@ import { toLocalIso } from '@/utils/format'
 
 // ── State ──────────────────────────────────────────────────────────────────────
 
-const toast       = useToast()
-const loading     = ref(false)
-const list        = ref<OrgHistoryItem[]>([])
-const pageRows    = ref(10)
-const first       = ref(0)
+const toast    = useToast()
+const loading  = ref(false)
+const list     = ref<OrgHistoryItem[]>([])
+const total    = ref(0)
+const page     = ref(1)
+const pageSize = ref(20)
 
 const filterType     = ref<string | null>(null)
 const filterDateFrom = ref<Date | null>(null)
 const filterDateTo   = ref<Date | null>(null)
 
 const detailVisible = ref(false)
-
-const paginatorInfo = computed(() => {
-  const total = list.value.length
-  if (total === 0) return ''
-  const from = first.value + 1
-  const to   = Math.min(first.value + pageRows.value, total)
-  return `Hiển thị ${from}–${to} trên tổng số ${total} dòng`
-})
 const detailItem    = ref<OrgHistoryItem | null>(null)
 
 // ── Options ────────────────────────────────────────────────────────────────────
@@ -216,21 +208,24 @@ const typeOptions = [
 // ── Data ───────────────────────────────────────────────────────────────────────
 
 function handlePage(e: { first: number; rows: number }) {
-  first.value    = e.first
-  pageRows.value = e.rows
+  page.value     = Math.floor(e.first / e.rows) + 1
+  pageSize.value = e.rows
+  loadData()
 }
 
-async function loadData() {
-  first.value = 0
+async function loadData(resetPage = false) {
+  if (resetPage) page.value = 1
   loading.value = true
   try {
     const { data } = await orgHistoryService.getList({
       entity_type: filterType.value ?? undefined,
       date_from:   filterDateFrom.value ? toISODate(filterDateFrom.value) : undefined,
       date_to:     filterDateTo.value   ? toISODate(filterDateTo.value)   : undefined,
-      limit:       1000,
+      page:        page.value,
+      page_size:   pageSize.value,
     })
-    list.value = data
+    list.value  = data.items
+    total.value = data.total
   } catch (e) {
     const err = e as { response?: { data?: { detail?: string } } }
     toast.add({ severity: 'error', summary: 'Lỗi', detail: err.response?.data?.detail ?? 'Không thể tải dữ liệu', life: 4000 })
@@ -243,7 +238,7 @@ function resetAndLoad() {
   filterType.value     = null
   filterDateFrom.value = null
   filterDateTo.value   = null
-  loadData()
+  loadData(true)
 }
 
 // ── Detail dialog ──────────────────────────────────────────────────────────────
