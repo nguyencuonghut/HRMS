@@ -148,8 +148,7 @@
         <!-- Preview -->
         <div v-if="previewHtml" class="notif-preview-box">
           <div class="notif-preview-label">Xem trước:</div>
-          <!-- eslint-disable-next-line vue/no-v-html -->
-          <div class="notif-preview-content" v-html="previewHtml" />
+          <div class="notif-preview-content" v-html="sanitizeHtml(previewHtml)" />
         </div>
       </div>
 
@@ -176,6 +175,7 @@
 
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
+import { useSanitize } from '@/composables/useSanitize'
 import Button from 'primevue/button'
 import Column from 'primevue/column'
 import DataTable from 'primevue/datatable'
@@ -196,6 +196,7 @@ import { useToast } from 'primevue/usetoast'
 import notificationService, { type NotifConfig, type NotifTemplate, type EmailLogListResponse } from '@/services/notificationService'
 
 const toast = useToast()
+const { sanitizeHtml } = useSanitize()
 const activeTab = ref('templates')
 
 // Templates

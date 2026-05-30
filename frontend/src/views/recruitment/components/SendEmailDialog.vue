@@ -57,8 +57,7 @@
           <strong>Tiêu đề:</strong> {{ preview.subject }}
         </div>
         <div class="comm-preview-body">
-          <!-- eslint-disable-next-line vue/no-v-html -->
-          <div v-html="preview.body_html" />
+          <div v-html="sanitizeHtml(preview.body_html)" />
         </div>
       </div>
     </div>
@@ -78,6 +77,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
+import { useSanitize } from '@/composables/useSanitize'
 import Button from 'primevue/button'
 import Dialog from 'primevue/dialog'
 import Select from 'primevue/select'
@@ -101,6 +101,7 @@ const emit = defineEmits<{ (e: 'sent'): void }>()
 const visible = defineModel<boolean>('visible', { default: false })
 
 const toast = useToast()
+const { sanitizeHtml } = useSanitize()
 
 const templates = ref<EmailTemplateRead[]>([])
 const applicationItems = ref<ApplicationRead[]>([])

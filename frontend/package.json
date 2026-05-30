@@ -15,8 +15,10 @@
   "dependencies": {
     "@fontsource/be-vietnam-pro": "^5.0.0",
     "@primevue/themes": "^4.3.0",
+    "@types/dompurify": "^3.0.5",
     "@vee-validate/zod": "^4.14.0",
     "axios": "^1.7.0",
+    "dompurify": "^3.4.7",
     "pinia": "^2.2.0",
     "primeicons": "^7.0.0",
     "primevue": "^4.3.0",

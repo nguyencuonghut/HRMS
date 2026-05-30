@@ -54,8 +54,7 @@
             <i :class="expandedId === item.id ? 'pi pi-chevron-up' : 'pi pi-chevron-down'" style="color: var(--p-surface-400)" />
           </div>
           <div v-if="expandedId === item.id && item.body_html" class="comm-body">
-            <!-- eslint-disable-next-line vue/no-v-html -->
-            <div class="comm-html-preview" v-html="item.body_html" />
+            <div class="comm-html-preview" v-html="sanitizeHtml(item.body_html)" />
           </div>
         </div>
       </div>
@@ -98,6 +97,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useSanitize } from '@/composables/useSanitize'
 import Button from 'primevue/button'
 import Dialog from 'primevue/dialog'
 import Tag from 'primevue/tag'
@@ -106,6 +106,7 @@ import SendEmailDialog from './SendEmailDialog.vue'
 import { formatDatetime } from '@/utils/format'
 
 const props = defineProps<{ candidateId: number }>()
+const { sanitizeHtml } = useSanitize()
 
 const items = ref<CommunicationRead[]>([])
 const loading = ref(false)

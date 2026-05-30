@@ -134,8 +134,7 @@
     <div v-if="previewResult" style="margin-top: 0.5rem">
       <div style="font-weight: 600; margin-bottom: 0.5rem">Tiêu đề: {{ previewResult.subject }}</div>
       <div class="comm-preview-body">
-        <!-- eslint-disable-next-line vue/no-v-html -->
-        <div v-html="previewResult.body_html" />
+        <div v-html="sanitizeHtml(previewResult.body_html)" />
       </div>
     </div>
     <div v-else class="rc-jd-empty">Đang tải...</div>
@@ -147,6 +146,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useSanitize } from '@/composables/useSanitize'
 import Button from 'primevue/button'
 import Column from 'primevue/column'
 import DataTable from 'primevue/datatable'
@@ -166,6 +166,7 @@ import {
 
 const confirm = useConfirm()
 const toast = useToast()
+const { sanitizeHtml } = useSanitize()
 
 const templates = ref<EmailTemplateRead[]>([])
 const loading = ref(false)
