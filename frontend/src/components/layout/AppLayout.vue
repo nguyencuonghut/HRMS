@@ -23,10 +23,11 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, watch } from 'vue'
+import { onMounted, onUnmounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import Toast from 'primevue/toast'
 import ConfirmDialog from 'primevue/confirmdialog'
+import { useToast } from 'primevue/usetoast'
 import AppTopbar from './AppTopbar.vue'
 import AppSidebar from './AppSidebar.vue'
 import AppFooter from './AppFooter.vue'
@@ -34,6 +35,7 @@ import { useLayout } from '@/composables/useLayout'
 
 const { darkMode, mobileOpen, closeMobile, initDarkMode } = useLayout()
 const route = useRoute()
+const toast = useToast()
 
 // Scroll content area về đầu khi chuyển route
 watch(
@@ -44,7 +46,23 @@ watch(
   },
 )
 
+// Lắng nghe lỗi 5xx từ axios interceptor và hiển thị toast
+function onServerError(e: Event) {
+  const { message } = (e as CustomEvent<{ status: number; message: string }>).detail
+  toast.add({
+    severity: 'error',
+    summary: 'Lỗi máy chủ',
+    detail: message,
+    life: 6000,
+  })
+}
+
 onMounted(() => {
   initDarkMode()
+  document.addEventListener('api:server-error', onServerError)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('api:server-error', onServerError)
 })
 </script>

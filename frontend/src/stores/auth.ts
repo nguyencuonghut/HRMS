@@ -48,3 +48,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   return { user, accessToken, isAuthenticated, login, fetchMe, logout, hasPermission }
 })
+
+// Re-export type cho api.ts dùng
+export type { }
+
