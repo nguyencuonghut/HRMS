@@ -83,6 +83,9 @@ test.describe("Report route map", () => {
     await navigate(page, "/leave-reports");
     await page.waitForURL("**/reports/leave");
 
+    await navigate(page, "/reports/leave-analytics");
+    await page.waitForURL("**/reports/leave");
+
     await navigate(page, "/recruitment/reports");
     await page.waitForURL("**/reports/recruitment");
   });
@@ -132,5 +135,12 @@ test.describe("Report route map", () => {
     await navigate(page, "/reports/insurance");
     await page.waitForURL("**/forbidden");
     await expect(page.getByRole("heading", { name: "Không có quyền truy cập" })).toBeVisible();
+  });
+
+  test("insurance canonical route uses normalized heading", async ({ page }) => {
+    await login(page);
+    await navigate(page, "/reports/insurance");
+    await page.waitForLoadState("networkidle");
+    await expect(page.locator("#main-content").getByRole("heading", { name: "Phân tích bảo hiểm" })).toBeVisible();
   });
 });

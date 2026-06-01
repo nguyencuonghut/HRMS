@@ -588,9 +588,67 @@ Slice 5 **chưa** bao gồm:
 
 Refactor IA báo cáo theo plan này đã hoàn thành phần cốt lõi. Những việc còn lại chỉ là tối ưu sâu hơn nếu muốn:
 
-- dọn tiếp route phụ cũ như `/reports/leave-analytics`
 - chuẩn hóa copy sâu trong từng report implementation
 - mở rộng thêm matrix permission cho nhiều role hơn ngoài seam đã xác minh
+
+#### Cleanup sau Slice 6 `✅ Hoàn thành một phần`
+
+- `LeaveAnalyticsView.vue` đã được gỡ khỏi source runtime vì không còn route canonical nào dùng trực tiếp.
+- Deep link cũ `/reports/leave-analytics` vẫn được giữ qua redirect router để không làm hỏng bookmark cũ.
+- Tài liệu lịch sử của plan 11.3 vẫn còn nhắc route/view cũ để phục vụ trace lịch sử triển khai; chưa bị rewrite.
+
+#### Audit dead-code sau Slice 6 `✅ Đã rà soát`
+
+Phạm vi audit đã xác nhận bằng `rg` trên toàn bộ `frontend/src` và pass kiểm tra bổ sung trên `backend/app`:
+
+- **Dead chắc chắn trong frontend runtime**
+  - `frontend/src/views/dashboard/DashboardView.vue`
+    - không còn route/import/runtime reference nào; router đang dùng `frontend/src/views/reports/DashboardView.vue`
+  - `frontend/src/views/org/BranchListView.vue`
+    - không còn route/import/runtime reference nào
+  - `frontend/src/views/recruitment/RecruitmentView.vue`
+    - không còn route/import/runtime reference nào; module tuyển dụng đã chuyển sang các route hạt mịn
+  - `frontend/src/views/rewards/RewardListView.vue`
+    - không còn route/import/runtime reference nào
+  - `frontend/src/services/leaveAnalyticsService.ts`
+    - sau khi gỡ `LeaveAnalyticsView.vue`, service này không còn caller nào trong `frontend/src`
+  - Nhóm này đã được gỡ khỏi source runtime sau audit và đã qua lại `vue-tsc`, `build`, cùng browser regression `report-route-map.spec.ts`
+
+- **Dead cluster đã được xác nhận và gỡ khỏi frontend runtime**
+  - `frontend/src/components/catalog/EmployeeEducationEditor.vue`
+  - `frontend/src/components/catalog/EducationMajorSelect.vue`
+  - `frontend/src/components/catalog/EducationalInstitutionSelect.vue`
+  - `frontend/src/components/catalog/AdministrativeAddressPairSelector.vue`
+  - `frontend/src/components/catalog/SkillMultiSelect.vue`
+  - Các file trên không có bất kỳ reference code nào trong repo runtime ngoài chính import nội bộ giữa các file với nhau; dấu vết còn lại chỉ nằm trong `docs/`.
+  - Cụm này đã được gỡ khỏi source runtime sau khi xác nhận bằng search toàn repo và đã qua lại `vue-tsc`, `build`, cùng browser regression `report-route-map.spec.ts`
+
+- **Không đủ bằng chứng để kết luận dead trong backend**
+  - Audit sâu bằng static import graph + search toàn repo + runtime probe chỉ nổi bật 3 root entrypoint:
+    - `backend/app/scripts/send_backup_notification.py`
+    - `backend/app/seeds/__main__.py`
+    - `backend/app/workers/tasks.py`
+  - Cả 3 **không phải dead code**:
+    - `send_backup_notification.py`
+      - có reference thật trong `scripts/restore_procedure.md`
+      - chạy runtime `python -m app.scripts.send_backup_notification` trả lỗi `missing_env`, chứng minh entrypoint còn hoạt động
+    - `seeds/__main__.py`
+      - được gọi từ `Makefile` qua `python -m app.seeds`
+      - import trực tiếp `required`, `rbac`, `sample`
+    - `workers/tasks.py`
+      - được include trong `app.core.celery_app`
+      - task names xuất hiện trong `beat_schedule`
+      - có test import trực tiếp trong `test_contract_renewal.py` và `test_leave_entitlements.py`
+  - Sau vòng audit này, **chưa có file backend nào được xác nhận là dead code ở mức file/module**.
+  - Audit sâu thêm ở mức symbol:
+    - pass 1: toàn bộ top-level function trong `backend/app/services`, `backend/app/utils`, `backend/app/core`
+    - pass 2: toàn bộ top-level function + class method trong `backend/app`
+    - cả hai pass đều không trả ra zero-reference candidate nào ngoài các root entrypoint đã được xác minh ở trên
+  - Sau vòng audit sâu này, **chưa có function/method backend nào được xác nhận là dead code bằng evidence search toàn repo**.
+
+Kết luận audit:
+
+- Các tài liệu lịch sử trong `docs/` vẫn còn nhắc các component catalog cũ như dấu vết thiết kế/plan; chưa bị rewrite.
 
 ---
 

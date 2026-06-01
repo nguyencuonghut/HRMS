@@ -311,8 +311,8 @@ const router = createRouter({
         {
           path: "reports/leave-analytics",
           name: "leave-analytics",
-          component: () => import("@/views/reports/LeaveAnalyticsView.vue"),
-          meta: { title: "Phân tích nghỉ phép" },
+          redirect: { name: "leave-reports-canonical" },
+          meta: { title: "Báo cáo nghỉ phép" },
         },
         {
           path: "reports/insurance",

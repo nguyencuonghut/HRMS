@@ -3,8 +3,8 @@
     <!-- Page Header -->
     <div class="page-header">
       <div>
-        <h2>Báo cáo Bảo hiểm (People Analytics)</h2>
-        <span class="subtitle">Phân tích tình hình đóng bảo hiểm, biến động tăng giảm và cảnh báo rủi ro</span>
+        <h2>Phân tích bảo hiểm</h2>
+        <span class="subtitle">Phân tích tình hình đóng bảo hiểm, biến động tăng giảm và cảnh báo rủi ro toàn hệ thống</span>
       </div>
     </div>
 
