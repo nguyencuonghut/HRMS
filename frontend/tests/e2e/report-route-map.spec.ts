@@ -33,9 +33,9 @@ test.describe("Report route map", () => {
     await page.waitForLoadState("networkidle");
 
     const main = page.locator("#main-content");
-    await expect(main.getByRole("heading", { name: "Báo cáo", exact: true })).toBeVisible();
+    await expect(main.getByRole("heading", { name: "Tổng quan báo cáo", exact: true })).toBeVisible();
     await expect(main.getByRole("link", { name: /Dashboard tổng quan/i })).toBeVisible();
-    await expect(main.getByRole("link", { name: /Báo cáo thử việc/i })).toBeVisible();
+    await expect(main.getByRole("link", { name: /Thử việc & onboarding/i })).toBeVisible();
     await expect(main.getByRole("link", { name: /Báo cáo tuyển dụng/i })).toBeVisible();
     await expect(main.getByRole("link", { name: /Báo cáo đào tạo/i })).toBeVisible();
     await expect(main.getByRole("link", { name: /Báo cáo hiệu suất/i })).toBeVisible();
@@ -47,7 +47,8 @@ test.describe("Report route map", () => {
 
     await navigate(page, "/reports/probation");
     await page.waitForLoadState("networkidle");
-    await expect(main.locator(".ob-breadcrumb span").getByText("Báo cáo thử việc")).toBeVisible();
+    await expect(main.locator(".ob-breadcrumb")).toContainText("Báo cáo");
+    await expect(main.locator(".ob-breadcrumb")).toContainText("Báo cáo thử việc & onboarding");
 
     await navigate(page, "/reports/leave");
     await page.waitForLoadState("networkidle");
@@ -55,6 +56,7 @@ test.describe("Report route map", () => {
 
     await navigate(page, "/reports/recruitment");
     await page.waitForLoadState("networkidle");
+    await expect(main.locator(".rc-breadcrumb")).toContainText("Báo cáo");
     await expect(main.locator(".rc-jr-code")).toHaveText("Báo cáo tuyển dụng");
 
     await navigate(page, "/reports/training");
@@ -103,5 +105,22 @@ test.describe("Report route map", () => {
     await page.getByRole("button", { name: "Xem báo cáo hiệu suất" }).click();
     await page.waitForURL("**/reports/performance");
     await expect(page.locator("#main-content").getByRole("heading", { name: "Báo cáo hiệu suất / KPI" })).toBeVisible();
+  });
+
+  test("report menu uses canonical labels", async ({ page }) => {
+    await login(page);
+
+    const nav = page.locator("nav");
+    await expect(nav.locator('a[href="/reports"]')).toContainText("Tổng quan báo cáo");
+    await expect(nav.locator('a[href="/reports/dashboard"]').last()).toContainText("Dashboard tổng quan");
+    await expect(nav.locator('a[href="/reports/hr"]')).toContainText("Nhân sự");
+    await expect(nav.locator('a[href="/reports/probation"]')).toContainText("Thử việc & onboarding");
+    await expect(nav.locator('a[href="/reports/leave"]')).toContainText("Nghỉ phép");
+    await expect(nav.locator('a[href="/reports/insurance"]')).toContainText("Bảo hiểm");
+    await expect(nav.locator('a[href="/reports/contracts"]')).toContainText("Hợp đồng");
+    await expect(nav.locator('a[href="/reports/recruitment"]')).toContainText("Tuyển dụng");
+    await expect(nav.locator('a[href="/reports/training"]')).toContainText("Đào tạo");
+    await expect(nav.locator('a[href="/reports/rewards"]')).toContainText("Khen thưởng & Kỷ luật");
+    await expect(nav.locator('a[href="/reports/performance"]')).toContainText("Hiệu suất / KPI");
   });
 });

@@ -282,7 +282,7 @@ const router = createRouter({
           path: "reports",
           name: "reports",
           component: () => import("@/views/reports/ReportView.vue"),
-          meta: { title: "Báo cáo" },
+          meta: { title: "Tổng quan báo cáo" },
         },
         {
           path: "reports/dashboard",
@@ -300,7 +300,7 @@ const router = createRouter({
           path: "reports/probation",
           name: "probation-analytics",
           component: () => import("@/views/reports/ProbationAnalyticsView.vue"),
-          meta: { title: "Báo cáo thử việc & onboarding" },
+          meta: { title: "Thử việc & onboarding" },
         },
         {
           path: "reports/leave",
@@ -318,13 +318,13 @@ const router = createRouter({
           path: "reports/insurance",
           name: "insurance-analytics",
           component: () => import("@/views/reports/InsuranceAnalyticsView.vue"),
-          meta: { title: "Báo cáo Bảo hiểm", permission: "insurance:read" },
+          meta: { title: "Phân tích bảo hiểm", permission: "insurance:read" },
         },
         {
           path: "reports/contracts",
           name: "contract-reports",
           component: () => import("@/views/reports/ContractReportView.vue"),
-          meta: { title: "Báo cáo Hợp đồng", permission: "employees:read" },
+          meta: { title: "Báo cáo hợp đồng", permission: "employees:read" },
         },
         {
           path: "reports/recruitment",

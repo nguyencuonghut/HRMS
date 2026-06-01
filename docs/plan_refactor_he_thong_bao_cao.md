@@ -505,12 +505,54 @@ Slice 4 **chưa** bao gồm:
 - đổi toàn bộ label shortcut/menu sang wording chuẩn cuối cùng trong AppMenu
 - chuẩn hóa breadcrumb/page title/copy của mọi route canonical
 
-### Slice 5 — Chỉnh menu và breadcrumb
+### Slice 5 — Chỉnh menu và breadcrumb `✅ Hoàn thành`
 
 - AppMenu
 - router meta title
 - page header
 - breadcrumb text
+
+#### Kết quả triển khai của Slice 5
+
+- Đã chuẩn hóa naming trong `AppMenu` theo IA mới:
+  - shortcut module dùng dạng `Xem báo cáo ...` khi phù hợp
+  - workflow bảo hiểm đổi nhãn thành `Kỳ báo cáo BHXH`
+  - menu `Báo cáo` dùng danh sách route canonical đầy đủ
+- Đã chuẩn hóa `router meta title` cho các route canonical chính:
+  - `Tổng quan báo cáo`
+  - `Thử việc & onboarding`
+  - `Phân tích bảo hiểm`
+  - `Báo cáo hợp đồng`
+- Đã chuẩn hóa heading của report hub từ `Báo cáo` sang `Tổng quan báo cáo`
+- Đã chuẩn hóa breadcrumb của các canonical wrapper còn lệch giọng module:
+  - probation canonical dùng breadcrumb gốc `Báo cáo`
+  - recruitment canonical dùng breadcrumb gốc `Báo cáo`
+
+#### File chính đã chạm trong Slice 5
+
+- `frontend/src/components/layout/AppMenu.vue`
+- `frontend/src/router/index.ts`
+- `frontend/src/views/reports/ReportView.vue`
+- `frontend/src/views/reports/ProbationAnalyticsView.vue`
+- `frontend/src/views/reports/RecruitmentAnalyticsView.vue`
+- `frontend/src/views/employees/ProbationReportView.vue`
+- `frontend/src/views/recruitment/RecruitmentReportView.vue`
+- `frontend/tests/e2e/report-route-map.spec.ts`
+
+#### Tiêu chí hoàn thành Slice 5
+
+- [x] Menu `Báo cáo` phản ánh đúng route canonical
+- [x] Shortcut module phản ánh đúng vai trò điều hướng
+- [x] Các route canonical chính có meta title đồng nhất
+- [x] Breadcrumb của probation/recruitment canonical không còn bám module cũ
+- [x] Có browser-level verification cho hub, canonical routes, redirect cũ, shortcut module, và labels menu
+
+#### Điều chưa làm trong Slice 5
+
+Slice 5 **chưa** bao gồm:
+
+- chuẩn hóa toàn bộ text/copy của mọi report implementation sâu bên trong từng tab con
+- dọn các route legacy phụ như `/reports/leave-analytics` nếu muốn thu gọn hơn nữa
 
 ### Slice 6 — Regression test
 

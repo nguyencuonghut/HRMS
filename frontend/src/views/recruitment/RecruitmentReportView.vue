@@ -1,9 +1,6 @@
 <template>
   <div class="rc-detail">
-    <RecruitmentBreadcrumb :crumbs="[
-      { label: 'Yêu cầu tuyển dụng', to: '/recruitment/jr' },
-      { label: 'Báo cáo tuyển dụng' },
-    ]" />
+    <RecruitmentBreadcrumb :crumbs="breadcrumbCrumbs" />
 
     <!-- Toolbar -->
     <div class="rc-detail-header">
@@ -219,6 +216,15 @@ import {
 import RecruitmentBreadcrumb from './components/RecruitmentBreadcrumb.vue'
 import { toLocalIso } from '@/utils/format'
 
+const props = withDefaults(defineProps<{
+  breadcrumbCrumbs?: Array<{ label: string; to?: string }>
+}>(), {
+  breadcrumbCrumbs: () => [
+    { label: 'Yêu cầu tuyển dụng', to: '/recruitment/jr' },
+    { label: 'Báo cáo tuyển dụng' },
+  ],
+})
+
 const toast = useToast()
 
 // Defaults: current year Jan 1 → today
@@ -236,6 +242,7 @@ const funnel      = ref<FunnelReport | null>(null)
 const channels    = ref<ChannelEffectivenessItem[]>([])
 const departments = ref<DepartmentRecruitmentStat[]>([])
 const timeMetrics = ref<TimeMetricsReport | null>(null)
+const breadcrumbCrumbs = props.breadcrumbCrumbs
 
 function fmtDate(d: Date): string {
   return toLocalIso(d)

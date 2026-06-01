@@ -2,7 +2,7 @@
   <div class="report-hub">
     <div class="report-hub-header">
       <div>
-        <h2>Báo cáo</h2>
+        <h2>Tổng quan báo cáo</h2>
         <p>Trung tâm truy cập các báo cáo và dashboard chính thức của hệ thống HRMS.</p>
       </div>
     </div>
@@ -50,7 +50,7 @@ const reportCards: ReportCard[] = [
   },
   {
     to: '/reports/probation',
-    title: 'Báo cáo thử việc & onboarding',
+    title: 'Thử việc & onboarding',
     description: 'Theo dõi thử việc, tỷ lệ vượt thử việc và tiến độ hội nhập.',
     icon: 'pi-user-plus',
   },
@@ -62,7 +62,7 @@ const reportCards: ReportCard[] = [
   },
   {
     to: '/reports/insurance',
-    title: 'Phân tích bảo hiểm',
+    title: 'Bảo hiểm',
     description: 'Phân tích tình hình bảo hiểm và chỉ số biến động liên quan.',
     icon: 'pi-shield',
   },

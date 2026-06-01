@@ -2,9 +2,9 @@
   <div class="prob-report">
     <!-- Breadcrumb -->
     <nav class="ob-breadcrumb">
-      <RouterLink to="/employees">Nhân viên</RouterLink>
+      <RouterLink :to="breadcrumbRootTo">{{ breadcrumbRootLabel }}</RouterLink>
       <i class="pi pi-chevron-right" />
-      <span>Báo cáo thử việc</span>
+      <span>{{ reportTitle }}</span>
     </nav>
 
     <!-- Filter toolbar -->
@@ -387,6 +387,16 @@ import probationReportService, {
   type ProbationHistoryReport,
   type ProbationPassRateReport,
 } from '@/services/probationReportService'
+
+withDefaults(defineProps<{
+  breadcrumbRootLabel?: string
+  breadcrumbRootTo?: string
+  reportTitle?: string
+}>(), {
+  breadcrumbRootLabel: 'Nhân viên',
+  breadcrumbRootTo: '/employees',
+  reportTitle: 'Báo cáo thử việc',
+})
 
 const toast = useToast()
 

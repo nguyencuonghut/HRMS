@@ -94,7 +94,7 @@ function toggleGroup(label: string) {
 }
 
 const menu: MenuItem[] = [
-  { to: "/reports/dashboard", label: "Dashboard", icon: "pi-home" },
+  { to: "/reports/dashboard", label: "Dashboard tổng quan", icon: "pi-home" },
   { section: true, label: "Quản lý" },
   {
     label: "Cơ cấu tổ chức",
@@ -118,7 +118,7 @@ const menu: MenuItem[] = [
       },
       {
         to: "/employees/probation-reports",
-        label: "Báo cáo thử việc",
+        label: "Xem báo cáo thử việc",
         icon: "pi-chart-bar",
       },
     ],
@@ -137,7 +137,7 @@ const menu: MenuItem[] = [
       { to: "/leaves", label: "Ghi nhận nghỉ phép", icon: "pi-calendar-times" },
       {
         to: "/leave-reports",
-        label: "Báo cáo nghỉ phép",
+        label: "Xem báo cáo nghỉ phép",
         icon: "pi-file-excel",
       },
     ],
@@ -149,7 +149,7 @@ const menu: MenuItem[] = [
       { to: "/insurance", label: "Hồ sơ & Chính sách", icon: "pi-id-card" },
       {
         to: "/insurance/reports",
-        label: "Báo cáo biến động",
+        label: "Kỳ báo cáo BHXH",
         icon: "pi-file-excel",
       },
     ],
@@ -180,7 +180,7 @@ const menu: MenuItem[] = [
       { to: "/recruitment/headcount", label: "Kế hoạch nhân sự" },
       { to: "/recruitment/legal", label: "Hồ sơ pháp lý" },
       { to: "/recruitment/settings", label: "Cài đặt tuyển dụng" },
-      { to: "/recruitment/reports", label: "Báo cáo tuyển dụng" },
+      { to: "/recruitment/reports", label: "Xem báo cáo tuyển dụng" },
     ],
   },
   { section: true, label: "Phân tích" },
@@ -188,37 +188,62 @@ const menu: MenuItem[] = [
     label: "Báo cáo",
     icon: "pi-chart-pie",
     items: [
+      { to: "/reports", label: "Tổng quan báo cáo", icon: "pi-folder-open" },
       {
         to: "/reports/dashboard",
-        label: "Dashboard nhân sự",
+        label: "Dashboard tổng quan",
         icon: "pi-chart-pie",
       },
       {
         to: "/reports/hr",
-        label: "Báo cáo nhân sự",
+        label: "Nhân sự",
         icon: "pi-users",
       },
       {
-        to: "/reports/leave-analytics",
-        label: "Phân tích nghỉ phép",
+        to: "/reports/probation",
+        label: "Thử việc & onboarding",
+        icon: "pi-user-plus",
+      },
+      {
+        to: "/reports/leave",
+        label: "Nghỉ phép",
         icon: "pi-chart-bar",
       },
       {
         to: "/reports/insurance",
-        label: "Báo cáo bảo hiểm",
+        label: "Bảo hiểm",
         icon: "pi-shield",
       },
       {
         to: "/reports/contracts",
-        label: "Báo cáo hợp đồng",
+        label: "Hợp đồng",
         icon: "pi-file",
+      },
+      {
+        to: "/reports/recruitment",
+        label: "Tuyển dụng",
+        icon: "pi-briefcase",
+      },
+      {
+        to: "/reports/training",
+        label: "Đào tạo",
+        icon: "pi-graduation-cap",
+      },
+      {
+        to: "/reports/rewards",
+        label: "Khen thưởng & Kỷ luật",
+        icon: "pi-star",
+      },
+      {
+        to: "/reports/performance",
+        label: "Hiệu suất / KPI",
+        icon: "pi-chart-bar",
       },
       {
         to: "/reports/export",
         label: "Xuất báo cáo",
         icon: "pi-file-export",
       },
-      { to: "/reports", label: "Tổng quan báo cáo", icon: "pi-folder-open" },
     ],
   },
   { section: true, label: "Nhập/Xuất" },
