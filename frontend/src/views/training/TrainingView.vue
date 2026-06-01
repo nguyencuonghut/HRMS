@@ -5,6 +5,13 @@
         <h2 class="page-title">Đào tạo &amp; Phát triển</h2>
         <span class="page-subtitle">Khóa học · Kế hoạch đào tạo · Theo dõi · Chứng chỉ</span>
       </div>
+      <Button
+        label="Xem báo cáo đào tạo"
+        icon="pi pi-chart-bar"
+        severity="secondary"
+        outlined
+        @click="router.push('/reports/training')"
+      />
     </div>
 
     <Tabs v-model:value="activeTab">
@@ -13,14 +20,12 @@
         <Tab value="plans">Kế hoạch đào tạo</Tab>
         <Tab value="records">Theo dõi</Tab>
         <Tab value="certs">Chứng chỉ</Tab>
-        <Tab value="report">Báo cáo</Tab>
       </TabList>
       <TabPanels>
         <TabPanel value="courses"><CourseListTab /></TabPanel>
         <TabPanel value="plans"><TrainingPlanTab /></TabPanel>
         <TabPanel value="records"><TrainingRecordTab /></TabPanel>
         <TabPanel value="certs"><CertificateTab /></TabPanel>
-        <TabPanel value="report"><TrainingReportTab /></TabPanel>
       </TabPanels>
     </Tabs>
 
@@ -29,6 +34,8 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useRouter } from 'vue-router'
+import Button from 'primevue/button'
 import Tab from 'primevue/tab'
 import TabList from 'primevue/tablist'
 import TabPanel from 'primevue/tabpanel'
@@ -38,7 +45,7 @@ import CourseListTab from './components/CourseListTab.vue'
 import TrainingPlanTab from './components/TrainingPlanTab.vue'
 import TrainingRecordTab from './components/TrainingRecordTab.vue'
 import CertificateTab from './components/CertificateTab.vue'
-import TrainingReportTab from './components/TrainingReportTab.vue'
 
+const router = useRouter()
 const activeTab = ref('courses')
 </script>

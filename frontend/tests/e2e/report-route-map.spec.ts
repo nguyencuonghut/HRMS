@@ -82,4 +82,26 @@ test.describe("Report route map", () => {
     await navigate(page, "/recruitment/reports");
     await page.waitForURL("**/reports/recruitment");
   });
+
+  test("module shortcuts replace internal report tabs", async ({ page }) => {
+    await login(page);
+
+    await navigate(page, "/rewards");
+    await expect(page.getByRole("tab", { name: "Báo cáo" })).toHaveCount(0);
+    await page.getByRole("button", { name: "Xem báo cáo khen thưởng & kỷ luật" }).click();
+    await page.waitForURL("**/reports/rewards");
+    await expect(page.locator("#main-content").getByRole("heading", { name: "Báo cáo khen thưởng & kỷ luật" })).toBeVisible();
+
+    await navigate(page, "/training");
+    await expect(page.getByRole("tab", { name: "Báo cáo" })).toHaveCount(0);
+    await page.getByRole("button", { name: "Xem báo cáo đào tạo" }).click();
+    await page.waitForURL("**/reports/training");
+    await expect(page.locator("#main-content").getByRole("heading", { name: "Báo cáo đào tạo" })).toBeVisible();
+
+    await navigate(page, "/performance");
+    await expect(page.getByRole("tab", { name: "Báo cáo" })).toHaveCount(0);
+    await page.getByRole("button", { name: "Xem báo cáo hiệu suất" }).click();
+    await page.waitForURL("**/reports/performance");
+    await expect(page.locator("#main-content").getByRole("heading", { name: "Báo cáo hiệu suất / KPI" })).toBeVisible();
+  });
 });

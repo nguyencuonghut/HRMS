@@ -463,7 +463,7 @@ Slice 3 **chưa** bao gồm:
 - bỏ report tab nội bộ trong `RewardsView`, `TrainingView`, `PerformanceView`
 - chuẩn hóa breadcrumb/title/copy của các report wrapper
 
-### Slice 4 — Gỡ report tab nội bộ
+### Slice 4 — Gỡ report tab nội bộ `✅ Hoàn thành`
 
 - `RewardsView.vue`
 - `TrainingView.vue`
@@ -472,6 +472,38 @@ Slice 3 **chưa** bao gồm:
 Thay bằng:
 
 - nút/link shortcut sang route canonical
+
+#### Kết quả triển khai của Slice 4
+
+- Đã bỏ tab `Báo cáo` khỏi:
+  - `RewardsView.vue`
+  - `TrainingView.vue`
+  - `PerformanceView.vue`
+- Đã thay bằng shortcut rõ nghĩa trong header module, dẫn tới:
+  - `/reports/rewards`
+  - `/reports/training`
+  - `/reports/performance`
+- Report implementation canonical vẫn được giữ nguyên ở route `/reports/...`, không còn nhúng song song trong module vận hành.
+
+#### File chính đã chạm trong Slice 4
+
+- `frontend/src/views/rewards/RewardsView.vue`
+- `frontend/src/views/training/TrainingView.vue`
+- `frontend/src/views/performance/PerformanceView.vue`
+- `frontend/tests/e2e/report-route-map.spec.ts`
+
+#### Tiêu chí hoàn thành Slice 4
+
+- [x] Module không còn tab `Báo cáo` nội bộ
+- [x] Có shortcut từ module sang route canonical tương ứng
+- [x] Có browser-level verification cho shortcut và việc biến mất của tab `Báo cáo`
+
+#### Điều chưa làm trong Slice 4
+
+Slice 4 **chưa** bao gồm:
+
+- đổi toàn bộ label shortcut/menu sang wording chuẩn cuối cùng trong AppMenu
+- chuẩn hóa breadcrumb/page title/copy của mọi route canonical
 
 ### Slice 5 — Chỉnh menu và breadcrumb
 
