@@ -384,7 +384,7 @@ Slice 1 **chỉ chốt quyết định kiến trúc thông tin**. Chưa bao gồ
 - bỏ tab report nội bộ
 - browser regression test
 
-### Slice 2 — Tạo route canonical còn thiếu
+### Slice 2 — Tạo route canonical còn thiếu `✅ Hoàn thành`
 
 - Thêm:
   - `/reports/probation`
@@ -393,6 +393,43 @@ Slice 1 **chỉ chốt quyết định kiến trúc thông tin**. Chưa bao gồ
   - `/reports/training`
   - `/reports/rewards`
   - `/reports/performance`
+
+#### Kết quả triển khai của Slice 2
+
+- Đã tạo route canonical cho:
+  - `/reports/probation`
+  - `/reports/leave`
+  - `/reports/recruitment`
+  - `/reports/training`
+  - `/reports/rewards`
+  - `/reports/performance`
+- Đã thay `ReportView.vue` placeholder bằng hub báo cáo thật, có link tới các route canonical.
+- Với các domain đã có report implementation sẵn, Slice 2 dùng wrapper/report page canonical mới để tránh duplicate logic quá sớm.
+
+#### File chính đã chạm trong Slice 2
+
+- `frontend/src/router/index.ts`
+- `frontend/src/views/reports/ReportView.vue`
+- `frontend/src/views/reports/ProbationAnalyticsView.vue`
+- `frontend/src/views/reports/RecruitmentAnalyticsView.vue`
+- `frontend/src/views/reports/TrainingAnalyticsView.vue`
+- `frontend/src/views/reports/RewardsAnalyticsView.vue`
+- `frontend/src/views/reports/PerformanceAnalyticsView.vue`
+
+#### Tiêu chí hoàn thành Slice 2
+
+- [x] Route canonical mới tồn tại trong router
+- [x] `Tổng quan báo cáo` có link tới các route canonical mới
+- [x] Có browser-level verification cho việc mở trực tiếp các route canonical mới
+
+#### Điều chưa làm trong Slice 2
+
+Slice 2 **chưa** bao gồm:
+
+- redirect route cũ sang route canonical
+- đổi nhãn menu/module shortcut
+- bỏ report tab nội bộ trong module
+- chuẩn hóa breadcrumb/text của các implementation cũ đang được wrapper dùng lại
 
 ### Slice 3 — Redirect route cũ
 

@@ -298,6 +298,18 @@ const router = createRouter({
           meta: { title: "Báo cáo nhân sự" },
         },
         {
+          path: "reports/probation",
+          name: "probation-analytics",
+          component: () => import("@/views/reports/ProbationAnalyticsView.vue"),
+          meta: { title: "Báo cáo thử việc & onboarding" },
+        },
+        {
+          path: "reports/leave",
+          name: "leave-reports-canonical",
+          component: () => import("@/views/leaves/LeaveReportView.vue"),
+          meta: { title: "Báo cáo nghỉ phép" },
+        },
+        {
           path: "reports/leave-analytics",
           name: "leave-analytics",
           component: () => import("@/views/reports/LeaveAnalyticsView.vue"),
@@ -314,6 +326,30 @@ const router = createRouter({
           name: "contract-reports",
           component: () => import("@/views/reports/ContractReportView.vue"),
           meta: { title: "Báo cáo Hợp đồng", permission: "employees:read" },
+        },
+        {
+          path: "reports/recruitment",
+          name: "recruitment-analytics",
+          component: () => import("@/views/reports/RecruitmentAnalyticsView.vue"),
+          meta: { title: "Báo cáo tuyển dụng" },
+        },
+        {
+          path: "reports/training",
+          name: "training-analytics",
+          component: () => import("@/views/reports/TrainingAnalyticsView.vue"),
+          meta: { title: "Báo cáo đào tạo" },
+        },
+        {
+          path: "reports/rewards",
+          name: "rewards-analytics",
+          component: () => import("@/views/reports/RewardsAnalyticsView.vue"),
+          meta: { title: "Báo cáo khen thưởng & kỷ luật" },
+        },
+        {
+          path: "reports/performance",
+          name: "performance-analytics",
+          component: () => import("@/views/reports/PerformanceAnalyticsView.vue"),
+          meta: { title: "Báo cáo hiệu suất / KPI" },
         },
         {
           path: "reports/export",
