@@ -431,11 +431,37 @@ Slice 2 **chưa** bao gồm:
 - bỏ report tab nội bộ trong module
 - chuẩn hóa breadcrumb/text của các implementation cũ đang được wrapper dùng lại
 
-### Slice 3 — Redirect route cũ
+### Slice 3 — Redirect route cũ `✅ Hoàn thành`
 
 - `/employees/probation-reports` → `/reports/probation`
 - `/leave-reports` → `/reports/leave`
 - `/recruitment/reports` → `/reports/recruitment`
+
+#### Kết quả triển khai của Slice 3
+
+- Ba route legacy không còn render implementation riêng trong router.
+- Chúng đã trở thành redirect thuần về route canonical tương ứng.
+- Shortcut/module link hiện tại vẫn có thể giữ URL cũ ở menu mà không làm duplicate màn report.
+
+#### File chính đã chạm trong Slice 3
+
+- `frontend/src/router/index.ts`
+- `frontend/tests/e2e/report-route-map.spec.ts`
+
+#### Tiêu chí hoàn thành Slice 3
+
+- [x] `/employees/probation-reports` redirect về `/reports/probation`
+- [x] `/leave-reports` redirect về `/reports/leave`
+- [x] `/recruitment/reports` redirect về `/reports/recruitment`
+- [x] Có browser-level regression test cho redirect cũ → mới
+
+#### Điều chưa làm trong Slice 3
+
+Slice 3 **chưa** bao gồm:
+
+- đổi label shortcut ở AppMenu/module theo naming mới
+- bỏ report tab nội bộ trong `RewardsView`, `TrainingView`, `PerformanceView`
+- chuẩn hóa breadcrumb/title/copy của các report wrapper
 
 ### Slice 4 — Gỡ report tab nội bộ
 

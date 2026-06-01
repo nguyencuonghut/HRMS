@@ -81,7 +81,7 @@ const router = createRouter({
         {
           path: "employees/probation-reports",
           name: "employees-probation-reports",
-          component: () => import("@/views/employees/ProbationReportView.vue"),
+          redirect: { name: "probation-analytics" },
           meta: { title: "Báo cáo thử việc" },
         },
         // Onboarding
@@ -134,7 +134,7 @@ const router = createRouter({
         {
           path: "leave-reports",
           name: "leave-reports",
-          component: () => import("@/views/leaves/LeaveReportView.vue"),
+          redirect: { name: "leave-reports-canonical" },
           meta: { title: "Báo cáo nghỉ phép" },
         },
         // Bảo hiểm
@@ -274,8 +274,7 @@ const router = createRouter({
         {
           path: "recruitment/reports",
           name: "recruitment-reports",
-          component: () =>
-            import("@/views/recruitment/RecruitmentReportView.vue"),
+          redirect: { name: "recruitment-analytics" },
           meta: { title: "Báo cáo tuyển dụng" },
         },
         // Báo cáo

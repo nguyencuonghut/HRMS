@@ -7,14 +7,29 @@ async function login(page: Page) {
   await page.goto("/login");
   await page.getByLabel("Email").fill(ADMIN_EMAIL);
   await page.getByPlaceholder("Nhập mật khẩu").fill(ADMIN_PASSWORD);
+
+  const loginMeResponse = page.waitForResponse((response) => {
+    return response.url().includes("/api/v1/auth/me") && response.status() === 200;
+  });
+
   await page.getByRole("button", { name: "Đăng nhập" }).click();
+  await loginMeResponse;
   await page.waitForURL(/\/(dashboard|reports\/dashboard|reports)/);
 }
+
+async function navigate(page: Page, path: string) {
+  await page.evaluate((nextPath) => {
+    window.history.pushState({}, "", nextPath);
+    window.dispatchEvent(new PopStateEvent("popstate"));
+  }, path);
+}
+
+test.describe.configure({ mode: "serial" });
 
 test.describe("Report route map", () => {
   test("report hub exposes canonical report links", async ({ page }) => {
     await login(page);
-    await page.goto("/reports");
+    await navigate(page, "/reports");
     await page.waitForLoadState("networkidle");
 
     const main = page.locator("#main-content");
@@ -30,28 +45,41 @@ test.describe("Report route map", () => {
     await login(page);
     const main = page.locator("#main-content");
 
-    await page.goto("/reports/probation");
+    await navigate(page, "/reports/probation");
     await page.waitForLoadState("networkidle");
     await expect(main.locator(".ob-breadcrumb span").getByText("Báo cáo thử việc")).toBeVisible();
 
-    await page.goto("/reports/leave");
+    await navigate(page, "/reports/leave");
     await page.waitForLoadState("networkidle");
     await expect(main.getByRole("heading", { name: "Báo cáo nghỉ phép" })).toBeVisible();
 
-    await page.goto("/reports/recruitment");
+    await navigate(page, "/reports/recruitment");
     await page.waitForLoadState("networkidle");
     await expect(main.locator(".rc-jr-code")).toHaveText("Báo cáo tuyển dụng");
 
-    await page.goto("/reports/training");
+    await navigate(page, "/reports/training");
     await page.waitForLoadState("networkidle");
     await expect(main.getByRole("heading", { name: "Báo cáo đào tạo" })).toBeVisible();
 
-    await page.goto("/reports/rewards");
+    await navigate(page, "/reports/rewards");
     await page.waitForLoadState("networkidle");
     await expect(main.getByRole("heading", { name: "Báo cáo khen thưởng & kỷ luật" })).toBeVisible();
 
-    await page.goto("/reports/performance");
+    await navigate(page, "/reports/performance");
     await page.waitForLoadState("networkidle");
     await expect(main.getByRole("heading", { name: "Báo cáo hiệu suất / KPI" })).toBeVisible();
+  });
+
+  test("legacy report routes redirect to canonical routes", async ({ page }) => {
+    await login(page);
+
+    await navigate(page, "/employees/probation-reports");
+    await page.waitForURL("**/reports/probation");
+
+    await navigate(page, "/leave-reports");
+    await page.waitForURL("**/reports/leave");
+
+    await navigate(page, "/recruitment/reports");
+    await page.waitForURL("**/reports/recruitment");
   });
 });
