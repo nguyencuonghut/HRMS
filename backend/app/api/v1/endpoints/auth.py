@@ -69,6 +69,27 @@ class UserMeUpdate(BaseModel):
     phone_number: Optional[str] = None
 
 
+def _refresh_rate_limit_key(request: Request) -> str:
+    """Rate-limit /auth/refresh theo user/session logic thay vì proxy IP chung."""
+    raw_token = request.cookies.get(settings.REFRESH_TOKEN_COOKIE_NAME)
+    if raw_token:
+        try:
+            data = decode_token(raw_token)
+            if data.get("type") == "refresh":
+                email = data.get("sub")
+                if email:
+                    return f"refresh:{email}"
+        except JWTError:
+            pass
+
+    forwarded_for = request.headers.get("x-forwarded-for")
+    if forwarded_for:
+        return f"ip:{forwarded_for.split(',')[0].strip()}"
+    if request.client:
+        return f"ip:{request.client.host}"
+    return "ip:unknown"
+
+
 # ── Endpoints ──────────────────────────────────────────────────────────────────
 
 @router.post("/login", response_model=TokenResponse, summary="Đăng nhập")
@@ -124,7 +145,7 @@ async def login(
 
 
 @router.post("/refresh", response_model=TokenResponse, summary="Làm mới access token")
-@limiter.limit("20/hour")
+@limiter.limit("20/hour", key_func=_refresh_rate_limit_key)
 async def refresh_token(
     request: Request,
     payload: Optional[RefreshRequest] = None,

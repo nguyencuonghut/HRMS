@@ -4,11 +4,13 @@ from itertools import count
 
 import pytest
 from fastapi.testclient import TestClient
+from starlette.requests import Request
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
+from app.api.v1.endpoints import auth as auth_endpoint
 from app.core.config import settings
-from app.core.security import hash_password
+from app.core.security import create_refresh_token, hash_password
 
 BASE = "/api/v1/auth"
 
@@ -159,6 +161,32 @@ def test_refresh_returns_new_tokens(client: TestClient):
     assert resp.headers.get("content-length") != "0"
     me = client.get(f"{BASE}/me", headers={"Authorization": f"Bearer {body['access_token']}"})
     assert me.status_code == 200
+
+
+def test_refresh_rate_limit_key_uses_refresh_subject_over_proxy_ip():
+    refresh_token = create_refresh_token(_ADMIN_EMAIL)
+    request = Request(
+        {
+            "type": "http",
+            "headers": [
+                (b"cookie", f"{settings.REFRESH_TOKEN_COOKIE_NAME}={refresh_token}".encode()),
+                (b"x-forwarded-for", b"172.19.0.4"),
+            ],
+            "client": ("172.19.0.4", 12345),
+        }
+    )
+    assert auth_endpoint._refresh_rate_limit_key(request) == f"refresh:{_ADMIN_EMAIL}"
+
+
+def test_refresh_rate_limit_key_falls_back_to_proxy_ip_without_cookie():
+    request = Request(
+        {
+            "type": "http",
+            "headers": [(b"x-forwarded-for", b"172.19.0.4, 10.0.0.1")],
+            "client": ("172.19.0.4", 12345),
+        }
+    )
+    assert auth_endpoint._refresh_rate_limit_key(request) == "ip:172.19.0.4"
 
 
 def test_refresh_with_invalid_token_body_fails(client: TestClient):
