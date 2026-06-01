@@ -300,11 +300,89 @@ Hai phương án:
 
 ## 8. Kế hoạch triển khai refactor
 
-### Slice 1 — Chuẩn hóa IA và route map
+### Slice 1 — Chuẩn hóa IA và route map `✅ Hoàn thành`
 
 - Chốt canonical routes
 - Chốt tên hiển thị menu
 - Chốt route nào là workflow, route nào là analytics
+
+#### Kết quả chốt của Slice 1
+
+##### A. Route canonical chính thức
+
+Các route sau được chốt là nguồn chính thức cho báo cáo cấp hệ thống:
+
+| Nhóm | Route canonical | Nhãn chuẩn |
+|---|---|---|
+| Hub | `/reports` | `Tổng quan báo cáo` |
+| Dashboard | `/reports/dashboard` | `Dashboard tổng quan` |
+| HR | `/reports/hr` | `Báo cáo nhân sự` |
+| Probation / onboarding | `/reports/probation` | `Báo cáo thử việc & onboarding` |
+| Leave | `/reports/leave` | `Báo cáo nghỉ phép` |
+| Insurance analytics | `/reports/insurance` | `Phân tích bảo hiểm` |
+| Contracts | `/reports/contracts` | `Báo cáo hợp đồng` |
+| Recruitment | `/reports/recruitment` | `Báo cáo tuyển dụng` |
+| Training | `/reports/training` | `Báo cáo đào tạo` |
+| Rewards / discipline | `/reports/rewards` | `Báo cáo khen thưởng & kỷ luật` |
+| Performance | `/reports/performance` | `Báo cáo hiệu suất / KPI` |
+| Export | `/reports/export` | `Xuất báo cáo` |
+
+##### B. Route workflow không nhập vào reporting hub
+
+Các route sau **không được coi là analytics report canonical**:
+
+| Route | Phân loại | Quyết định IA |
+|---|---|---|
+| `/insurance/reports` | Workflow hồ sơ kỳ báo cáo BHXH | Giữ trong module bảo hiểm |
+| `/insurance/reports/:id` | Workflow detail | Giữ trong module bảo hiểm |
+
+##### C. Quy tắc shortcut ngữ cảnh
+
+Shortcut trong module được chấp nhận nếu đáp ứng đủ 3 điều kiện:
+
+1. Chỉ dùng để điều hướng
+2. Trỏ đúng route canonical dưới `/reports/...`
+3. Nhãn nên thể hiện vai trò shortcut, ưu tiên dạng `Xem báo cáo ...`
+
+##### D. Quyết định với các màn hiện có
+
+| Route / màn hiện tại | Quyết định Slice 1 |
+|---|---|
+| `/employees/probation-reports` | Không còn là canonical |
+| `/leave-reports` | Không còn là canonical |
+| `/recruitment/reports` | Không còn là canonical |
+| `RewardsView.vue` tab `report` | Không còn là canonical |
+| `TrainingView.vue` tab `report` | Không còn là canonical |
+| `PerformanceView.vue` tab `report` | Không còn là canonical |
+
+##### E. Kết quả áp dụng cho sidebar
+
+Sau Slice 1, cấu trúc IA được chốt như sau:
+
+- Sidebar `Báo cáo` là hub duy nhất cho báo cáo chính thức
+- Menu nghiệp vụ vẫn giữ shortcut ngữ cảnh
+- Báo cáo không còn được phép “sống song song” ở cả:
+  - module page riêng
+  - module tab nội bộ
+  - route canonical dưới `/reports/...`
+
+##### F. Tiêu chí hoàn thành Slice 1
+
+- [x] Chốt danh sách route canonical
+- [x] Chốt ranh giới analytics vs workflow
+- [x] Chốt naming chuẩn cho menu báo cáo
+- [x] Chốt policy shortcut ngữ cảnh
+- [x] Chốt danh sách route/màn không còn là canonical
+
+##### G. Điều chưa làm trong Slice 1
+
+Slice 1 **chỉ chốt quyết định kiến trúc thông tin**. Chưa bao gồm:
+
+- tạo route mới
+- redirect route cũ
+- sửa AppMenu / router
+- bỏ tab report nội bộ
+- browser regression test
 
 ### Slice 2 — Tạo route canonical còn thiếu
 
