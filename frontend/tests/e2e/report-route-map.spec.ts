@@ -2,11 +2,13 @@ import { expect, test, type Page } from "@playwright/test";
 
 const ADMIN_EMAIL = process.env.E2E_EMAIL || "admin@hrms.local";
 const ADMIN_PASSWORD = process.env.E2E_PASSWORD || "Hrms@2026";
+const LINE_MANAGER_EMAIL = process.env.E2E_LINE_MANAGER_EMAIL || "linemanager@hrms.local";
+const LINE_MANAGER_PASSWORD = process.env.E2E_LINE_MANAGER_PASSWORD || "Hrms@2026";
 
-async function login(page: Page) {
+async function login(page: Page, email = ADMIN_EMAIL, password = ADMIN_PASSWORD) {
   await page.goto("/login");
-  await page.getByLabel("Email").fill(ADMIN_EMAIL);
-  await page.getByPlaceholder("Nhập mật khẩu").fill(ADMIN_PASSWORD);
+  await page.getByLabel("Email").fill(email);
+  await page.getByPlaceholder("Nhập mật khẩu").fill(password);
 
   const loginMeResponse = page.waitForResponse((response) => {
     return response.url().includes("/api/v1/auth/me") && response.status() === 200;
@@ -122,5 +124,13 @@ test.describe("Report route map", () => {
     await expect(nav.locator('a[href="/reports/training"]')).toContainText("Đào tạo");
     await expect(nav.locator('a[href="/reports/rewards"]')).toContainText("Khen thưởng & Kỷ luật");
     await expect(nav.locator('a[href="/reports/performance"]')).toContainText("Hiệu suất / KPI");
+  });
+
+  test("permission guard blocks report routes without required permission", async ({ page }) => {
+    await login(page, LINE_MANAGER_EMAIL, LINE_MANAGER_PASSWORD);
+
+    await navigate(page, "/reports/insurance");
+    await page.waitForURL("**/forbidden");
+    await expect(page.getByRole("heading", { name: "Không có quyền truy cập" })).toBeVisible();
   });
 });

@@ -554,13 +554,43 @@ Slice 5 **chưa** bao gồm:
 - chuẩn hóa toàn bộ text/copy của mọi report implementation sâu bên trong từng tab con
 - dọn các route legacy phụ như `/reports/leave-analytics` nếu muốn thu gọn hơn nữa
 
-### Slice 6 — Regression test
+### Slice 6 — Regression test `✅ Hoàn thành`
 
 - browser-level verification cho:
   - menu navigation
   - redirect cũ → route mới
   - shortcut trong module
   - permission guards
+
+#### Kết quả triển khai của Slice 6
+
+- Đã gom regression browser của toàn bộ refactor IA vào `frontend/tests/e2e/report-route-map.spec.ts`
+- Suite hiện cover:
+  - hub `Tổng quan báo cáo`
+  - render route canonical
+  - redirect route cũ → route canonical
+  - shortcut từ module sang route canonical
+  - label của menu `Báo cáo`
+  - permission guard với user `line_manager` không có `insurance:read`
+
+#### Tiêu chí hoàn thành Slice 6
+
+- [x] Có browser-level verification cho menu navigation
+- [x] Có browser-level verification cho redirect cũ → route mới
+- [x] Có browser-level verification cho shortcut trong module
+- [x] Có browser-level verification cho permission guard
+
+#### File chính đã chạm trong Slice 6
+
+- `frontend/tests/e2e/report-route-map.spec.ts`
+
+#### Điều chưa làm sau Slice 6
+
+Refactor IA báo cáo theo plan này đã hoàn thành phần cốt lõi. Những việc còn lại chỉ là tối ưu sâu hơn nếu muốn:
+
+- dọn tiếp route phụ cũ như `/reports/leave-analytics`
+- chuẩn hóa copy sâu trong từng report implementation
+- mở rộng thêm matrix permission cho nhiều role hơn ngoài seam đã xác minh
 
 ---
 
