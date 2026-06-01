@@ -50,3 +50,33 @@ async def test_seed_rbac_if_possible_runs_when_users_table_exists_and_empty(monk
 
     assert session.execute.await_count == 2
     run_mock.assert_awaited_once_with(session)
+
+
+@pytest.mark.asyncio
+async def test_seed_rbac_if_possible_skips_in_production(monkeypatch):
+    session = AsyncMock()
+    run_mock = AsyncMock()
+
+    monkeypatch.setattr(main, "AsyncSessionLocal", lambda: _SessionContext(session))
+    monkeypatch.setattr(main.rbac_seed, "run", run_mock)
+    monkeypatch.setattr(main.settings, "ENVIRONMENT", "production")
+
+    await main.seed_rbac_if_possible()
+
+    assert session.execute.await_count == 0
+    run_mock.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_seed_notifications_if_possible_skips_in_production(monkeypatch):
+    session = AsyncMock()
+    run_mock = AsyncMock()
+
+    monkeypatch.setattr(main, "AsyncSessionLocal", lambda: _SessionContext(session))
+    monkeypatch.setattr(main.notif_seed, "seed_notification_templates", run_mock)
+    monkeypatch.setattr(main.settings, "ENVIRONMENT", "production")
+
+    await main.seed_notifications_if_possible()
+
+    assert session.execute.await_count == 0
+    run_mock.assert_not_awaited()

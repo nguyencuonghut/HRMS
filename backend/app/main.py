@@ -45,7 +45,10 @@ if settings.SENTRY_DSN:
 
 
 async def seed_rbac_if_possible() -> None:
-    """Auto-seed RBAC only after auth tables exist."""
+    """Auto-seed local RBAC users only outside production."""
+    if settings.ENVIRONMENT.lower() == "production":
+        return
+
     async with AsyncSessionLocal() as session:
         users_table_exists = (await session.execute(
             text("SELECT to_regclass('users') IS NOT NULL")
@@ -59,7 +62,10 @@ async def seed_rbac_if_possible() -> None:
 
 
 async def seed_notifications_if_possible() -> None:
-    """Auto-seed notification templates nếu table đã tồn tại."""
+    """Auto-seed notification templates only outside production."""
+    if settings.ENVIRONMENT.lower() == "production":
+        return
+
     async with AsyncSessionLocal() as session:
         table_exists = (await session.execute(
             text("SELECT to_regclass('notification_templates') IS NOT NULL")

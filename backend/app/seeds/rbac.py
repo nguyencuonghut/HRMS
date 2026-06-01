@@ -232,14 +232,24 @@ async def seed_users(session: AsyncSession) -> int:
     return inserted
 
 
-async def run(session: AsyncSession) -> None:
-    perm_added  = await seed_permissions(session)
-    role_added  = await seed_roles(session)
-    rp_added    = await seed_role_permissions(session)
-    user_added  = await seed_users(session)
+async def run_core(session: AsyncSession) -> tuple[int, int, int]:
+    perm_added = await seed_permissions(session)
+    role_added = await seed_roles(session)
+    rp_added = await seed_role_permissions(session)
+    return perm_added, role_added, rp_added
+
+
+async def run(session: AsyncSession, *, include_users: bool = True) -> None:
+    perm_added, role_added, rp_added = await run_core(session)
+    user_added = 0
+    if include_users:
+        user_added = await seed_users(session)
     await session.commit()
 
     print(f"  [rbac] Permissions:        +{perm_added} dòng")
     print(f"  [rbac] Roles:              +{role_added} dòng")
     print(f"  [rbac] Role-Permissions:   +{rp_added} dòng")
-    print(f"  [rbac] Seed users:         +{user_added} dòng")
+    if include_users:
+        print(f"  [rbac] Seed users:         +{user_added} dòng")
+    else:
+        print("  [rbac] Seed users:         bỏ qua")
