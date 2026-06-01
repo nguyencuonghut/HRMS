@@ -52,7 +52,7 @@
 
     <section class="dashboard-section">
       <div class="dashboard-section-head">
-        <h3>KPI tháng {{ filters.month }}/{{ filters.year }}</h3>
+        <h3>{{ summaryHeading }}</h3>
         <span v-if="summary" class="dashboard-meta"
           >As of {{ formatDate(summary.as_of_date) }}</span
         >
@@ -265,10 +265,13 @@ const yearOptions = computed(() =>
 );
 
 const monthOptions = computed(() =>
-  Array.from({ length: 12 }, (_, index) => ({
-    label: `Tháng ${index + 1}`,
-    value: index + 1,
-  })),
+  [
+    { label: "Toàn năm", value: null },
+    ...Array.from({ length: 12 }, (_, index) => ({
+      label: `Tháng ${index + 1}`,
+      value: index + 1,
+    })),
+  ],
 );
 
 const departmentOptions = computed(() => departments.value);
@@ -286,39 +289,52 @@ const headcountMeta = computed(() => {
 
 const kpiCards = computed(() => {
   const data = summary.value;
+  const annualMode = filters.month == null;
   return [
     {
       label: "Tổng nhân viên",
       value: formatInteger(data?.total_headcount ?? 0),
       subtext: data
-        ? `Đầu tháng: ${formatInteger(data.headcount_start_of_month)}`
+        ? `${annualMode ? "Đầu năm" : "Đầu tháng"}: ${formatInteger(data.headcount_start_of_month)}`
         : "Chưa có dữ liệu",
       icon: "pi-users",
       iconClass: "is-primary",
     },
     {
-      label: "Mới trong tháng",
+      label: annualMode ? "Mới trong năm" : "Mới trong tháng",
       value: formatInteger(data?.new_hires_this_month ?? 0),
-      subtext: "Nhân sự bắt đầu làm việc",
+      subtext: annualMode
+        ? "Nhân sự bắt đầu làm việc trong năm"
+        : "Nhân sự bắt đầu làm việc",
       icon: "pi-user-plus",
       iconClass: "is-green",
     },
     {
-      label: "Nghỉ việc trong tháng",
+      label: annualMode ? "Nghỉ việc trong năm" : "Nghỉ việc trong tháng",
       value: formatInteger(data?.resigned_this_month ?? 0),
-      subtext: "Nhân sự kết thúc làm việc",
+      subtext: annualMode
+        ? "Nhân sự kết thúc làm việc trong năm"
+        : "Nhân sự kết thúc làm việc",
       icon: "pi-user-minus",
       iconClass: "is-red",
     },
     {
       label: "Turnover Rate",
       value: `${formatDecimal(data?.turnover_rate ?? 0)}%`,
-      subtext: "Tỷ lệ nghỉ việc theo headcount đầu tháng",
+      subtext: annualMode
+        ? "Tỷ lệ nghỉ việc theo headcount đầu năm"
+        : "Tỷ lệ nghỉ việc theo headcount đầu tháng",
       icon: "pi-chart-line",
       iconClass: "is-amber",
     },
   ];
 });
+
+const summaryHeading = computed(() =>
+  filters.month == null
+    ? `KPI năm ${filters.year}`
+    : `KPI tháng ${filters.month}/${filters.year}`,
+);
 
 const EmptyState = defineComponent({
   name: "DashboardEmptyState",

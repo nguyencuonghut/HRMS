@@ -23,7 +23,7 @@ router = APIRouter()
 @router.get("/dashboard", response_model=InsuranceDashboardKPI)
 async def get_dashboard(
     year: int = Query(..., ge=2000, le=2100),
-    month: int = Query(..., ge=1, le=12),
+    month: Optional[int] = Query(None, ge=1, le=12),
     department_id: Optional[int] = Query(None),
     _current_user: User = require_permission("insurance:read"),
     session: AsyncSession = Depends(get_session),
@@ -83,7 +83,7 @@ async def get_non_participants(
 @router.get("/by-department", response_model=InsuranceDepartmentBreakdownResponse)
 async def get_department_breakdown(
     year: int = Query(..., ge=2000, le=2100),
-    month: int = Query(..., ge=1, le=12),
+    month: Optional[int] = Query(None, ge=1, le=12),
     _current_user: User = require_permission("insurance:read"),
     session: AsyncSession = Depends(get_session),
 ) -> InsuranceDepartmentBreakdownResponse:
@@ -111,7 +111,7 @@ async def get_employee_history(
 @router.get("/export")
 async def export_analytics(
     year: int = Query(..., ge=2000, le=2100),
-    month: int = Query(..., ge=1, le=12),
+    month: Optional[int] = Query(None, ge=1, le=12),
     department_id: Optional[int] = Query(None),
     _current_user: User = require_permission("insurance:read"),
     session: AsyncSession = Depends(get_session),
@@ -122,7 +122,11 @@ async def export_analytics(
         month=month,
         department_id=department_id,
     )
-    filename = f"bao_cao_bhxh_{year}_{month}.xlsx"
+    filename = (
+        f"bao_cao_bhxh_{year}_ca_nam.xlsx"
+        if month is None
+        else f"bao_cao_bhxh_{year}_{month}.xlsx"
+    )
     return StreamingResponse(
         buf,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

@@ -4,7 +4,7 @@
     <div class="page-header">
       <div>
         <h2>Phân tích bảo hiểm</h2>
-        <span class="subtitle">Phân tích tình hình đóng bảo hiểm, biến động tăng giảm và cảnh báo rủi ro toàn hệ thống</span>
+        <span class="subtitle">{{ subtitleText }}</span>
       </div>
     </div>
 
@@ -130,10 +130,10 @@
         </div>
       </div>
 
-      <!-- Card 5: Biến động trong tháng -->
+      <!-- Card 5: Biến động theo kỳ -->
       <div class="kpi-card border-red">
         <div class="kpi-card-header">
-          <span class="kpi-card-title">Biến động tháng</span>
+          <span class="kpi-card-title">{{ annualMode ? 'Biến động năm' : 'Biến động tháng' }}</span>
           <i class="pi pi-arrows-h kpi-icon-red" />
         </div>
         <div v-if="loading" class="kpi-skeleton">
@@ -142,8 +142,8 @@
         </div>
         <div v-else>
           <div class="kpi-card-value variation">
-            <span class="text-green-500" v-tooltip.top="'Tăng trong tháng'">+{{ dashboard?.increased_count }}</span>
-            <span class="text-red-500" v-tooltip.top="'Giảm trong tháng'">-{{ dashboard?.decreased_count }}</span>
+            <span class="text-green-500" v-tooltip.top="annualMode ? 'Tăng trong năm' : 'Tăng trong tháng'">+{{ dashboard?.increased_count }}</span>
+            <span class="text-red-500" v-tooltip.top="annualMode ? 'Giảm trong năm' : 'Giảm trong tháng'">-{{ dashboard?.decreased_count }}</span>
           </div>
           <div class="kpi-card-sub">Thay đổi ròng: {{ (dashboard?.net_change ?? 0) >= 0 ? '+' : '' }}{{ dashboard?.net_change ?? 0 }} NV</div>
         </div>
@@ -398,10 +398,13 @@ const yearOptions = Array.from({ length: 7 }, (_, i) => {
   return { label: `Năm ${y}`, value: y }
 })
 
-const monthOptions = Array.from({ length: 12 }, (_, i) => {
-  const m = i + 1
-  return { label: `Tháng ${m}`, value: m }
-})
+const monthOptions = [
+  { label: 'Toàn năm', value: null },
+  ...Array.from({ length: 12 }, (_, i) => {
+    const m = i + 1
+    return { label: `Tháng ${m}`, value: m }
+  }),
+]
 
 // ── State ─────────────────────────────────────────────────────────────────────
 const loading = ref(false)
@@ -411,7 +414,7 @@ const errorMsg = ref('')
 const departments = ref<DepartmentRead[]>([])
 const filters = reactive({
   year: currentYear,
-  month: currentMonth,
+  month: currentMonth as number | null,
   department_id: null as number | null,
   page: 1,
   page_size: 10,
@@ -422,6 +425,12 @@ const monthlyChanges = ref<InsuranceMonthlyChangesResponse | null>(null)
 const payrollFund = ref<InsurancePayrollFundResponse | null>(null)
 const departmentBreakdown = ref<InsuranceDepartmentBreakdownResponse | null>(null)
 const nonParticipants = ref<InsuranceNonParticipantsResponse | null>(null)
+const annualMode = computed(() => filters.month === null)
+const subtitleText = computed(() =>
+  annualMode.value
+    ? `Phân tích toàn năm ${filters.year} về tình hình đóng bảo hiểm, biến động tăng giảm và cảnh báo rủi ro toàn hệ thống`
+    : 'Phân tích tình hình đóng bảo hiểm, biến động tăng giảm và cảnh báo rủi ro toàn hệ thống'
+)
 
 // ── Computations for SVG Charts ───────────────────────────────────────────────
 const monthlyChangesMaxVal = computed(() => {

@@ -260,6 +260,25 @@ def test_dashboard_summary_and_department_filter(client: TestClient):
     assert data["headcount_start_of_month"] == 2
     assert data["turnover_rate"] == 50.0
 
+
+def test_dashboard_summary_supports_full_year_mode(client: TestClient):
+    refs = asyncio.run(_seed_dashboard_data())
+    headers = _admin_headers(client)
+    today = date.today()
+
+    resp = client.get(
+        f"{BASE}/summary",
+        headers=headers,
+        params={"year": today.year, "department_id": refs["dept_a"]},
+    )
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["total_headcount"] == 2
+    assert data["new_hires_this_month"] == 1
+    assert data["resigned_this_month"] == 1
+    assert data["headcount_start_of_month"] == 2
+    assert data["turnover_rate"] == 50.0
+
     filtered = client.get(
         f"{BASE}/summary",
         headers=headers,

@@ -344,7 +344,7 @@ export default {
     api.get(`/insurance/reports/${reportId}/export/d02-ts`, { responseType: 'blob' }),
 
   // ── Insurance Analytics Endpoints (11.4) ──
-  getAnalyticsDashboard: (params: { year: number; month: number; department_id?: number | null }) =>
+  getAnalyticsDashboard: (params: { year: number; month?: number | null; department_id?: number | null }) =>
     api.get<InsuranceDashboardKPI>('/reports/insurance/dashboard', { params }),
 
   getMonthlyChanges: (params: { year: number; department_id?: number | null }) =>
@@ -356,13 +356,13 @@ export default {
   getNonParticipants: (params: { department_id?: number | null; page?: number; page_size?: number }) =>
     api.get<InsuranceNonParticipantsResponse>('/reports/insurance/non-participants', { params }),
 
-  getDepartmentBreakdown: (params: { year: number; month: number }) =>
+  getDepartmentBreakdown: (params: { year: number; month?: number | null }) =>
     api.get<InsuranceDepartmentBreakdownResponse>('/reports/insurance/by-department', { params }),
 
   getEmployeeHistory: (params: { employee_id: number; year?: number | null }) =>
     api.get<InsuranceEmployeeHistoryResponse>('/reports/insurance/employee-history', { params }),
 
-  exportAnalyticsUrl: (params: { year: number; month: number; department_id?: number | null }): string => {
+  exportAnalyticsUrl: (params: { year: number; month?: number | null; department_id?: number | null }): string => {
     const qs = new URLSearchParams(
       Object.entries(params)
         .filter(([, v]) => v !== null && v !== undefined)
@@ -440,7 +440,7 @@ export interface InsurancePeriodReportCreate {
 
 export interface InsuranceDashboardKPI {
   year: number
-  month: number
+  month: number | null
   department_id: number | null
   participating_count: number
   total_active_employees: number
@@ -506,7 +506,7 @@ export interface DepartmentBreakdownRow {
 
 export interface InsuranceDepartmentBreakdownResponse {
   year: number
-  month: number
+  month: number | null
   items: DepartmentBreakdownRow[]
 }
 
@@ -525,4 +525,3 @@ export interface InsuranceEmployeeHistoryResponse {
   current_basis_amount: number | null
   history: EmployeeHistoryPoint[]
 }
-

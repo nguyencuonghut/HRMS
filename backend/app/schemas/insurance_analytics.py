@@ -11,7 +11,7 @@ from pydantic import BaseModel, ConfigDict
 class InsuranceDashboardKPI(BaseModel):
     """KPI tổng quan tháng/năm được chọn."""
     year: int
-    month: int
+    month: Optional[int]
     department_id: Optional[int]
 
     # Tham gia BHXH
@@ -85,7 +85,7 @@ class DepartmentBreakdownRow(BaseModel):
 
 class InsuranceDepartmentBreakdownResponse(BaseModel):
     year: int
-    month: int
+    month: Optional[int]
     items: list[DepartmentBreakdownRow]
 
 

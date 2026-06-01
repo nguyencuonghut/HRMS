@@ -73,4 +73,34 @@ test.describe("Dashboard tổng quan", () => {
     expect(cardBg).not.toBe("rgb(255, 255, 255)");
     expect(kpiBg).not.toBe("rgb(255, 255, 255)");
   });
+
+  test("supports full-year mode from the month filter", async ({ page }) => {
+    await login(page);
+    await page.goto("/reports/dashboard");
+    await page.waitForLoadState("networkidle");
+
+    const monthSelect = page.locator(".dashboard-toolbar .p-select").nth(1);
+    await monthSelect.click();
+    await page.getByText("Toàn năm", { exact: true }).click();
+    await expect(monthSelect).toContainText("Toàn năm");
+
+    const summaryResponse = page.waitForResponse((response) => {
+      return (
+        response.url().includes("/api/v1/reports/dashboard/summary") &&
+        response.request().method() === "GET" &&
+        !response.request().url().includes("month=")
+      );
+    });
+
+    await page.getByRole("button", { name: "Xem báo cáo" }).click();
+
+    const response = await summaryResponse;
+    expect(response.request().url()).not.toContain("month=");
+
+    await expect(page.getByRole("heading", { name: /KPI năm \d{4}/ })).toBeVisible();
+    await expect(page.locator(".dashboard-kpi-card")).toContainText([
+      "Mới trong năm",
+      "Nghỉ việc trong năm",
+    ]);
+  });
 });

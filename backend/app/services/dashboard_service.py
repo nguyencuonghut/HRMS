@@ -38,9 +38,9 @@ def _round1(value: float) -> float:
     return float(Decimal(str(value)).quantize(Decimal("0.1"), rounding=ROUND_HALF_UP))
 
 
-def _current_period(year: Optional[int], month: Optional[int]) -> tuple[int, int]:
+def _current_period(year: Optional[int], month: Optional[int]) -> tuple[int, Optional[int]]:
     today = date.today()
-    return year or today.year, month or today.month
+    return year or today.year, month
 
 
 async def _department_scope_ids(
@@ -92,7 +92,7 @@ async def get_summary(
     department_id: Optional[int] = None,
 ) -> DashboardSummary:
     year, month = _current_period(year, month)
-    period_start = date(year, month, 1)
+    period_start = date(year, month, 1) if month is not None else date(year, 1, 1)
     department_ids = await _department_scope_ids(session, department_id)
 
     total_stmt = (
@@ -113,10 +113,11 @@ async def get_summary(
         )
         .where(
             sa.extract("year", Employee.start_date) == year,
-            sa.extract("month", Employee.start_date) == month,
             Employee.is_active == True,  # noqa: E712
         )
     )
+    if month is not None:
+        new_hires_stmt = new_hires_stmt.where(sa.extract("month", Employee.start_date) == month)
     if department_ids is not None:
         if not department_ids:
             new_hires = 0
@@ -139,9 +140,10 @@ async def get_summary(
             Employee.status == "resigned",
             Employee.resigned_date.is_not(None),
             sa.extract("year", Employee.resigned_date) == year,
-            sa.extract("month", Employee.resigned_date) == month,
         )
     )
+    if month is not None:
+        resigned_stmt = resigned_stmt.where(sa.extract("month", Employee.resigned_date) == month)
     if department_ids is not None:
         if not department_ids:
             resigned_count = 0

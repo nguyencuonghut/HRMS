@@ -35,7 +35,7 @@ async def get_dashboard(
     session: AsyncSession,
     *,
     year: int,
-    month: int,
+    month: Optional[int],
     department_id: Optional[int] = None,
 ) -> InsuranceDashboardKPI:
     # ── KPI 1 & 2: Số nhân sự đang tham gia & Tổng số nhân sự active ─────────
@@ -102,18 +102,24 @@ async def get_dashboard(
 
     total_basis_amount = (await session.execute(total_basis_stmt)).scalar() or Decimal("0")
 
-    # ── KPI 4 & 5: Số tăng/giảm biến động tháng ────────────────────────────────────
+    # ── KPI 4 & 5: Số tăng/giảm biến động theo tháng hoặc cả năm ───────────────────
     increased_stmt = select(func.count(InsuranceChangeEvent.id)).where(
         InsuranceChangeEvent.change_type == "increase",
         func.extract("year", InsuranceChangeEvent.effective_date) == year,
-        func.extract("month", InsuranceChangeEvent.effective_date) == month,
     )
     
     decreased_stmt = select(func.count(InsuranceChangeEvent.id)).where(
         InsuranceChangeEvent.change_type == "decrease",
         func.extract("year", InsuranceChangeEvent.effective_date) == year,
-        func.extract("month", InsuranceChangeEvent.effective_date) == month,
     )
+
+    if month is not None:
+        increased_stmt = increased_stmt.where(
+            func.extract("month", InsuranceChangeEvent.effective_date) == month,
+        )
+        decreased_stmt = decreased_stmt.where(
+            func.extract("month", InsuranceChangeEvent.effective_date) == month,
+        )
 
     if department_id is not None:
         increased_stmt = (
@@ -378,7 +384,7 @@ async def get_department_breakdown(
     session: AsyncSession,
     *,
     year: int,
-    month: int,
+    month: Optional[int],
 ) -> InsuranceDepartmentBreakdownResponse:
     stmt = (
         select(
@@ -480,7 +486,7 @@ async def export_analytics_xlsx(
     session: AsyncSession,
     *,
     year: int,
-    month: int,
+    month: Optional[int],
     department_id: Optional[int] = None,
 ) -> io.BytesIO:
     from openpyxl import Workbook
@@ -512,7 +518,7 @@ async def export_analytics_xlsx(
     ws1.title = "Tổng quan"
     ws1.append(["BÁO CÁO TỔNG QUAN BẢO HIỂM", ""])
     ws1.cell(1, 1).font = Font(bold=True, size=14)
-    ws1.append(["Kỳ báo cáo", f"Tháng {month}/{year}"])
+    ws1.append(["Kỳ báo cáo", f"Năm {year}" if month is None else f"Tháng {month}/{year}"])
     ws1.append([])
 
     ws1.append(["Chỉ số", "Giá trị"])
@@ -523,8 +529,14 @@ async def export_analytics_xlsx(
     ws1.append(["Tổng số nhân sự active", dashboard.total_active_employees])
     ws1.append(["Tỷ lệ tham gia (%)", f"{dashboard.participation_rate}%"])
     ws1.append(["Tổng quỹ lương BHXH (VND)", dashboard.total_basis_amount])
-    ws1.append(["Số lượng tăng trong tháng", dashboard.increased_count])
-    ws1.append(["Số lượng giảm trong tháng", dashboard.decreased_count])
+    ws1.append([
+        "Số lượng tăng trong năm" if month is None else "Số lượng tăng trong tháng",
+        dashboard.increased_count,
+    ])
+    ws1.append([
+        "Số lượng giảm trong năm" if month is None else "Số lượng giảm trong tháng",
+        dashboard.decreased_count,
+    ])
     ws1.append(["Biến động ròng", dashboard.net_change])
     
     # Format số tiền cho quỹ lương

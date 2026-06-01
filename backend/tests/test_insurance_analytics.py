@@ -128,6 +128,30 @@ def test_insurance_dashboard_kpi(client: TestClient):
     assert data["net_change"] == 1
 
 
+def test_insurance_dashboard_supports_full_year_mode(client: TestClient):
+    headers = _login(client)
+    emp_id = asyncio.run(_get_employee_id())
+    asyncio.run(
+        _create_test_event(emp_id, "increase", 12000000.0, date(_TEST_YEAR, 2, 1))
+    )
+    asyncio.run(
+        _create_test_event(emp_id, "decrease", 9000000.0, date(_TEST_YEAR, 9, 1))
+    )
+
+    resp = client.get(
+        f"{BASE}/dashboard",
+        params={"year": _TEST_YEAR},
+        headers=headers,
+    )
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["year"] == _TEST_YEAR
+    assert data["month"] is None
+    assert data["increased_count"] == 1
+    assert data["decreased_count"] == 1
+    assert data["net_change"] == 0
+
+
 def test_insurance_monthly_changes(client: TestClient):
     headers = _login(client)
     
@@ -192,6 +216,21 @@ def test_insurance_department_breakdown(client: TestClient):
     assert data["month"] == _TEST_MONTH
 
 
+def test_insurance_department_breakdown_supports_full_year_mode(client: TestClient):
+    headers = _login(client)
+
+    resp = client.get(
+        f"{BASE}/by-department",
+        params={"year": _TEST_YEAR},
+        headers=headers,
+    )
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert "items" in data
+    assert data["year"] == _TEST_YEAR
+    assert data["month"] is None
+
+
 def test_insurance_employee_history(client: TestClient):
     headers = _login(client)
     emp_id = asyncio.run(_get_employee_id())
@@ -224,3 +263,22 @@ def test_insurance_export_excel(client: TestClient):
     assert wb.sheetnames[0] == "Tổng quan"
     assert wb.sheetnames[1] == "Cơ cấu phòng ban"
     assert wb.sheetnames[2] == "Không tham gia BHXH"
+
+
+def test_insurance_export_excel_supports_full_year_mode(client: TestClient):
+    headers = _login(client)
+
+    resp = client.get(
+        f"{BASE}/export",
+        params={"year": _TEST_YEAR},
+        headers=headers,
+    )
+    assert resp.status_code == 200, resp.text
+    assert "spreadsheetml" in resp.headers.get("content-type", "")
+    assert "bao_cao_bhxh_2098_ca_nam.xlsx" in resp.headers.get("content-disposition", "")
+
+    wb = openpyxl.load_workbook(io.BytesIO(resp.content))
+    ws = wb["Tổng quan"]
+    assert ws["B2"].value == f"Năm {_TEST_YEAR}"
+    assert ws["A9"].value == "Số lượng tăng trong năm"
+    assert ws["A10"].value == "Số lượng giảm trong năm"
