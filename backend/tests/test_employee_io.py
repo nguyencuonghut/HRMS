@@ -405,7 +405,8 @@ def test_import_audit_log(client: TestClient):
     headers = _admin(client)
     xlsx = _make_xlsx([IMPORT_COLUMNS, _valid_row("0012")])
     _upload(client, headers, xlsx)
-    logs = client.get("/api/v1/audit-logs", params={"entity_type": "employee"}, headers=headers).json()
+    resp = client.get("/api/v1/audit-logs", params={"entity_type": "employee"}, headers=headers).json()
+    logs = resp["items"] if isinstance(resp, dict) else resp
     actions = [l["action"] for l in logs]
     assert "IMPORT_EMPLOYEES" in actions
 

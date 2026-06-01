@@ -180,6 +180,34 @@ bash /scripts/backup_minio.sh >> /logs/backup_minio.log 2>&1
 
 ---
 
+## 4.1 Seed flow cho production mới
+
+Khi dựng môi trường production mới từ DB sạch, dùng đúng thứ tự:
+
+```bash
+# 1. Apply schema
+docker compose exec backend alembic upgrade head
+
+# 2. Seed baseline hệ thống (required + RBAC core)
+docker compose exec backend python -m app.seeds
+
+# 3. Seed bootstrap vận hành của doanh nghiệp
+docker compose exec backend python -m app.seeds --bootstrap
+```
+
+Không chạy trên production:
+
+```bash
+docker compose exec backend python -m app.seeds --local-users
+docker compose exec backend python -m app.seeds --sample
+```
+
+Lý do đã được xác nhận trong code:
+- `--local-users` tạo 5 tài khoản local `*@hrms.local` chỉ dùng cho dev/test
+- `--sample` nạp dữ liệu demo/test
+
+---
+
 ## 5. Test Restore Monthly Checklist
 
 Thực hiện mỗi tháng trên môi trường **staging**:

@@ -100,3 +100,5 @@ Downtime có lịch **không tính** vào SLA nếu đã thông báo đúng hạ
 - [ ] CORS origins chỉ cho phép domain production
 - [ ] MinIO `MINIO_SECURE=true` với TLS certificate
 - [ ] Load test k6 pass (p95 < 800ms / 200 users)
+- [ ] Production seed đã chạy đúng flow: `python -m app.seeds` rồi `python -m app.seeds --bootstrap`
+- [ ] Không chạy `--local-users` hoặc `--sample` trên production

@@ -45,7 +45,11 @@ def test_list_officer_403(client: TestClient):
 def test_list_admin_200(client: TestClient):
     resp = client.get(BASE, headers=_admin(client))
     assert resp.status_code == 200
-    assert isinstance(resp.json(), list)
+    data = resp.json()
+    assert isinstance(data["items"], list)
+    assert data["page"] == 1
+    assert data["page_size"] == 20
+    assert data["total"] >= len(data["items"])
 
 
 def test_list_hr_manager_200(client: TestClient):
@@ -57,7 +61,7 @@ def test_list_hr_manager_200(client: TestClient):
 # ── Response shape ─────────────────────────────────────────────────────────────
 
 def test_response_fields(client: TestClient):
-    rows = client.get(BASE, headers=_admin(client)).json()
+    rows = client.get(BASE, headers=_admin(client)).json()["items"]
     assert len(rows) > 0
     row = rows[0]
     assert "id" in row
@@ -66,7 +70,7 @@ def test_response_fields(client: TestClient):
 
 
 def test_has_login_entries(client: TestClient):
-    rows = client.get(BASE, params={"action": "LOGIN"}, headers=_admin(client)).json()
+    rows = client.get(BASE, params={"action": "LOGIN"}, headers=_admin(client)).json()["items"]
     assert len(rows) > 0
     assert all(r["action"] == "LOGIN" for r in rows)
 
@@ -74,7 +78,7 @@ def test_has_login_entries(client: TestClient):
 # ── Filters ────────────────────────────────────────────────────────────────────
 
 def test_filter_by_action(client: TestClient):
-    rows = client.get(BASE, params={"action": "login"}, headers=_admin(client)).json()
+    rows = client.get(BASE, params={"action": "login"}, headers=_admin(client)).json()["items"]
     assert all(r["action"] == "LOGIN" for r in rows)
 
 
@@ -88,38 +92,40 @@ def test_filter_by_entity_type(client: TestClient):
     }, headers=_admin(client))
 
     rows = client.get(BASE, params={"entity_type": "user", "action": "CREATE"},
-        headers=_admin(client)).json()
+        headers=_admin(client)).json()["items"]
     assert len(rows) > 0
     assert all(r["entity_type"] == "user" for r in rows)
 
 
 def test_filter_by_user_id(client: TestClient):
     me = client.get("/api/v1/auth/me", headers=_admin(client)).json()
-    rows = client.get(BASE, params={"user_id": me["id"]}, headers=_admin(client)).json()
+    rows = client.get(BASE, params={"user_id": me["id"]}, headers=_admin(client)).json()["items"]
     assert all(r["user_id"] == me["id"] for r in rows)
 
 
 def test_filter_date_from_excludes_old(client: TestClient):
-    rows = client.get(BASE, params={"date_from": "2099-01-01"}, headers=_admin(client)).json()
+    rows = client.get(BASE, params={"date_from": "2099-01-01"}, headers=_admin(client)).json()["items"]
     assert rows == []
 
 
 def test_filter_date_to_excludes_future(client: TestClient):
-    rows = client.get(BASE, params={"date_to": "2000-01-01"}, headers=_admin(client)).json()
+    rows = client.get(BASE, params={"date_to": "2000-01-01"}, headers=_admin(client)).json()["items"]
     assert rows == []
 
 
 def test_limit_param(client: TestClient):
-    rows = client.get(BASE, params={"limit": 2}, headers=_admin(client)).json()
+    resp = client.get(BASE, params={"page_size": 2}, headers=_admin(client))
+    assert resp.status_code == 200
+    rows = resp.json()["items"]
     assert len(rows) <= 2
 
 
 def test_limit_max_500(client: TestClient):
-    resp = client.get(BASE, params={"limit": 501}, headers=_admin(client))
+    resp = client.get(BASE, params={"page_size": 101}, headers=_admin(client))
     assert resp.status_code == 422
 
 
 def test_ordered_by_created_at_desc(client: TestClient):
-    rows = client.get(BASE, params={"limit": 10}, headers=_admin(client)).json()
+    rows = client.get(BASE, params={"page_size": 10}, headers=_admin(client)).json()["items"]
     if len(rows) >= 2:
         assert rows[0]["created_at"] >= rows[-1]["created_at"]

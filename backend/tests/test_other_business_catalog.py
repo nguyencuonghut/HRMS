@@ -101,7 +101,9 @@ def test_create_and_update_bank_success(client: TestClient):
         headers=_admin(client),
     )
     assert logs.status_code == 200, logs.text
-    assert any(item["entity_name"] == "Ngân hàng Kiểm thử 01 Updated" for item in logs.json())
+    resp = logs.json()
+    items = resp["items"] if isinstance(resp, dict) else resp
+    assert any(item["entity_name"] == "Ngân hàng Kiểm thử 01 Updated" for item in items)
 
 
 def test_lookup_skills_supports_keyword_search(client: TestClient):
@@ -241,7 +243,8 @@ def test_catalog_create_writes_audit_log(client: TestClient):
         headers=_admin(client),
     )
     assert logs.status_code == 200, logs.text
-    items = logs.json()
+    resp = logs.json()
+    items = resp["items"] if isinstance(resp, dict) else resp
     assert any(item["entity_id"] == bank_id for item in items)
 
 
@@ -288,7 +291,8 @@ def test_contract_template_operations_write_audit_log(client: TestClient):
         headers=_admin(client),
     )
     assert logs.status_code == 200, logs.text
-    items = logs.json()
+    resp = logs.json()
+    items = resp["items"] if isinstance(resp, dict) else resp
     entity_ids = [item["entity_id"] for item in items]
     assert tmpl_id in entity_ids
 

@@ -177,7 +177,8 @@ def test_education_audit_log(client: TestClient):
         json={"institution_id": 1, "education_level_id": 6},
         headers=headers,
     )
-    logs = client.get("/api/v1/audit-logs", headers=headers, params={"entity_type": "employee_education"}).json()
+    resp = client.get("/api/v1/audit-logs", headers=headers, params={"entity_type": "employee_education"}).json()
+    logs = resp["items"] if isinstance(resp, dict) else resp
     assert any(log["action"] == "CREATE_EDUCATION_HISTORY" and log["entity_id"] == emp["id"] for log in logs)
 
 

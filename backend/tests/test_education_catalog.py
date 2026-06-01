@@ -107,11 +107,12 @@ def test_create_and_update_education_level_success(client: TestClient):
 
     logs = client.get(
         "/api/v1/audit-logs",
-        params={"entity_type": "education_level", "action": "UPDATE", "limit": 10},
+        params={"entity_type": "education_level", "action": "UPDATE", "page_size": 10},
         headers=_admin(client),
     )
     assert logs.status_code == 200, logs.text
-    assert any(row["entity_name"] == "Chứng chỉ nghề nâng cao" for row in logs.json())
+    payload = logs.json()
+    assert any(row["entity_name"] == "Chứng chỉ nghề nâng cao" for row in payload["items"])
 
 
 def test_create_educational_institution_writes_audit_log(client: TestClient):
@@ -133,11 +134,12 @@ def test_create_educational_institution_writes_audit_log(client: TestClient):
 
     logs = client.get(
         "/api/v1/audit-logs",
-        params={"entity_type": "educational_institution", "action": "CREATE", "limit": 10},
+        params={"entity_type": "educational_institution", "action": "CREATE", "page_size": 10},
         headers=_admin(client),
     )
     assert logs.status_code == 200, logs.text
-    assert any(row["entity_name"] == "Trường Cao đẳng Nông nghiệp Test" for row in logs.json())
+    payload = logs.json()
+    assert any(row["entity_name"] == "Trường Cao đẳng Nông nghiệp Test" for row in payload["items"])
 
 
 def test_delete_education_major_soft_deactivate(client: TestClient):
@@ -157,11 +159,12 @@ def test_delete_education_major_soft_deactivate(client: TestClient):
 
     logs = client.get(
         "/api/v1/audit-logs",
-        params={"entity_type": "education_major", "action": "DELETE", "limit": 10},
+        params={"entity_type": "education_major", "action": "DELETE", "page_size": 10},
         headers=_admin(client),
     )
     assert logs.status_code == 200, logs.text
-    assert any(row["entity_name"] == "Công nghệ thức ăn thủy sản" for row in logs.json())
+    payload = logs.json()
+    assert any(row["entity_name"] == "Công nghệ thức ăn thủy sản" for row in payload["items"])
 
 
 def test_delete_educational_institution_writes_audit_log(client: TestClient):
@@ -183,11 +186,12 @@ def test_delete_educational_institution_writes_audit_log(client: TestClient):
 
     logs = client.get(
         "/api/v1/audit-logs",
-        params={"entity_type": "educational_institution", "action": "DELETE", "limit": 10},
+        params={"entity_type": "educational_institution", "action": "DELETE", "page_size": 10},
         headers=_admin(client),
     )
     assert logs.status_code == 200, logs.text
-    assert any(row["entity_name"] == "Trường Đại học Nông nghiệp Vận hành" for row in logs.json())
+    payload = logs.json()
+    assert any(row["entity_name"] == "Trường Đại học Nông nghiệp Vận hành" for row in payload["items"])
 
 
 def test_lookup_education_levels_returns_active_sorted_rows(client: TestClient):

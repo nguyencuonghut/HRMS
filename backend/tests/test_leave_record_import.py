@@ -173,7 +173,7 @@ def test_import_partial_errors(client: TestClient):
     h = _login(client)
     rows = [
         [_EMP_SEQ_1, _LT_ANNUAL, f"01/09/{_YEAR}", f"03/09/{_YEAR}", ""],  # OK
-        ["999",      _LT_ANNUAL, f"05/09/{_YEAR}", f"07/09/{_YEAR}", ""],  # fail
+        ["999999",      _LT_ANNUAL, f"05/09/{_YEAR}", f"07/09/{_YEAR}", ""],  # fail
     ]
     r = _upload(client, h, _make_xlsx(rows))
     assert r.status_code == 200

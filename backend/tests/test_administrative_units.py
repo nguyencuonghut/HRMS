@@ -36,12 +36,39 @@ def _delete_by_code(client: TestClient, code: str) -> None:
             client.delete(f"{BASE}/{item['id']}", headers=_admin(client))
 
 
-def _payload(code: str) -> dict:
+def _first_province(client: TestClient, system_type: str) -> dict:
+    items = _list_provinces(client, system_type)
+    if not items:
+        payload = {
+            "system_type": system_type,
+            "source_name": "official_import" if system_type == "new" else "official_import_old",
+            "source_version": "qd19_2025" if system_type == "new" else "legacy_3_level",
+            "mode": "merge",
+        }
+        seed_resp = client.post(f"{BASE}/import", json=payload, headers=_admin(client))
+        assert seed_resp.status_code == 200, seed_resp.text
+        assert seed_resp.json()["batch_status"] == "success", seed_resp.text
+        items = _list_provinces(client, system_type)
+    assert items, f"Không có dữ liệu province cho system_type={system_type}"
+    return items[0]
+
+
+def _list_provinces(client: TestClient, system_type: str) -> list[dict]:
+    resp = client.get(
+        BASE,
+        params={"system_type": system_type, "unit_type": "province", "page_size": 5},
+        headers=_admin(client),
+    )
+    assert resp.status_code == 200, resp.text
+    return resp.json()["items"]
+
+
+def _payload(code: str, *, province_code: str) -> dict:
     return {
         "code": code,
         "name": f"Phường Test {code}",
         "unit_type": "ward",
-        "province_code": "25",
+        "province_code": province_code,
         "official_name": f"Phường Test {code}",
     }
 
@@ -121,28 +148,34 @@ def test_list_admin_units_old_system_returns_seeded_rows(client: TestClient):
     data = resp.json()
     assert len(data["items"]) >= 1
     assert data["total"] >= len(data["items"])
-    assert any(item["source_code"] == "01" for item in data["items"])
+    assert all(item["unit_type"] == "province" for item in data["items"])
+    assert all(item["source_code"] for item in data["items"])
 
 
 def test_create_admin_unit_success(client: TestClient):
-    resp = client.post(BASE, json=_payload("TEST_ADMIN_101"), headers=_admin(client))
+    province = _first_province(client, "new")
+    resp = client.post(BASE, json=_payload("TEST_ADMIN_101", province_code=province["code"]), headers=_admin(client))
     assert resp.status_code == 201, resp.text
     data = resp.json()
     assert data["code"] == "TEST_ADMIN_101"
     assert data["unit_type"] == "ward"
-    assert data["province_code"] == "25"
+    assert data["province_code"] == province["code"]
 
 
 def test_create_duplicate_admin_unit_409(client: TestClient):
-    r1 = client.post(BASE, json=_payload("TEST_ADMIN_102"), headers=_admin(client))
+    province = _first_province(client, "new")
+    r1 = client.post(BASE, json=_payload("TEST_ADMIN_102", province_code=province["code"]), headers=_admin(client))
     assert r1.status_code == 201, r1.text
 
-    r2 = client.post(BASE, json=_payload("TEST_ADMIN_102"), headers=_admin(client))
+    r2 = client.post(BASE, json=_payload("TEST_ADMIN_102", province_code=province["code"]), headers=_admin(client))
     assert r2.status_code == 409
 
 
 def test_get_admin_unit_by_id(client: TestClient):
-    created = client.post(BASE, json=_payload("TEST_ADMIN_103"), headers=_admin(client)).json()
+    province = _first_province(client, "new")
+    created_resp = client.post(BASE, json=_payload("TEST_ADMIN_103", province_code=province["code"]), headers=_admin(client))
+    assert created_resp.status_code == 201, created_resp.text
+    created = created_resp.json()
 
     resp = client.get(f"{BASE}/{created['id']}", headers=_admin(client))
     assert resp.status_code == 200
@@ -150,7 +183,10 @@ def test_get_admin_unit_by_id(client: TestClient):
 
 
 def test_update_admin_unit_success(client: TestClient):
-    created = client.post(BASE, json=_payload("TEST_ADMIN_104"), headers=_admin(client)).json()
+    province = _first_province(client, "new")
+    created_resp = client.post(BASE, json=_payload("TEST_ADMIN_104", province_code=province["code"]), headers=_admin(client))
+    assert created_resp.status_code == 201, created_resp.text
+    created = created_resp.json()
 
     resp = client.put(f"{BASE}/{created['id']}", json={"name": "Phường Test API Updated"}, headers=_admin(client))
     assert resp.status_code == 200
@@ -159,7 +195,10 @@ def test_update_admin_unit_success(client: TestClient):
 
 
 def test_delete_admin_unit_soft_deactivate(client: TestClient):
-    created = client.post(BASE, json=_payload("TEST_ADMIN_105"), headers=_admin(client)).json()
+    province = _first_province(client, "new")
+    created_resp = client.post(BASE, json=_payload("TEST_ADMIN_105", province_code=province["code"]), headers=_admin(client))
+    assert created_resp.status_code == 201, created_resp.text
+    created = created_resp.json()
 
     resp = client.delete(f"{BASE}/{created['id']}", headers=_admin(client))
     assert resp.status_code == 200
@@ -185,7 +224,8 @@ def test_get_hierarchy_tree_old_system(client: TestClient):
     data = resp.json()
     assert isinstance(data, list)
     assert len(data) >= 1
-    assert any(node["source_code"] == "01" for node in data)
+    first_province = _first_province(client, "old")
+    assert any(node["source_code"] == first_province["source_code"] for node in data)
 
 
 def test_import_endpoint_works(client: TestClient):
@@ -219,7 +259,8 @@ def test_officer_can_view_admin_units(client: TestClient):
 
 
 def test_create_admin_unit_writes_audit_log(client: TestClient):
-    created = client.post(BASE, json=_payload("TEST_ADMIN_106"), headers=_admin(client))
+    province = _first_province(client, "new")
+    created = client.post(BASE, json=_payload("TEST_ADMIN_106", province_code=province["code"]), headers=_admin(client))
     assert created.status_code == 201, created.text
 
     logs = client.get(
@@ -228,7 +269,8 @@ def test_create_admin_unit_writes_audit_log(client: TestClient):
         headers=_admin(client),
     )
     assert logs.status_code == 200, logs.text
-    assert any(row["entity_name"] == "Phường Test TEST_ADMIN_106" for row in logs.json())
+    payload = logs.json()
+    assert any(row["entity_name"] == "Phường Test TEST_ADMIN_106" for row in payload["items"])
 
 
 def test_import_writes_audit_log(client: TestClient):
@@ -246,4 +288,5 @@ def test_import_writes_audit_log(client: TestClient):
         headers=_admin(client),
     )
     assert logs.status_code == 200, logs.text
-    assert any(row["entity_name"] == "official_import:qd19_2025" for row in logs.json())
+    payload = logs.json()
+    assert any(row["entity_name"] == "official_import:qd19_2025" for row in payload["items"])

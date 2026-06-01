@@ -4,7 +4,7 @@
 
 .PHONY: help \
         migrate migrate-down migrate-history migrate-status migrate-new \
-        seed \
+        seed seed-required seed-bootstrap seed-local-users seed-sample \
         db-reset db-shell \
         logs logs-be logs-fe shell-be restart-be
 
@@ -22,7 +22,11 @@ help:
 	@echo "    make migrate-new m=tên Tạo file migration mới (VD: make migrate-new m=add_users)"
 	@echo ""
 	@echo "  Seeder:"
-	@echo "    make seed              Seed toàn bộ dữ liệu (required + RBAC + sample)"
+	@echo "    make seed              Alias dev: required + bootstrap + local-users + sample"
+	@echo "    make seed-required     Seed baseline production (required + RBAC core)"
+	@echo "    make seed-bootstrap    Seed thêm dữ liệu bootstrap vận hành"
+	@echo "    make seed-local-users  Seed 5 tài khoản local cho dev/test"
+	@echo "    make seed-sample       Seed full dev/test data"
 	@echo ""
 	@echo "  Dev:"
 	@echo "    make logs              Theo dõi log tất cả service"
@@ -60,6 +64,18 @@ migrate-new:
 # ─── Seeder ──────────────────────────────────────────────────────────────────
 
 seed:
+	docker compose exec backend python -m app.seeds --sample
+
+seed-required:
+	docker compose exec backend python -m app.seeds
+
+seed-bootstrap:
+	docker compose exec backend python -m app.seeds --bootstrap
+
+seed-local-users:
+	docker compose exec backend python -m app.seeds --local-users
+
+seed-sample:
 	docker compose exec backend python -m app.seeds --sample
 
 

@@ -198,7 +198,7 @@ def test_import_partial_errors(client: TestClient):
     h = _login(client)
     rows = [
         [_EMP_SEQ_1, f"{_PREFIX}-010", "labor_contract", _CAT_INDEFINITE, "01/01/2026", "01/01/2026", "", ""],  # OK
-        ["999", f"{_PREFIX}-011", "labor_contract", _CAT_INDEFINITE, "01/01/2026", "01/01/2026", "", ""],       # NV không tồn tại
+        ["999999", f"{_PREFIX}-011", "labor_contract", _CAT_INDEFINITE, "01/01/2026", "01/01/2026", "", ""],       # NV không tồn tại
     ]
     r = _upload(client, h, _make_xlsx(rows))
     assert r.status_code == 200

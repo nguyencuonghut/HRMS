@@ -98,11 +98,28 @@ Sau khi stack đã chạy, dùng lệnh `make` (xem đầy đủ với `make hel
 
 ```bash
 make migrate          # Áp dụng tất cả migration còn pending
-make seed             # Seed toàn bộ dữ liệu (required + RBAC + sample)
+make seed-required    # Seed baseline production (required + RBAC core)
+make seed-bootstrap   # Seed thêm bootstrap data vận hành
+make seed-local-users # Seed 5 tài khoản local dev/test
+make seed-sample      # Seed full dev/test
+make seed             # Alias dev = seed-sample
 
 make migrate-status   # Xem migration hiện tại đang ở revision nào
 make migrate-down     # Rollback 1 migration gần nhất
 make migrate-new m=tên_migration   # Tạo file migration mới
+```
+
+### Flow khuyến nghị theo môi trường
+
+```bash
+# Production sạch
+make migrate
+make seed-required
+make seed-bootstrap
+
+# Development / test local
+make migrate
+make seed
 ```
 
 ---

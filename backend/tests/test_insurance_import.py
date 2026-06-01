@@ -189,7 +189,7 @@ def test_import_partial_errors(client: TestClient):
     h = _login(client)
     rows = [
         [_EMP_SEQ_1, "TESTIMP_OK", "01/03/2026", "5000000", "", ""],   # OK
-        ["999",      "TESTIMP_BAD", "01/03/2026", "5000000", "", ""],  # fail
+        ["999999",      "TESTIMP_BAD", "01/03/2026", "5000000", "", ""],  # fail
     ]
     r = _upload(client, h, _make_xlsx(rows))
     assert r.status_code == 200
