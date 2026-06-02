@@ -28,6 +28,8 @@ const api = axios.create({
   // Cookie được gửi tự động bởi browser (withCredentials không cần cho same-origin)
 })
 
+let refreshPromise: Promise<string> | null = null
+
 function _isAuthEndpoint(url?: string): boolean {
   if (!url) return false
   return url.includes('/auth/login') || url.includes('/auth/refresh') || url.includes('/auth/logout')
@@ -79,15 +81,10 @@ api.interceptors.response.use(
     if (status === 401 && !config._authRetried) {
       config._authRetried = true
       try {
-        // POST /auth/refresh không có body — browser gửi cookie tự động
-        const { data } = await axios.post('/api/v1/auth/refresh', undefined, {
-          withCredentials: true,
-        })
-        // Cập nhật access_token in-memory
-        _syncAuthStore(data.access_token)
+        const newToken = await _refreshAccessToken()
 
         if (config.headers) {
-          config.headers.Authorization = `Bearer ${data.access_token}`
+          config.headers.Authorization = `Bearer ${newToken}`
         }
         return api(config)
       } catch (refreshError) {
@@ -123,6 +120,26 @@ function _getAccessToken(): string | null {
 
 function _delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function _refreshAccessToken(): Promise<string> {
+  if (refreshPromise) {
+    return refreshPromise
+  }
+
+  refreshPromise = axios
+    .post('/api/v1/auth/refresh', undefined, {
+      withCredentials: true,
+    })
+    .then(({ data }) => {
+      _syncAuthStore(data.access_token)
+      return data.access_token as string
+    })
+    .finally(() => {
+      refreshPromise = null
+    })
+
+  return refreshPromise
 }
 
 function _syncAuthStore(newToken: string) {
