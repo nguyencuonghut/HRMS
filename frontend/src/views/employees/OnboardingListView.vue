@@ -170,6 +170,8 @@ import Tag from 'primevue/tag'
 import { useToast } from 'primevue/usetoast'
 import { onboardingChecklistService, type OnboardingChecklistListItem } from '@/services/onboardingService'
 import api from '@/services/api'
+import type { DepartmentOption } from '@/services/departmentService'
+import { toDepartmentSelectOptions } from '@/utils/departmentOptions'
 import OnboardingCreateDialog from './OnboardingCreateDialog.vue'
 
 const toast = useToast()
@@ -185,7 +187,7 @@ const filterDeptId = ref<number | null>(null)
 const filterDaysUntil = ref<number | null>(null)
 const showCreateDialog = ref(false)
 
-const departments = ref<{ id: number; name: string }[]>([])
+const departments = ref<DepartmentOption[]>([])
 
 const statusOptions = [
   { label: 'Tất cả', value: null },
@@ -198,7 +200,7 @@ onMounted(async () => {
   try {
     const r = await api.get('/departments', { params: { page_size: 200 } })
     const data = r.data
-    departments.value = Array.isArray(data) ? data : (data.items ?? [])
+    departments.value = toDepartmentSelectOptions(Array.isArray(data) ? data : (data.items ?? []))
   } catch { /* sidebar error không block */ }
   await loadList()
 })

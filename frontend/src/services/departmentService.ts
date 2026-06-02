@@ -1,4 +1,5 @@
 import api from './api'
+import { toDepartmentSelectOptions } from '@/utils/departmentOptions'
 
 export interface DepartmentRead {
   id: number
@@ -13,6 +14,11 @@ export interface DepartmentRead {
   is_active: boolean
   created_at: string
   updated_at: string | null
+}
+
+export interface DepartmentOption extends DepartmentRead {
+  plain_name: string
+  depth: number
 }
 
 export interface DepartmentTreeNode extends DepartmentRead {
@@ -46,9 +52,14 @@ export default {
     }),
 
   getList: (is_active?: boolean) =>
-    api.get<DepartmentRead[]>('/departments', {
-      params: is_active !== undefined ? { is_active } : {},
-    }),
+    api
+      .get<DepartmentRead[]>('/departments', {
+        params: is_active !== undefined ? { is_active } : {},
+      })
+      .then((response) => ({
+        ...response,
+        data: toDepartmentSelectOptions(response.data) as DepartmentOption[],
+      })),
 
   create: (data: DepartmentCreate) =>
     api.post<DepartmentRead>('/departments', data),

@@ -205,7 +205,7 @@ import type {
   ExportFormat,
   ExportReportType,
 } from '@/services/exportService'
-import type { DepartmentRead } from '@/services/departmentService'
+import type { DepartmentOption, DepartmentRead } from '@/services/departmentService'
 
 interface ExportDraft {
   report_type: ExportReportType
@@ -216,7 +216,7 @@ interface ExportDraft {
 
 const props = defineProps<{
   draft: ExportDraft
-  departments: DepartmentRead[]
+  departments: DepartmentRead[] | DepartmentOption[]
 }>()
 
 const emit = defineEmits<{

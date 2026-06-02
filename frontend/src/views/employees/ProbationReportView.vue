@@ -380,6 +380,8 @@ import Select from 'primevue/select'
 import Tag from 'primevue/tag'
 import { useToast } from 'primevue/usetoast'
 import api from '@/services/api'
+import type { DepartmentOption } from '@/services/departmentService'
+import { toDepartmentSelectOptions } from '@/utils/departmentOptions'
 import probationReportService, {
   type ActiveProbationReport,
   type ChecklistCompletionReport,
@@ -406,7 +408,7 @@ const filterFrom    = ref<Date | null>(null)
 const filterTo      = ref<Date | null>(null)
 const filterDeptId  = ref<number | null>(null)
 const filterKeyword = ref('')
-const departments   = ref<{ id: number; name: string }[]>([])
+const departments   = ref<DepartmentOption[]>([])
 
 // ── State ──────────────────────────────────────────────────────────────────────
 const loadingActive    = ref(false)
@@ -656,7 +658,7 @@ onMounted(async () => {
   try {
     const r = await api.get('/departments', { params: { page_size: 200 } })
     const data = r.data
-    departments.value = Array.isArray(data) ? data : (data.items ?? [])
+    departments.value = toDepartmentSelectOptions(Array.isArray(data) ? data : (data.items ?? []))
   } catch { /* ignore */ }
   await loadAll()
 })
