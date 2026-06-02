@@ -21,6 +21,7 @@ from app.models.employee import Employee, EmployeeAddress
 from app.models.employee_contract import EmployeeContract
 from app.models.employee_job import EmployeeJobRecord
 from app.models.org import Department, JobTitle
+from app.services.employee_service import compose_full_address_text
 
 _DOUBLE_PATTERN = re.compile(r"\{\{\s*([^}]+?)\s*\}\}")
 _DOLLAR_PATTERN = re.compile(r"\$\{\s*([^}]+?)\s*\}")
@@ -213,6 +214,8 @@ async def build_contract_context(
     addresses = {a.address_type: a for a in addr_result.scalars().all()}
     perm = addresses.get("permanent")
     contact = addresses.get("contact")
+    permanent_address = await compose_full_address_text(session, perm) if perm else ""
+    contact_address = await compose_full_address_text(session, contact) if contact else ""
 
     sign_date = contract.signed_date
 
@@ -227,8 +230,8 @@ async def build_contract_context(
         "employee_cccd":          emp.id_number or "",
         "employee_cccd_issued_on": fmt_vn_date(emp.id_issued_on),
         "employee_cccd_issued_by": emp.id_issued_by or "",
-        "employee_address":       perm.full_address_text if perm else "",
-        "employee_temp_address":  contact.full_address_text if contact else "",
+        "employee_address":       permanent_address,
+        "employee_temp_address":  contact_address,
         "employee_phone":         emp.phone_number or "",
         "employee_personal_email": emp.personal_email or "",
         "position_title":         job_title_name,

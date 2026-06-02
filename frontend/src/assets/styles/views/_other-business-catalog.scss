@@ -292,9 +292,18 @@
 }
 
 .other-business-placeholder-dialog {
+  .p-dialog-content {
+    overflow: auto;
+  }
+
   .placeholder-shell {
     display: grid;
     gap: 1rem;
+    min-width: min(1360px, 100%);
+  }
+
+  .p-datatable-table {
+    min-width: 1560px;
   }
 
   .placeholder-toolbar {
@@ -316,6 +325,10 @@
   .placeholder-note {
     margin: 0;
     color: var(--l-text-muted);
+  }
+
+  .placeholder-note-subtle {
+    font-size: 0.92rem;
   }
 
   .placeholder-actions {
@@ -355,12 +368,36 @@
     }
   }
 
+  .docx-summary-metrics {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem 1rem;
+    color: var(--l-text-muted);
+    font-size: 0.92rem;
+
+    strong {
+      color: var(--l-text);
+    }
+  }
+
   .docx-warning-list {
     margin: 0;
     padding-left: 1rem;
     display: grid;
     gap: 0.25rem;
     color: var(--l-text-muted);
+  }
+
+  .placeholder-cell-stack {
+    display: grid;
+    gap: 0.3rem;
+  }
+
+  .placeholder-origin {
+    display: block;
+    color: var(--l-text-muted);
+    font-size: 0.78rem;
+    line-height: 1.35;
   }
 
   .placeholder-dialog-footer {
@@ -455,6 +492,11 @@
   }
 
   .other-business-placeholder-dialog {
+    .placeholder-shell,
+    .p-datatable-table {
+      min-width: 0;
+    }
+
     .placeholder-toolbar,
     .docx-summary-head,
     .placeholder-actions {

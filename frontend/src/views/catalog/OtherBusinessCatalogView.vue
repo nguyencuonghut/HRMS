@@ -517,8 +517,8 @@
       v-model:visible="placeholderDialogVisible"
       class="other-business-placeholder-dialog"
       header="Placeholder của mẫu hợp đồng"
-      :style="{ width: '960px', maxWidth: '96vw' }"
-      :breakpoints="{ '1200px': '90vw', '960px': '94vw', '640px': '96vw' }"
+      :style="{ width: '1440px', maxWidth: '98vw' }"
+      :breakpoints="{ '1600px': '96vw', '1200px': '97vw', '960px': '98vw', '640px': '99vw' }"
       :pt="{ content: { style: 'padding-bottom: 1.5rem' } }"
       modal
       :closable="!submittingPlaceholders"
@@ -527,7 +527,8 @@
         <div class="placeholder-toolbar">
           <div class="placeholder-meta">
             <strong>{{ editingPlaceholderTemplate?.name }}</strong>
-            <p class="placeholder-note">Quản trị bộ biến metadata dùng cho phase auto-fill hợp đồng/phụ lục.</p>
+            <p class="placeholder-note">Quản trị bộ biến metadata dùng cho phase auto-fill hợp đồng/phụ lục. Chọn trường dữ liệu nghiệp vụ, hệ thống sẽ tự điền phạm vi và đường dẫn logic nội bộ.</p>
+            <p class="placeholder-note placeholder-note-subtle">`Đường dẫn logic` không phải tên cột DB. Nguồn dữ liệu thật của từng field sẽ hiển thị ngay dưới ô đường dẫn.</p>
           </div>
           <div class="placeholder-actions">
             <Button
@@ -546,20 +547,60 @@
         <div v-if="templateDocxSummary" class="docx-summary">
           <div class="docx-summary-head">
             <strong>Phân tích file mẫu</strong>
-            <span>{{ templateDocxSummary.supported_count }}/{{ templateDocxSummary.supported_count + templateDocxSummary.unsupported_count }} token có thể map tự động</span>
+            <span>{{ mappedPlaceholderCount }}/{{ detectedPlaceholderCount }} placeholder đã auto-map vào bảng bên dưới</span>
+          </div>
+          <div class="docx-summary-metrics">
+            <span><strong>{{ detectedPlaceholderCount }}</strong> placeholder phát hiện trong file</span>
+            <span><strong>{{ templateDocxSummary.supported_count }}</strong> placeholder có thể map tự động</span>
+            <span><strong>{{ templateDocxSummary.unsupported_count }}</strong> placeholder cần xử lý tay</span>
           </div>
           <ul v-if="templateDocxSummary.warnings.length" class="docx-warning-list">
             <li v-for="warning in templateDocxSummary.warnings" :key="warning">{{ warning }}</li>
           </ul>
         </div>
 
+        <div v-if="placeholderRegistryWarning" class="docx-summary registry-warning">
+          <div class="docx-summary-head">
+            <strong>Placeholder ngoài registry</strong>
+            <span>{{ placeholderRegistryWarning }}</span>
+          </div>
+        </div>
+
         <DataTable :value="placeholderRows" responsive-layout="scroll" stripedRows>
           <template #empty><div class="empty-state"><i class="pi pi-inbox" /><span>Chưa có placeholder nào</span></div></template>
-          <Column header="Khóa" style="min-width: 160px"><template #body="{ index }"><InputText v-model="placeholderRows[index].placeholder_key" class="w-full" /></template></Column>
-          <Column header="Nhãn" style="min-width: 160px"><template #body="{ index }"><InputText v-model="placeholderRows[index].label" class="w-full" /></template></Column>
-          <Column header="Phạm vi" style="width: 160px"><template #body="{ index }"><Select v-model="placeholderRows[index].source_scope" :options="placeholderScopeOptions" option-label="label" option-value="value" filter class="w-full" /></template></Column>
-          <Column header="Đường dẫn" style="min-width: 180px"><template #body="{ index }"><InputText v-model="placeholderRows[index].source_path" class="w-full" /></template></Column>
-          <Column header="Kiểu" style="width: 150px"><template #body="{ index }"><Select v-model="placeholderRows[index].data_type" :options="placeholderTypeOptions" option-label="label" option-value="value" filter class="w-full" /></template></Column>
+          <Column header="Khóa" style="min-width: 220px"><template #body="{ index }"><InputText v-model="placeholderRows[index].placeholder_key" class="w-full" /></template></Column>
+          <Column header="Nhãn" style="min-width: 220px"><template #body="{ index }"><InputText v-model="placeholderRows[index].label" class="w-full" /></template></Column>
+          <Column header="Trường dữ liệu" style="min-width: 380px">
+            <template #body="{ index }">
+              <Select
+                v-model="placeholderRows[index].field_registry_token"
+                :options="placeholderFieldOptions"
+                option-label="display_label"
+                option-value="token"
+                filter
+                class="w-full"
+                @change="onPlaceholderFieldChange(index)"
+              />
+            </template>
+          </Column>
+          <Column header="Phạm vi" style="min-width: 160px">
+            <template #body="{ index }">
+              <InputText :model-value="scopeLabel(placeholderRows[index].source_scope)" class="w-full" readonly />
+            </template>
+          </Column>
+          <Column header="Đường dẫn logic" style="min-width: 340px">
+            <template #body="{ index }">
+              <div class="placeholder-cell-stack">
+                <InputText v-model="placeholderRows[index].source_path" class="w-full" readonly />
+                <small v-if="sourceOriginLabel(placeholderRows[index])" class="placeholder-origin">{{ sourceOriginLabel(placeholderRows[index]) }}</small>
+              </div>
+            </template>
+          </Column>
+          <Column header="Kiểu" style="min-width: 160px">
+            <template #body="{ index }">
+              <InputText :model-value="typeLabel(placeholderRows[index].data_type)" class="w-full" readonly />
+            </template>
+          </Column>
           <Column header="Bắt buộc" style="width: 110px"><template #body="{ index }"><Checkbox v-model="placeholderRows[index].is_required" binary /></template></Column>
           <Column header="" style="width: 70px"><template #body="{ index }"><Button icon="pi pi-times" severity="danger" text rounded @click="removePlaceholderRow(index)" /></template></Column>
         </DataTable>
@@ -604,6 +645,7 @@ import otherBusinessCatalogService, {
   type BankRead,
   type CertificateRead,
   type ContractCategoryRead,
+  type ContractTemplateFieldRegistryRead,
   type ContractTemplateDocxInspectionRead,
   type ContractTemplateHealthRead,
   type ContractTemplatePlaceholderWrite,
@@ -618,6 +660,8 @@ import otherBusinessCatalogService, {
 type ActiveTab = 'contracts' | 'identity' | 'banks' | 'competency' | 'leaves' | 'templates'
 type DialogKind = 'contractCategory' | 'identity' | 'bank' | 'skill' | 'certificate' | 'leaveType' | 'template'
 type IdentityKind = 'nationality' | 'ethnicity' | 'religion'
+type PlaceholderRow = ContractTemplatePlaceholderWrite & { field_registry_token: string | null }
+type PlaceholderFieldOption = ContractTemplateFieldRegistryRead & { display_label: string }
 
 interface ListState<T> {
   items: T[]
@@ -691,6 +735,38 @@ const placeholderTypeOptions = [
   { label: 'Đúng/Sai', value: 'boolean' },
 ]
 
+const templateFieldRegistry = ref<ContractTemplateFieldRegistryRead[]>([])
+const placeholderFieldOptions = computed<PlaceholderFieldOption[]>(() => {
+  const base = templateFieldRegistry.value.map((field) => ({
+    ...field,
+    display_label: `${field.label} (${field.token})`,
+  }))
+  const extras = placeholderRows.value
+    .filter((row) => row.field_registry_token?.startsWith('__unresolved__:'))
+    .map((row) => ({
+      token: row.field_registry_token as string,
+      label: row.label || row.placeholder_key || 'Placeholder ngoài registry',
+      source_scope: row.source_scope,
+      source_path: row.source_path,
+      source_origin: null,
+      data_type: row.data_type,
+      formatter: row.formatter ?? null,
+      is_required: row.is_required ?? false,
+      recommended_token: null,
+      display_label: `Ngoài registry: ${row.label || row.placeholder_key || row.source_path}`,
+    }))
+  return [...base, ...extras]
+})
+
+const placeholderRegistryWarning = computed(() => {
+  const count = placeholderRows.value.filter((row) => row.field_registry_token?.startsWith('__unresolved__:')).length
+  if (!count) return ''
+  return `${count} placeholder hiện tại chưa khớp field registry. Bạn vẫn xem được chúng, nhưng placeholder mới nên chọn từ danh sách chuẩn.`
+})
+
+const detectedPlaceholderCount = computed(() => templateDocxSummary.value?.detected_placeholders.length ?? 0)
+const mappedPlaceholderCount = computed(() => templateDocxSummary.value?.suggested_rows.length ?? 0)
+
 const contractCategoryLookup = ref<ContractCategoryRead[]>([])
 
 const editingContractCategory = ref<ContractCategoryRead | null>(null)
@@ -750,7 +826,7 @@ const placeholderDialogVisible = ref(false)
 const submittingPlaceholders = ref(false)
 const inspectingTemplateDocx = ref(false)
 const editingPlaceholderTemplate = ref<ContractTemplateRead | null>(null)
-const placeholderRows = ref<ContractTemplatePlaceholderWrite[]>([])
+const placeholderRows = ref<PlaceholderRow[]>([])
 const templateDocxSummary = ref<ContractTemplateDocxInspectionRead | null>(null)
 const selectedTemplateFileName = computed(() => selectedTemplateFile.value?.name || '')
 const isSuperuser = computed(() => auth.user?.is_superuser === true)
@@ -759,6 +835,54 @@ let debounceTimer: ReturnType<typeof setTimeout> | undefined
 function debounce(fn: () => void) {
   if (debounceTimer) clearTimeout(debounceTimer)
   debounceTimer = setTimeout(() => fn(), 300)
+}
+
+function scopeLabel(scope: PlaceholderRow['source_scope']) {
+  return placeholderScopeOptions.find((option) => option.value === scope)?.label || scope
+}
+
+function typeLabel(type: PlaceholderRow['data_type']) {
+  return placeholderTypeOptions.find((option) => option.value === type)?.label || type
+}
+
+function unresolvedFieldToken(row: Pick<PlaceholderRow, 'source_scope' | 'source_path' | 'data_type' | 'formatter'>) {
+  return `__unresolved__:${row.source_scope}:${row.source_path}:${row.data_type}:${row.formatter ?? ''}`
+}
+
+function resolveRegistryToken(row: Pick<PlaceholderRow, 'source_scope' | 'source_path' | 'data_type' | 'formatter'>) {
+  const matched = templateFieldRegistry.value.find(
+    (field) =>
+      field.source_scope === row.source_scope &&
+      field.source_path === row.source_path &&
+      field.data_type === row.data_type &&
+      (field.formatter ?? null) === (row.formatter ?? null),
+  )
+  return matched?.token || unresolvedFieldToken(row)
+}
+
+function applyFieldRegistrySelection(row: PlaceholderRow, token: string | null) {
+  if (!token) return
+  if (token.startsWith('__unresolved__:')) {
+    row.field_registry_token = token
+    return
+  }
+  const matched = templateFieldRegistry.value.find((field) => field.token === token)
+  if (!matched) return
+  const isNewField = !row.source_path
+  row.field_registry_token = matched.token
+  row.source_scope = matched.source_scope
+  row.source_path = matched.source_path
+  row.data_type = matched.data_type
+  row.formatter = matched.formatter
+  if (!row.placeholder_key) row.placeholder_key = matched.token
+  if (!row.label) row.label = matched.label
+  if (isNewField) row.is_required = matched.is_required
+}
+
+function onPlaceholderFieldChange(index: number) {
+  const row = placeholderRows.value[index]
+  if (!row) return
+  applyFieldRegistrySelection(row, row.field_registry_token)
 }
 
 const activeTabLabel = computed(() => ({
@@ -915,6 +1039,15 @@ async function loadTemplates() {
     Object.assign(templateState.value, { items: listRes.data.items, total: listRes.data.total, page: listRes.data.page, pageSize: listRes.data.page_size })
     templateHealthItems.value = healthRes.data
   } catch (e) { errorBanner.value = apiError(e) } finally { templateState.value.loading = false }
+}
+
+async function loadContractTemplateFieldRegistry() {
+  try {
+    const res = await otherBusinessCatalogService.lookupContractTemplateFields()
+    templateFieldRegistry.value = res.data
+  } catch (e) {
+    errorBanner.value = apiError(e)
+  }
 }
 
 function resetContractCategoryForm() {
@@ -1088,6 +1221,9 @@ async function submitActiveDialog() {
 async function openTemplatePlaceholders(row: ContractTemplateRead, inspectAfterOpen = false) {
   editingPlaceholderTemplate.value = row
   templateDocxSummary.value = null
+  if (!templateFieldRegistry.value.length) {
+    await loadContractTemplateFieldRegistry()
+  }
   const res = await otherBusinessCatalogService.getContractTemplatePlaceholders(row.id)
   placeholderRows.value = res.data.map((item) => ({
     placeholder_key: item.placeholder_key,
@@ -1099,6 +1235,12 @@ async function openTemplatePlaceholders(row: ContractTemplateRead, inspectAfterO
     is_required: item.is_required,
     default_value: item.default_value,
     sort_order: item.sort_order,
+    field_registry_token: resolveRegistryToken({
+      source_scope: item.source_scope,
+      source_path: item.source_path,
+      data_type: item.data_type,
+      formatter: item.formatter,
+    }),
   }))
   placeholderDialogVisible.value = true
   if (inspectAfterOpen) {
@@ -1106,16 +1248,46 @@ async function openTemplatePlaceholders(row: ContractTemplateRead, inspectAfterO
   }
 }
 function addPlaceholderRow() {
-  placeholderRows.value.push({ placeholder_key: '', label: '', source_scope: 'employee', source_path: '', data_type: 'text', formatter: null, is_required: false, default_value: null, sort_order: placeholderRows.value.length * 10 + 10 })
+  placeholderRows.value.push({
+    placeholder_key: '',
+    label: '',
+    source_scope: 'employee',
+    source_path: '',
+    data_type: 'text',
+    formatter: null,
+    is_required: false,
+    default_value: null,
+    sort_order: placeholderRows.value.length * 10 + 10,
+    field_registry_token: null,
+  })
 }
 function removePlaceholderRow(index: number) {
   placeholderRows.value.splice(index, 1)
 }
+
+function sourceOriginLabel(row: PlaceholderRow): string {
+  const token = row.field_registry_token
+  if (!token) return ''
+  const field = placeholderFieldOptions.value.find((item) => item.token === token)
+  return field?.source_origin ?? ''
+}
+
 async function savePlaceholders() {
   if (!editingPlaceholderTemplate.value) return
   submittingPlaceholders.value = true
   try {
-    await otherBusinessCatalogService.replaceContractTemplatePlaceholders(editingPlaceholderTemplate.value.id, placeholderRows.value)
+    const incompleteIndex = placeholderRows.value.findIndex((row) => !row.source_path || !row.source_scope || !row.data_type)
+    if (incompleteIndex >= 0) {
+      throw new Error(`Placeholder dòng ${incompleteIndex + 1} chưa chọn trường dữ liệu hợp lệ`)
+    }
+    await otherBusinessCatalogService.replaceContractTemplatePlaceholders(
+      editingPlaceholderTemplate.value.id,
+      placeholderRows.value.map(({ field_registry_token: _fieldRegistryToken, ...row }, index) => ({
+        ...row,
+        sort_order: (index + 1) * 10,
+      })),
+    )
+    await loadTemplates()
     toast.add({ severity: 'success', summary: 'Đã lưu placeholder', detail: editingPlaceholderTemplate.value.name, life: 2500 })
     placeholderDialogVisible.value = false
   } catch (e) {
@@ -1131,7 +1303,15 @@ async function inspectTemplateDocx() {
   try {
     const res = await otherBusinessCatalogService.inspectContractTemplateDocx(editingPlaceholderTemplate.value.id)
     templateDocxSummary.value = res.data
-    placeholderRows.value = res.data.suggested_rows.map((item) => ({ ...item }))
+    placeholderRows.value = res.data.suggested_rows.map((item) => ({
+      ...item,
+      field_registry_token: resolveRegistryToken({
+        source_scope: item.source_scope,
+        source_path: item.source_path,
+        data_type: item.data_type,
+        formatter: item.formatter ?? null,
+      }),
+    }))
     toast.add({
       severity: 'success',
       summary: 'Đã quét DOCX',
@@ -1256,6 +1436,7 @@ onMounted(async () => {
     loadCertificates(),
     loadLeaveTypes(),
     loadTemplates(),
+    loadContractTemplateFieldRegistry(),
     loadContractCategoryLookup(),
   ])
 })

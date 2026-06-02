@@ -155,6 +155,26 @@ def _create_template(client: TestClient, headers: dict, suffix: str,
     return resp.json()["id"]
 
 
+def _pick_new_address_units() -> tuple[int, int]:
+    async def _run() -> tuple[int, int]:
+        async with _make_session()() as s:
+            row = (await s.execute(text("""
+                SELECT p.id AS province_id, w.id AS ward_id
+                FROM administrative_hierarchies h
+                JOIN administrative_units p ON p.id = h.parent_unit_id
+                JOIN administrative_units w ON w.id = h.child_unit_id
+                WHERE h.system_type = 'new'
+                  AND h.level_depth = 2
+                  AND p.is_active IS TRUE
+                  AND w.is_active IS TRUE
+                ORDER BY p.id, w.id
+                LIMIT 1
+            """))).mappings().first()
+            assert row is not None, "No active new administrative province/ward pair found"
+            return int(row["province_id"]), int(row["ward_id"])
+    return asyncio.run(_run())
+
+
 def _upload_docx(client: TestClient, headers: dict, template_id: int,
                  docx_bytes: bytes, filename: str = "test.docx") -> dict:
     resp = client.post(
@@ -301,6 +321,49 @@ def test_generate_contract_success(client: TestClient):
     texts = " ".join(p.text for p in doc.paragraphs)
     assert "Test Gen G01" in texts
     assert f"{_PREFIX}-HĐ-G01" in texts
+
+
+def test_generate_contract_composes_address_when_full_address_text_is_null(client: TestClient):
+    headers = _admin(client)
+    emp_id = _create_employee(client, headers, "G01ADDR")
+    province_id, ward_id = _pick_new_address_units()
+
+    for address_type, line in (
+        ("permanent", "Số 9 khu kiểm thử"),
+        ("contact", "Đội 7 xóm kiểm thử"),
+    ):
+        addr_resp = client.put(
+            f"{BASE_EMP}/{emp_id}/addresses",
+            json={
+                "address_type": address_type,
+                "new_province_unit_id": province_id,
+                "new_ward_unit_id": ward_id,
+                "new_address_line": line,
+                "full_address_text": None,
+            },
+            headers=headers,
+        )
+        assert addr_resp.status_code == 200, addr_resp.text
+
+    con = _create_contract(client, headers, emp_id, "G01ADDR")
+    tid = _create_template(client, headers, "G01ADDR")
+    docx = _make_docx_bytes(
+        "Địa chỉ thường trú: {{employee_address}}",
+        "Địa chỉ hiện tại: {{employee_temp_address}}",
+    )
+    _upload_docx(client, headers, tid, docx)
+
+    resp = client.post(
+        f"{BASE_EMP}/{emp_id}/contracts/{con['id']}/generate",
+        json={"template_id": tid},
+        headers=headers,
+    )
+    assert resp.status_code == 200, resp.text
+
+    doc = Document(BytesIO(resp.content))
+    texts = " ".join(p.text for p in doc.paragraphs)
+    assert "Số 9 khu kiểm thử" in texts
+    assert "Đội 7 xóm kiểm thử" in texts
 
 
 def test_generate_contract_wrong_employee_404(client: TestClient):

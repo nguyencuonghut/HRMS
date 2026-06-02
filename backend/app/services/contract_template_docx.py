@@ -21,6 +21,7 @@ class SupportedTemplateField:
     source_scope: str
     source_path: str
     data_type: str
+    source_origin: Optional[str] = None
     formatter: Optional[str] = None
     is_required: bool = False
     recommended_token: Optional[str] = None
@@ -32,6 +33,7 @@ SUPPORTED_TEMPLATE_FIELDS: dict[str, SupportedTemplateField] = {
         label="Số hợp đồng",
         source_scope="contract_draft",
         source_path="contract.contract_number",
+        source_origin="employee_contracts.contract_number",
         data_type="text",
         is_required=True,
     ),
@@ -40,6 +42,7 @@ SUPPORTED_TEMPLATE_FIELDS: dict[str, SupportedTemplateField] = {
         label="Ngày bắt đầu hợp đồng",
         source_scope="contract_draft",
         source_path="contract.start_date",
+        source_origin="employee_contracts.effective_from",
         data_type="date",
         formatter="vn_date",
         is_required=True,
@@ -49,6 +52,7 @@ SUPPORTED_TEMPLATE_FIELDS: dict[str, SupportedTemplateField] = {
         label="Ngày kết thúc hợp đồng",
         source_scope="contract_draft",
         source_path="contract.end_date",
+        source_origin="employee_contracts.effective_to",
         data_type="date",
         formatter="vn_date",
         is_required=False,
@@ -58,6 +62,7 @@ SUPPORTED_TEMPLATE_FIELDS: dict[str, SupportedTemplateField] = {
         label="Phòng ban",
         source_scope="employee",
         source_path="employee.department_name",
+        source_origin="employee_job_records.department_id -> departments.name",
         data_type="text",
         is_required=True,
     ),
@@ -66,6 +71,7 @@ SUPPORTED_TEMPLATE_FIELDS: dict[str, SupportedTemplateField] = {
         label="Họ và tên",
         source_scope="employee",
         source_path="employee.full_name",
+        source_origin="employees.full_name",
         data_type="text",
         is_required=True,
     ),
@@ -74,6 +80,7 @@ SUPPORTED_TEMPLATE_FIELDS: dict[str, SupportedTemplateField] = {
         label="Ngày sinh",
         source_scope="employee",
         source_path="employee.date_of_birth",
+        source_origin="employees.date_of_birth",
         data_type="date",
         formatter="vn_date",
         is_required=True,
@@ -83,6 +90,7 @@ SUPPORTED_TEMPLATE_FIELDS: dict[str, SupportedTemplateField] = {
         label="Giới tính",
         source_scope="employee",
         source_path="employee.gender_label",
+        source_origin="employees.gender -> gender_label()",
         data_type="text",
     ),
     "employee_cccd": SupportedTemplateField(
@@ -90,6 +98,7 @@ SUPPORTED_TEMPLATE_FIELDS: dict[str, SupportedTemplateField] = {
         label="Số CCCD",
         source_scope="employee",
         source_path="employee.identity_number",
+        source_origin="employees.id_number",
         data_type="text",
         is_required=True,
     ),
@@ -98,6 +107,7 @@ SUPPORTED_TEMPLATE_FIELDS: dict[str, SupportedTemplateField] = {
         label="Ngày cấp CCCD",
         source_scope="employee",
         source_path="employee.identity_issued_on",
+        source_origin="employees.id_issued_on",
         data_type="date",
         formatter="vn_date",
     ),
@@ -106,6 +116,7 @@ SUPPORTED_TEMPLATE_FIELDS: dict[str, SupportedTemplateField] = {
         label="Nơi cấp CCCD",
         source_scope="employee",
         source_path="employee.identity_issued_by",
+        source_origin="employees.id_issued_by",
         data_type="text",
     ),
     "employee_address": SupportedTemplateField(
@@ -113,6 +124,7 @@ SUPPORTED_TEMPLATE_FIELDS: dict[str, SupportedTemplateField] = {
         label="Địa chỉ thường trú",
         source_scope="employee",
         source_path="employee.permanent_address_full",
+        source_origin="employee_addresses.full_address_text (address_type=permanent)",
         data_type="text",
     ),
     "employee_temp_address": SupportedTemplateField(
@@ -120,6 +132,7 @@ SUPPORTED_TEMPLATE_FIELDS: dict[str, SupportedTemplateField] = {
         label="Địa chỉ hiện tại",
         source_scope="employee",
         source_path="employee.current_address_full",
+        source_origin="employee_addresses.full_address_text (address_type=contact)",
         data_type="text",
     ),
     "employee_phone": SupportedTemplateField(
@@ -127,6 +140,7 @@ SUPPORTED_TEMPLATE_FIELDS: dict[str, SupportedTemplateField] = {
         label="Số điện thoại",
         source_scope="employee",
         source_path="employee.phone_number",
+        source_origin="employees.phone_number",
         data_type="text",
     ),
     "employee_personal_email": SupportedTemplateField(
@@ -134,6 +148,7 @@ SUPPORTED_TEMPLATE_FIELDS: dict[str, SupportedTemplateField] = {
         label="Email cá nhân",
         source_scope="employee",
         source_path="employee.personal_email",
+        source_origin="employees.personal_email",
         data_type="text",
     ),
     "position_title": SupportedTemplateField(
@@ -141,6 +156,7 @@ SUPPORTED_TEMPLATE_FIELDS: dict[str, SupportedTemplateField] = {
         label="Chức danh công việc",
         source_scope="employee",
         source_path="employee.position_name",
+        source_origin="employee_job_records.job_title_id -> job_titles.name",
         data_type="text",
     ),
     "insurance_salary": SupportedTemplateField(
@@ -148,6 +164,7 @@ SUPPORTED_TEMPLATE_FIELDS: dict[str, SupportedTemplateField] = {
         label="Lương BHXH",
         source_scope="contract_draft",
         source_path="contract.insurance_salary",
+        source_origin="employee_contracts.insurance_salary",
         data_type="currency",
         formatter="currency_vnd",
     ),
@@ -156,6 +173,7 @@ SUPPORTED_TEMPLATE_FIELDS: dict[str, SupportedTemplateField] = {
         label="Lương BHXH bằng chữ",
         source_scope="contract_draft",
         source_path="contract.insurance_salary_words",
+        source_origin="employee_contracts.insurance_salary -> number_to_words_vn()",
         data_type="text",
     ),
     "Ngày": SupportedTemplateField(
@@ -163,6 +181,7 @@ SUPPORTED_TEMPLATE_FIELDS: dict[str, SupportedTemplateField] = {
         label="Ngày ký (ngày)",
         source_scope="system",
         source_path="system.render_date.day",
+        source_origin="employee_contracts.signed_date.day",
         data_type="number",
         recommended_token="contract_signing_day",
     ),
@@ -171,6 +190,7 @@ SUPPORTED_TEMPLATE_FIELDS: dict[str, SupportedTemplateField] = {
         label="Ngày ký (tháng)",
         source_scope="system",
         source_path="system.render_date.month",
+        source_origin="employee_contracts.signed_date.month",
         data_type="number",
         recommended_token="contract_signing_month",
     ),
@@ -179,6 +199,7 @@ SUPPORTED_TEMPLATE_FIELDS: dict[str, SupportedTemplateField] = {
         label="Ngày ký (năm)",
         source_scope="system",
         source_path="system.render_date.year",
+        source_origin="employee_contracts.signed_date.year",
         data_type="number",
         recommended_token="contract_signing_year",
     ),
@@ -187,6 +208,7 @@ SUPPORTED_TEMPLATE_FIELDS: dict[str, SupportedTemplateField] = {
         label="Số điện thoại",
         source_scope="employee",
         source_path="employee.phone_number",
+        source_origin="employees.phone_number",
         data_type="text",
         recommended_token="employee_phone",
     ),
@@ -195,6 +217,7 @@ SUPPORTED_TEMPLATE_FIELDS: dict[str, SupportedTemplateField] = {
         label="Loại hợp đồng",
         source_scope="contract_draft",
         source_path="contract.contract_type_label",
+        source_origin="employee_contracts.contract_category_id -> contract_categories.name",
         data_type="text",
         recommended_token="contract_type_label",
     ),
@@ -203,6 +226,7 @@ SUPPORTED_TEMPLATE_FIELDS: dict[str, SupportedTemplateField] = {
         label="Kỳ hạn trả lương",
         source_scope="contract_draft",
         source_path="contract.pay_cycle_label",
+        source_origin="Chưa nối nguồn dữ liệu; build_contract_context hiện trả chuỗi rỗng",
         data_type="text",
         recommended_token="salary_payment_cycle",
     ),
@@ -298,6 +322,7 @@ def extract_docx_placeholder_summary(docx_path: Union[Path, bytes]) -> dict:
                     "label": supported.label if supported else None,
                     "source_scope": supported.source_scope if supported else None,
                     "source_path": supported.source_path if supported else None,
+                    "source_origin": supported.source_origin if supported else None,
                     "data_type": supported.data_type if supported else None,
                     "formatter": supported.formatter if supported else None,
                     "is_required": supported.is_required if supported else False,

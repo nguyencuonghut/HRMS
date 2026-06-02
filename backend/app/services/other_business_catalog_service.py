@@ -689,6 +689,7 @@ async def get_contract_template_field_registry() -> list[dict]:
             "label": item.label,
             "source_scope": item.source_scope,
             "source_path": item.source_path,
+            "source_origin": item.source_origin,
             "data_type": item.data_type,
             "formatter": item.formatter,
             "is_required": item.is_required,

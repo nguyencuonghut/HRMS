@@ -120,6 +120,24 @@ def _create_department(client: TestClient, headers: dict, code: str, name: str) 
     return resp.json()
 
 
+async def _pick_new_address_units() -> tuple[int, int]:
+    async with _make_session()() as s:
+        row = (await s.execute(text("""
+            SELECT p.id AS province_id, w.id AS ward_id
+            FROM administrative_hierarchies h
+            JOIN administrative_units p ON p.id = h.parent_unit_id
+            JOIN administrative_units w ON w.id = h.child_unit_id
+            WHERE h.system_type = 'new'
+              AND h.level_depth = 2
+              AND p.is_active IS TRUE
+              AND w.is_active IS TRUE
+            ORDER BY p.id, w.id
+            LIMIT 1
+        """))).mappings().first()
+        assert row is not None, "No active new administrative province/ward pair found"
+        return int(row["province_id"]), int(row["ward_id"])
+
+
 def _get_job_position(client: TestClient, headers: dict, department_id: int | None = None) -> dict:
     params = {"is_active": True}
     if department_id is not None:
@@ -566,6 +584,29 @@ def test_upsert_address_updates_existing(client: TestClient):
     addrs = client.get(f"{BASE}/{emp_id}/addresses", headers=headers).json()
     permanent = [a for a in addrs if a["address_type"] == "permanent"]
     assert len(permanent) == 1
+
+
+@pytest.mark.asyncio
+async def test_upsert_address_auto_composes_full_address_text_from_new_units(client: TestClient):
+    headers = _admin(client)
+    created = client.post(BASE, json=_valid_payload("TEST999000083"), headers=headers).json()
+    emp_id = created["id"]
+    province_id, ward_id = await _pick_new_address_units()
+
+    payload = {
+        "address_type": "permanent",
+        "new_province_unit_id": province_id,
+        "new_ward_unit_id": ward_id,
+        "new_address_line": "Số 1 tổ dân phố test",
+        "full_address_text": None,
+    }
+    resp = client.put(f"{BASE}/{emp_id}/addresses", json=payload, headers=headers)
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["full_address_text"] is not None
+    assert "Số 1 tổ dân phố test" in data["full_address_text"]
+    assert data["new_province_name"] in data["full_address_text"]
+    assert data["new_ward_name"] in data["full_address_text"]
 
 
 # ── Bank Accounts ──────────────────────────────────────────────────────────────

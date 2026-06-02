@@ -349,6 +349,7 @@ export interface ContractTemplateFieldRegistryRead {
   label: string
   source_scope: 'employee' | 'organization' | 'contract_draft' | 'signer' | 'system'
   source_path: string
+  source_origin: string | null
   data_type: 'text' | 'date' | 'number' | 'currency' | 'boolean'
   formatter: string | null
   is_required: boolean
@@ -363,6 +364,7 @@ export interface ContractTemplateDocxInspectionItemRead {
   label: string | null
   source_scope: 'employee' | 'organization' | 'contract_draft' | 'signer' | 'system' | null
   source_path: string | null
+  source_origin: string | null
   data_type: 'text' | 'date' | 'number' | 'currency' | 'boolean' | null
   formatter: string | null
   is_required: boolean

@@ -891,6 +891,7 @@ class ContractTemplateFieldRegistryRead(BaseModel):
     label: str
     source_scope: str
     source_path: str
+    source_origin: Optional[str] = None
     data_type: str
     formatter: Optional[str]
     is_required: bool
@@ -905,6 +906,7 @@ class ContractTemplateDocxInspectionItemRead(BaseModel):
     label: Optional[str] = None
     source_scope: Optional[str] = None
     source_path: Optional[str] = None
+    source_origin: Optional[str] = None
     data_type: Optional[str] = None
     formatter: Optional[str] = None
     is_required: bool = False

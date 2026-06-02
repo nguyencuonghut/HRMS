@@ -359,6 +359,47 @@ async def _resolve_unit_names(session: AsyncSession, unit_ids: set[int]) -> dict
     return {row.id: row.name for row in rows}
 
 
+def _compose_address_text_from_names(
+    addr: EmployeeAddress,
+    names: dict[int, str],
+) -> str:
+    explicit = (addr.full_address_text or "").strip()
+    if explicit:
+        return explicit
+
+    new_parts = [
+        (addr.new_address_line or "").strip(),
+        names.get(addr.new_ward_unit_id, "") if addr.new_ward_unit_id else "",
+        names.get(addr.new_province_unit_id, "") if addr.new_province_unit_id else "",
+    ]
+    new_text = ", ".join(part for part in new_parts if part)
+    if new_text:
+        return new_text
+
+    old_parts = [
+        (addr.old_address_line or "").strip(),
+        names.get(addr.old_ward_unit_id, "") if addr.old_ward_unit_id else "",
+        names.get(addr.old_district_unit_id, "") if addr.old_district_unit_id else "",
+        names.get(addr.old_province_unit_id, "") if addr.old_province_unit_id else "",
+    ]
+    return ", ".join(part for part in old_parts if part)
+
+
+async def compose_full_address_text(session: AsyncSession, addr: EmployeeAddress) -> str:
+    ids: set[int] = set()
+    for unit_id in (
+        addr.old_province_unit_id,
+        addr.old_district_unit_id,
+        addr.old_ward_unit_id,
+        addr.new_province_unit_id,
+        addr.new_ward_unit_id,
+    ):
+        if unit_id:
+            ids.add(unit_id)
+    names = await _resolve_unit_names(session, ids)
+    return _compose_address_text_from_names(addr, names)
+
+
 async def enrich_addresses(session: AsyncSession, addresses: list[EmployeeAddress]) -> list[dict]:
     ids: set[int] = set()
     for a in addresses:
@@ -375,6 +416,7 @@ async def enrich_addresses(session: AsyncSession, addresses: list[EmployeeAddres
         d["old_ward_name"] = names.get(a.old_ward_unit_id) if a.old_ward_unit_id else None
         d["new_province_name"] = names.get(a.new_province_unit_id) if a.new_province_unit_id else None
         d["new_ward_name"] = names.get(a.new_ward_unit_id) if a.new_ward_unit_id else None
+        d["full_address_text"] = _compose_address_text_from_names(a, names) or None
         result.append(d)
     return result
 
@@ -406,6 +448,9 @@ async def upsert_employee_address(
 
     data = payload.model_dump()
     data["employee_id"] = employee_id
+
+    composed_addr = EmployeeAddress(**data)
+    data["full_address_text"] = await compose_full_address_text(session, composed_addr) or None
 
     if existing:
         for field, value in data.items():
