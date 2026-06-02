@@ -635,6 +635,15 @@ async def soft_delete_contract_template(session: AsyncSession, row_id: int) -> d
     return {"message": f"Đã khóa mẫu hợp đồng '{row.name}'"}
 
 
+async def hard_delete_contract_template(session: AsyncSession, row_id: int) -> dict:
+    row = await get_contract_template_by_id(session, row_id)
+    old_path = row.storage_path
+    name = row.name
+    await session.delete(row)
+    await session.flush()
+    return {"message": f"Đã xóa hẳn mẫu hợp đồng '{name}'", "storage_path": old_path}
+
+
 async def list_template_placeholders(session: AsyncSession, template_id: int) -> list[ContractTemplatePlaceholder]:
     await get_contract_template_by_id(session, template_id)
     query = select(ContractTemplatePlaceholder).where(ContractTemplatePlaceholder.template_id == template_id).order_by(ContractTemplatePlaceholder.sort_order, ContractTemplatePlaceholder.id)

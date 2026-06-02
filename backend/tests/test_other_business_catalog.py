@@ -182,8 +182,152 @@ def test_contract_template_create_and_replace_placeholders(client: TestClient):
     assert rows[0]["placeholder_key"] == "employee.full_name"
 
 
+def test_contract_template_soft_delete_marks_inactive(client: TestClient):
+    category_resp = client.get(CONTRACT_CATEGORY_BASE, params={"keyword": "HĐLĐ xác định"}, headers=_admin(client))
+    assert category_resp.status_code == 200, category_resp.text
+    category_id = category_resp.json()["items"][0]["id"]
+
+    created = client.post(
+        TEMPLATE_BASE,
+        json={
+            "code": "test_template_soft_delete_001",
+            "name": "Template soft delete test",
+            "contract_category_id": category_id,
+            "document_kind": "labor_contract",
+            "template_engine": "docx_placeholders",
+            "file_name": "soft_delete.docx",
+            "mime_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        },
+        headers=_admin(client),
+    )
+    assert created.status_code == 201, created.text
+    template_id = created.json()["id"]
+
+    deleted = client.delete(f"{TEMPLATE_BASE}/{template_id}", headers=_admin(client))
+    assert deleted.status_code == 200, deleted.text
+
+    detail = client.get(f"{TEMPLATE_BASE}/{template_id}", headers=_admin(client))
+    assert detail.status_code == 200, detail.text
+    assert detail.json()["is_active"] is False
+
+
+def test_contract_template_hard_delete_requires_superuser(client: TestClient):
+    category_resp = client.get(CONTRACT_CATEGORY_BASE, params={"keyword": "HĐLĐ xác định"}, headers=_admin(client))
+    assert category_resp.status_code == 200, category_resp.text
+    category_id = category_resp.json()["items"][0]["id"]
+
+    created = client.post(
+        TEMPLATE_BASE,
+        json={
+            "code": "test_template_hard_delete_guard_001",
+            "name": "Template hard delete guard",
+            "contract_category_id": category_id,
+            "document_kind": "labor_contract",
+            "template_engine": "docx_placeholders",
+            "file_name": "hard_delete_guard.docx",
+            "mime_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        },
+        headers=_admin(client),
+    )
+    assert created.status_code == 201, created.text
+    template_id = created.json()["id"]
+
+    deleted = client.delete(f"{TEMPLATE_BASE}/{template_id}/hard", headers=_officer(client))
+    assert deleted.status_code == 403
+
+
+def test_contract_template_hard_delete_removes_template_and_placeholders(client: TestClient):
+    category_resp = client.get(CONTRACT_CATEGORY_BASE, params={"keyword": "HĐLĐ xác định"}, headers=_admin(client))
+    assert category_resp.status_code == 200, category_resp.text
+    category_id = category_resp.json()["items"][0]["id"]
+
+    created = client.post(
+        TEMPLATE_BASE,
+        json={
+            "code": "test_template_hard_delete_001",
+            "name": "Template hard delete",
+            "contract_category_id": category_id,
+            "document_kind": "labor_contract",
+            "template_engine": "docx_placeholders",
+            "file_name": "hard_delete.docx",
+            "mime_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        },
+        headers=_admin(client),
+    )
+    assert created.status_code == 201, created.text
+    template_id = created.json()["id"]
+
+    put_placeholders = client.put(
+        f"{TEMPLATE_BASE}/{template_id}/placeholders",
+        json=[{
+            "placeholder_key": "employee_full_name",
+            "label": "Họ và tên",
+            "source_scope": "employee",
+            "source_path": "employee.full_name",
+            "data_type": "text",
+            "is_required": True,
+            "sort_order": 10,
+        }],
+        headers=_admin(client),
+    )
+    assert put_placeholders.status_code == 200, put_placeholders.text
+
+    deleted = client.delete(f"{TEMPLATE_BASE}/{template_id}/hard", headers=_admin(client))
+    assert deleted.status_code == 200, deleted.text
+
+    detail = client.get(f"{TEMPLATE_BASE}/{template_id}", headers=_admin(client))
+    assert detail.status_code == 404, detail.text
+
+    async def _counts():
+        async with _make_session()() as s:
+            tmpl_cnt = (
+                await s.execute(text("SELECT COUNT(*) FROM contract_templates WHERE id = :id"), {"id": template_id})
+            ).scalar()
+            ph_cnt = (
+                await s.execute(text("SELECT COUNT(*) FROM contract_template_placeholders WHERE template_id = :id"), {"id": template_id})
+            ).scalar()
+            return tmpl_cnt, ph_cnt
+
+    import asyncio
+    tmpl_cnt, ph_cnt = asyncio.run(_counts())
+    assert tmpl_cnt == 0
+    assert ph_cnt == 0
+
+
+def test_contract_template_upload_accepts_wps_docx_content_type(client: TestClient):
+    category_resp = client.get(CONTRACT_CATEGORY_BASE, params={"keyword": "HĐLĐ xác định"}, headers=_admin(client))
+    assert category_resp.status_code == 200, category_resp.text
+    category_id = category_resp.json()["items"][0]["id"]
+
+    created = client.post(
+        TEMPLATE_BASE,
+        json={
+            "code": "test_template_wps_upload_001",
+            "name": "Template WPS upload",
+            "contract_category_id": category_id,
+            "document_kind": "labor_contract",
+            "template_engine": "docx_placeholders",
+            "file_name": "wps_upload.docx",
+            "mime_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        },
+        headers=_admin(client),
+    )
+    assert created.status_code == 201, created.text
+    template_id = created.json()["id"]
+
+    uploaded = client.post(
+        f"{TEMPLATE_BASE}/{template_id}/upload",
+        files={"file": ("wps_upload.docx", b"fake docx bytes", "application/wps-office.docx")},
+        headers=_admin(client),
+    )
+    assert uploaded.status_code == 200, uploaded.text
+    body = uploaded.json()
+    assert body["storage_path"]
+    assert body["mime_type"] == "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+
+
 def test_inspect_contract_template_docx_reads_real_sample_placeholders(client: TestClient):
-    templates = client.get(TEMPLATE_BASE, params={"keyword": "xac dinh thoi han 12 thang"}, headers=_admin(client))
+    templates = client.get(TEMPLATE_BASE, params={"keyword": "ld_definite_12m"}, headers=_admin(client))
     assert templates.status_code == 200, templates.text
     template_id = templates.json()["items"][0]["id"]
 

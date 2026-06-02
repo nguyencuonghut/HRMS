@@ -393,6 +393,12 @@ export interface ContractTemplateDocxInspectionRead {
   suggested_rows: ContractTemplatePlaceholderWrite[]
 }
 
+function toFormData(file: File) {
+  const form = new FormData()
+  form.append('file', file)
+  return form
+}
+
 export default {
   getContractCategories: (params?: Record<string, unknown>) => api.get<Page<ContractCategoryRead>>('/contract-categories', { params }),
   createContractCategory: (data: ContractCategoryCreate) => api.post<ContractCategoryRead>('/contract-categories', data),
@@ -451,6 +457,11 @@ export default {
   createContractTemplate: (data: ContractTemplateCreate) => api.post<ContractTemplateRead>('/contract-templates', data),
   updateContractTemplate: (id: number, data: ContractTemplateUpdate) => api.put<ContractTemplateRead>(`/contract-templates/${id}`, data),
   deleteContractTemplate: (id: number) => api.delete<{ message: string }>(`/contract-templates/${id}`),
+  hardDeleteContractTemplate: (id: number) => api.delete<{ message: string }>(`/contract-templates/${id}/hard`),
+  uploadContractTemplateFile: (id: number, file: File) =>
+    api.post<ContractTemplateRead>(`/contract-templates/${id}/upload`, toFormData(file), {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }),
   getContractTemplatePlaceholders: (id: number) => api.get<ContractTemplatePlaceholderRead[]>(`/contract-templates/${id}/placeholders`),
   replaceContractTemplatePlaceholders: (id: number, data: ContractTemplatePlaceholderWrite[]) => api.put<ContractTemplatePlaceholderRead[]>(`/contract-templates/${id}/placeholders`, data),
   inspectContractTemplateDocx: (id: number) => api.post<ContractTemplateDocxInspectionRead>(`/contract-templates/${id}/inspect-docx`),

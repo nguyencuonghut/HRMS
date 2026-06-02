@@ -1,4 +1,5 @@
 import pytest
+import uuid
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -153,6 +154,20 @@ def test_cors_restricts_methods(client: TestClient):
     )
     assert resp.status_code == 200
     assert resp.headers["access-control-allow-methods"] == "GET, POST, PUT, DELETE, PATCH, OPTIONS"
+
+
+def test_csrf_allows_state_change_from_loopback_frontend_origin(client: TestClient):
+    headers = {
+        **_bearer(client),
+        "Origin": "http://127.0.0.1:5173",
+    }
+    code = f"SEC-SKILL-{uuid.uuid4().hex[:8].upper()}"
+    resp = client.post(
+        "/api/v1/skills",
+        json={"code": code, "name": f"Skill {code}"},
+        headers=headers,
+    )
+    assert resp.status_code == 201, resp.text
 
 
 def test_encryption_roundtrip():

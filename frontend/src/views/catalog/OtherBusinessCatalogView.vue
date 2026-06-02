@@ -311,13 +311,45 @@
               <Column field="version_no" header="Version" style="width: 90px" />
               <Column field="document_kind" header="Nhóm" style="width: 150px"><template #body="{ data }">{{ documentKindLabel(data.document_kind) }}</template></Column>
               <Column field="is_active" header="Trạng thái" style="width: 120px"><template #body="{ data }"><Tag :value="data.is_active ? 'Hoạt động' : 'Đã khóa'" :severity="data.is_active ? 'success' : 'danger'" /></template></Column>
-              <Column header="" style="width: 170px">
+              <Column header="" style="width: 240px">
                 <template #body="{ data }">
                   <div class="action-cell">
-                    <Button icon="pi pi-list" severity="secondary" text rounded size="small" @click="openTemplatePlaceholders(data)" />
-                    <Button icon="pi pi-search" severity="secondary" text rounded size="small" @click="openTemplatePlaceholders(data, true)" />
-                    <Button icon="pi pi-pencil" text rounded size="small" @click="openEditTemplate(data)" />
-                    <Button icon="pi pi-trash" severity="danger" text rounded size="small" @click="confirmDelete('template', data)" />
+                    <Button icon="pi pi-list" severity="secondary" text rounded size="small" aria-label="Quản lý placeholder" v-tooltip.top="'Quản lý placeholder'" @click="openTemplatePlaceholders(data)" />
+                    <Button icon="pi pi-search" severity="secondary" text rounded size="small" aria-label="Quét placeholder từ DOCX" v-tooltip.top="'Quét placeholder từ DOCX'" @click="openTemplatePlaceholders(data, true)" />
+                    <Button icon="pi pi-pencil" text rounded size="small" aria-label="Chỉnh sửa mẫu hợp đồng" v-tooltip.top="'Chỉnh sửa'" @click="openEditTemplate(data)" />
+                    <Button
+                      v-if="data.is_active"
+                      icon="pi pi-lock"
+                      severity="warn"
+                      text
+                      rounded
+                      size="small"
+                      aria-label="Khóa mẫu hợp đồng"
+                      v-tooltip.top="'Khóa mẫu hợp đồng'"
+                      @click="confirmToggleTemplateActive(data, false)"
+                    />
+                    <Button
+                      v-else
+                      icon="pi pi-lock-open"
+                      severity="success"
+                      text
+                      rounded
+                      size="small"
+                      aria-label="Mở khóa mẫu hợp đồng"
+                      v-tooltip.top="'Mở khóa mẫu hợp đồng'"
+                      @click="confirmToggleTemplateActive(data, true)"
+                    />
+                    <Button
+                      v-if="isSuperuser"
+                      icon="pi pi-trash"
+                      severity="danger"
+                      text
+                      rounded
+                      size="small"
+                      aria-label="Xóa hẳn mẫu hợp đồng"
+                      v-tooltip.top="'Xóa hẳn mẫu hợp đồng'"
+                      @click="confirmHardDeleteTemplate(data)"
+                    />
                   </div>
                 </template>
               </Column>
@@ -449,13 +481,27 @@
             <div class="field"><label>Loại hợp đồng <span class="req">*</span></label><Select v-model="templateForm.contract_category_id" :options="contractCategoryLookup" option-label="name" option-value="id" filter class="w-full" /></div>
             <div class="field"><label>Nhóm tài liệu</label><Select v-model="templateForm.document_kind" :options="documentKindOptions.slice(1)" option-label="label" option-value="value" filter class="w-full" /></div>
           </div>
+          <div class="field">
+            <label>File mẫu DOCX</label>
+            <FileUpload
+              mode="basic"
+              :auto="false"
+              accept=".docx"
+              :max-file-size="5242880"
+              choose-label="Chọn file DOCX"
+              @select="onTemplateFileSelect"
+            />
+            <small class="field-hint">Chỉ nhận file .docx, tối đa 5 MB. Có thể upload ngay khi tạo mới hoặc khi chỉnh sửa mẫu.</small>
+            <small v-if="selectedTemplateFileName" class="field-hint">Đã chọn: {{ selectedTemplateFileName }}</small>
+            <small v-else-if="editingTemplate?.file_name" class="field-hint">File hiện tại: {{ editingTemplate.file_name }}</small>
+          </div>
           <div class="field-row">
             <div class="field"><label>Tên file <span class="req">*</span></label><InputText v-model="templateForm.file_name" class="w-full" /></div>
             <div class="field"><label>MIME type <span class="req">*</span></label><InputText v-model="templateForm.mime_type" class="w-full" /></div>
           </div>
           <div class="field-row">
             <div class="field"><label>Version</label><InputNumber v-model="templateForm.version_no" :min="1" :max-fraction-digits="0" class="w-full" /></div>
-            <div class="field"><label>Storage path</label><InputText v-model="templateForm.storage_path" class="w-full" placeholder="Để trống nếu chưa upload" /></div>
+            <div class="field"><label>Storage path</label><InputText v-model="templateForm.storage_path" class="w-full" readonly placeholder="Tự cập nhật sau khi upload" /></div>
           </div>
           <div class="field"><label>Ghi chú</label><Textarea v-model="templateForm.note" rows="3" class="w-full" auto-resize /></div>
           <div v-if="editingTemplate" class="field field-switch"><label>Trạng thái</label><div class="switch-row"><ToggleSwitch v-model="templateForm.is_active" /><span :class="templateForm.is_active ? 'active-label' : 'inactive-label'">{{ templateForm.is_active ? 'Hoạt động' : 'Đã khóa' }}</span></div></div>
@@ -538,6 +584,7 @@ import Checkbox from 'primevue/checkbox'
 import Column from 'primevue/column'
 import DataTable from 'primevue/datatable'
 import Dialog from 'primevue/dialog'
+import FileUpload from 'primevue/fileupload'
 import IconField from 'primevue/iconfield'
 import InputIcon from 'primevue/inputicon'
 import InputNumber from 'primevue/inputnumber'
@@ -551,6 +598,7 @@ import Tabs from 'primevue/tabs'
 import Tag from 'primevue/tag'
 import Textarea from 'primevue/textarea'
 import ToggleSwitch from 'primevue/toggleswitch'
+import { useAuthStore } from '@/stores/auth'
 
 import otherBusinessCatalogService, {
   type BankRead,
@@ -588,6 +636,7 @@ function makeListState<T>(): ListState<T> {
 const router = useRouter()
 const toast = useToast()
 const confirm = useConfirm()
+const auth = useAuthStore()
 
 const activeTab = ref<ActiveTab>('contracts')
 const errorBanner = ref('')
@@ -695,6 +744,7 @@ const editingTemplate = ref<ContractTemplateRead | null>(null)
 const templateForm = ref({
   code: '', name: '', contract_category_id: null as number | null, document_kind: 'labor_contract' as 'labor_contract' | 'contract_appendix', file_name: '', mime_type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', storage_path: '', version_no: 1, is_active: true, note: '',
 })
+const selectedTemplateFile = ref<File | null>(null)
 
 const placeholderDialogVisible = ref(false)
 const submittingPlaceholders = ref(false)
@@ -702,6 +752,8 @@ const inspectingTemplateDocx = ref(false)
 const editingPlaceholderTemplate = ref<ContractTemplateRead | null>(null)
 const placeholderRows = ref<ContractTemplatePlaceholderWrite[]>([])
 const templateDocxSummary = ref<ContractTemplateDocxInspectionRead | null>(null)
+const selectedTemplateFileName = computed(() => selectedTemplateFile.value?.name || '')
+const isSuperuser = computed(() => auth.user?.is_superuser === true)
 
 let debounceTimer: ReturnType<typeof setTimeout> | undefined
 function debounce(fn: () => void) {
@@ -888,7 +940,11 @@ function resetLeaveTypeForm() {
     carryover_allowed: false, carryover_cutoff_month: 3,
   }
 }
-function resetTemplateForm() { editingTemplate.value = null; templateForm.value = { code: '', name: '', contract_category_id: null, document_kind: 'labor_contract', file_name: '', mime_type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', storage_path: '', version_no: 1, is_active: true, note: '' } }
+function resetTemplateForm() {
+  editingTemplate.value = null
+  selectedTemplateFile.value = null
+  templateForm.value = { code: '', name: '', contract_category_id: null, document_kind: 'labor_contract', file_name: '', mime_type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', storage_path: '', version_no: 1, is_active: true, note: '' }
+}
 
 function openCreateForActiveTab() {
   if (activeTab.value === 'contracts') return openCreateContractCategory()
@@ -927,7 +983,21 @@ function openEditLeaveType(row: LeaveTypeRead) {
   dialogVisible.value = true
 }
 function openCreateTemplate() { dialogKind.value = 'template'; resetTemplateForm(); dialogVisible.value = true }
-function openEditTemplate(row: ContractTemplateRead) { dialogKind.value = 'template'; editingTemplate.value = row; templateForm.value = { code: row.code, name: row.name, contract_category_id: row.contract_category_id, document_kind: row.document_kind, file_name: row.file_name, mime_type: row.mime_type, storage_path: row.storage_path || '', version_no: row.version_no, is_active: row.is_active, note: row.note || '' }; dialogVisible.value = true }
+function openEditTemplate(row: ContractTemplateRead) {
+  dialogKind.value = 'template'
+  editingTemplate.value = row
+  selectedTemplateFile.value = null
+  templateForm.value = { code: row.code, name: row.name, contract_category_id: row.contract_category_id, document_kind: row.document_kind, file_name: row.file_name, mime_type: row.mime_type, storage_path: row.storage_path || '', version_no: row.version_no, is_active: row.is_active, note: row.note || '' }
+  dialogVisible.value = true
+}
+
+function onTemplateFileSelect(event: { files?: File[] }) {
+  const file = event.files?.[0] || null
+  selectedTemplateFile.value = file
+  if (!file) return
+  templateForm.value.file_name = file.name
+  templateForm.value.mime_type = file.type || 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+}
 
 async function submitActiveDialog() {
   submitting.value = true
@@ -988,8 +1058,20 @@ async function submitActiveDialog() {
       await loadLeaveTypes()
     } else {
       if (!templateForm.value.contract_category_id) throw new Error('Chọn loại hợp đồng trước khi lưu mẫu')
-      if (editingTemplate.value) await otherBusinessCatalogService.updateContractTemplate(editingTemplate.value.id, { name: templateForm.value.name, contract_category_id: templateForm.value.contract_category_id, document_kind: templateForm.value.document_kind, file_name: templateForm.value.file_name, mime_type: templateForm.value.mime_type, storage_path: templateForm.value.storage_path || null, is_active: templateForm.value.is_active, note: templateForm.value.note || null })
-      else await otherBusinessCatalogService.createContractTemplate({ code: templateForm.value.code, name: templateForm.value.name, contract_category_id: templateForm.value.contract_category_id, document_kind: templateForm.value.document_kind, file_name: templateForm.value.file_name, mime_type: templateForm.value.mime_type, storage_path: templateForm.value.storage_path || null, version_no: templateForm.value.version_no, note: templateForm.value.note || null })
+      let templateRow: ContractTemplateRead
+      if (editingTemplate.value) {
+        const res = await otherBusinessCatalogService.updateContractTemplate(editingTemplate.value.id, { name: templateForm.value.name, contract_category_id: templateForm.value.contract_category_id, document_kind: templateForm.value.document_kind, file_name: templateForm.value.file_name, mime_type: templateForm.value.mime_type, storage_path: templateForm.value.storage_path || null, is_active: templateForm.value.is_active, note: templateForm.value.note || null })
+        templateRow = res.data
+      } else {
+        const res = await otherBusinessCatalogService.createContractTemplate({ code: templateForm.value.code, name: templateForm.value.name, contract_category_id: templateForm.value.contract_category_id, document_kind: templateForm.value.document_kind, file_name: templateForm.value.file_name, mime_type: templateForm.value.mime_type, storage_path: templateForm.value.storage_path || null, version_no: templateForm.value.version_no, note: templateForm.value.note || null })
+        templateRow = res.data
+      }
+      if (selectedTemplateFile.value) {
+        const uploadRes = await otherBusinessCatalogService.uploadContractTemplateFile(templateRow.id, selectedTemplateFile.value)
+        templateRow = uploadRes.data
+        templateForm.value.storage_path = templateRow.storage_path || ''
+        selectedTemplateFile.value = null
+      }
       await loadTemplates()
     }
     toast.add({ severity: 'success', summary: 'Thành công', detail: editingMode.value ? 'Đã cập nhật dữ liệu' : 'Đã tạo dữ liệu mới', life: 2500 })
@@ -1094,6 +1176,70 @@ function confirmDelete(kind: string, row: { id: number; name: string }) {
         toast.add({ severity: 'success', summary: 'Đã khóa dữ liệu', detail: row.name, life: 2500 })
       } catch (e) {
         toast.add({ severity: 'error', summary: 'Không thể khóa dữ liệu', detail: apiError(e), life: 4000 })
+      }
+    },
+  })
+}
+
+function confirmToggleTemplateActive(row: ContractTemplateRead, nextState: boolean) {
+  const verb = nextState ? 'mở khóa' : 'khóa'
+  confirm.require({
+    message: nextState
+      ? `Mở khóa mẫu '${row.name}' để tiếp tục dùng cho các lần generate mới?`
+      : `Khóa mẫu '${row.name}'? Mẫu đã khóa sẽ không dùng được cho các lần generate mới nhưng vẫn giữ lại để tra cứu lịch sử.`,
+    header: nextState ? 'Mở khóa mẫu hợp đồng' : 'Khóa mẫu hợp đồng',
+    acceptLabel: nextState ? 'Mở khóa' : 'Khóa',
+    rejectLabel: 'Hủy',
+    acceptClass: nextState ? 'p-button-success' : 'p-button-warning',
+    accept: async () => {
+      try {
+        await otherBusinessCatalogService.updateContractTemplate(row.id, { is_active: nextState })
+        await loadTemplates()
+        toast.add({
+          severity: 'success',
+          summary: nextState ? 'Đã mở khóa mẫu' : 'Đã khóa mẫu',
+          detail: row.name,
+          life: 2500,
+        })
+      } catch (e) {
+        toast.add({
+          severity: 'error',
+          summary: `Không thể ${verb} mẫu`,
+          detail: apiError(e),
+          life: 4000,
+        })
+      }
+    },
+  })
+}
+
+function confirmHardDeleteTemplate(row: ContractTemplateRead) {
+  confirm.require({
+    message:
+      `Xóa hẳn mẫu '${row.name}'? Hành động này không thể hoàn tác. ` +
+      `Hệ thống sẽ xóa metadata, placeholder và file DOCX của mẫu. ` +
+      `Các hợp đồng đã xuất trước đó không bị xóa, nhưng sẽ không thể generate lại từ mẫu này.`,
+    header: 'Xóa hẳn mẫu hợp đồng',
+    acceptLabel: 'Xóa hẳn',
+    rejectLabel: 'Hủy',
+    acceptClass: 'p-button-danger',
+    accept: async () => {
+      try {
+        await otherBusinessCatalogService.hardDeleteContractTemplate(row.id)
+        await loadTemplates()
+        toast.add({
+          severity: 'success',
+          summary: 'Đã xóa hẳn mẫu',
+          detail: row.name,
+          life: 2500,
+        })
+      } catch (e) {
+        toast.add({
+          severity: 'error',
+          summary: 'Không thể xóa hẳn mẫu',
+          detail: apiError(e),
+          life: 4500,
+        })
       }
     },
   })

@@ -129,7 +129,12 @@ class Settings(BaseSettings):
         return self
 
     # CORS
-    CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://localhost:3000"]
+    CORS_ORIGINS: list[str] = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ]
 
     # SMTP email
     SMTP_HOST: str = "localhost"

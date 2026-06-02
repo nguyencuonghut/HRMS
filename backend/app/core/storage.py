@@ -33,6 +33,22 @@ ALLOWED_CONTENT_TYPES = {
     "image/webp",
 }
 
+ALTERNATE_CONTENT_TYPES_BY_EXTENSION = {
+    ".docx": {
+        "application/wps-office.docx",
+        "application/octet-stream",
+    },
+    ".xlsx": {
+        "application/octet-stream",
+    },
+    ".doc": {
+        "application/octet-stream",
+    },
+    ".xls": {
+        "application/octet-stream",
+    },
+}
+
 
 def validate_file_type(upload: UploadFile) -> None:
     """Kiểm tra extension và content-type. Raise 400 nếu không hợp lệ."""
@@ -44,7 +60,8 @@ def validate_file_type(upload: UploadFile) -> None:
             status.HTTP_400_BAD_REQUEST,
             detail=f"Định dạng file không được phép: {ext}. Chỉ chấp nhận: {', '.join(sorted(ALLOWED_EXTENSIONS))}",
         )
-    if ct and ct not in ALLOWED_CONTENT_TYPES and not ct.startswith("image/"):
+    allowed_alternates = ALTERNATE_CONTENT_TYPES_BY_EXTENSION.get(ext, set())
+    if ct and ct not in ALLOWED_CONTENT_TYPES and ct not in allowed_alternates and not ct.startswith("image/"):
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
             detail=f"Content-type không hợp lệ: {ct}",

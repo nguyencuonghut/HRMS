@@ -522,6 +522,43 @@ async def delete_contract_template(row_id: int, request: Request, current_user: 
     return result
 
 
+@contract_template_router.delete("/{row_id}/hard", status_code=status.HTTP_200_OK)
+async def hard_delete_contract_template(
+    row_id: int,
+    request: Request,
+    current_user: User = require_permission("catalog:delete"),
+    session: AsyncSession = Depends(get_session),
+):
+    if not current_user.is_superuser:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Chỉ superuser mới được xóa hẳn mẫu hợp đồng")
+
+    row = await other_business_catalog_service.get_contract_template_by_id(session, row_id)
+    result = await other_business_catalog_service.hard_delete_contract_template(session, row_id)
+    storage_path = result.get("storage_path")
+    if storage_path:
+        delete_attachment(storage_path)
+
+    ip, ua = _request_meta(request)
+    await auth_service.log_audit(
+        session,
+        current_user.id,
+        "HARD_DELETE",
+        entity_type="contract_template",
+        entity_id=row.id,
+        entity_name=row.name,
+        old_data={
+            "is_active": row.is_active,
+            "storage_path": row.storage_path,
+            "file_name": row.file_name,
+        },
+        new_data=None,
+        ip_address=ip,
+        user_agent=ua,
+    )
+    await session.commit()
+    return {"message": result["message"]}
+
+
 @contract_template_router.get("/{template_id}/placeholders", response_model=list[ContractTemplatePlaceholderRead])
 async def get_contract_template_placeholders(template_id: int, _: User = require_permission("catalog:view"), session: AsyncSession = Depends(get_session)):
     return await other_business_catalog_service.list_template_placeholders(session, template_id)
