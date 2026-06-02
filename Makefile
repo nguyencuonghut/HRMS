@@ -4,7 +4,7 @@
 
 .PHONY: help \
         migrate migrate-down migrate-history migrate-status migrate-new \
-        seed seed-required seed-bootstrap seed-local-users seed-sample \
+        seed seed-required seed-bootstrap seed-bootstrap-admin seed-local-users seed-sample \
         db-reset db-shell \
         logs logs-be logs-fe shell-be restart-be
 
@@ -25,6 +25,7 @@ help:
 	@echo "    make seed              Alias dev: required + bootstrap + local-users + sample"
 	@echo "    make seed-required     Seed baseline production (required + RBAC core)"
 	@echo "    make seed-bootstrap    Seed thêm dữ liệu bootstrap vận hành"
+	@echo "    make seed-bootstrap-admin Tạo admin đầu tiên từ BOOTSTRAP_ADMIN_* trong .env"
 	@echo "    make seed-local-users  Seed 5 tài khoản local cho dev/test"
 	@echo "    make seed-sample       Seed full dev/test data"
 	@echo ""
@@ -71,6 +72,9 @@ seed-required:
 
 seed-bootstrap:
 	docker compose exec backend python -m app.seeds --bootstrap
+
+seed-bootstrap-admin:
+	docker compose exec backend python -m app.seeds --bootstrap-admin
 
 seed-local-users:
 	docker compose exec backend python -m app.seeds --local-users

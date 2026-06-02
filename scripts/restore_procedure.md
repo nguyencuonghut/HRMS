@@ -193,6 +193,9 @@ docker compose exec backend python -m app.seeds
 
 # 3. Seed bootstrap vận hành của doanh nghiệp
 docker compose exec backend python -m app.seeds --bootstrap
+
+# 4. Bootstrap tài khoản admin đầu tiên
+docker compose exec backend python -m app.seeds --bootstrap-admin
 ```
 
 Không chạy trên production:
@@ -205,6 +208,8 @@ docker compose exec backend python -m app.seeds --sample
 Lý do đã được xác nhận trong code:
 - `--local-users` tạo 5 tài khoản local `*@hrms.local` chỉ dùng cho dev/test
 - `--sample` nạp dữ liệu demo/test
+- `seed-required` và `--bootstrap` không tạo user đăng nhập; `--bootstrap-admin` là bước tạo first admin
+- `--bootstrap-admin` đọc `BOOTSTRAP_ADMIN_EMAIL`, `BOOTSTRAP_ADMIN_FULL_NAME`, `BOOTSTRAP_ADMIN_PASSWORD` từ `.env`
 
 ---
 

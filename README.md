@@ -100,6 +100,7 @@ Sau khi stack đã chạy, dùng lệnh `make` (xem đầy đủ với `make hel
 make migrate          # Áp dụng tất cả migration còn pending
 make seed-required    # Seed baseline production (required + RBAC core)
 make seed-bootstrap   # Seed thêm bootstrap data vận hành
+make seed-bootstrap-admin # Tạo admin đầu tiên từ BOOTSTRAP_ADMIN_* trong .env
 make seed-local-users # Seed 5 tài khoản local dev/test
 make seed-sample      # Seed full dev/test
 make seed             # Alias dev = seed-sample
@@ -116,11 +117,22 @@ make migrate-new m=tên_migration   # Tạo file migration mới
 make migrate
 make seed-required
 make seed-bootstrap
+make seed-bootstrap-admin
 
 # Development / test local
 make migrate
 make seed
 ```
+
+Lưu ý cho production sạch:
+
+- `seed-required` và `seed-bootstrap` **không** tạo tài khoản đăng nhập.
+- Bước `seed-bootstrap-admin` là bước bootstrap tài khoản admin đầu tiên.
+- `seed-bootstrap-admin` đọc 3 biến sau từ file `.env`:
+  - `BOOTSTRAP_ADMIN_EMAIL`
+  - `BOOTSTRAP_ADMIN_FULL_NAME`
+  - `BOOTSTRAP_ADMIN_PASSWORD`
+- Lệnh này chỉ tạo tài khoản mới hoặc đảm bảo email đó có quyền admin; nếu email đã tồn tại thì **không tự reset mật khẩu**.
 
 ---
 

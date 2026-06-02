@@ -8,7 +8,9 @@ Tách rõ 4 lớp dữ liệu seed để chuẩn bị deploy production:
    - dữ liệu khởi tạo vận hành của doanh nghiệp
 3. `local-users`
    - tài khoản mặc định chỉ dùng cho dev/test
-4. `sample`
+4. `bootstrap-admin`
+   - tài khoản admin đầu tiên cho production sạch
+5. `sample`
    - dữ liệu demo/test
 
 ## Các vấn đề đã được xác nhận trước refactor
@@ -48,7 +50,20 @@ Tách rõ 4 lớp dữ liệu seed để chuẩn bị deploy production:
   - role_permissions
 - `seed_users()` seed 5 tài khoản local mặc định
 
-### 4. Sample
+### 4. Bootstrap admin
+
+- `backend/app/seeds/bootstrap_admin.py`
+- Chỉ chạy khi truyền `--bootstrap-admin`
+- Đọc từ env / `.env` đã inject vào container backend:
+  - `BOOTSTRAP_ADMIN_EMAIL`
+  - `BOOTSTRAP_ADMIN_PASSWORD`
+  - `BOOTSTRAP_ADMIN_FULL_NAME`
+- Hành vi đã chốt:
+  - nếu email chưa tồn tại: tạo user admin đầu tiên
+  - nếu email đã tồn tại: ensure `is_superuser=true` và có role `admin`
+  - không tự reset mật khẩu khi email đã tồn tại
+
+### 5. Sample
 
 - `backend/app/seeds/sample.py`
 - Chỉ còn:
@@ -98,6 +113,9 @@ docker compose exec backend python -m app.seeds --bootstrap
 # Baseline + user local mặc định
 docker compose exec backend python -m app.seeds --local-users
 
+# Baseline + bootstrap admin đầu tiên
+docker compose exec backend python -m app.seeds --bootstrap-admin
+
 # Dev/test đầy đủ
 docker compose exec backend python -m app.seeds --sample
 ```
@@ -117,6 +135,7 @@ Ghi chú:
      - `README.md`
      - `scripts/restore_procedure.md`
      - `docs/sla.md`
+   - production sạch hiện cần thêm bước `seed-bootstrap-admin`
 
 ## Việc chưa làm
 
