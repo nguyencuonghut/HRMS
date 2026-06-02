@@ -1,4 +1,4 @@
-import axios from 'axios'
+import api from './api'
 
 export interface JobPositionListItem {
   id:                 number
@@ -55,17 +55,17 @@ export interface JobPositionUpdate {
   is_active?:          boolean
 }
 
-const BASE = '/api/v1/job-positions'
+const BASE = '/job-positions'
 
 export default {
   getList: (params?: { department_id?: number; is_active?: boolean; search?: string }) =>
-    axios.get<JobPositionListItem[]>(BASE, { params }),
+    api.get<JobPositionListItem[]>(BASE, { params }),
   getById: (id: number) =>
-    axios.get<JobPositionRead>(`${BASE}/${id}`),
+    api.get<JobPositionRead>(`${BASE}/${id}`),
   create:  (data: JobPositionCreate) =>
-    axios.post<JobPositionRead>(BASE, data),
+    api.post<JobPositionRead>(BASE, data),
   update:  (id: number, data: JobPositionUpdate) =>
-    axios.put<JobPositionRead>(`${BASE}/${id}`, data),
+    api.put<JobPositionRead>(`${BASE}/${id}`, data),
   delete:  (id: number) =>
-    axios.delete<{ message: string }>(`${BASE}/${id}`),
+    api.delete<{ message: string }>(`${BASE}/${id}`),
 }

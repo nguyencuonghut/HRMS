@@ -75,7 +75,6 @@
 
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import axios from 'axios'
 import Button from 'primevue/button'
 import Column from 'primevue/column'
 import ConfirmDialog from 'primevue/confirmdialog'
@@ -83,6 +82,7 @@ import DataTable from 'primevue/datatable'
 import FileUpload, { type FileUploadUploaderEvent } from 'primevue/fileupload'
 import { useConfirm } from 'primevue/useconfirm'
 import { useToast } from 'primevue/usetoast'
+import api from '@/services/api'
 
 interface Attachment {
   id:           number
@@ -106,8 +106,8 @@ async function fetchAttachments() {
   if (!props.positionId) { attachments.value = []; return }
   loading.value = true
   try {
-    const { data } = await axios.get<Attachment[]>(
-      `/api/v1/job-positions/${props.positionId}/attachments`
+    const { data } = await api.get<Attachment[]>(
+      `/job-positions/${props.positionId}/attachments`
     )
     attachments.value = data
   } catch {
@@ -125,7 +125,7 @@ async function handleUpload(event: FileUploadUploaderEvent) {
   try {
     const fd = new FormData()
     fd.append('file', file)
-    await axios.post(`/api/v1/job-positions/${props.positionId}/attachments`, fd, {
+    await api.post(`/job-positions/${props.positionId}/attachments`, fd, {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
     toast.add({ severity: 'success', summary: 'Thành công', detail: `Đã upload "${file.name}"`, life: 3000 })
@@ -152,7 +152,7 @@ function confirmDelete(att: Attachment) {
 
 async function doDelete(att: Attachment) {
   try {
-    await axios.delete(`/api/v1/job-positions/${props.positionId}/attachments/${att.id}`)
+    await api.delete(`/job-positions/${props.positionId}/attachments/${att.id}`)
     toast.add({ severity: 'success', summary: 'Đã xóa', detail: att.file_name, life: 3000 })
     await fetchAttachments()
     emit('change')

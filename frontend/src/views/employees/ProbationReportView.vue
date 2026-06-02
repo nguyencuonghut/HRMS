@@ -385,6 +385,7 @@ import probationReportService, {
   type ChecklistCompletionReport,
   type FailureReasonReport,
   type ProbationHistoryReport,
+  type ProbationExportParams,
   type ProbationPassRateReport,
 } from '@/services/probationReportService'
 
@@ -631,21 +632,13 @@ async function doExport() {
   if (!filterFrom.value || !filterTo.value) return
   exporting.value = true
   try {
-    const token = localStorage.getItem('access_token') ?? ''
-    const params: Record<string, string> = {
+    const params: ProbationExportParams = {
       start_date: toIso(filterFrom.value),
       end_date:   toIso(filterTo.value),
     }
-    if (filterDeptId.value) params.department_id = String(filterDeptId.value)
-    const qs = new URLSearchParams(params)
-    const res = await fetch(`/api/v1/reports/probation/export?${qs}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}))
-      throw new Error((body as { detail?: string }).detail ?? 'Lỗi xuất file')
-    }
-    const blob = await res.blob()
+    if (filterDeptId.value) params.department_id = filterDeptId.value
+    const res = await probationReportService.exportReport(params)
+    const blob = res.data
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url

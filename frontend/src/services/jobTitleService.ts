@@ -1,4 +1,4 @@
-import axios from 'axios'
+import api from './api'
 
 export interface JobTitleRead {
   id:         number
@@ -22,14 +22,14 @@ export interface JobTitleUpdate {
   is_active?: boolean
 }
 
-const BASE = '/api/v1/job-titles'
+const BASE = '/job-titles'
 
 export default {
   getList: (isActive?: boolean) =>
-    axios.get<JobTitleRead[]>(BASE, {
+    api.get<JobTitleRead[]>(BASE, {
       params: isActive !== undefined ? { is_active: isActive } : undefined,
     }),
-  create:  (data: JobTitleCreate)              => axios.post<JobTitleRead>(BASE, data),
-  update:  (id: number, data: JobTitleUpdate)  => axios.put<JobTitleRead>(`${BASE}/${id}`, data),
-  delete:  (id: number)                        => axios.delete<{ message: string }>(`${BASE}/${id}`),
+  create:  (data: JobTitleCreate)              => api.post<JobTitleRead>(BASE, data),
+  update:  (id: number, data: JobTitleUpdate)  => api.put<JobTitleRead>(`${BASE}/${id}`, data),
+  delete:  (id: number)                        => api.delete<{ message: string }>(`${BASE}/${id}`),
 }

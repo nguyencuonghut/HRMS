@@ -109,6 +109,12 @@ export interface FailureReasonReport {
   raw_comments: FailureCommentItem[]
 }
 
+export interface ProbationExportParams {
+  start_date: string
+  end_date: string
+  department_id?: number
+}
+
 // ── Service ────────────────────────────────────────────────────────────────────
 
 const BASE = '/reports/probation'
@@ -129,13 +135,9 @@ export default {
   getFailureReasons: (params: { start_date: string; end_date: string }) =>
     api.get<FailureReasonReport>(`${BASE}/failure-reasons`, { params }),
 
-  getExportUrl: (params: { start_date: string; end_date: string; department_id?: number }) => {
-    const token = localStorage.getItem('access_token') ?? ''
-    const qs = new URLSearchParams({
-      start_date: params.start_date,
-      end_date: params.end_date,
-      ...(params.department_id ? { department_id: String(params.department_id) } : {}),
-    })
-    return { url: `/api/v1${BASE}/export?${qs}`, token }
-  },
+  exportReport: (params: ProbationExportParams) =>
+    api.get<Blob>(`${BASE}/export`, {
+      params,
+      responseType: 'blob',
+    }),
 }
