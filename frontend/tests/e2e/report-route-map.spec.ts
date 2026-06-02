@@ -39,6 +39,7 @@ test.describe("Report route map", () => {
     await expect(main.getByRole("link", { name: /Dashboard tổng quan/i })).toBeVisible();
     await expect(main.getByRole("link", { name: /Thử việc & onboarding/i })).toBeVisible();
     await expect(main.getByRole("link", { name: /Báo cáo tuyển dụng/i })).toBeVisible();
+    await expect(main.getByRole("link", { name: /Báo cáo checklist hồ sơ lao động/i })).toBeVisible();
     await expect(main.getByRole("link", { name: /Báo cáo đào tạo/i })).toBeVisible();
     await expect(main.getByRole("link", { name: /Báo cáo hiệu suất/i })).toBeVisible();
   });
@@ -61,6 +62,12 @@ test.describe("Report route map", () => {
     await expect(main.locator(".rc-breadcrumb")).toContainText("Báo cáo");
     await expect(main.locator(".rc-jr-code")).toHaveText("Báo cáo tuyển dụng");
 
+    await navigate(page, "/reports/employee-document-checklist");
+    await page.waitForLoadState("networkidle");
+    await expect(main.getByRole("heading", { name: "Báo cáo checklist hồ sơ lao động" })).toBeVisible();
+    await expect(main.getByText("Theo dõi mức độ hoàn thành hồ sơ lao động bắt buộc", { exact: false })).toBeVisible();
+    await expect(main.getByRole("columnheader", { name: "Thiếu giấy tờ gì" })).toBeVisible();
+
     await navigate(page, "/reports/training");
     await page.waitForLoadState("networkidle");
     await expect(main.getByRole("heading", { name: "Báo cáo đào tạo" })).toBeVisible();
@@ -72,6 +79,38 @@ test.describe("Report route map", () => {
     await navigate(page, "/reports/performance");
     await page.waitForLoadState("networkidle");
     await expect(main.getByRole("heading", { name: "Báo cáo hiệu suất / KPI" })).toBeVisible();
+  });
+
+  test("employee document checklist report shows missing document names from summary response", async ({ page }) => {
+    await login(page);
+
+    const summaryResponsePromise = page.waitForResponse((response) =>
+      response.url().includes("/api/v1/recruitment/document-checklist/summary") && response.status() === 200,
+    );
+
+    await navigate(page, "/reports/employee-document-checklist");
+    await page.waitForLoadState("networkidle");
+
+    const summaryResponse = await summaryResponsePromise;
+    const summaryRows = (await summaryResponse.json()) as Array<{
+      employee_code: string;
+      missing_document_names: string[];
+    }>;
+
+    const main = page.locator("#main-content");
+    await expect(main.getByRole("columnheader", { name: "Thiếu giấy tờ gì" })).toBeVisible();
+
+    const incompleteRow = summaryRows.find((row) => row.missing_document_names.length > 0);
+    if (incompleteRow) {
+      const expectedText = incompleteRow.missing_document_names.join(", ");
+      await expect(
+        main.getByRole("cell", { name: incompleteRow.employee_code }).locator("xpath=ancestor::tr[1]"),
+      ).toContainText(expectedText);
+      return;
+    }
+
+    const missingColumnCells = main.locator("tbody tr td:nth-child(6)");
+    await expect(missingColumnCells.first()).toHaveText("—");
   });
 
   test("legacy report routes redirect to canonical routes", async ({ page }) => {
@@ -88,6 +127,9 @@ test.describe("Report route map", () => {
 
     await navigate(page, "/recruitment/reports");
     await page.waitForURL("**/reports/recruitment");
+
+    await navigate(page, "/recruitment/legal");
+    await page.waitForURL("**/reports/employee-document-checklist");
   });
 
   test("module shortcuts replace internal report tabs", async ({ page }) => {
@@ -124,9 +166,20 @@ test.describe("Report route map", () => {
     await expect(nav.locator('a[href="/reports/insurance"]')).toContainText("Bảo hiểm");
     await expect(nav.locator('a[href="/reports/contracts"]')).toContainText("Hợp đồng");
     await expect(nav.locator('a[href="/reports/recruitment"]')).toContainText("Tuyển dụng");
+    await expect(nav.locator('a[href="/reports/employee-document-checklist"]').last()).toContainText("Checklist hồ sơ lao động");
     await expect(nav.locator('a[href="/reports/training"]')).toContainText("Đào tạo");
     await expect(nav.locator('a[href="/reports/rewards"]')).toContainText("Khen thưởng & Kỷ luật");
     await expect(nav.locator('a[href="/reports/performance"]')).toContainText("Hiệu suất / KPI");
+  });
+
+  test("employee document checklist report activates only canonical report menu item", async ({ page }) => {
+    await login(page);
+    await navigate(page, "/reports/employee-document-checklist");
+    await page.waitForLoadState("networkidle");
+
+    const nav = page.locator("nav");
+    await expect(nav.locator('a[href="/reports/employee-document-checklist"]').last()).toHaveClass(/router-link-active/);
+    await expect(nav.locator('a[href="/recruitment/legal"]')).not.toHaveClass(/router-link-active/);
   });
 
   test("permission guard blocks report routes without required permission", async ({ page }) => {

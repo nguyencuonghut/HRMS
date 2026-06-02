@@ -79,6 +79,12 @@ const reportCards: ReportCard[] = [
     icon: 'pi-briefcase',
   },
   {
+    to: '/reports/employee-document-checklist',
+    title: 'Báo cáo checklist hồ sơ lao động',
+    description: 'Theo dõi mức độ hoàn thành hồ sơ lao động bắt buộc, giấy tờ còn thiếu và các trường hợp sắp hết hạn.',
+    icon: 'pi-id-card',
+  },
+  {
     to: '/reports/training',
     title: 'Báo cáo đào tạo',
     description: 'Tổng hợp hoàn thành đào tạo, chi phí và tình trạng bắt buộc.',

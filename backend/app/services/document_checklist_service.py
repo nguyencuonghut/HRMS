@@ -61,6 +61,7 @@ class EmployeeChecklistSummary(BaseModel):
     total_required: int
     submitted_count: int
     missing_count: int
+    missing_document_names: list[str]
     expiring_count: int
     completion_rate: float
 
@@ -368,6 +369,7 @@ async def get_missing_documents_report(
         total_required = len(emp_items)
         submitted_count = 0
         missing_count = 0
+        missing_document_names: list[str] = []
         expiring_count = 0
 
         for item, dtype in emp_items:
@@ -384,6 +386,7 @@ async def get_missing_documents_report(
                 submitted_count += 1
             elif effective_status == "not_submitted":
                 missing_count += 1
+                missing_document_names.append(dtype.name)
 
             # Expiring soon: submitted, not yet expired, expires within 30 days
             if (
@@ -405,6 +408,7 @@ async def get_missing_documents_report(
             total_required=total_required,
             submitted_count=submitted_count,
             missing_count=missing_count,
+            missing_document_names=missing_document_names,
             expiring_count=expiring_count,
             completion_rate=round(completion_rate, 1),
         )

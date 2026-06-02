@@ -260,9 +260,8 @@ const router = createRouter({
         {
           path: "recruitment/legal",
           name: "legal-documents",
-          component: () =>
-            import("@/views/recruitment/components/DocumentChecklistSummaryTab.vue"),
-          meta: { title: "Checklist hồ sơ pháp lý" },
+          redirect: { name: "employee-document-checklist-report" },
+          meta: { title: "Báo cáo checklist hồ sơ lao động" },
         },
         {
           path: "recruitment/settings",
@@ -331,6 +330,12 @@ const router = createRouter({
           name: "recruitment-analytics",
           component: () => import("@/views/reports/RecruitmentAnalyticsView.vue"),
           meta: { title: "Báo cáo tuyển dụng" },
+        },
+        {
+          path: "reports/employee-document-checklist",
+          name: "employee-document-checklist-report",
+          component: () => import("@/views/reports/EmployeeDocumentChecklistReportView.vue"),
+          meta: { title: "Báo cáo checklist hồ sơ lao động" },
         },
         {
           path: "reports/training",

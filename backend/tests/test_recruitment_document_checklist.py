@@ -400,6 +400,33 @@ class TestMissingDocumentsReport:
                 assert row["missing_count"] >= 0
                 break
 
+    def test_summary_includes_missing_document_names(
+        self, client: TestClient, converted_employee
+    ) -> None:
+        emp_id, h = converted_employee
+
+        checklist_res = client.get(f"{BASE_EMP}/{emp_id}/document-checklist", headers=h)
+        assert checklist_res.status_code == 200, checklist_res.text
+        checklist_items = checklist_res.json()
+        expected_missing = sorted(
+            item["document_type_name"]
+            for item in checklist_items
+            if item["is_required"] and item["status"] == "not_submitted"
+        )
+
+        summary_res = client.get(
+            f"{BASE_REC}/document-checklist/summary",
+            params={"search": "Ứng Viên Doc"},
+            headers=h,
+        )
+        assert summary_res.status_code == 200, summary_res.text
+        summaries = summary_res.json()
+        row = next(item for item in summaries if item["employee_id"] == emp_id)
+
+        assert "missing_document_names" in row
+        assert sorted(row["missing_document_names"]) == expected_missing
+        assert row["missing_count"] == len(expected_missing)
+
 
 # ── TestLaborReport ────────────────────────────────────────────────────────────
 

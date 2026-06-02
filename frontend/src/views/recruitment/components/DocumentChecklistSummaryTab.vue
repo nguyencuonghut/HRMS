@@ -71,6 +71,14 @@
             </span>
           </template>
         </Column>
+        <Column header="Thiếu giấy tờ gì" style="min-width: 260px">
+          <template #body="{ data }">
+            <span v-if="data.missing_document_names.length">
+              {{ data.missing_document_names.join(', ') }}
+            </span>
+            <span v-else>—</span>
+          </template>
+        </Column>
         <Column field="expiring_count" header="Sắp hết hạn" style="width: 110px; text-align: center">
           <template #body="{ data }">
             <span :style="data.expiring_count > 0 ? 'color: var(--p-orange-500); font-weight: 600' : ''">

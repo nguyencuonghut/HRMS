@@ -1319,6 +1319,7 @@ export interface EmployeeChecklistSummary {
   total_required: number;
   submitted_count: number;
   missing_count: number;
+  missing_document_names: string[];
   expiring_count: number;
   completion_rate: number;
 }

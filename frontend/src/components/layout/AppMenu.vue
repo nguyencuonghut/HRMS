@@ -178,9 +178,9 @@ const menu: MenuItem[] = [
       { to: "/recruitment/candidates", label: "Ứng viên" },
       { to: "/recruitment/selection", label: "Tuyển chọn" },
       { to: "/recruitment/headcount", label: "Kế hoạch nhân sự" },
-      { to: "/recruitment/legal", label: "Checklist hồ sơ pháp lý" },
       { to: "/recruitment/settings", label: "Cài đặt tuyển dụng" },
       { to: "/recruitment/reports", label: "Xem báo cáo tuyển dụng" },
+      { to: "/recruitment/legal", label: "Xem báo cáo checklist hồ sơ LĐ" },
     ],
   },
   { section: true, label: "Phân tích" },
@@ -223,6 +223,11 @@ const menu: MenuItem[] = [
         to: "/reports/recruitment",
         label: "Tuyển dụng",
         icon: "pi-briefcase",
+      },
+      {
+        to: "/reports/employee-document-checklist",
+        label: "Checklist hồ sơ lao động",
+        icon: "pi-id-card",
       },
       {
         to: "/reports/training",
