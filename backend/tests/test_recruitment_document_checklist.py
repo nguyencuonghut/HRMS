@@ -1,6 +1,7 @@
 """Integration tests — Plan 13.6: Document Checklist nhân viên."""
 from __future__ import annotations
 
+import io
 import uuid
 from datetime import date, timedelta
 
@@ -272,6 +273,24 @@ class TestChecklistUpdate:
         )
         assert res.status_code == 200, res.text
         assert res.json()["status"] == "submitted"
+
+    def test_upload_file_returns_mime_type(
+        self, client: TestClient, converted_employee
+    ) -> None:
+        emp_id, h = converted_employee
+        items = self._get_items(client, emp_id, h)
+        item = self._find_no_expiry_item(items) or items[0]
+
+        res = client.post(
+            f"{BASE_EMP}/{emp_id}/document-checklist/{item['id']}/upload",
+            files={"file": ("checklist-preview.png", io.BytesIO(b"png-bytes"), "image/png")},
+            headers=h,
+        )
+        assert res.status_code == 200, res.text
+        data = res.json()
+        assert data["has_file"] is True
+        assert data["file_name"] == "checklist-preview.png"
+        assert data["mime_type"] == "image/png"
 
     def test_update_submitted_with_expiry_requires_expires_at(
         self, client: TestClient, converted_employee

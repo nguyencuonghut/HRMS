@@ -486,29 +486,33 @@ export interface ImportResult {
 // ── Attachments (3.5) ─────────────────────────────────────────────────────────
 export const DOCUMENT_TYPE_LABELS: Record<string, string> = {
   avatar:        'Ảnh thẻ',
-  id_card_front: 'CCCD / CMND — Mặt trước',
-  id_card_back:  'CCCD / CMND — Mặt sau',
+  id_card_front: 'CCCD — Mặt trước',
+  id_card_back:  'CCCD — Mặt sau',
   passport:      'Hộ chiếu',
-  work_permit:   'Giấy phép lao động',
-  degree:        'Bằng cấp / Văn bằng',
+  work_permit:   'Giấy phép lao động (legacy)',
+  degree:        'Bằng cấp',
   certificate:   'Chứng chỉ',
-  resume:        'CV / Sơ yếu lý lịch',
-  other:         'Khác',
+  resume:        'Sơ yếu lý lịch',
+  other:         'Khác (legacy)',
 }
 
-export const DOCUMENT_TYPE_OPTIONS = Object.entries(DOCUMENT_TYPE_LABELS).map(
-  ([value, label]) => ({ value, label })
-)
+export const DOCUMENT_TYPE_OPTIONS = [
+  { value: 'avatar', label: DOCUMENT_TYPE_LABELS.avatar },
+  { value: 'id_card_front', label: DOCUMENT_TYPE_LABELS.id_card_front },
+  { value: 'id_card_back', label: DOCUMENT_TYPE_LABELS.id_card_back },
+  { value: 'passport', label: DOCUMENT_TYPE_LABELS.passport },
+  { value: 'degree', label: DOCUMENT_TYPE_LABELS.degree },
+  { value: 'certificate', label: DOCUMENT_TYPE_LABELS.certificate },
+  { value: 'resume', label: DOCUMENT_TYPE_LABELS.resume },
+]
 
 export const DOCUMENT_TYPE_GROUPS: { label: string; types: string[] }[] = [
   { label: 'Ảnh thẻ',              types: ['avatar'] },
-  { label: 'CCCD / CMND',          types: ['id_card_front', 'id_card_back'] },
+  { label: 'CCCD',                 types: ['id_card_front', 'id_card_back'] },
   { label: 'Hộ chiếu',             types: ['passport'] },
-  { label: 'Giấy phép lao động',   types: ['work_permit'] },
-  { label: 'Bằng cấp / Văn bằng', types: ['degree'] },
+  { label: 'Bằng cấp',             types: ['degree'] },
   { label: 'Chứng chỉ',            types: ['certificate'] },
-  { label: 'CV / Sơ yếu lý lịch', types: ['resume'] },
-  { label: 'Khác',                 types: ['other'] },
+  { label: 'Sơ yếu lý lịch',       types: ['resume'] },
 ]
 
 export interface EmployeeAttachmentRead {
@@ -542,6 +546,7 @@ export interface ChecklistItemRead {
   waived_reason: string | null
   has_file: boolean
   file_name: string | null
+  mime_type: string | null
   note: string | null
   updated_at: string
 }
@@ -565,6 +570,23 @@ async function downloadBlob(url: string, filename: string, params?: Record<strin
   a.download = filename
   a.click()
   URL.revokeObjectURL(href)
+}
+
+interface PreviewLinkRead {
+  url: string
+  expires_in_seconds: number
+}
+
+function openPreviewUrl(url: string) {
+  const previewWindow = window.open(url, '_blank')
+  if (!previewWindow) {
+    throw new Error('Trình duyệt đã chặn popup preview')
+  }
+  try {
+    previewWindow.opener = null
+  } catch {
+    // Some browsers restrict overriding opener; preview still works without it.
+  }
 }
 
 export default {
@@ -714,6 +736,11 @@ export default {
   getAttachmentDownloadUrl: (id: number, attId: number) =>
     `${BASE}/${id}/attachments/${attId}/download`,
 
+  previewAttachment: async (id: number, attId: number) => {
+    const res = await api.get<PreviewLinkRead>(`${BASE}/${id}/attachments/${attId}/preview-url`)
+    openPreviewUrl(res.data.url)
+  },
+
   // Import / Export (3.7)
   downloadImportTemplate: () =>
     downloadBlob(`${BASE}/import/template`, 'mau_import_nhan_vien.xlsx'),
@@ -748,6 +775,11 @@ export default {
 
   downloadChecklistFile: (id: number, itemId: number, fileName: string) =>
     downloadBlob(`${BASE}/${id}/document-checklist/${itemId}/download`, fileName),
+
+  previewChecklistFile: async (id: number, itemId: number) => {
+    const res = await api.get<PreviewLinkRead>(`${BASE}/${id}/document-checklist/${itemId}/preview-url`)
+    openPreviewUrl(res.data.url)
+  },
 
   deleteChecklistFile: (id: number, itemId: number) =>
     api.delete<ChecklistItemRead>(`${BASE}/${id}/document-checklist/${itemId}/file`),

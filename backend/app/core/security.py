@@ -17,31 +17,39 @@ def verify_password(plain: str, hashed: str) -> bool:
 
 
 def create_access_token(subject: str, extra_claims: Optional[dict] = None) -> str:
-    expire = datetime.now(timezone.utc) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    return create_signed_token(
+        subject,
+        token_type="access",
+        expires=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
+        extra_claims=extra_claims,
+    )
+
+
+def create_refresh_token(subject: str) -> str:
+    return create_signed_token(
+        subject,
+        token_type="refresh",
+        expires=timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
+    )
+
+
+def create_signed_token(
+    subject: str,
+    *,
+    token_type: str,
+    expires: timedelta,
+    extra_claims: Optional[dict] = None,
+) -> str:
+    expire = datetime.now(timezone.utc) + expires
     payload = {
         "sub": subject,
         "exp": expire,
         "iat": datetime.now(timezone.utc),
         "jti": str(uuid4()),
-        "type": "access",
+        "type": token_type,
         **(extra_claims or {}),
     }
     return jwt.encode(payload, settings.SECRET_KEY, settings.ALGORITHM)
-
-
-def create_refresh_token(subject: str) -> str:
-    expire = datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
-    return jwt.encode(
-        {
-            "sub": subject,
-            "exp": expire,
-            "iat": datetime.now(timezone.utc),
-            "jti": str(uuid4()),
-            "type": "refresh",
-        },
-        settings.SECRET_KEY,
-        settings.ALGORITHM,
-    )
 
 
 def decode_token(token: str) -> dict:

@@ -57,6 +57,16 @@
             </div>
             <div class="attachment-actions">
               <Button
+                v-if="canPreview(att)"
+                icon="pi pi-eye"
+                aria-label="Xem file"
+                rounded
+                text
+                size="small"
+                v-tooltip.top="'Xem'"
+                @click="preview(att)"
+              />
+              <Button
                 icon="pi pi-download"
                 rounded
                 text
@@ -149,6 +159,7 @@ import employeeService, {
   DOCUMENT_TYPE_OPTIONS,
   type EmployeeAttachmentRead,
 } from '@/services/employeeService'
+import { isPreviewableFile } from '@/utils/filePreview'
 
 const props = defineProps<{ employeeId: number }>()
 
@@ -218,6 +229,19 @@ function openUpload() {
   uploadForm.value = { document_type: '', description: '', file: null }
   uploadError.value = ''
   uploadVisible.value = true
+}
+
+function canPreview(att: EmployeeAttachmentRead) {
+  return isPreviewableFile(att.mime_type, att.file_name)
+}
+
+async function preview(att: EmployeeAttachmentRead) {
+  try {
+    await employeeService.previewAttachment(props.employeeId, att.id)
+  } catch (err: any) {
+    const detail = err?.response?.data?.detail
+    toast.add({ severity: 'error', summary: 'Lỗi', detail: detail ?? 'Không xem được file', life: 4000 })
+  }
 }
 
 function onFileSelected(e: Event) {

@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.seeds import (
     administrative_units,
     bhyt_clinics as bhyt_clinics_seed,
+    document_checklist_types as document_checklist_seed,
     education_catalog,
     notification_templates as notification_templates_seed,
     old_administrative_units,
@@ -248,6 +249,7 @@ async def run(session: AsyncSession) -> None:
     old_admin_units_upserted, old_admin_hierarchies_added = await old_administrative_units.seed_old_administrative_system(session)
     admin_units_upserted, admin_hierarchies_added = await administrative_units.seed_new_administrative_system(session)
     clinics_added = await bhyt_clinics_seed.seed_bhyt_clinics(session)
+    checklist_seed_stats = await document_checklist_seed.seed_required_document_checklist_types(session)
     await notification_templates_seed.seed_notification_templates(session)
     await session.commit()
 
@@ -267,4 +269,11 @@ async def run(session: AsyncSession) -> None:
     print(f"  [required] Đơn vị hành chính mới:     +{admin_units_upserted} upsert")
     print(f"  [required] Quan hệ tỉnh → xã/phường:  +{admin_hierarchies_added} dòng")
     print(f"  [required] Bệnh viện KCB BHYT:         +{clinics_added} upsert")
+    print(
+        "  [required] Checklist hồ sơ pháp lý:   "
+        f"+{checklist_seed_stats['inserted']} thêm mới, "
+        f"+{checklist_seed_stats['updated']} cập nhật, "
+        f"+{checklist_seed_stats['deactivated']} vô hiệu hóa, "
+        f"+{checklist_seed_stats['backfilled']} backfill"
+    )
     print("  [required] Notification templates:    upsert")

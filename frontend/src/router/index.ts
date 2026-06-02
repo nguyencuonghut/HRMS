@@ -262,7 +262,7 @@ const router = createRouter({
           name: "legal-documents",
           component: () =>
             import("@/views/recruitment/components/DocumentChecklistSummaryTab.vue"),
-          meta: { title: "Hồ sơ pháp lý" },
+          meta: { title: "Checklist hồ sơ pháp lý" },
         },
         {
           path: "recruitment/settings",

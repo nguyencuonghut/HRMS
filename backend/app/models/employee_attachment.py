@@ -12,14 +12,14 @@ def _utcnow() -> datetime:
 
 DOCUMENT_TYPE_LABELS: dict[str, str] = {
     "avatar":        "Ảnh thẻ",
-    "id_card_front": "CCCD / CMND — Mặt trước",
-    "id_card_back":  "CCCD / CMND — Mặt sau",
+    "id_card_front": "CCCD — Mặt trước",
+    "id_card_back":  "CCCD — Mặt sau",
     "passport":      "Hộ chiếu",
-    "work_permit":   "Giấy phép lao động",
-    "degree":        "Bằng cấp / Văn bằng",
+    "work_permit":   "Giấy phép lao động (legacy)",
+    "degree":        "Bằng cấp",
     "certificate":   "Chứng chỉ",
-    "resume":        "CV / Sơ yếu lý lịch",
-    "other":         "Khác",
+    "resume":        "Sơ yếu lý lịch",
+    "other":         "Khác (legacy)",
 }
 
 

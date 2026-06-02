@@ -63,31 +63,8 @@ def upgrade() -> None:
         postgresql_where=sa.text("expires_at IS NOT NULL"),
     )
 
-    # Seed default document types
-    op.bulk_insert(
-        sa.table(
-            "document_checklist_types",
-            sa.column("code", sa.String),
-            sa.column("name", sa.String),
-            sa.column("is_required", sa.Boolean),
-            sa.column("has_expiry", sa.Boolean),
-            sa.column("applies_to", sa.String),
-            sa.column("sort_order", sa.SmallInteger),
-        ),
-        [
-            {"code": "cccd",          "name": "CCCD/CMND (bản sao công chứng)",            "is_required": True,  "has_expiry": False, "applies_to": "all",                "sort_order": 1},
-            {"code": "ho_khau",       "name": "Sổ hộ khẩu / KT3 (bản sao)",               "is_required": True,  "has_expiry": False, "applies_to": "all",                "sort_order": 2},
-            {"code": "giay_khai_sinh","name": "Giấy khai sinh (bản sao)",                  "is_required": True,  "has_expiry": False, "applies_to": "all",                "sort_order": 3},
-            {"code": "bang_cap",      "name": "Bằng cấp / Chứng chỉ (bản sao công chứng)","is_required": True,  "has_expiry": True,  "applies_to": "all",                "sort_order": 4},
-            {"code": "suc_khoe",      "name": "Giấy chứng nhận sức khỏe",                  "is_required": True,  "has_expiry": True,  "applies_to": "all",                "sort_order": 5},
-            {"code": "mst",           "name": "Mã số thuế cá nhân",                         "is_required": True,  "has_expiry": False, "applies_to": "all",                "sort_order": 6},
-            {"code": "tk_ngan_hang",  "name": "Thông tin tài khoản ngân hàng",              "is_required": True,  "has_expiry": False, "applies_to": "all",                "sort_order": 7},
-            {"code": "anh_the",       "name": "Ảnh thẻ 3×4",                                "is_required": True,  "has_expiry": False, "applies_to": "all",                "sort_order": 8},
-            {"code": "so_bhxh",       "name": "Sổ BHXH",                                    "is_required": False, "has_expiry": False, "applies_to": "all",                "sort_order": 9},
-            {"code": "ly_lich_tu_phap","name": "Lý lịch tư pháp số 1",                     "is_required": False, "has_expiry": True,  "applies_to": "sensitive_position", "sort_order": 10},
-            {"code": "giay_phep_ld",  "name": "Giấy phép lao động",                         "is_required": True,  "has_expiry": True,  "applies_to": "foreign_worker",     "sort_order": 11},
-        ],
-    )
+    # Danh mục mặc định chuyển sang app.seeds.document_checklist_types
+    # để tách schema migration khỏi business catalog data.
 
 
 def downgrade() -> None:

@@ -61,11 +61,11 @@
           <Tab value="job" :disabled="isNew">Công việc</Tab>
           <Tab value="relatives" :disabled="isNew">Người thân</Tab>
           <Tab value="education" :disabled="isNew">Học vấn & KN</Tab>
-          <Tab value="attachments" :disabled="isNew">Tài liệu</Tab>
+          <Tab value="attachments" :disabled="isNew">Tệp đính kèm hồ sơ</Tab>
           <Tab value="contracts" :disabled="isNew">Hợp đồng</Tab>
           <Tab value="insurance" :disabled="isNew">Bảo hiểm</Tab>
           <Tab value="kpi" :disabled="isNew">Đánh giá KPI</Tab>
-          <Tab value="legal" :disabled="isNew">Hồ sơ pháp lý</Tab>
+          <Tab value="legal" :disabled="isNew">Checklist hồ sơ pháp lý</Tab>
           <Tab value="probation" :disabled="isNew">Thử việc</Tab>
         </TabList>
 
@@ -412,7 +412,7 @@
             />
           </TabPanel>
 
-          <!-- ── TAB: Tài liệu đính kèm ───────────────────────────────────── -->
+          <!-- ── TAB: Tệp đính kèm hồ sơ ──────────────────────────────────── -->
           <TabPanel value="attachments">
             <AttachmentsTab
               v-if="!isNew && employeeId"
@@ -445,7 +445,7 @@
             />
           </TabPanel>
 
-          <!-- ── TAB: Hồ sơ pháp lý (13.6) ──────────────────────────────── -->
+          <!-- ── TAB: Checklist hồ sơ pháp lý (13.6) ────────────────────── -->
           <TabPanel value="legal">
             <DocumentChecklistTab v-if="!isNew && employeeId" :employee-id="employeeId" />
           </TabPanel>

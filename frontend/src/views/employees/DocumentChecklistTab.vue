@@ -80,16 +80,28 @@
           <!-- File -->
           <Column header="File" style="min-width:80px">
             <template #body="{ data }">
-              <Button
-                v-if="data.has_file"
-                icon="pi pi-download"
-                rounded
-                text
-                size="small"
-                v-tooltip.top="data.file_name ?? 'Tải xuống'"
-                :loading="actionLoading[`download-${data.id}`]"
-                @click="downloadFile(data)"
-              />
+              <div v-if="data.has_file" style="display:flex; gap:0.25rem; align-items:center;">
+                <Button
+                  v-if="canPreview(data)"
+                  icon="pi pi-eye"
+                  aria-label="Xem file"
+                  rounded
+                  text
+                  size="small"
+                  v-tooltip.top="'Xem'"
+                  :loading="actionLoading[`preview-${data.id}`]"
+                  @click="previewFile(data)"
+                />
+                <Button
+                  icon="pi pi-download"
+                  rounded
+                  text
+                  size="small"
+                  v-tooltip.top="data.file_name ?? 'Tải xuống'"
+                  :loading="actionLoading[`download-${data.id}`]"
+                  @click="downloadFile(data)"
+                />
+              </div>
               <span v-else style="color:var(--l-text-muted)">—</span>
             </template>
           </Column>
@@ -244,6 +256,7 @@ import Textarea from 'primevue/textarea'
 import employeeService, { type ChecklistItemRead, type ChecklistItemUpdate } from '@/services/employeeService'
 import { documentChecklistService, type DocumentChecklistType } from '@/services/recruitmentService'
 import { toLocalIso } from '@/utils/format'
+import { isPreviewableFile } from '@/utils/filePreview'
 
 const props = defineProps<{ employeeId: number }>()
 
@@ -435,6 +448,23 @@ async function onFileChange(e: Event) {
   } finally {
     actionLoading.value[key] = false
     pendingUploadId.value = null
+  }
+}
+
+function canPreview(item: ChecklistItemRead) {
+  return item.has_file && isPreviewableFile(item.mime_type, item.file_name)
+}
+
+async function previewFile(item: ChecklistItemRead) {
+  const key = `preview-${item.id}`
+  actionLoading.value[key] = true
+  try {
+    await employeeService.previewChecklistFile(props.employeeId, item.id)
+  } catch (err: any) {
+    const detail = err?.response?.data?.detail
+    toast.add({ severity: 'error', summary: 'Lỗi', detail: detail ?? 'Không xem được file', life: 4000 })
+  } finally {
+    actionLoading.value[key] = false
   }
 }
 

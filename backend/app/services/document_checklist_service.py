@@ -39,6 +39,7 @@ class ChecklistItemRead(BaseModel):
     waived_reason: Optional[str]
     has_file: bool
     file_name: Optional[str]
+    mime_type: Optional[str]
     note: Optional[str]
     updated_at: datetime
 
@@ -105,6 +106,7 @@ def _to_read(item: EmployeeDocumentChecklist, dtype: DocumentChecklistType) -> C
         waived_reason=item.waived_reason,
         has_file=item.file_path is not None,
         file_name=item.file_name,
+        mime_type=item.mime_type,
         note=item.note,
         updated_at=item.updated_at,
     )
@@ -138,7 +140,10 @@ async def get_employee_checklist(
             DocumentChecklistType,
             EmployeeDocumentChecklist.document_type_id == DocumentChecklistType.id,
         )
-        .where(EmployeeDocumentChecklist.employee_id == employee_id)
+        .where(
+            EmployeeDocumentChecklist.employee_id == employee_id,
+            DocumentChecklistType.is_active == True,
+        )
         .order_by(DocumentChecklistType.sort_order, DocumentChecklistType.name)
     )
     rows = (await session.execute(q)).all()
@@ -345,6 +350,7 @@ async def get_missing_documents_report(
         .where(
             EmployeeDocumentChecklist.employee_id.in_(employee_ids),
             DocumentChecklistType.is_required == True,
+            DocumentChecklistType.is_active == True,
         )
     )
     checklist_rows = (await session.execute(checklist_q)).all()

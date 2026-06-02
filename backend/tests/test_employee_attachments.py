@@ -114,7 +114,7 @@ def test_upload_attachment_success(client: TestClient):
     assert resp.status_code == 201
     data = resp.json()
     assert data["document_type"] == "id_card_front"
-    assert data["document_type_label"] == "CCCD / CMND — Mặt trước"
+    assert data["document_type_label"] == "CCCD — Mặt trước"
     assert data["file_name"] == "test.pdf"
     assert data["file_size"] > 0
     assert data["download_url"].endswith(f"/download")

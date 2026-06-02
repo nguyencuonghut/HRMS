@@ -1,13 +1,18 @@
 """Quản lý nhân viên — CRUD hồ sơ cá nhân (3.1) + thông tin công việc (3.2) + người thân (3.3) + học vấn (3.4) + hồ sơ đính kèm (3.5)."""
 
+from datetime import timedelta
+
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.responses import StreamingResponse
+from jose import JWTError
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import require_permission
 from app.core.database import get_session
+from app.core.security import create_signed_token, decode_token
 from app.models.auth import User
 from app.schemas.employee import (
     EmployeeAddressRead,
@@ -59,6 +64,52 @@ from app.services import (
 from app.core.storage import delete_attachment, get_object_stream, save_employee_attachment
 
 router = APIRouter()
+
+_PREVIEW_TOKEN_TTL_SECONDS = 300
+
+
+class PreviewLinkRead(BaseModel):
+    url: str
+    expires_in_seconds: int
+
+
+def _build_preview_token(*, employee_id: int, resource_id: int, resource_kind: str) -> str:
+    return create_signed_token(
+        "employee-file-preview",
+        token_type="preview",
+        expires=timedelta(seconds=_PREVIEW_TOKEN_TTL_SECONDS),
+        extra_claims={
+            "scope": "employee-file-preview",
+            "employee_id": employee_id,
+            "resource_id": resource_id,
+            "resource_kind": resource_kind,
+        },
+    )
+
+
+def _validate_preview_token(
+    token: str,
+    *,
+    employee_id: int,
+    resource_id: int,
+    resource_kind: str,
+) -> None:
+    exc = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Link preview không hợp lệ hoặc đã hết hạn",
+    )
+    try:
+        payload = decode_token(token)
+    except JWTError as e:
+        raise exc from e
+    if payload.get("type") != "preview" or payload.get("scope") != "employee-file-preview":
+        raise exc
+    if payload.get("employee_id") != employee_id:
+        raise exc
+    if payload.get("resource_id") != resource_id:
+        raise exc
+    if payload.get("resource_kind") != resource_kind:
+        raise exc
 
 
 def _build_list_item_data(emp, display_code: str) -> dict:
@@ -1019,6 +1070,54 @@ async def download_attachment(
     )
 
 
+@router.get(
+    "/{employee_id}/attachments/{att_id}/preview-url",
+    response_model=PreviewLinkRead,
+    summary="Lấy link preview ngắn hạn cho tài liệu đính kèm",
+)
+async def get_attachment_preview_url(
+    employee_id: int,
+    att_id: int,
+    _: User = require_permission("employees:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    await employee_attachment_service.get_attachment_or_404(session, employee_id, att_id)
+    token = _build_preview_token(
+        employee_id=employee_id,
+        resource_id=att_id,
+        resource_kind="attachment",
+    )
+    return PreviewLinkRead(
+        url=f"/api/v1/employees/{employee_id}/attachments/{att_id}/preview?token={token}",
+        expires_in_seconds=_PREVIEW_TOKEN_TTL_SECONDS,
+    )
+
+
+@router.get(
+    "/{employee_id}/attachments/{att_id}/preview",
+    summary="Preview tài liệu đính kèm bằng link ngắn hạn",
+)
+async def preview_attachment(
+    employee_id: int,
+    att_id: int,
+    token: str = Query(..., min_length=1),
+    session: AsyncSession = Depends(get_session),
+):
+    _validate_preview_token(
+        token,
+        employee_id=employee_id,
+        resource_id=att_id,
+        resource_kind="attachment",
+    )
+    att = await employee_attachment_service.get_attachment_or_404(session, employee_id, att_id)
+    filename = att.file_name.encode("utf-8").decode("latin-1", errors="replace")
+    return StreamingResponse(
+        get_object_stream(att.file_path),
+        media_type=att.mime_type or "application/octet-stream",
+        headers={"Content-Disposition": f'inline; filename="{filename}"'},
+    )
+
+
 @router.delete(
     "/{employee_id}/attachments/{att_id}",
     status_code=status.HTTP_204_NO_CONTENT,
@@ -1119,6 +1218,56 @@ async def download_checklist_file(
         _get_obj_stream(file_path),
         media_type=mime_type or "application/octet-stream",
         headers={"Content-Disposition": f'attachment; filename="{safe_name}"'},
+    )
+
+
+@router.get(
+    "/{employee_id}/document-checklist/{item_id}/preview-url",
+    response_model=PreviewLinkRead,
+    summary="Lấy link preview ngắn hạn cho file checklist",
+)
+async def get_checklist_preview_url(
+    employee_id: int,
+    item_id: int,
+    _: User = require_permission(_DOC_PERM_VIEW),
+    session: AsyncSession = Depends(get_session),
+):
+    await document_checklist_service.get_document_download_stream(session, employee_id, item_id)
+    token = _build_preview_token(
+        employee_id=employee_id,
+        resource_id=item_id,
+        resource_kind="document-checklist",
+    )
+    return PreviewLinkRead(
+        url=f"/api/v1/employees/{employee_id}/document-checklist/{item_id}/preview?token={token}",
+        expires_in_seconds=_PREVIEW_TOKEN_TTL_SECONDS,
+    )
+
+
+@router.get(
+    "/{employee_id}/document-checklist/{item_id}/preview",
+    summary="Preview file checklist bằng link ngắn hạn",
+)
+async def preview_checklist_file(
+    employee_id: int,
+    item_id: int,
+    token: str = Query(..., min_length=1),
+    session: AsyncSession = Depends(get_session),
+):
+    _validate_preview_token(
+        token,
+        employee_id=employee_id,
+        resource_id=item_id,
+        resource_kind="document-checklist",
+    )
+    file_path, file_name, mime_type = await document_checklist_service.get_document_download_stream(
+        session, employee_id, item_id
+    )
+    safe_name = (file_name or "file").encode("utf-8").decode("latin-1", errors="replace")
+    return StreamingResponse(
+        _get_obj_stream(file_path),
+        media_type=mime_type or "application/octet-stream",
+        headers={"Content-Disposition": f'inline; filename="{safe_name}"'},
     )
 
 
