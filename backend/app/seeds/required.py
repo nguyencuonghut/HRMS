@@ -111,6 +111,44 @@ async def seed_company_region(session: AsyncSession, region: int = 3) -> int:
     return 1
 
 
+async def seed_bhxh_seniority_settings(session: AsyncSession) -> int:
+    """Seed rule thâm niên mặc định của công ty.
+
+    Rule mặc định hiện tại:
+      - xét nâng bậc vào 01/01 hàng năm
+      - 3 năm tăng 1 bậc
+      - cutoff tính tròn năm đầu: 30/04
+    """
+    existing = await session.execute(
+        text("SELECT COUNT(*) FROM bhxh_seniority_settings WHERE effective_to IS NULL")
+    )
+    if existing.scalar() > 0:
+        return 0
+
+    await session.execute(
+        text("""
+            INSERT INTO bhxh_seniority_settings
+                (raise_month, raise_day, years_per_grade,
+                 first_year_cutoff_month, first_year_cutoff_day,
+                 effective_from, effective_to, note)
+            VALUES
+                (:raise_month, :raise_day, :years_per_grade,
+                 :first_year_cutoff_month, :first_year_cutoff_day,
+                 :effective_from, NULL, :note)
+        """),
+        {
+            "raise_month": 1,
+            "raise_day": 1,
+            "years_per_grade": 3,
+            "first_year_cutoff_month": 4,
+            "first_year_cutoff_day": 30,
+            "effective_from": datetime.date(2026, 1, 1),
+            "note": "Rule mặc định: xét tăng bậc ngày 01/01, 3 năm/1 bậc, cutoff năm đầu 30/04.",
+        },
+    )
+    return 1
+
+
 async def seed_insurance_components(session: AsyncSession) -> int:
     """Seed danh mục 5 thành phần đóng BHXH/BHYT/BHTN chuẩn.
 
@@ -235,6 +273,7 @@ async def seed_insurance_policy_version_baseline(session: AsyncSession) -> bool:
 async def run(session: AsyncSession) -> None:
     wages_added = await seed_minimum_wages(session)
     region_added = await seed_company_region(session)
+    seniority_added = await seed_bhxh_seniority_settings(session)
     ins_components_added = await seed_insurance_components(session)
     ins_policy_seeded = await seed_insurance_policy_version_baseline(session)
     education_levels_added = await education_catalog.seed_required_education_catalog(session)
@@ -255,6 +294,7 @@ async def run(session: AsyncSession) -> None:
 
     print(f"  [required] Mức lương tối thiểu vùng: +{wages_added} dòng")
     print(f"  [required] Vùng BHXH công ty:         +{region_added} dòng")
+    print(f"  [required] Rule thâm niên BHXH:      +{seniority_added} dòng")
     print(f"  [required] Component BHXH/BHYT/BHTN:  +{ins_components_added} dòng")
     print(f"  [required] Policy version baseline:    {'seeded (BHXH_2025_V1)' if ins_policy_seeded else 'bỏ qua (đã có policy active)'}")
     print(f"  [required] Trình độ học vấn:         +{education_levels_added} upsert")

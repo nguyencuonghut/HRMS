@@ -13,9 +13,15 @@ from app.models.insurance import (
     InsurancePolicyComponentRate,
     InsurancePolicyVersion,
 )
-from app.models.salary import CompanyBhxhRegion
+from app.models.salary import BhxhSenioritySetting, CompanyBhxhRegion, RegionalMinimumWage
 from app.schemas.insurance import (
+    BhxhSenioritySettingCreate,
+    BhxhSenioritySettingsRead,
+    BhxhSenioritySettingUpdate,
     CompanyRegionUpsert,
+    RegionalMinimumWageCreate,
+    RegionalMinimumWageRead,
+    RegionalMinimumWageUpdate,
     InsurancePolicyComponentRateInput,
     InsurancePolicyVersionCreate,
     InsurancePolicyVersionUpdate,
@@ -24,6 +30,34 @@ from app.schemas.insurance import (
 
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def _minimum_wage_to_read(item: RegionalMinimumWage) -> dict:
+    return {
+        "id": item.id,
+        "decree_number": item.decree_number,
+        "region": item.region,
+        "amount": int(item.amount),
+        "effective_from": item.effective_from,
+        "effective_to": item.effective_to,
+        "note": item.note,
+    }
+
+
+def _seniority_to_read(item: BhxhSenioritySetting) -> dict:
+    return {
+        "id": item.id,
+        "raise_month": item.raise_month,
+        "raise_day": item.raise_day,
+        "years_per_grade": item.years_per_grade,
+        "first_year_cutoff_month": item.first_year_cutoff_month,
+        "first_year_cutoff_day": item.first_year_cutoff_day,
+        "effective_from": item.effective_from,
+        "effective_to": item.effective_to,
+        "note": item.note,
+        "created_at": item.created_at,
+        "updated_at": item.updated_at,
+    }
 
 
 def _validate_complete_component_set(
@@ -416,3 +450,202 @@ async def upsert_company_region(session: AsyncSession, payload: CompanyRegionUps
     session.add(new_row)
     await session.commit()
     return await get_company_region(session)
+
+
+async def list_minimum_wages(session: AsyncSession) -> list[dict]:
+    rows = await session.execute(
+        select(RegionalMinimumWage).order_by(
+            RegionalMinimumWage.region.asc(),
+            RegionalMinimumWage.effective_from.desc(),
+            RegionalMinimumWage.id.desc(),
+        )
+    )
+    return [_minimum_wage_to_read(item) for item in rows.scalars().all()]
+
+
+async def create_minimum_wage(session: AsyncSession, payload: RegionalMinimumWageCreate) -> dict:
+    rows = await session.execute(
+        select(RegionalMinimumWage)
+        .where(
+            RegionalMinimumWage.region == payload.region,
+            RegionalMinimumWage.effective_to.is_(None),
+        )
+        .order_by(RegionalMinimumWage.effective_from.desc(), RegionalMinimumWage.id.desc())
+    )
+    current = rows.scalars().first()
+    if current and payload.effective_from <= current.effective_from:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Ngày hiệu lực LTTV mới phải lớn hơn cấu hình đang hiệu lực của cùng vùng",
+        )
+
+    if current:
+        current.effective_to = payload.effective_from - timedelta(days=1)
+
+    new_row = RegionalMinimumWage(
+        decree_number=payload.decree_number,
+        region=payload.region,
+        amount=payload.amount,
+        effective_from=payload.effective_from,
+        effective_to=None,
+        note=payload.note,
+    )
+    session.add(new_row)
+    await session.commit()
+    await session.refresh(new_row)
+    return _minimum_wage_to_read(new_row)
+
+
+async def update_minimum_wage(
+    session: AsyncSession,
+    wage_id: int,
+    payload: RegionalMinimumWageUpdate,
+) -> dict:
+    row = await session.get(RegionalMinimumWage, wage_id)
+    if not row:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Không tìm thấy cấu hình lương tối thiểu vùng")
+
+    provided = payload.model_fields_set
+    if "decree_number" in provided and payload.decree_number is not None:
+        row.decree_number = payload.decree_number
+    if "amount" in provided and payload.amount is not None:
+        row.amount = payload.amount
+    if "note" in provided:
+        row.note = payload.note
+
+    session.add(row)
+    await session.commit()
+    await session.refresh(row)
+    return _minimum_wage_to_read(row)
+
+
+async def delete_minimum_wage(session: AsyncSession, wage_id: int) -> None:
+    row = await session.get(RegionalMinimumWage, wage_id)
+    if not row:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Không tìm thấy cấu hình lương tối thiểu vùng")
+
+    rows = await session.execute(
+        select(RegionalMinimumWage)
+        .where(RegionalMinimumWage.region == row.region)
+        .order_by(RegionalMinimumWage.effective_from.asc(), RegionalMinimumWage.id.asc())
+    )
+    region_items = list(rows.scalars().all())
+    idx = next((i for i, item in enumerate(region_items) if item.id == row.id), None)
+    if idx is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Không tìm thấy cấu hình lương tối thiểu vùng")
+
+    previous = region_items[idx - 1] if idx > 0 else None
+    following = region_items[idx + 1] if idx + 1 < len(region_items) else None
+
+    if previous:
+        previous.effective_to = (following.effective_from - timedelta(days=1)) if following else None
+        session.add(previous)
+
+    await session.delete(row)
+    await session.commit()
+
+
+async def get_bhxh_seniority_settings(session: AsyncSession) -> dict:
+    rows = await session.execute(
+        select(BhxhSenioritySetting).order_by(
+            BhxhSenioritySetting.effective_from.desc(),
+            BhxhSenioritySetting.id.desc(),
+        )
+    )
+    items = list(rows.scalars().all())
+    history = [_seniority_to_read(item) for item in items]
+    current = next((item for item in history if item["effective_to"] is None), None)
+    return {"current": current, "history": history}
+
+
+async def create_bhxh_seniority_setting(
+    session: AsyncSession,
+    payload: BhxhSenioritySettingCreate,
+) -> dict:
+    rows = await session.execute(
+        select(BhxhSenioritySetting)
+        .where(BhxhSenioritySetting.effective_to.is_(None))
+        .order_by(BhxhSenioritySetting.effective_from.desc(), BhxhSenioritySetting.id.desc())
+    )
+    current = rows.scalars().first()
+    if current and payload.effective_from <= current.effective_from:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Ngày hiệu lực rule thâm niên mới phải lớn hơn rule đang hiệu lực",
+        )
+
+    if current:
+        current.effective_to = payload.effective_from - timedelta(days=1)
+        current.updated_at = _utcnow()
+
+    new_row = BhxhSenioritySetting(
+        raise_month=payload.raise_month,
+        raise_day=payload.raise_day,
+        years_per_grade=payload.years_per_grade,
+        first_year_cutoff_month=payload.first_year_cutoff_month,
+        first_year_cutoff_day=payload.first_year_cutoff_day,
+        effective_from=payload.effective_from,
+        effective_to=None,
+        note=payload.note,
+    )
+    session.add(new_row)
+    await session.commit()
+    return await get_bhxh_seniority_settings(session)
+
+
+async def update_bhxh_seniority_setting(
+    session: AsyncSession,
+    setting_id: int,
+    payload: BhxhSenioritySettingUpdate,
+) -> dict:
+    row = await session.get(BhxhSenioritySetting, setting_id)
+    if not row:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Không tìm thấy cấu hình rule thâm niên")
+
+    provided = payload.model_fields_set
+    if "raise_month" in provided and payload.raise_month is not None:
+        row.raise_month = payload.raise_month
+    if "raise_day" in provided and payload.raise_day is not None:
+        row.raise_day = payload.raise_day
+    if "years_per_grade" in provided and payload.years_per_grade is not None:
+        row.years_per_grade = payload.years_per_grade
+    if "first_year_cutoff_month" in provided and payload.first_year_cutoff_month is not None:
+        row.first_year_cutoff_month = payload.first_year_cutoff_month
+    if "first_year_cutoff_day" in provided and payload.first_year_cutoff_day is not None:
+        row.first_year_cutoff_day = payload.first_year_cutoff_day
+    if "note" in provided:
+        row.note = payload.note
+    row.updated_at = _utcnow()
+
+    session.add(row)
+    await session.commit()
+    return await get_bhxh_seniority_settings(session)
+
+
+async def delete_bhxh_seniority_setting(session: AsyncSession, setting_id: int) -> dict:
+    row = await session.get(BhxhSenioritySetting, setting_id)
+    if not row:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Không tìm thấy cấu hình rule thâm niên")
+
+    rows = await session.execute(
+        select(BhxhSenioritySetting).order_by(
+            BhxhSenioritySetting.effective_from.asc(),
+            BhxhSenioritySetting.id.asc(),
+        )
+    )
+    items = list(rows.scalars().all())
+    idx = next((i for i, item in enumerate(items) if item.id == row.id), None)
+    if idx is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Không tìm thấy cấu hình rule thâm niên")
+
+    previous = items[idx - 1] if idx > 0 else None
+    following = items[idx + 1] if idx + 1 < len(items) else None
+
+    if previous:
+        previous.effective_to = (following.effective_from - timedelta(days=1)) if following else None
+        previous.updated_at = _utcnow()
+        session.add(previous)
+
+    await session.delete(row)
+    await session.commit()
+    return await get_bhxh_seniority_settings(session)

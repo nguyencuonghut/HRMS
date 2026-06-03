@@ -8,7 +8,7 @@ from sqlmodel import Field, SQLModel, Column
 
 
 def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 class RegionalMinimumWage(SQLModel, table=True):
@@ -117,3 +117,30 @@ class SalaryScaleEntry(SQLModel, table=True):
         default=None,
         sa_column=Column(sa.Text(), nullable=True),
     )
+
+
+class BhxhSenioritySetting(SQLModel, table=True):
+    """
+    Rule thâm niên dùng chung của công ty để xét tăng bậc BHXH.
+    Phase 1 chỉ cần một rule active, nhưng vẫn lưu lịch sử theo effective date.
+    """
+
+    __tablename__ = "bhxh_seniority_settings"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    raise_month: int = Field(sa_column=Column(sa.SmallInteger(), nullable=False))
+    raise_day: int = Field(sa_column=Column(sa.SmallInteger(), nullable=False))
+    years_per_grade: int = Field(sa_column=Column(sa.SmallInteger(), nullable=False))
+    first_year_cutoff_month: int = Field(sa_column=Column(sa.SmallInteger(), nullable=False))
+    first_year_cutoff_day: int = Field(sa_column=Column(sa.SmallInteger(), nullable=False))
+    effective_from: date = Field(sa_column=Column(sa.Date(), nullable=False))
+    effective_to: Optional[date] = Field(
+        default=None,
+        sa_column=Column(sa.Date(), nullable=True),
+    )
+    note: Optional[str] = Field(
+        default=None,
+        sa_column=Column(sa.Text(), nullable=True),
+    )
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: Optional[datetime] = Field(default=None)

@@ -38,6 +38,7 @@ from app.models.salary import (  # noqa: F401
     CompanyBhxhRegion,
     SalaryScale,
     SalaryScaleEntry,
+    BhxhSenioritySetting,
 )
 from app.models.insurance import (  # noqa: F401
     InsuranceContributionComponent,

@@ -58,6 +58,29 @@
         </div>
         <div v-else class="insurance-card-empty">Chưa có vùng hiệu lực</div>
       </div>
+
+      <div class="card insurance-summary-card">
+        <div class="insurance-card-label">LTTV vùng công ty</div>
+        <div v-if="currentRegionMinimumWage" class="insurance-card-main">
+          {{ formatCurrency(currentRegionMinimumWage.amount) }}
+        </div>
+        <div v-if="currentRegionMinimumWage" class="insurance-card-sub">
+          {{ regionLabel(currentRegionMinimumWage.region) }} · {{ currentRegionMinimumWage.decree_number }}
+        </div>
+        <div v-else class="insurance-card-empty">Chưa có cấu hình hiệu lực</div>
+      </div>
+
+      <div class="card insurance-summary-card">
+        <div class="insurance-card-label">Rule thâm niên BHXH</div>
+        <div v-if="senioritySettings.current" class="insurance-card-main">
+          {{ senioritySettings.current.years_per_grade }} năm / 1 bậc
+        </div>
+        <div v-if="senioritySettings.current" class="insurance-card-sub">
+          Nâng bậc ngày {{ formatMonthDay(senioritySettings.current.raise_month, senioritySettings.current.raise_day) }}
+          · Cutoff {{ formatMonthDay(senioritySettings.current.first_year_cutoff_month, senioritySettings.current.first_year_cutoff_day) }}
+        </div>
+        <div v-else class="insurance-card-empty">Chưa có rule hiệu lực</div>
+      </div>
     </div>
 
     <div class="insurance-section-grid">
@@ -188,6 +211,78 @@
       </DataTable>
     </div>
 
+    <div class="insurance-section-grid insurance-config-sections">
+      <div class="card insurance-region-history-card">
+        <div class="section-heading">
+          <h3>Lương tối thiểu vùng</h3>
+          <Button label="Thêm cấu hình LTTV" icon="pi pi-plus" size="small" @click="openCreateMinimumWageDialog" />
+        </div>
+
+        <DataTable :value="minimumWages" stripedRows responsive-layout="scroll">
+          <Column header="Vùng" style="width: 140px">
+            <template #body="{ data }">{{ regionLabel(data.region) }}</template>
+          </Column>
+          <Column field="amount" header="Mức lương" style="width: 180px">
+            <template #body="{ data }">{{ formatCurrency(data.amount) }}</template>
+          </Column>
+          <Column field="decree_number" header="Nghị định" style="width: 180px" />
+          <Column header="Hiệu lực" style="width: 200px">
+            <template #body="{ data }">
+              <div class="range-cell">
+                <span>{{ formatDate(data.effective_from) }}</span>
+                <span>{{ data.effective_to ? `→ ${formatDate(data.effective_to)}` : '→ hiện tại' }}</span>
+              </div>
+            </template>
+          </Column>
+          <Column field="note" header="Ghi chú" style="min-width: 220px" />
+          <Column header="" style="width: 120px">
+            <template #body="{ data }">
+              <div class="action-cell">
+                <Button icon="pi pi-pencil" severity="secondary" text rounded size="small" @click="openEditMinimumWageDialog(data)" />
+                <Button icon="pi pi-trash" severity="danger" text rounded size="small" @click="confirmDeleteMinimumWage(data)" />
+              </div>
+            </template>
+          </Column>
+        </DataTable>
+      </div>
+
+      <div class="card insurance-region-history-card">
+        <div class="section-heading">
+          <h3>Rule thâm niên BHXH</h3>
+          <Button label="Thêm rule thâm niên" icon="pi pi-plus" size="small" @click="openCreateSeniorityDialog" />
+        </div>
+
+        <DataTable :value="senioritySettings.history" stripedRows responsive-layout="scroll">
+          <Column header="Ngày nâng bậc" style="width: 160px">
+            <template #body="{ data }">{{ formatMonthDay(data.raise_month, data.raise_day) }}</template>
+          </Column>
+          <Column header="Chu kỳ" style="width: 170px">
+            <template #body="{ data }">{{ data.years_per_grade }} năm / 1 bậc</template>
+          </Column>
+          <Column header="Cutoff năm đầu" style="width: 170px">
+            <template #body="{ data }">{{ formatMonthDay(data.first_year_cutoff_month, data.first_year_cutoff_day) }}</template>
+          </Column>
+          <Column header="Hiệu lực" style="width: 200px">
+            <template #body="{ data }">
+              <div class="range-cell">
+                <span>{{ formatDate(data.effective_from) }}</span>
+                <span>{{ data.effective_to ? `→ ${formatDate(data.effective_to)}` : '→ hiện tại' }}</span>
+              </div>
+            </template>
+          </Column>
+          <Column field="note" header="Ghi chú" style="min-width: 220px" />
+          <Column header="" style="width: 120px">
+            <template #body="{ data }">
+              <div class="action-cell">
+                <Button icon="pi pi-pencil" severity="secondary" text rounded size="small" @click="openEditSeniorityDialog(data)" />
+                <Button icon="pi pi-trash" severity="danger" text rounded size="small" @click="confirmDeleteSeniority(data)" />
+              </div>
+            </template>
+          </Column>
+        </DataTable>
+      </div>
+    </div>
+
     <div class="card ins-date-checker">
       <div class="section-heading">
         <h3>Kiểm tra cấu hình theo ngày</h3>
@@ -316,6 +411,94 @@
         </div>
       </form>
     </Dialog>
+
+    <Dialog
+      v-model:visible="minimumWageDialogVisible"
+      :header="editingMinimumWage ? 'Cập nhật lương tối thiểu vùng' : 'Thêm cấu hình lương tối thiểu vùng'"
+      :style="{ width: '560px' }"
+      modal
+      :close-on-escape="!submittingMinimumWage"
+      :closable="!submittingMinimumWage"
+    >
+      <form class="insurance-region-form" @submit.prevent="submitMinimumWage">
+        <div class="field-row-2">
+          <div class="field">
+            <label>Vùng <span class="req">*</span></label>
+            <Select v-model="minimumWageForm.region" :options="regionOptions" option-label="label" option-value="value" filter class="w-full" :disabled="!!editingMinimumWage" />
+          </div>
+          <div class="field">
+            <label>Ngày hiệu lực <span class="req">*</span></label>
+            <input v-model="minimumWageForm.effective_from" class="p-inputtext p-component w-full" type="date" :disabled="!!editingMinimumWage" />
+          </div>
+        </div>
+        <div class="field-row-2">
+          <div class="field">
+            <label>Mức lương tối thiểu <span class="req">*</span></label>
+            <InputNumber v-model="minimumWageForm.amount" class="w-full" :min="1" mode="currency" currency="VND" locale="vi-VN" />
+          </div>
+          <div class="field">
+            <label>Nghị định <span class="req">*</span></label>
+            <InputText v-model="minimumWageForm.decree_number" class="w-full" />
+          </div>
+        </div>
+        <div class="field">
+          <label>Ghi chú</label>
+          <Textarea v-model="minimumWageForm.note" class="w-full" rows="3" auto-resize />
+        </div>
+        <div class="dialog-actions">
+          <Button type="button" label="Hủy" severity="secondary" text :disabled="submittingMinimumWage" @click="minimumWageDialogVisible = false" />
+          <Button type="submit" :label="editingMinimumWage ? 'Lưu thay đổi' : 'Thêm cấu hình'" icon="pi pi-check" :loading="submittingMinimumWage" />
+        </div>
+      </form>
+    </Dialog>
+
+    <Dialog
+      v-model:visible="seniorityDialogVisible"
+      :header="editingSeniority ? 'Cập nhật rule thâm niên BHXH' : 'Thêm rule thâm niên BHXH'"
+      :style="{ width: '640px' }"
+      modal
+      :close-on-escape="!submittingSeniority"
+      :closable="!submittingSeniority"
+    >
+      <form class="insurance-region-form" @submit.prevent="submitSeniority">
+        <div class="field-row-3">
+          <div class="field">
+            <label>Tháng nâng bậc <span class="req">*</span></label>
+            <InputNumber v-model="seniorityForm.raise_month" class="w-full" :min="1" :max="12" />
+          </div>
+          <div class="field">
+            <label>Ngày nâng bậc <span class="req">*</span></label>
+            <InputNumber v-model="seniorityForm.raise_day" class="w-full" :min="1" :max="31" />
+          </div>
+          <div class="field">
+            <label>Số năm / bậc <span class="req">*</span></label>
+            <InputNumber v-model="seniorityForm.years_per_grade" class="w-full" :min="1" />
+          </div>
+        </div>
+        <div class="field-row-3">
+          <div class="field">
+            <label>Tháng cutoff năm đầu <span class="req">*</span></label>
+            <InputNumber v-model="seniorityForm.first_year_cutoff_month" class="w-full" :min="1" :max="12" />
+          </div>
+          <div class="field">
+            <label>Ngày cutoff năm đầu <span class="req">*</span></label>
+            <InputNumber v-model="seniorityForm.first_year_cutoff_day" class="w-full" :min="1" :max="31" />
+          </div>
+          <div class="field">
+            <label>Ngày hiệu lực <span class="req">*</span></label>
+            <input v-model="seniorityForm.effective_from" class="p-inputtext p-component w-full" type="date" :disabled="!!editingSeniority" />
+          </div>
+        </div>
+        <div class="field">
+          <label>Ghi chú</label>
+          <Textarea v-model="seniorityForm.note" class="w-full" rows="3" auto-resize />
+        </div>
+        <div class="dialog-actions">
+          <Button type="button" label="Hủy" severity="secondary" text :disabled="submittingSeniority" @click="seniorityDialogVisible = false" />
+          <Button type="submit" :label="editingSeniority ? 'Lưu thay đổi' : 'Thêm rule'" icon="pi pi-check" :loading="submittingSeniority" />
+        </div>
+      </form>
+    </Dialog>
   </div>
 </template>
 
@@ -335,12 +518,19 @@ import Tag from 'primevue/tag'
 import Textarea from 'primevue/textarea'
 import { useToast } from 'primevue/usetoast'
 import insuranceService, {
+  type BhxhSenioritySettingCreate,
+  type BhxhSenioritySettingRead,
+  type BhxhSenioritySettingsRead,
+  type BhxhSenioritySettingUpdate,
   type CompanyRegionRead,
   type InsuranceContributionComponentRead,
   type InsuranceEffectiveContributionConfigRead,
   type InsurancePolicyVersionCreate,
   type InsurancePolicyVersionRead,
   type InsurancePolicyVersionUpdate,
+  type RegionalMinimumWageCreate,
+  type RegionalMinimumWageRead,
+  type RegionalMinimumWageUpdate,
 } from '@/services/insuranceService'
 
 type PolicyFormComponent = {
@@ -359,14 +549,22 @@ const loading = ref(false)
 const submitting = ref(false)
 const submittingRegion = ref(false)
 const activatingPolicyId = ref<number | null>(null)
+const submittingMinimumWage = ref(false)
+const submittingSeniority = ref(false)
 
 const policyVersions = ref<InsurancePolicyVersionRead[]>([])
 const components = ref<InsuranceContributionComponentRead[]>([])
 const companyRegion = ref<CompanyRegionRead>({ current: null, history: [] })
+const minimumWages = ref<RegionalMinimumWageRead[]>([])
+const senioritySettings = ref<BhxhSenioritySettingsRead>({ current: null, history: [] })
 
 const policyDialogVisible = ref(false)
 const regionDialogVisible = ref(false)
+const minimumWageDialogVisible = ref(false)
+const seniorityDialogVisible = ref(false)
 const editingPolicy = ref<InsurancePolicyVersionRead | null>(null)
+const editingMinimumWage = ref<RegionalMinimumWageRead | null>(null)
+const editingSeniority = ref<BhxhSenioritySettingRead | null>(null)
 
 const policyForm = ref({
   code: '',
@@ -384,6 +582,24 @@ const regionForm = ref({
   note: '',
 })
 
+const minimumWageForm = ref({
+  decree_number: '',
+  region: 3,
+  amount: 4_140_000,
+  effective_from: '',
+  note: '',
+})
+
+const seniorityForm = ref({
+  raise_month: 1,
+  raise_day: 1,
+  years_per_grade: 3,
+  first_year_cutoff_month: 4,
+  first_year_cutoff_day: 30,
+  effective_from: '',
+  note: '',
+})
+
 const regionOptions = [
   { label: 'Vùng I', value: 1 },
   { label: 'Vùng II', value: 2 },
@@ -397,6 +613,11 @@ const checkError = ref('')
 const checkingDate = ref(false)
 
 const activePolicy = computed(() => policyVersions.value.find((item) => item.is_active) ?? null)
+const currentRegionMinimumWage = computed(() => {
+  const region = companyRegion.value.current?.region
+  if (!region) return null
+  return minimumWages.value.find((item) => item.region === region && item.effective_to === null) ?? null
+})
 
 const _kindOrder = ['bhxh', 'bhyt', 'bhtn']
 const _kindLabels: Record<string, string> = {
@@ -442,6 +663,14 @@ function formatPercent(value: string | number) {
   return `${n.toFixed(n % 1 === 0 ? 0 : 2)}%`
 }
 
+function formatCurrency(value: number) {
+  return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(value)
+}
+
+function formatMonthDay(month: number, day: number) {
+  return `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}`
+}
+
 function totalRate(item: { employee_rate_percent: string; employer_rate_percent: string }) {
   return Number(item.employee_rate_percent) + Number(item.employer_rate_percent)
 }
@@ -468,14 +697,18 @@ function buildDefaultComponentFormRows() {
 async function loadAll() {
   loading.value = true
   try {
-    const [componentsResp, policyResp, regionResp] = await Promise.all([
+    const [componentsResp, policyResp, regionResp, minimumWagesResp, seniorityResp] = await Promise.all([
       insuranceService.getComponents(),
       insuranceService.getPolicyVersions(),
       insuranceService.getCompanyRegion(),
+      insuranceService.getMinimumWages(),
+      insuranceService.getSenioritySettings(),
     ])
     components.value = componentsResp.data
     policyVersions.value = policyResp.data
     companyRegion.value = regionResp.data
+    minimumWages.value = minimumWagesResp.data
+    senioritySettings.value = seniorityResp.data
   } catch (error) {
     toast.add({ severity: 'error', summary: 'Lỗi', detail: apiError(error), life: 5000 })
   } finally {
@@ -555,6 +788,66 @@ function openRegionDialog() {
     note: '',
   }
   regionDialogVisible.value = true
+}
+
+function resetMinimumWageForm() {
+  minimumWageForm.value = {
+    decree_number: '',
+    region: companyRegion.value.current?.region ?? 3,
+    amount: currentRegionMinimumWage.value?.amount ?? 4_140_000,
+    effective_from: '',
+    note: '',
+  }
+}
+
+function openCreateMinimumWageDialog() {
+  editingMinimumWage.value = null
+  resetMinimumWageForm()
+  minimumWageDialogVisible.value = true
+}
+
+function openEditMinimumWageDialog(item: RegionalMinimumWageRead) {
+  editingMinimumWage.value = item
+  minimumWageForm.value = {
+    decree_number: item.decree_number,
+    region: item.region,
+    amount: item.amount,
+    effective_from: item.effective_from,
+    note: item.note ?? '',
+  }
+  minimumWageDialogVisible.value = true
+}
+
+function resetSeniorityForm() {
+  seniorityForm.value = {
+    raise_month: senioritySettings.value.current?.raise_month ?? 1,
+    raise_day: senioritySettings.value.current?.raise_day ?? 1,
+    years_per_grade: senioritySettings.value.current?.years_per_grade ?? 3,
+    first_year_cutoff_month: senioritySettings.value.current?.first_year_cutoff_month ?? 4,
+    first_year_cutoff_day: senioritySettings.value.current?.first_year_cutoff_day ?? 30,
+    effective_from: '',
+    note: '',
+  }
+}
+
+function openCreateSeniorityDialog() {
+  editingSeniority.value = null
+  resetSeniorityForm()
+  seniorityDialogVisible.value = true
+}
+
+function openEditSeniorityDialog(item: BhxhSenioritySettingRead) {
+  editingSeniority.value = item
+  seniorityForm.value = {
+    raise_month: item.raise_month,
+    raise_day: item.raise_day,
+    years_per_grade: item.years_per_grade,
+    first_year_cutoff_month: item.first_year_cutoff_month,
+    first_year_cutoff_day: item.first_year_cutoff_day,
+    effective_from: item.effective_from,
+    note: item.note ?? '',
+  }
+  seniorityDialogVisible.value = true
 }
 
 async function submitPolicy() {
@@ -672,6 +965,125 @@ async function submitRegion() {
   } finally {
     submittingRegion.value = false
   }
+}
+
+async function submitMinimumWage() {
+  submittingMinimumWage.value = true
+  try {
+    if (editingMinimumWage.value) {
+      const payload: RegionalMinimumWageUpdate = {
+        decree_number: minimumWageForm.value.decree_number,
+        amount: minimumWageForm.value.amount,
+        note: minimumWageForm.value.note || null,
+      }
+      await insuranceService.updateMinimumWage(editingMinimumWage.value.id, payload)
+      toast.add({ severity: 'success', summary: 'Thành công', detail: 'Đã cập nhật lương tối thiểu vùng', life: 3000 })
+    } else {
+      const payload: RegionalMinimumWageCreate = {
+        decree_number: minimumWageForm.value.decree_number,
+        region: minimumWageForm.value.region,
+        amount: minimumWageForm.value.amount,
+        effective_from: minimumWageForm.value.effective_from,
+        note: minimumWageForm.value.note || null,
+      }
+      await insuranceService.createMinimumWage(payload)
+      toast.add({ severity: 'success', summary: 'Thành công', detail: 'Đã thêm cấu hình lương tối thiểu vùng', life: 3000 })
+    }
+    minimumWageDialogVisible.value = false
+    await loadAll()
+  } catch (error) {
+    toast.add({ severity: 'error', summary: 'Lỗi', detail: apiError(error), life: 5000 })
+  } finally {
+    submittingMinimumWage.value = false
+  }
+}
+
+function confirmDeleteMinimumWage(item: RegionalMinimumWageRead) {
+  confirm.require({
+    message: `Xóa cấu hình LTTV ${regionLabel(item.region)} · ${formatDate(item.effective_from)}?`,
+    header: 'Xác nhận xóa LTTV',
+    icon: 'pi pi-exclamation-triangle',
+    rejectProps: {
+      label: 'Không',
+      severity: 'secondary',
+      outlined: true,
+    },
+    acceptProps: {
+      label: 'Xóa',
+      severity: 'danger',
+    },
+    accept: async () => {
+      try {
+        await insuranceService.deleteMinimumWage(item.id)
+        toast.add({ severity: 'success', summary: 'Thành công', detail: 'Đã xóa cấu hình lương tối thiểu vùng', life: 3000 })
+        await loadAll()
+      } catch (error) {
+        toast.add({ severity: 'error', summary: 'Lỗi', detail: apiError(error), life: 5000 })
+      }
+    },
+  })
+}
+
+async function submitSeniority() {
+  submittingSeniority.value = true
+  try {
+    if (editingSeniority.value) {
+      const payload: BhxhSenioritySettingUpdate = {
+        raise_month: seniorityForm.value.raise_month,
+        raise_day: seniorityForm.value.raise_day,
+        years_per_grade: seniorityForm.value.years_per_grade,
+        first_year_cutoff_month: seniorityForm.value.first_year_cutoff_month,
+        first_year_cutoff_day: seniorityForm.value.first_year_cutoff_day,
+        note: seniorityForm.value.note || null,
+      }
+      await insuranceService.updateSenioritySetting(editingSeniority.value.id, payload)
+      toast.add({ severity: 'success', summary: 'Thành công', detail: 'Đã cập nhật rule thâm niên BHXH', life: 3000 })
+    } else {
+      const payload: BhxhSenioritySettingCreate = {
+        raise_month: seniorityForm.value.raise_month,
+        raise_day: seniorityForm.value.raise_day,
+        years_per_grade: seniorityForm.value.years_per_grade,
+        first_year_cutoff_month: seniorityForm.value.first_year_cutoff_month,
+        first_year_cutoff_day: seniorityForm.value.first_year_cutoff_day,
+        effective_from: seniorityForm.value.effective_from,
+        note: seniorityForm.value.note || null,
+      }
+      await insuranceService.createSenioritySetting(payload)
+      toast.add({ severity: 'success', summary: 'Thành công', detail: 'Đã thêm rule thâm niên BHXH', life: 3000 })
+    }
+    seniorityDialogVisible.value = false
+    await loadAll()
+  } catch (error) {
+    toast.add({ severity: 'error', summary: 'Lỗi', detail: apiError(error), life: 5000 })
+  } finally {
+    submittingSeniority.value = false
+  }
+}
+
+function confirmDeleteSeniority(item: BhxhSenioritySettingRead) {
+  confirm.require({
+    message: `Xóa rule thâm niên hiệu lực từ ${formatDate(item.effective_from)}?`,
+    header: 'Xác nhận xóa rule thâm niên',
+    icon: 'pi pi-exclamation-triangle',
+    rejectProps: {
+      label: 'Không',
+      severity: 'secondary',
+      outlined: true,
+    },
+    acceptProps: {
+      label: 'Xóa',
+      severity: 'danger',
+    },
+    accept: async () => {
+      try {
+        await insuranceService.deleteSenioritySetting(item.id)
+        toast.add({ severity: 'success', summary: 'Thành công', detail: 'Đã xóa rule thâm niên BHXH', life: 3000 })
+        await loadAll()
+      } catch (error) {
+        toast.add({ severity: 'error', summary: 'Lỗi', detail: apiError(error), life: 5000 })
+      }
+    },
+  })
 }
 
 onMounted(async () => {

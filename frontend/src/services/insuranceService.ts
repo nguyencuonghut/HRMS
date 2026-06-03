@@ -76,6 +76,68 @@ export interface CompanyRegionUpsert {
   note?: string | null
 }
 
+export interface RegionalMinimumWageRead {
+  id: number
+  decree_number: string
+  region: number
+  amount: number
+  effective_from: string
+  effective_to: string | null
+  note: string | null
+}
+
+export interface RegionalMinimumWageCreate {
+  decree_number: string
+  region: number
+  amount: number
+  effective_from: string
+  note?: string | null
+}
+
+export interface RegionalMinimumWageUpdate {
+  decree_number?: string
+  amount?: number
+  note?: string | null
+}
+
+export interface BhxhSenioritySettingRead {
+  id: number
+  raise_month: number
+  raise_day: number
+  years_per_grade: number
+  first_year_cutoff_month: number
+  first_year_cutoff_day: number
+  effective_from: string
+  effective_to: string | null
+  note: string | null
+  created_at: string
+  updated_at: string | null
+}
+
+export interface BhxhSenioritySettingCreate {
+  raise_month: number
+  raise_day: number
+  years_per_grade: number
+  first_year_cutoff_month: number
+  first_year_cutoff_day: number
+  effective_from: string
+  note?: string | null
+}
+
+export interface BhxhSenioritySettingUpdate {
+  raise_month?: number
+  raise_day?: number
+  years_per_grade?: number
+  first_year_cutoff_month?: number
+  first_year_cutoff_day?: number
+  note?: string | null
+}
+
+export interface BhxhSenioritySettingsRead {
+  current: BhxhSenioritySettingRead | null
+  history: BhxhSenioritySettingRead[]
+}
+
 export interface InsuranceEffectiveContributionConfigRead {
   as_of_date: string
   company_region: CompanyRegionHistoryItem
@@ -259,6 +321,30 @@ export default {
 
   updateCompanyRegion: (payload: CompanyRegionUpsert) =>
     api.put<CompanyRegionRead>('/insurance/company-region', payload),
+
+  getMinimumWages: () =>
+    api.get<RegionalMinimumWageRead[]>('/insurance/minimum-wages'),
+
+  createMinimumWage: (payload: RegionalMinimumWageCreate) =>
+    api.post<RegionalMinimumWageRead>('/insurance/minimum-wages', payload),
+
+  updateMinimumWage: (wageId: number, payload: RegionalMinimumWageUpdate) =>
+    api.put<RegionalMinimumWageRead>(`/insurance/minimum-wages/${wageId}`, payload),
+
+  deleteMinimumWage: (wageId: number) =>
+    api.delete(`/insurance/minimum-wages/${wageId}`),
+
+  getSenioritySettings: () =>
+    api.get<BhxhSenioritySettingsRead>('/insurance/seniority-settings'),
+
+  createSenioritySetting: (payload: BhxhSenioritySettingCreate) =>
+    api.post<BhxhSenioritySettingsRead>('/insurance/seniority-settings', payload),
+
+  updateSenioritySetting: (settingId: number, payload: BhxhSenioritySettingUpdate) =>
+    api.put<BhxhSenioritySettingsRead>(`/insurance/seniority-settings/${settingId}`, payload),
+
+  deleteSenioritySetting: (settingId: number) =>
+    api.delete<BhxhSenioritySettingsRead>(`/insurance/seniority-settings/${settingId}`),
 
   getEffectiveConfig: (asOfDate: string) =>
     api.get<InsuranceEffectiveContributionConfigRead>('/insurance/effective-config', { params: { as_of_date: asOfDate } }),

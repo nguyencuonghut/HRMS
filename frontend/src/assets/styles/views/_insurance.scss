@@ -52,6 +52,10 @@
     align-items: start;
   }
 
+  .insurance-config-sections {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .insurance-summary-card,
   .insurance-policy-list-card,
   .insurance-active-rates-card,
@@ -107,6 +111,12 @@
     gap: 0.25rem;
   }
 
+  .field-row-2 {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+  }
+
   .rate-cell strong {
     color: var(--p-primary-color);
   }
@@ -156,7 +166,9 @@ html.dark-mode {
   .insurance-view,
   .insurance-foundation-view {
     .insurance-summary-grid,
-    .insurance-section-grid {
+    .insurance-section-grid,
+    .insurance-config-sections,
+    .field-row-2 {
       grid-template-columns: 1fr;
     }
   }

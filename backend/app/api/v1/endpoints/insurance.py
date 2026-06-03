@@ -14,6 +14,9 @@ from app.schemas.employee_insurance import (
     EmployeeInsuranceProfileUpdate,
 )
 from app.schemas.insurance import (
+    BhxhSenioritySettingCreate,
+    BhxhSenioritySettingsRead,
+    BhxhSenioritySettingUpdate,
     CompanyRegionRead,
     CompanyRegionUpsert,
     InsuranceEffectiveContributionConfigRead,
@@ -21,6 +24,9 @@ from app.schemas.insurance import (
     InsurancePolicyVersionCreate,
     InsurancePolicyVersionRead,
     InsurancePolicyVersionUpdate,
+    RegionalMinimumWageCreate,
+    RegionalMinimumWageRead,
+    RegionalMinimumWageUpdate,
 )
 from app.schemas.insurance_change import (
     InsuranceChangeEventCreate,
@@ -135,6 +141,112 @@ async def update_company_bhxh_region(
     session: AsyncSession = Depends(get_session),
 ):
     return await insurance_policy_service.upsert_company_region(session, body)
+
+
+@router.get(
+    "/minimum-wages",
+    response_model=list[RegionalMinimumWageRead],
+    summary="Danh sách cấu hình lương tối thiểu vùng",
+)
+async def list_regional_minimum_wages(
+    _: User = require_permission("insurance:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await insurance_policy_service.list_minimum_wages(session)
+
+
+@router.post(
+    "/minimum-wages",
+    response_model=RegionalMinimumWageRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Tạo cấu hình lương tối thiểu vùng mới",
+)
+async def create_regional_minimum_wage(
+    body: RegionalMinimumWageCreate,
+    _: User = require_permission("insurance:create"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await insurance_policy_service.create_minimum_wage(session, body)
+
+
+@router.put(
+    "/minimum-wages/{wage_id}",
+    response_model=RegionalMinimumWageRead,
+    summary="Cập nhật cấu hình lương tối thiểu vùng",
+)
+async def update_regional_minimum_wage(
+    wage_id: int,
+    body: RegionalMinimumWageUpdate,
+    _: User = require_permission("insurance:edit"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await insurance_policy_service.update_minimum_wage(session, wage_id, body)
+
+
+@router.delete(
+    "/minimum-wages/{wage_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Xóa cấu hình lương tối thiểu vùng",
+)
+async def delete_regional_minimum_wage(
+    wage_id: int,
+    _: User = require_permission("insurance:delete"),
+    session: AsyncSession = Depends(get_session),
+):
+    await insurance_policy_service.delete_minimum_wage(session, wage_id)
+
+
+@router.get(
+    "/seniority-settings",
+    response_model=BhxhSenioritySettingsRead,
+    summary="Xem rule thâm niên BHXH hiện hành và lịch sử",
+)
+async def get_bhxh_seniority_settings(
+    _: User = require_permission("insurance:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await insurance_policy_service.get_bhxh_seniority_settings(session)
+
+
+@router.post(
+    "/seniority-settings",
+    response_model=BhxhSenioritySettingsRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Tạo rule thâm niên BHXH mới",
+)
+async def create_bhxh_seniority_setting(
+    body: BhxhSenioritySettingCreate,
+    _: User = require_permission("insurance:create"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await insurance_policy_service.create_bhxh_seniority_setting(session, body)
+
+
+@router.put(
+    "/seniority-settings/{setting_id}",
+    response_model=BhxhSenioritySettingsRead,
+    summary="Cập nhật rule thâm niên BHXH",
+)
+async def update_bhxh_seniority_setting(
+    setting_id: int,
+    body: BhxhSenioritySettingUpdate,
+    _: User = require_permission("insurance:edit"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await insurance_policy_service.update_bhxh_seniority_setting(session, setting_id, body)
+
+
+@router.delete(
+    "/seniority-settings/{setting_id}",
+    response_model=BhxhSenioritySettingsRead,
+    summary="Xóa rule thâm niên BHXH",
+)
+async def delete_bhxh_seniority_setting(
+    setting_id: int,
+    _: User = require_permission("insurance:delete"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await insurance_policy_service.delete_bhxh_seniority_setting(session, setting_id)
 
 
 # ── Employee insurance profile endpoints ──────────────────────────────────────
