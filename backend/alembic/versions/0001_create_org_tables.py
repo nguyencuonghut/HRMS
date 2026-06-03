@@ -246,6 +246,7 @@ def upgrade() -> None:
         "ix_regional_minimum_wages_lookup",
         "regional_minimum_wages",
         ["region", "effective_from"],
+        unique=True,
     )
 
     # ──────────────────────────────────────────────────────────────────────

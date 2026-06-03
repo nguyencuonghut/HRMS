@@ -38,6 +38,15 @@ class RegionalMinimumWage(SQLModel, table=True):
         sa_column=Column(sa.Text(), nullable=True),
     )
 
+    __table_args__ = (
+        sa.Index(
+            "ix_regional_minimum_wages_lookup",
+            "region",
+            "effective_from",
+            unique=True,
+        ),
+    )
+
 
 class CompanyBhxhRegion(SQLModel, table=True):
     """

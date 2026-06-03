@@ -203,6 +203,42 @@
 
     <div class="card insurance-region-history-card">
       <div class="section-heading">
+        <h3>Rule thâm niên BHXH</h3>
+        <Button label="Thêm rule thâm niên" icon="pi pi-plus" size="small" @click="openCreateSeniorityDialog" />
+      </div>
+
+      <DataTable :value="senioritySettings.history" stripedRows responsive-layout="scroll">
+        <Column header="Ngày nâng bậc" style="width: 160px">
+          <template #body="{ data }">{{ formatMonthDay(data.raise_month, data.raise_day) }}</template>
+        </Column>
+        <Column header="Chu kỳ" style="width: 170px">
+          <template #body="{ data }">{{ data.years_per_grade }} năm / 1 bậc</template>
+        </Column>
+        <Column header="Cutoff năm đầu" style="width: 170px">
+          <template #body="{ data }">{{ formatMonthDay(data.first_year_cutoff_month, data.first_year_cutoff_day) }}</template>
+        </Column>
+        <Column header="Hiệu lực" style="width: 200px">
+          <template #body="{ data }">
+            <div class="range-cell">
+              <span>{{ formatDate(data.effective_from) }}</span>
+              <span>{{ data.effective_to ? `→ ${formatDate(data.effective_to)}` : '→ hiện tại' }}</span>
+            </div>
+          </template>
+        </Column>
+        <Column field="note" header="Ghi chú" style="min-width: 220px" />
+        <Column header="" style="width: 120px">
+          <template #body="{ data }">
+            <div class="action-cell">
+              <Button icon="pi pi-pencil" severity="secondary" text rounded size="small" @click="openEditSeniorityDialog(data)" />
+              <Button icon="pi pi-trash" severity="danger" text rounded size="small" @click="confirmDeleteSeniority(data)" />
+            </div>
+          </template>
+        </Column>
+      </DataTable>
+    </div>
+
+    <div class="card insurance-region-history-card">
+      <div class="section-heading">
         <h3>Lịch sử vùng BHXH công ty</h3>
       </div>
 
@@ -220,125 +256,87 @@
       </DataTable>
     </div>
 
-    <div class="insurance-section-grid insurance-config-sections">
-      <div class="card insurance-region-history-card">
-        <div class="section-heading">
-          <h3>Lương tối thiểu vùng</h3>
-          <Button label="Thêm cấu hình LTTV" icon="pi pi-plus" size="small" @click="openCreateMinimumWageDialog" />
-        </div>
-
-        <DataTable :value="minimumWages" stripedRows responsive-layout="scroll">
-          <Column header="Vùng" style="width: 140px">
-            <template #body="{ data }">{{ regionLabel(data.region) }}</template>
-          </Column>
-          <Column field="amount" header="Mức lương" style="width: 180px">
-            <template #body="{ data }">{{ formatCurrency(data.amount) }}</template>
-          </Column>
-          <Column field="decree_number" header="Nghị định" style="width: 180px" />
-          <Column header="Hiệu lực" style="width: 200px">
-            <template #body="{ data }">
-              <div class="range-cell">
-                <span>{{ formatDate(data.effective_from) }}</span>
-                <span>{{ data.effective_to ? `→ ${formatDate(data.effective_to)}` : '→ hiện tại' }}</span>
-              </div>
-            </template>
-          </Column>
-          <Column field="note" header="Ghi chú" style="min-width: 220px" />
-          <Column header="" style="width: 120px">
-            <template #body="{ data }">
-              <div class="action-cell">
-                <Button icon="pi pi-pencil" severity="secondary" text rounded size="small" @click="openEditMinimumWageDialog(data)" />
-                <Button icon="pi pi-trash" severity="danger" text rounded size="small" @click="confirmDeleteMinimumWage(data)" />
-              </div>
-            </template>
-          </Column>
-        </DataTable>
+    <div class="card insurance-region-history-card">
+      <div class="section-heading">
+        <h3>Lương tối thiểu vùng</h3>
+        <Button label="Thêm cấu hình LTTV" icon="pi pi-plus" size="small" @click="openCreateMinimumWageDialog" />
       </div>
 
-      <div class="card insurance-region-history-card">
-        <div class="section-heading">
-          <h3>Rule thâm niên BHXH</h3>
-          <Button label="Thêm rule thâm niên" icon="pi pi-plus" size="small" @click="openCreateSeniorityDialog" />
-        </div>
+      <DataTable :value="minimumWages" stripedRows responsive-layout="scroll">
+        <Column header="Vùng" style="width: 140px">
+          <template #body="{ data }">{{ regionLabel(data.region) }}</template>
+        </Column>
+        <Column field="amount" header="Mức lương" style="width: 180px">
+          <template #body="{ data }">{{ formatCurrency(data.amount) }}</template>
+        </Column>
+        <Column field="decree_number" header="Nghị định" style="width: 180px" />
+        <Column header="Hiệu lực" style="width: 200px">
+          <template #body="{ data }">
+            <div class="range-cell">
+              <span>{{ formatDate(data.effective_from) }}</span>
+              <span>{{ data.effective_to ? `→ ${formatDate(data.effective_to)}` : '→ hiện tại' }}</span>
+            </div>
+          </template>
+        </Column>
+        <Column field="note" header="Ghi chú" style="min-width: 220px" />
+        <Column header="" style="width: 120px">
+          <template #body="{ data }">
+            <div class="action-cell">
+              <Button icon="pi pi-pencil" severity="secondary" text rounded size="small" @click="openEditMinimumWageDialog(data)" />
+              <Button icon="pi pi-trash" severity="danger" text rounded size="small" @click="confirmDeleteMinimumWage(data)" />
+            </div>
+          </template>
+        </Column>
+      </DataTable>
+    </div>
 
-        <DataTable :value="senioritySettings.history" stripedRows responsive-layout="scroll">
-          <Column header="Ngày nâng bậc" style="width: 160px">
-            <template #body="{ data }">{{ formatMonthDay(data.raise_month, data.raise_day) }}</template>
-          </Column>
-          <Column header="Chu kỳ" style="width: 170px">
-            <template #body="{ data }">{{ data.years_per_grade }} năm / 1 bậc</template>
-          </Column>
-          <Column header="Cutoff năm đầu" style="width: 170px">
-            <template #body="{ data }">{{ formatMonthDay(data.first_year_cutoff_month, data.first_year_cutoff_day) }}</template>
-          </Column>
-          <Column header="Hiệu lực" style="width: 200px">
-            <template #body="{ data }">
-              <div class="range-cell">
-                <span>{{ formatDate(data.effective_from) }}</span>
-                <span>{{ data.effective_to ? `→ ${formatDate(data.effective_to)}` : '→ hiện tại' }}</span>
-              </div>
-            </template>
-          </Column>
-          <Column field="note" header="Ghi chú" style="min-width: 220px" />
-          <Column header="" style="width: 120px">
-            <template #body="{ data }">
-              <div class="action-cell">
-                <Button icon="pi pi-pencil" severity="secondary" text rounded size="small" @click="openEditSeniorityDialog(data)" />
-                <Button icon="pi pi-trash" severity="danger" text rounded size="small" @click="confirmDeleteSeniority(data)" />
-              </div>
-            </template>
-          </Column>
-        </DataTable>
+    <div class="card insurance-region-history-card">
+      <div class="section-heading">
+        <h3>Nhóm vị trí BHXH + hệ số 7 bậc</h3>
+        <Button
+          label="Thêm nhóm vị trí BHXH"
+          icon="pi pi-plus"
+          size="small"
+          :disabled="!currentPositionScale"
+          @click="openCreatePositionGroupDialog"
+        />
       </div>
 
-      <div class="card insurance-region-history-card">
-        <div class="section-heading">
-          <h3>Nhóm vị trí BHXH + hệ số 7 bậc</h3>
-          <Button
-            label="Thêm nhóm vị trí BHXH"
-            icon="pi pi-plus"
-            size="small"
-            :disabled="!currentPositionScale"
-            @click="openCreatePositionGroupDialog"
-          />
-        </div>
-
-        <div v-if="currentPositionScale" class="section-hint insurance-inline-hint">
-          Scale hiện hành: {{ currentPositionScale.name }} · hiệu lực từ {{ formatDate(currentPositionScale.effective_from) }}
-        </div>
-        <div v-else class="empty-state">Chưa có thang bảng lương hiệu lực để cấu hình hệ số nhóm vị trí.</div>
-
-        <DataTable v-if="currentPositionScale" :value="positionGroups" stripedRows responsive-layout="scroll">
-          <Column field="code" header="Mã nhóm" style="width: 160px" />
-          <Column field="name" header="Tên nhóm" style="min-width: 280px" />
-          <Column header="Vị trí đã gán" style="min-width: 260px">
-            <template #body="{ data }">
-              <span v-if="data.members.length">
-                {{ positionGroupMemberNames(data) }}
-              </span>
-              <span v-else>—</span>
-            </template>
-          </Column>
-          <Column header="7 bậc hệ số" style="min-width: 260px">
-            <template #body="{ data }">
-              {{ positionGroupCoefficientSummary(data) }}
-            </template>
-          </Column>
-          <Column header="Trạng thái" style="width: 120px">
-            <template #body="{ data }">
-              <Tag :value="data.is_active ? 'Hoạt động' : 'Tắt'" :severity="data.is_active ? 'success' : 'secondary'" />
-            </template>
-          </Column>
-          <Column header="" style="width: 120px">
-            <template #body="{ data }">
-              <div class="action-cell">
-                <Button icon="pi pi-pencil" severity="secondary" text rounded size="small" @click="openEditPositionGroupDialog(data)" />
-                <Button icon="pi pi-trash" severity="danger" text rounded size="small" @click="confirmDeletePositionGroup(data)" />
-              </div>
-            </template>
-          </Column>
-        </DataTable>
+      <div v-if="currentPositionScale" class="section-hint insurance-inline-hint">
+        Scale hiện hành: {{ currentPositionScale.name }} · hiệu lực từ {{ formatDate(currentPositionScale.effective_from) }}
       </div>
+      <div v-else class="empty-state">Chưa có thang bảng lương hiệu lực để cấu hình hệ số nhóm vị trí.</div>
+
+      <DataTable v-if="currentPositionScale" :value="positionGroups" stripedRows responsive-layout="scroll">
+        <Column field="code" header="Mã nhóm" style="width: 160px" />
+        <Column field="name" header="Tên nhóm" style="min-width: 280px" />
+        <Column header="Vị trí đã gán" style="min-width: 260px">
+          <template #body="{ data }">
+            <span v-if="data.members.length">
+              {{ positionGroupMemberNames(data) }}
+            </span>
+            <span v-else>—</span>
+          </template>
+        </Column>
+        <Column header="7 bậc hệ số" style="min-width: 260px">
+          <template #body="{ data }">
+            {{ positionGroupCoefficientSummary(data) }}
+          </template>
+        </Column>
+        <Column header="Trạng thái" style="width: 120px">
+          <template #body="{ data }">
+            <Tag :value="data.is_active ? 'Hoạt động' : 'Tắt'" :severity="data.is_active ? 'success' : 'secondary'" />
+          </template>
+        </Column>
+        <Column header="" style="width: 120px">
+          <template #body="{ data }">
+            <div class="action-cell">
+              <Button icon="pi pi-pencil" severity="secondary" text rounded size="small" @click="openEditPositionGroupDialog(data)" />
+              <Button icon="pi pi-trash" severity="danger" text rounded size="small" @click="confirmDeletePositionGroup(data)" />
+            </div>
+          </template>
+        </Column>
+      </DataTable>
     </div>
 
     <div class="card ins-date-checker">
