@@ -2,7 +2,7 @@
 
 **Phạm vi chính:** cấu hình lương tối thiểu vùng · cấu hình vùng BHXH của công ty · cấu hình nhóm vị trí và hệ số 7 bậc · tính mức lương đóng BHXH theo 2 mode tại hợp đồng
 
-**Tình trạng:** plan đã review lại theo yêu cầu nghiệp vụ thực tế, giản lược so với bản draft trước
+**Tình trạng:** plan đã review lại theo yêu cầu nghiệp vụ thực tế. Slice 1 và Slice 2 đã được triển khai, các slice sau vẫn pending.
 
 ---
 
@@ -503,6 +503,10 @@ Exit criteria:
 - không còn phụ thuộc seeder cho vận hành hàng ngày
 - rule thâm niên và ngày nâng bậc sửa được qua UI
 
+Trạng thái:
+
+- đã xong
+
 ### Slice 2 — Master nhóm vị trí BHXH + hệ số 7 bậc
 
 Mục tiêu:
@@ -515,6 +519,10 @@ Exit criteria:
 
 - mỗi group có đủ 7 bậc
 - có thể đối chiếu thẳng với bảng HR hiện tại
+
+Trạng thái:
+
+- đã xong
 
 ### Slice 3 — Hợp đồng hỗ trợ 2 mode BHXH
 

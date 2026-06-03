@@ -81,6 +81,15 @@
         </div>
         <div v-else class="insurance-card-empty">Chưa có rule hiệu lực</div>
       </div>
+
+      <div class="card insurance-summary-card">
+        <div class="insurance-card-label">Nhóm vị trí BHXH</div>
+        <div v-if="positionGroups.length" class="insurance-card-main">{{ positionGroups.length }} nhóm</div>
+        <div v-if="currentPositionScale" class="insurance-card-sub">
+          {{ currentPositionScale.name }} · từ {{ formatDate(currentPositionScale.effective_from) }}
+        </div>
+        <div v-else class="insurance-card-empty">Chưa có scale hiệu lực</div>
+      </div>
     </div>
 
     <div class="insurance-section-grid">
@@ -276,6 +285,55 @@
               <div class="action-cell">
                 <Button icon="pi pi-pencil" severity="secondary" text rounded size="small" @click="openEditSeniorityDialog(data)" />
                 <Button icon="pi pi-trash" severity="danger" text rounded size="small" @click="confirmDeleteSeniority(data)" />
+              </div>
+            </template>
+          </Column>
+        </DataTable>
+      </div>
+
+      <div class="card insurance-region-history-card">
+        <div class="section-heading">
+          <h3>Nhóm vị trí BHXH + hệ số 7 bậc</h3>
+          <Button
+            label="Thêm nhóm vị trí BHXH"
+            icon="pi pi-plus"
+            size="small"
+            :disabled="!currentPositionScale"
+            @click="openCreatePositionGroupDialog"
+          />
+        </div>
+
+        <div v-if="currentPositionScale" class="section-hint insurance-inline-hint">
+          Scale hiện hành: {{ currentPositionScale.name }} · hiệu lực từ {{ formatDate(currentPositionScale.effective_from) }}
+        </div>
+        <div v-else class="empty-state">Chưa có thang bảng lương hiệu lực để cấu hình hệ số nhóm vị trí.</div>
+
+        <DataTable v-if="currentPositionScale" :value="positionGroups" stripedRows responsive-layout="scroll">
+          <Column field="code" header="Mã nhóm" style="width: 160px" />
+          <Column field="name" header="Tên nhóm" style="min-width: 280px" />
+          <Column header="Vị trí đã gán" style="min-width: 260px">
+            <template #body="{ data }">
+              <span v-if="data.members.length">
+                {{ positionGroupMemberNames(data) }}
+              </span>
+              <span v-else>—</span>
+            </template>
+          </Column>
+          <Column header="7 bậc hệ số" style="min-width: 260px">
+            <template #body="{ data }">
+              {{ positionGroupCoefficientSummary(data) }}
+            </template>
+          </Column>
+          <Column header="Trạng thái" style="width: 120px">
+            <template #body="{ data }">
+              <Tag :value="data.is_active ? 'Hoạt động' : 'Tắt'" :severity="data.is_active ? 'success' : 'secondary'" />
+            </template>
+          </Column>
+          <Column header="" style="width: 120px">
+            <template #body="{ data }">
+              <div class="action-cell">
+                <Button icon="pi pi-pencil" severity="secondary" text rounded size="small" @click="openEditPositionGroupDialog(data)" />
+                <Button icon="pi pi-trash" severity="danger" text rounded size="small" @click="confirmDeletePositionGroup(data)" />
               </div>
             </template>
           </Column>
@@ -499,6 +557,90 @@
         </div>
       </form>
     </Dialog>
+
+    <Dialog
+      v-model:visible="positionGroupDialogVisible"
+      :header="editingPositionGroup ? 'Cập nhật nhóm vị trí BHXH' : 'Thêm nhóm vị trí BHXH'"
+      :style="{ width: '1040px' }"
+      modal
+      :close-on-escape="!submittingPositionGroup"
+      :closable="!submittingPositionGroup"
+    >
+      <form class="insurance-region-form" @submit.prevent="submitPositionGroup">
+        <div class="field-row-3">
+          <div class="field">
+            <label>Mã nhóm <span class="req">*</span></label>
+            <InputText v-model="positionGroupForm.code" class="w-full" />
+          </div>
+          <div class="field">
+            <label>Tên nhóm <span class="req">*</span></label>
+            <InputText v-model="positionGroupForm.name" class="w-full" />
+          </div>
+          <div class="field">
+            <label>Trạng thái</label>
+            <Select
+              v-model="positionGroupForm.is_active"
+              :options="[
+                { label: 'Hoạt động', value: true },
+                { label: 'Tắt', value: false },
+              ]"
+              option-label="label"
+              option-value="value"
+              class="w-full"
+            />
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Mô tả</label>
+          <Textarea v-model="positionGroupForm.description" class="w-full" rows="2" auto-resize />
+        </div>
+
+        <div class="field">
+          <label>Vị trí công việc thuộc nhóm</label>
+          <MultiSelect
+            v-model="positionGroupForm.position_ids"
+            :options="positionOptions"
+            option-label="label"
+            option-value="value"
+            filter
+            display="chip"
+            class="w-full"
+            :max-selected-labels="6"
+          />
+        </div>
+
+        <div class="section-heading">
+          <h3>7 bậc hệ số</h3>
+          <span class="section-hint">Phải cấu hình đủ bậc I → VII</span>
+        </div>
+        <DataTable :value="positionGroupForm.coefficients" stripedRows responsive-layout="scroll">
+          <Column header="Bậc" style="width: 100px">
+            <template #body="{ data }">Bậc {{ data.grade_no }}</template>
+          </Column>
+          <Column header="Hệ số" style="width: 180px">
+            <template #body="{ data }">
+              <InputNumber v-model="data.coefficient" class="w-full" :min="0.01" :min-fraction-digits="2" :max-fraction-digits="4" />
+            </template>
+          </Column>
+          <Column header="Số tháng xét nâng" style="width: 180px">
+            <template #body="{ data }">
+              <InputNumber v-model="data.promotion_months" class="w-full" :min="1" />
+            </template>
+          </Column>
+          <Column header="Tiêu chí" style="min-width: 320px">
+            <template #body="{ data }">
+              <InputText v-model="data.criteria" class="w-full" />
+            </template>
+          </Column>
+        </DataTable>
+
+        <div class="dialog-actions">
+          <Button type="button" label="Hủy" severity="secondary" text :disabled="submittingPositionGroup" @click="positionGroupDialogVisible = false" />
+          <Button type="submit" :label="editingPositionGroup ? 'Lưu thay đổi' : 'Thêm nhóm'" icon="pi pi-check" :loading="submittingPositionGroup" />
+        </div>
+      </form>
+    </Dialog>
   </div>
 </template>
 
@@ -513,11 +655,15 @@ import DataTable from 'primevue/datatable'
 import Dialog from 'primevue/dialog'
 import InputNumber from 'primevue/inputnumber'
 import InputText from 'primevue/inputtext'
+import MultiSelect from 'primevue/multiselect'
 import Select from 'primevue/select'
 import Tag from 'primevue/tag'
 import Textarea from 'primevue/textarea'
 import { useToast } from 'primevue/usetoast'
+import jobPositionService, { type JobPositionListItem } from '@/services/jobPositionService'
 import insuranceService, {
+  type BhxhPositionGroupCatalogRead,
+  type BhxhPositionGroupRead,
   type BhxhSenioritySettingCreate,
   type BhxhSenioritySettingRead,
   type BhxhSenioritySettingsRead,
@@ -541,6 +687,13 @@ type PolicyFormComponent = {
   employer_advances_employee_part: boolean
 }
 
+type PositionGroupFormCoefficient = {
+  grade_no: number
+  coefficient: number
+  promotion_months: number
+  criteria: string
+}
+
 const router = useRouter()
 const confirm = useConfirm()
 const toast = useToast()
@@ -557,14 +710,18 @@ const components = ref<InsuranceContributionComponentRead[]>([])
 const companyRegion = ref<CompanyRegionRead>({ current: null, history: [] })
 const minimumWages = ref<RegionalMinimumWageRead[]>([])
 const senioritySettings = ref<BhxhSenioritySettingsRead>({ current: null, history: [] })
+const positionGroupCatalog = ref<BhxhPositionGroupCatalogRead>({ current_scale: null, groups: [] })
+const jobPositions = ref<JobPositionListItem[]>([])
 
 const policyDialogVisible = ref(false)
 const regionDialogVisible = ref(false)
 const minimumWageDialogVisible = ref(false)
 const seniorityDialogVisible = ref(false)
+const positionGroupDialogVisible = ref(false)
 const editingPolicy = ref<InsurancePolicyVersionRead | null>(null)
 const editingMinimumWage = ref<RegionalMinimumWageRead | null>(null)
 const editingSeniority = ref<BhxhSenioritySettingRead | null>(null)
+const editingPositionGroup = ref<BhxhPositionGroupRead | null>(null)
 
 const policyForm = ref({
   code: '',
@@ -600,6 +757,15 @@ const seniorityForm = ref({
   note: '',
 })
 
+const positionGroupForm = ref({
+  code: '',
+  name: '',
+  description: '',
+  is_active: true,
+  position_ids: [] as number[],
+  coefficients: [] as PositionGroupFormCoefficient[],
+})
+
 const regionOptions = [
   { label: 'Vùng I', value: 1 },
   { label: 'Vùng II', value: 2 },
@@ -611,6 +777,7 @@ const checkDate = ref('')
 const checkResult = ref<InsuranceEffectiveContributionConfigRead | null>(null)
 const checkError = ref('')
 const checkingDate = ref(false)
+const submittingPositionGroup = ref(false)
 
 const activePolicy = computed(() => policyVersions.value.find((item) => item.is_active) ?? null)
 const currentRegionMinimumWage = computed(() => {
@@ -618,6 +785,17 @@ const currentRegionMinimumWage = computed(() => {
   if (!region) return null
   return minimumWages.value.find((item) => item.region === region && item.effective_to === null) ?? null
 })
+const currentPositionScale = computed(() => positionGroupCatalog.value.current_scale)
+const positionGroups = computed(() => positionGroupCatalog.value.groups)
+const positionOptions = computed(() =>
+  jobPositions.value
+    .filter((item) => item.is_active)
+    .sort((a, b) => a.name.localeCompare(b.name, 'vi'))
+    .map((item) => ({
+      label: `${item.name} (${item.code})${item.department_name ? ` — ${item.department_name}` : ''}`,
+      value: item.id,
+    })),
+)
 
 const _kindOrder = ['bhxh', 'bhyt', 'bhtn']
 const _kindLabels: Record<string, string> = {
@@ -675,6 +853,14 @@ function totalRate(item: { employee_rate_percent: string; employer_rate_percent:
   return Number(item.employee_rate_percent) + Number(item.employer_rate_percent)
 }
 
+function positionGroupMemberNames(group: BhxhPositionGroupRead) {
+  return group.members.map((member) => member.job_position_name).join(', ')
+}
+
+function positionGroupCoefficientSummary(group: BhxhPositionGroupRead) {
+  return group.coefficients.map((item) => `B${item.grade_no}: ${item.coefficient}`).join(' · ')
+}
+
 function apiError(error: unknown): string {
   const detail = (error as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail
   if (typeof detail === 'string') return detail
@@ -694,21 +880,34 @@ function buildDefaultComponentFormRows() {
     }))
 }
 
+function buildDefaultPositionGroupCoefficients(): PositionGroupFormCoefficient[] {
+  return Array.from({ length: 7 }, (_, index) => ({
+    grade_no: index + 1,
+    coefficient: 1,
+    promotion_months: 12,
+    criteria: '',
+  }))
+}
+
 async function loadAll() {
   loading.value = true
   try {
-    const [componentsResp, policyResp, regionResp, minimumWagesResp, seniorityResp] = await Promise.all([
+    const [componentsResp, policyResp, regionResp, minimumWagesResp, seniorityResp, positionGroupResp, jobPositionResp] = await Promise.all([
       insuranceService.getComponents(),
       insuranceService.getPolicyVersions(),
       insuranceService.getCompanyRegion(),
       insuranceService.getMinimumWages(),
       insuranceService.getSenioritySettings(),
+      insuranceService.getPositionGroups(),
+      jobPositionService.getList(),
     ])
     components.value = componentsResp.data
     policyVersions.value = policyResp.data
     companyRegion.value = regionResp.data
     minimumWages.value = minimumWagesResp.data
     senioritySettings.value = seniorityResp.data
+    positionGroupCatalog.value = positionGroupResp.data
+    jobPositions.value = jobPositionResp.data
   } catch (error) {
     toast.add({ severity: 'error', summary: 'Lỗi', detail: apiError(error), life: 5000 })
   } finally {
@@ -848,6 +1047,41 @@ function openEditSeniorityDialog(item: BhxhSenioritySettingRead) {
     note: item.note ?? '',
   }
   seniorityDialogVisible.value = true
+}
+
+function resetPositionGroupForm() {
+  positionGroupForm.value = {
+    code: '',
+    name: '',
+    description: '',
+    is_active: true,
+    position_ids: [],
+    coefficients: buildDefaultPositionGroupCoefficients(),
+  }
+}
+
+function openCreatePositionGroupDialog() {
+  editingPositionGroup.value = null
+  resetPositionGroupForm()
+  positionGroupDialogVisible.value = true
+}
+
+function openEditPositionGroupDialog(item: BhxhPositionGroupRead) {
+  editingPositionGroup.value = item
+  positionGroupForm.value = {
+    code: item.code,
+    name: item.name,
+    description: item.description ?? '',
+    is_active: item.is_active,
+    position_ids: item.members.map((member) => member.job_position_id),
+    coefficients: item.coefficients.map((coefficient) => ({
+      grade_no: coefficient.grade_no,
+      coefficient: Number(coefficient.coefficient),
+      promotion_months: coefficient.promotion_months,
+      criteria: coefficient.criteria ?? '',
+    })),
+  }
+  positionGroupDialogVisible.value = true
 }
 
 async function submitPolicy() {
@@ -1078,6 +1312,64 @@ function confirmDeleteSeniority(item: BhxhSenioritySettingRead) {
       try {
         await insuranceService.deleteSenioritySetting(item.id)
         toast.add({ severity: 'success', summary: 'Thành công', detail: 'Đã xóa rule thâm niên BHXH', life: 3000 })
+        await loadAll()
+      } catch (error) {
+        toast.add({ severity: 'error', summary: 'Lỗi', detail: apiError(error), life: 5000 })
+      }
+    },
+  })
+}
+
+async function submitPositionGroup() {
+  submittingPositionGroup.value = true
+  try {
+    const payload = {
+      code: positionGroupForm.value.code,
+      name: positionGroupForm.value.name,
+      description: positionGroupForm.value.description || null,
+      is_active: positionGroupForm.value.is_active,
+      position_ids: positionGroupForm.value.position_ids,
+      coefficients: positionGroupForm.value.coefficients.map((item) => ({
+        grade_no: item.grade_no,
+        coefficient: String(item.coefficient),
+        promotion_months: item.promotion_months,
+        criteria: item.criteria || null,
+      })),
+    }
+    if (editingPositionGroup.value) {
+      await insuranceService.updatePositionGroup(editingPositionGroup.value.id, payload)
+      toast.add({ severity: 'success', summary: 'Thành công', detail: 'Đã cập nhật nhóm vị trí BHXH', life: 3000 })
+    } else {
+      await insuranceService.createPositionGroup(payload)
+      toast.add({ severity: 'success', summary: 'Thành công', detail: 'Đã thêm nhóm vị trí BHXH', life: 3000 })
+    }
+    positionGroupDialogVisible.value = false
+    await loadAll()
+  } catch (error) {
+    toast.add({ severity: 'error', summary: 'Lỗi', detail: apiError(error), life: 5000 })
+  } finally {
+    submittingPositionGroup.value = false
+  }
+}
+
+function confirmDeletePositionGroup(item: BhxhPositionGroupRead) {
+  confirm.require({
+    message: `Xóa nhóm vị trí BHXH ${item.code}? Thao tác này sẽ xóa mapping vị trí và 7 bậc hệ số của nhóm này trong scale hiện hành.`,
+    header: 'Xác nhận xóa nhóm vị trí BHXH',
+    icon: 'pi pi-exclamation-triangle',
+    rejectProps: {
+      label: 'Không',
+      severity: 'secondary',
+      outlined: true,
+    },
+    acceptProps: {
+      label: 'Xóa',
+      severity: 'danger',
+    },
+    accept: async () => {
+      try {
+        await insuranceService.deletePositionGroup(item.id)
+        toast.add({ severity: 'success', summary: 'Thành công', detail: 'Đã xóa nhóm vị trí BHXH', life: 3000 })
         await loadAll()
       } catch (error) {
         toast.add({ severity: 'error', summary: 'Lỗi', detail: apiError(error), life: 5000 })

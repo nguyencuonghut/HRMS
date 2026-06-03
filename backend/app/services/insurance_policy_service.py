@@ -5,6 +5,7 @@ from decimal import Decimal
 from typing import Iterable
 
 from fastapi import HTTPException, status
+import sqlalchemy as sa
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,8 +14,21 @@ from app.models.insurance import (
     InsurancePolicyComponentRate,
     InsurancePolicyVersion,
 )
-from app.models.salary import BhxhSenioritySetting, CompanyBhxhRegion, RegionalMinimumWage
+from app.models.org import Department, JobPosition
+from app.models.salary import (
+    BhxhPositionGroup,
+    BhxhPositionGroupMember,
+    BhxhSenioritySetting,
+    CompanyBhxhRegion,
+    RegionalMinimumWage,
+    SalaryScale,
+    SalaryScaleEntry,
+)
 from app.schemas.insurance import (
+    BhxhPositionGroupCatalogRead,
+    BhxhPositionGroupCoefficientInput,
+    BhxhPositionGroupCreate,
+    BhxhPositionGroupUpdate,
     BhxhSenioritySettingCreate,
     BhxhSenioritySettingsRead,
     BhxhSenioritySettingUpdate,
@@ -22,6 +36,7 @@ from app.schemas.insurance import (
     RegionalMinimumWageCreate,
     RegionalMinimumWageRead,
     RegionalMinimumWageUpdate,
+    SalaryScaleSummaryRead,
     InsurancePolicyComponentRateInput,
     InsurancePolicyVersionCreate,
     InsurancePolicyVersionUpdate,
@@ -57,6 +72,178 @@ def _seniority_to_read(item: BhxhSenioritySetting) -> dict:
         "note": item.note,
         "created_at": item.created_at,
         "updated_at": item.updated_at,
+    }
+
+
+def _scale_to_read(item: SalaryScale | None) -> dict | None:
+    if item is None:
+        return None
+    return {
+        "id": item.id,
+        "name": item.name,
+        "effective_from": item.effective_from,
+        "effective_to": item.effective_to,
+        "note": item.note,
+    }
+
+
+async def _get_current_salary_scale(session: AsyncSession) -> SalaryScale | None:
+    rows = await session.execute(
+        select(SalaryScale)
+        .where(SalaryScale.effective_to.is_(None))
+        .order_by(SalaryScale.effective_from.desc(), SalaryScale.id.desc())
+    )
+    return rows.scalars().first()
+
+
+async def _get_current_salary_scale_or_409(session: AsyncSession) -> SalaryScale:
+    scale = await _get_current_salary_scale(session)
+    if not scale:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail="Chưa có thang bảng lương hiệu lực để cấu hình nhóm vị trí BHXH",
+        )
+    return scale
+
+
+async def _get_position_map(session: AsyncSession, position_ids: list[int]) -> dict[int, tuple[JobPosition, str | None]]:
+    if not position_ids:
+        return {}
+    rows = await session.execute(
+        select(JobPosition, Department.name)
+        .join(Department, Department.id == JobPosition.department_id)
+        .where(JobPosition.id.in_(position_ids))
+    )
+    result: dict[int, tuple[JobPosition, str | None]] = {}
+    for position, department_name in rows.all():
+        result[position.id] = (position, department_name)
+    if len(result) != len(set(position_ids)):
+        missing = sorted(set(position_ids) - set(result.keys()))
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND,
+            detail=f"Không tìm thấy vị trí công việc: {', '.join(str(item) for item in missing)}",
+        )
+    return result
+
+
+def _normalize_coefficients(coefficients: list[BhxhPositionGroupCoefficientInput]) -> list[BhxhPositionGroupCoefficientInput]:
+    return sorted(coefficients, key=lambda item: item.grade_no)
+
+
+async def _replace_group_members(
+    session: AsyncSession,
+    group_id: int,
+    position_ids: list[int],
+) -> None:
+    await _get_position_map(session, position_ids)
+
+    await session.execute(
+        sa.delete(BhxhPositionGroupMember).where(
+            BhxhPositionGroupMember.bhxh_position_group_id == group_id
+        )
+    )
+    await session.flush()
+
+    if not position_ids:
+        return
+
+    conflict_rows = await session.execute(
+        select(BhxhPositionGroupMember)
+        .where(
+            BhxhPositionGroupMember.job_position_id.in_(position_ids),
+            BhxhPositionGroupMember.bhxh_position_group_id != group_id,
+        )
+    )
+    conflicts = list(conflict_rows.scalars().all())
+    if conflicts:
+        conflict_position_ids = sorted({item.job_position_id for item in conflicts})
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail=(
+                "Một hoặc nhiều vị trí đã được gán vào nhóm BHXH khác: "
+                + ", ".join(str(item) for item in conflict_position_ids)
+            ),
+        )
+
+    for position_id in position_ids:
+        session.add(
+            BhxhPositionGroupMember(
+                bhxh_position_group_id=group_id,
+                job_position_id=position_id,
+            )
+        )
+
+
+async def _replace_group_coefficients(
+    session: AsyncSession,
+    scale_id: int,
+    group_id: int,
+    coefficients: list[BhxhPositionGroupCoefficientInput],
+) -> None:
+    await session.execute(
+        sa.delete(SalaryScaleEntry).where(
+            SalaryScaleEntry.salary_scale_id == scale_id,
+            SalaryScaleEntry.bhxh_position_group_id == group_id,
+        )
+    )
+    await session.flush()
+
+    for item in _normalize_coefficients(coefficients):
+        session.add(
+            SalaryScaleEntry(
+                salary_scale_id=scale_id,
+                job_title_id=None,
+                bhxh_position_group_id=group_id,
+                grade_no=item.grade_no,
+                coefficient=float(item.coefficient),
+                promotion_months=item.promotion_months,
+                criteria=item.criteria,
+            )
+        )
+
+
+async def _group_to_read(session: AsyncSession, group: BhxhPositionGroup, scale_id: int) -> dict:
+    coeff_rows = await session.execute(
+        select(SalaryScaleEntry)
+        .where(
+            SalaryScaleEntry.salary_scale_id == scale_id,
+            SalaryScaleEntry.bhxh_position_group_id == group.id,
+        )
+        .order_by(SalaryScaleEntry.grade_no.asc())
+    )
+    member_rows = await session.execute(
+        select(JobPosition, Department.name)
+        .join(BhxhPositionGroupMember, BhxhPositionGroupMember.job_position_id == JobPosition.id)
+        .join(Department, Department.id == JobPosition.department_id)
+        .where(BhxhPositionGroupMember.bhxh_position_group_id == group.id)
+        .order_by(Department.name.asc(), JobPosition.name.asc(), JobPosition.id.asc())
+    )
+    return {
+        "id": group.id,
+        "code": group.code,
+        "name": group.name,
+        "description": group.description,
+        "is_active": group.is_active,
+        "coefficients": [
+            {
+                "grade_no": row.grade_no,
+                "coefficient": Decimal(str(row.coefficient)),
+                "promotion_months": row.promotion_months,
+                "criteria": row.criteria,
+            }
+            for row in coeff_rows.scalars().all()
+        ],
+        "members": [
+            {
+                "job_position_id": position.id,
+                "job_position_code": position.code,
+                "job_position_name": position.name,
+                "department_name": department_name,
+            }
+            for position, department_name in member_rows.all()
+        ],
+        "created_at": group.created_at,
+        "updated_at": group.updated_at,
     }
 
 
@@ -649,3 +836,115 @@ async def delete_bhxh_seniority_setting(session: AsyncSession, setting_id: int) 
     await session.delete(row)
     await session.commit()
     return await get_bhxh_seniority_settings(session)
+
+
+async def list_bhxh_position_groups(session: AsyncSession) -> dict:
+    current_scale = await _get_current_salary_scale(session)
+    if not current_scale:
+        return {"current_scale": None, "groups": []}
+
+    rows = await session.execute(
+        select(BhxhPositionGroup).order_by(
+            BhxhPositionGroup.code.asc(),
+            BhxhPositionGroup.id.asc(),
+        )
+    )
+    groups = list(rows.scalars().all())
+    return {
+        "current_scale": _scale_to_read(current_scale),
+        "groups": [await _group_to_read(session, group, current_scale.id) for group in groups],
+    }
+
+
+async def create_bhxh_position_group(
+    session: AsyncSession,
+    payload: BhxhPositionGroupCreate,
+) -> dict:
+    current_scale = await _get_current_salary_scale_or_409(session)
+
+    existing = await session.execute(
+        select(BhxhPositionGroup).where(BhxhPositionGroup.code == payload.code)
+    )
+    if existing.scalar_one_or_none():
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail=f"Mã nhóm vị trí BHXH '{payload.code}' đã tồn tại",
+        )
+
+    group = BhxhPositionGroup(
+        code=payload.code,
+        name=payload.name,
+        description=payload.description,
+        is_active=payload.is_active,
+    )
+    session.add(group)
+    await session.flush()
+
+    await _replace_group_members(session, group.id, payload.position_ids)
+    await _replace_group_coefficients(session, current_scale.id, group.id, payload.coefficients)
+
+    await session.commit()
+    return await list_bhxh_position_groups(session)
+
+
+async def update_bhxh_position_group(
+    session: AsyncSession,
+    group_id: int,
+    payload: BhxhPositionGroupUpdate,
+) -> dict:
+    current_scale = await _get_current_salary_scale_or_409(session)
+    group = await session.get(BhxhPositionGroup, group_id)
+    if not group:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Không tìm thấy nhóm vị trí BHXH")
+
+    provided = payload.model_fields_set
+    if "code" in provided and payload.code is not None and payload.code != group.code:
+        existing = await session.execute(
+            select(BhxhPositionGroup).where(
+                BhxhPositionGroup.code == payload.code,
+                BhxhPositionGroup.id != group_id,
+            )
+        )
+        if existing.scalar_one_or_none():
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                detail=f"Mã nhóm vị trí BHXH '{payload.code}' đã tồn tại",
+            )
+        group.code = payload.code
+    if "name" in provided and payload.name is not None:
+        group.name = payload.name
+    if "description" in provided:
+        group.description = payload.description
+    if "is_active" in provided and payload.is_active is not None:
+        group.is_active = payload.is_active
+    group.updated_at = _utcnow()
+
+    if "position_ids" in provided and payload.position_ids is not None:
+        await _replace_group_members(session, group.id, payload.position_ids)
+    if "coefficients" in provided and payload.coefficients is not None:
+        await _replace_group_coefficients(session, current_scale.id, group.id, payload.coefficients)
+
+    await session.commit()
+    return await list_bhxh_position_groups(session)
+
+
+async def delete_bhxh_position_group(session: AsyncSession, group_id: int) -> dict:
+    current_scale = await _get_current_salary_scale_or_409(session)
+    group = await session.get(BhxhPositionGroup, group_id)
+    if not group:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Không tìm thấy nhóm vị trí BHXH")
+
+    await session.execute(
+        sa.delete(SalaryScaleEntry).where(
+            SalaryScaleEntry.salary_scale_id == current_scale.id,
+            SalaryScaleEntry.bhxh_position_group_id == group.id,
+        )
+    )
+    await session.execute(
+        sa.delete(BhxhPositionGroupMember).where(
+            BhxhPositionGroupMember.bhxh_position_group_id == group.id
+        )
+    )
+    await session.delete(group)
+    await session.commit()
+    return await list_bhxh_position_groups(session)

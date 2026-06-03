@@ -8,7 +8,7 @@ Phân lớp:
 
 Hiện bao gồm:
   - job_titles
-  - salary_scales / salary_scale_entries
+  - salary_scales / salary_scale_entries / bhxh_position_groups
   - departments
 """
 
@@ -31,18 +31,74 @@ JOB_TITLES = [
     {"code": "NV",     "name": "Nhân viên",                   "level": 8},
 ]
 
-SCALE_ENTRIES = {
-    "CTHD":   [2.68, 3.08, 3.54, 4.08, 4.98, 6.07, 7.41],
-    "GD":     [2.34, 2.69, 3.09, 3.56, 4.09, 4.71, 5.42],
-    "PDG":    [2.10, 2.41, 2.77, 3.19, 3.67, 4.22, 4.86],
-    "TP":     [1.78, 2.05, 2.35, 2.71, 3.11, 3.58, 4.12],
-    "PP":     [1.56, 1.79, 2.06, 2.37, 2.73, 3.14, 3.61],
-    "TBP":    [1.35, 1.55, 1.78, 2.05, 2.36, 2.71, 3.12],
-    "NVKD":   [1.10, 1.16, 1.21, 1.31, 1.41, 1.53, 1.67],
-    "NVKT_T": [1.10, 1.16, 1.21, 1.31, 1.41, 1.53, 1.67],
-    "NVKT":   [1.10, 1.16, 1.21, 1.31, 1.41, 1.53, 1.67],
-    "NV":     [1.00, 1.08, 1.15, 1.23, 1.31, 1.40, 1.50],
-}
+BHXH_POSITION_GROUPS = [
+    {
+        "code": "EXEC_COMPANY",
+        "name": "Giám đốc Công ty và các vị trí tương đương",
+        "description": "Nhóm điều hành cấp công ty cao nhất.",
+        "coefficients": [2.68, 3.08, 3.54, 4.08, 4.98, 6.07, 7.41],
+    },
+    {
+        "code": "EXEC_DEPUTY",
+        "name": "Phó Giám đốc Công ty, Kế toán trưởng công ty, và các vị trí tương đương",
+        "description": "Nhóm điều hành/phụ trách cấp công ty tương đương Phó Giám đốc.",
+        "coefficients": [2.00, 2.42, 2.95, 3.60, 4.39, 5.36, 6.54],
+    },
+    {
+        "code": "PROD_MANAGER",
+        "name": "Giám đốc sản xuất, Trưởng phòng chuyên trách, Trưởng ban và các vị trí tương đương",
+        "description": "Nhóm quản lý chuyên trách cấp phòng/ban hoặc tương đương.",
+        "coefficients": [1.84, 2.02, 2.23, 2.45, 2.69, 2.96, 3.26],
+    },
+    {
+        "code": "PROD_DEPUTY",
+        "name": "Phó Giám đốc sản xuất, Phó trưởng phòng, Giám đốc vùng, phó ban, và các vị trí tương đương",
+        "description": "Nhóm quản lý/phó quản lý khối sản xuất và vùng.",
+        "coefficients": [1.70, 1.82, 1.95, 2.10, 2.29, 2.50, 2.72],
+    },
+    {
+        "code": "SUPERVISOR",
+        "name": "Trưởng ca sản xuất, Trưởng vùng, giám sát, quản lý trại, và các vị trí tương đương",
+        "description": "Nhóm giám sát, trưởng ca, quản lý tuyến đầu.",
+        "coefficients": [1.50, 1.61, 1.72, 1.84, 1.97, 2.10, 2.27],
+    },
+    {
+        "code": "TECH_MAINTENANCE",
+        "name": "Nhân viên vận hành máy Sản xuất, cơ điện, bảo trì, và các vị trí tương đương",
+        "description": "Nhóm kỹ thuật vận hành, cơ điện, bảo trì.",
+        "coefficients": [1.14, 1.25, 1.38, 1.52, 1.67, 1.84, 2.02],
+    },
+    {
+        "code": "TECH_SPECIALIST",
+        "name": "Nhân viên Kỹ thuật, dinh dưỡng, phân tích, KCS và các vị trí tương đương",
+        "description": "Nhóm kỹ thuật chuyên môn, phân tích, KCS.",
+        "coefficients": [1.14, 1.20, 1.27, 1.36, 1.47, 1.58, 1.71],
+    },
+    {
+        "code": "OFFICE_STAFF",
+        "name": "Nhân viên Kế toán, Hành chính, Thu mua, Kinh doanh, Thủ kho, kỹ thuật thị trường, kỹ thuật trại, đại diện bán hàng, và các vị trí tương đương",
+        "description": "Nhóm nhân viên nghiệp vụ văn phòng/thị trường.",
+        "coefficients": [1.10, 1.16, 1.22, 1.31, 1.41, 1.53, 1.67],
+    },
+    {
+        "code": "DRIVER",
+        "name": "Lái xe con, lái xe nâng <3,5 tấn",
+        "description": "Nhóm lái xe con và lái xe nâng nhẹ.",
+        "coefficients": [1.14, 1.20, 1.27, 1.34, 1.44, 1.54, 1.69],
+    },
+    {
+        "code": "WORKER_SERVICE",
+        "name": "Công nhân sản xuất, Nhân viên Bảo vệ, Phục vụ bếp ăn, và các vị trí tương đương",
+        "description": "Nhóm công nhân sản xuất và phục vụ hỗ trợ.",
+        "coefficients": [1.08, 1.14, 1.20, 1.27, 1.35, 1.43, 1.52],
+    },
+    {
+        "code": "JANITOR",
+        "name": "Nhân viên tạp vụ, và các vị trí tương đương",
+        "description": "Nhóm tạp vụ và vị trí tương đương.",
+        "coefficients": [1.00, 1.05, 1.10, 1.16, 1.22, 1.29, 1.37],
+    },
+]
 
 DEPARTMENTS = [
     ("LD",   "Ban lãnh đạo",          "BAN",     None),
@@ -94,14 +150,6 @@ DEPARTMENTS = [
 ]
 
 
-async def _get_title_id(session: AsyncSession, code: str) -> int | None:
-    result = await session.execute(
-        text("SELECT id FROM job_titles WHERE code = :code"), {"code": code}
-    )
-    row = result.fetchone()
-    return row[0] if row else None
-
-
 async def seed_job_titles(session: AsyncSession) -> int:
     inserted = 0
     for t in JOB_TITLES:
@@ -132,45 +180,104 @@ async def seed_salary_scale(session: AsyncSession) -> int:
         },
     )
     row = result.fetchone()
-    if not row:
+    if row:
+        scale_id = row[0]
+    else:
         existing = await session.execute(
             text("SELECT id FROM salary_scales WHERE name = 'Thang bảng lương 2026'")
         )
         scale_id = existing.fetchone()[0]
-        return 0
 
-    scale_id = row[0]
+    group_ids: dict[str, int] = {}
+    groups_inserted = 0
     entries_inserted = 0
 
-    for title_code, coefficients in SCALE_ENTRIES.items():
-        title_id = await _get_title_id(session, title_code)
-        if not title_id:
+    for group in BHXH_POSITION_GROUPS:
+        insert_group = await session.execute(
+            text("""
+                INSERT INTO bhxh_position_groups
+                    (code, name, description, is_active)
+                VALUES
+                    (:code, :name, :description, TRUE)
+                ON CONFLICT (code) DO NOTHING
+                RETURNING id
+            """),
+            {
+                "code": group["code"],
+                "name": group["name"],
+                "description": group["description"],
+            },
+        )
+        inserted_row = insert_group.fetchone()
+        if inserted_row:
+            group_ids[group["code"]] = inserted_row[0]
+            groups_inserted += 1
+
+    for group in BHXH_POSITION_GROUPS:
+        if group["code"] in group_ids:
             continue
-        for grade_no, coefficient in enumerate(coefficients, start=1):
-            r = await session.execute(
+        existing_group = await session.execute(
+            text("SELECT id FROM bhxh_position_groups WHERE code = :code"),
+            {"code": group["code"]},
+        )
+        row = existing_group.fetchone()
+        if row:
+            group_ids[group["code"]] = row[0]
+
+    for group in BHXH_POSITION_GROUPS:
+        group_id = group_ids.get(group["code"])
+        if not group_id:
+            continue
+        for grade_no, coefficient in enumerate(group["coefficients"], start=1):
+            params = {
+                "scale_id": scale_id,
+                "group_id": group_id,
+                "grade_no": grade_no,
+                "coefficient": coefficient,
+                "promo_months": 12,
+                "criteria": (
+                    f"Bậc {grade_no}: hoàn thành tốt nhiệm vụ được giao, "
+                    "không vi phạm nội quy trong 12 tháng liên tiếp"
+                ),
+            }
+            existing_entry = await session.execute(
                 text("""
-                    INSERT INTO salary_scale_entries
-                        (salary_scale_id, job_title_id, grade_no, coefficient,
-                         promotion_months, criteria)
-                    VALUES
-                        (:scale_id, :title_id, :grade_no, :coefficient,
-                         :promo_months, :criteria)
-                    ON CONFLICT (salary_scale_id, job_title_id, grade_no) DO NOTHING
+                    SELECT id
+                    FROM salary_scale_entries
+                    WHERE salary_scale_id = :scale_id
+                      AND bhxh_position_group_id = :group_id
+                      AND grade_no = :grade_no
                 """),
-                {
-                    "scale_id": scale_id,
-                    "title_id": title_id,
-                    "grade_no": grade_no,
-                    "coefficient": coefficient,
-                    "promo_months": 12,
-                    "criteria": (
-                        f"Bậc {grade_no}: hoàn thành tốt nhiệm vụ được giao, "
-                        "không vi phạm nội quy trong 12 tháng liên tiếp"
-                    ),
-                },
+                params,
             )
+            row = existing_entry.fetchone()
+            if row:
+                r = await session.execute(
+                    text("""
+                        UPDATE salary_scale_entries
+                        SET coefficient = :coefficient,
+                            promotion_months = :promo_months,
+                            criteria = :criteria
+                        WHERE id = :entry_id
+                    """),
+                    {**params, "entry_id": row[0]},
+                )
+            else:
+                r = await session.execute(
+                    text("""
+                        INSERT INTO salary_scale_entries
+                            (salary_scale_id, job_title_id, bhxh_position_group_id,
+                             grade_no, coefficient, promotion_months, criteria)
+                        VALUES
+                            (:scale_id, NULL, :group_id,
+                             :grade_no, :coefficient, :promo_months, :criteria)
+                    """),
+                    params,
+                )
             entries_inserted += r.rowcount
 
+    if groups_inserted:
+        print(f"  [bootstrap] Nhóm vị trí BHXH: +{groups_inserted} dòng")
     return entries_inserted
 
 

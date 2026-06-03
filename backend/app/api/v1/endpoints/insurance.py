@@ -14,6 +14,9 @@ from app.schemas.employee_insurance import (
     EmployeeInsuranceProfileUpdate,
 )
 from app.schemas.insurance import (
+    BhxhPositionGroupCatalogRead,
+    BhxhPositionGroupCreate,
+    BhxhPositionGroupUpdate,
     BhxhSenioritySettingCreate,
     BhxhSenioritySettingsRead,
     BhxhSenioritySettingUpdate,
@@ -247,6 +250,59 @@ async def delete_bhxh_seniority_setting(
     session: AsyncSession = Depends(get_session),
 ):
     return await insurance_policy_service.delete_bhxh_seniority_setting(session, setting_id)
+
+
+@router.get(
+    "/position-groups",
+    response_model=BhxhPositionGroupCatalogRead,
+    summary="Xem nhóm vị trí BHXH và hệ số 7 bậc của scale hiện hành",
+)
+async def get_bhxh_position_groups(
+    _: User = require_permission("insurance:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await insurance_policy_service.list_bhxh_position_groups(session)
+
+
+@router.post(
+    "/position-groups",
+    response_model=BhxhPositionGroupCatalogRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Tạo nhóm vị trí BHXH mới",
+)
+async def create_bhxh_position_group(
+    body: BhxhPositionGroupCreate,
+    _: User = require_permission("insurance:create"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await insurance_policy_service.create_bhxh_position_group(session, body)
+
+
+@router.put(
+    "/position-groups/{group_id}",
+    response_model=BhxhPositionGroupCatalogRead,
+    summary="Cập nhật nhóm vị trí BHXH",
+)
+async def update_bhxh_position_group(
+    group_id: int,
+    body: BhxhPositionGroupUpdate,
+    _: User = require_permission("insurance:edit"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await insurance_policy_service.update_bhxh_position_group(session, group_id, body)
+
+
+@router.delete(
+    "/position-groups/{group_id}",
+    response_model=BhxhPositionGroupCatalogRead,
+    summary="Xóa nhóm vị trí BHXH",
+)
+async def delete_bhxh_position_group(
+    group_id: int,
+    _: User = require_permission("insurance:delete"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await insurance_policy_service.delete_bhxh_position_group(session, group_id)
 
 
 # ── Employee insurance profile endpoints ──────────────────────────────────────

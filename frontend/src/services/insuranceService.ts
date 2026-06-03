@@ -138,6 +138,70 @@ export interface BhxhSenioritySettingsRead {
   history: BhxhSenioritySettingRead[]
 }
 
+export interface SalaryScaleSummaryRead {
+  id: number
+  name: string
+  effective_from: string
+  effective_to: string | null
+  note: string | null
+}
+
+export interface BhxhPositionGroupCoefficientRead {
+  grade_no: number
+  coefficient: string
+  promotion_months: number
+  criteria: string | null
+}
+
+export interface BhxhPositionGroupCoefficientInput {
+  grade_no: number
+  coefficient: string
+  promotion_months: number
+  criteria?: string | null
+}
+
+export interface BhxhPositionGroupMemberRead {
+  job_position_id: number
+  job_position_code: string
+  job_position_name: string
+  department_name: string | null
+}
+
+export interface BhxhPositionGroupRead {
+  id: number
+  code: string
+  name: string
+  description: string | null
+  is_active: boolean
+  coefficients: BhxhPositionGroupCoefficientRead[]
+  members: BhxhPositionGroupMemberRead[]
+  created_at: string
+  updated_at: string | null
+}
+
+export interface BhxhPositionGroupCatalogRead {
+  current_scale: SalaryScaleSummaryRead | null
+  groups: BhxhPositionGroupRead[]
+}
+
+export interface BhxhPositionGroupCreate {
+  code: string
+  name: string
+  description?: string | null
+  is_active?: boolean
+  position_ids: number[]
+  coefficients: BhxhPositionGroupCoefficientInput[]
+}
+
+export interface BhxhPositionGroupUpdate {
+  code?: string
+  name?: string
+  description?: string | null
+  is_active?: boolean
+  position_ids?: number[]
+  coefficients?: BhxhPositionGroupCoefficientInput[]
+}
+
 export interface InsuranceEffectiveContributionConfigRead {
   as_of_date: string
   company_region: CompanyRegionHistoryItem
@@ -345,6 +409,18 @@ export default {
 
   deleteSenioritySetting: (settingId: number) =>
     api.delete<BhxhSenioritySettingsRead>(`/insurance/seniority-settings/${settingId}`),
+
+  getPositionGroups: () =>
+    api.get<BhxhPositionGroupCatalogRead>('/insurance/position-groups'),
+
+  createPositionGroup: (payload: BhxhPositionGroupCreate) =>
+    api.post<BhxhPositionGroupCatalogRead>('/insurance/position-groups', payload),
+
+  updatePositionGroup: (groupId: number, payload: BhxhPositionGroupUpdate) =>
+    api.put<BhxhPositionGroupCatalogRead>(`/insurance/position-groups/${groupId}`, payload),
+
+  deletePositionGroup: (groupId: number) =>
+    api.delete<BhxhPositionGroupCatalogRead>(`/insurance/position-groups/${groupId}`),
 
   getEffectiveConfig: (asOfDate: string) =>
     api.get<InsuranceEffectiveContributionConfigRead>('/insurance/effective-config', { params: { as_of_date: asOfDate } }),

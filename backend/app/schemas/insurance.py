@@ -199,6 +199,116 @@ class BhxhSenioritySettingsRead(BaseModel):
     history: list[BhxhSenioritySettingRead]
 
 
+class SalaryScaleSummaryRead(BaseModel):
+    id: int
+    name: str
+    effective_from: date
+    effective_to: Optional[date]
+    note: Optional[str]
+
+
+class BhxhPositionGroupCoefficientRead(BaseModel):
+    grade_no: int
+    coefficient: Decimal
+    promotion_months: int
+    criteria: Optional[str]
+
+
+class BhxhPositionGroupCoefficientInput(BaseModel):
+    grade_no: int = Field(..., ge=1, le=7)
+    coefficient: Decimal = Field(..., gt=0)
+    promotion_months: int = Field(12, ge=1)
+    criteria: Optional[str] = Field(None, max_length=2000)
+
+
+class BhxhPositionGroupMemberRead(BaseModel):
+    job_position_id: int
+    job_position_code: str
+    job_position_name: str
+    department_name: Optional[str]
+
+
+class BhxhPositionGroupRead(BaseModel):
+    id: int
+    code: str
+    name: str
+    description: Optional[str]
+    is_active: bool
+    coefficients: list[BhxhPositionGroupCoefficientRead]
+    members: list[BhxhPositionGroupMemberRead]
+    created_at: datetime
+    updated_at: Optional[datetime]
+
+
+class BhxhPositionGroupCatalogRead(BaseModel):
+    current_scale: Optional[SalaryScaleSummaryRead]
+    groups: list[BhxhPositionGroupRead]
+
+
+class BhxhPositionGroupCreate(BaseModel):
+    code: str = Field(..., max_length=50)
+    name: str = Field(..., max_length=255)
+    description: Optional[str] = Field(None, max_length=4000)
+    is_active: bool = True
+    position_ids: list[int] = Field(default_factory=list)
+    coefficients: list[BhxhPositionGroupCoefficientInput]
+
+    @field_validator("code", "name")
+    @classmethod
+    def _strip_required_group_fields(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("Trường bắt buộc không được để trống")
+        return stripped
+
+    @field_validator("position_ids")
+    @classmethod
+    def _dedupe_position_ids(cls, value: list[int]) -> list[int]:
+        return list(dict.fromkeys(value))
+
+    @model_validator(mode="after")
+    def _validate_coefficients(self) -> "BhxhPositionGroupCreate":
+        grades = sorted(item.grade_no for item in self.coefficients)
+        if grades != [1, 2, 3, 4, 5, 6, 7]:
+            raise ValueError("Phải cấu hình đủ 7 bậc hệ số từ 1 đến 7")
+        return self
+
+
+class BhxhPositionGroupUpdate(BaseModel):
+    code: Optional[str] = Field(None, max_length=50)
+    name: Optional[str] = Field(None, max_length=255)
+    description: Optional[str] = Field(None, max_length=4000)
+    is_active: Optional[bool] = None
+    position_ids: Optional[list[int]] = None
+    coefficients: Optional[list[BhxhPositionGroupCoefficientInput]] = None
+
+    @field_validator("code", "name")
+    @classmethod
+    def _strip_optional_group_fields(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return value
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("Trường bắt buộc không được để trống")
+        return stripped
+
+    @field_validator("position_ids")
+    @classmethod
+    def _dedupe_optional_position_ids(cls, value: Optional[list[int]]) -> Optional[list[int]]:
+        if value is None:
+            return value
+        return list(dict.fromkeys(value))
+
+    @model_validator(mode="after")
+    def _validate_optional_coefficients(self) -> "BhxhPositionGroupUpdate":
+        if self.coefficients is None:
+            return self
+        grades = sorted(item.grade_no for item in self.coefficients)
+        if grades != [1, 2, 3, 4, 5, 6, 7]:
+            raise ValueError("Phải cấu hình đủ 7 bậc hệ số từ 1 đến 7")
+        return self
+
+
 class InsuranceEffectiveContributionConfigRead(BaseModel):
     as_of_date: date
     company_region: CompanyRegionHistoryItem

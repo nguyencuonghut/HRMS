@@ -89,18 +89,58 @@ class SalaryScale(SQLModel, table=True):
     created_at: datetime = Field(default_factory=_utcnow)
 
 
+class BhxhPositionGroup(SQLModel, table=True):
+    """
+    Nhóm vị trí BHXH của công ty.
+    Dùng để gom nhiều job_position vào một nhóm "vị trí tương đương" theo bảng HR.
+    """
+
+    __tablename__ = "bhxh_position_groups"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    code: str = Field(max_length=50, unique=True, index=True)
+    name: str = Field(max_length=255)
+    description: Optional[str] = Field(
+        default=None,
+        sa_column=Column(sa.Text(), nullable=True),
+    )
+    is_active: bool = Field(default=True)
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: Optional[datetime] = Field(default=None)
+
+
+class BhxhPositionGroupMember(SQLModel, table=True):
+    """
+    Mapping một vị trí công việc vào đúng một nhóm vị trí BHXH.
+    """
+
+    __tablename__ = "bhxh_position_group_members"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    bhxh_position_group_id: int = Field(foreign_key="bhxh_position_groups.id")
+    job_position_id: int = Field(foreign_key="job_positions.id", unique=True)
+    note: Optional[str] = Field(
+        default=None,
+        sa_column=Column(sa.Text(), nullable=True),
+    )
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: Optional[datetime] = Field(default=None)
+
+
 class SalaryScaleEntry(SQLModel, table=True):
     """
-    Hệ số bậc lương theo từng chức danh trong một phiên bản thang bảng lương.
+    Hệ số bậc lương theo từng nhóm vị trí BHXH trong một phiên bản thang bảng lương.
+    `job_title_id` được giữ nullable để tương thích dữ liệu legacy cũ chưa migrate sạch.
     Lương bậc N = LTTV_vùng × coefficient.
-    Ví dụ: Chủ tịch HĐQT Bậc 1 → coefficient=2.68 → 4.140.000 × 2.68 = 11.095.200 ₫.
+    Ví dụ: Nhóm Giám đốc công ty Bậc 1 → coefficient=2.68 → 4.140.000 × 2.68 = 11.095.200 ₫.
     """
 
     __tablename__ = "salary_scale_entries"
 
     id: Optional[int] = Field(default=None, primary_key=True)
     salary_scale_id: int = Field(foreign_key="salary_scales.id")
-    job_title_id: int = Field(foreign_key="job_titles.id")
+    job_title_id: Optional[int] = Field(default=None, foreign_key="job_titles.id")
+    bhxh_position_group_id: Optional[int] = Field(default=None, foreign_key="bhxh_position_groups.id")
     # Số thứ tự bậc lương, bắt đầu từ 1
     grade_no: int = Field(sa_column=Column(sa.SmallInteger(), nullable=False))
     # Hệ số nhân với LTTV vùng để ra mức lương bậc này
