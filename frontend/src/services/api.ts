@@ -42,8 +42,14 @@ function _isRetryableMethod(method?: string): boolean {
 
 // ── Request interceptor — gắn access_token từ Pinia store ─────────────────────
 api.interceptors.request.use((config) => {
+  // Nếu đã có sẵn Authorization (ví dụ: được set thủ công khi retry sau refresh), giữ nguyên
+  if (config.headers?.Authorization) {
+    return config
+  }
   const token = _getAccessToken()
-  if (token) config.headers.Authorization = `Bearer ${token}`
+  if (token && config.headers) {
+    config.headers.Authorization = `Bearer ${token}`
+  }
   return config
 })
 
