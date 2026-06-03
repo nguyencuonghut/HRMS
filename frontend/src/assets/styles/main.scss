@@ -360,7 +360,10 @@ $topbar-height: 4rem;
   grid-template-columns: 1fr 1fr;
   gap: 1rem;
   margin-bottom: 1rem;
-  .field { margin-bottom: 0; }
+  .field {
+    margin-bottom: 0;
+    min-width: 0;
+  }
 }
 
 .field-row-3 {
@@ -368,7 +371,10 @@ $topbar-height: 4rem;
   grid-template-columns: 1fr 1fr 1fr;
   gap: 1rem;
   margin-bottom: 1rem;
-  .field { margin-bottom: 0; }
+  .field {
+    margin-bottom: 0;
+    min-width: 0;
+  }
 }
 
 @media (max-width: 560px) {
