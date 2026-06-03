@@ -526,6 +526,14 @@ async def resolve_company_region_for_date(session: AsyncSession, *, as_of_date: 
     )
     matches = list(rows.scalars().all())
     if not matches:
+        fallback_rows = await session.execute(
+            select(CompanyBhxhRegion)
+            .order_by(CompanyBhxhRegion.effective_from.asc(), CompanyBhxhRegion.id.asc())
+        )
+        fallback = fallback_rows.scalars().first()
+        if fallback:
+            return fallback
+    if not matches:
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"Không có vùng BHXH công ty hiệu lực cho ngày {as_of_date.isoformat()}",
@@ -553,6 +561,20 @@ async def resolve_policy_version_for_date(session: AsyncSession, *, as_of_date: 
         )
     )
     matches = list(rows.scalars().all())
+    if not matches:
+        fallback_rows = await session.execute(
+            select(InsurancePolicyVersion)
+            .where(
+                or_(
+                    InsurancePolicyVersion.is_active.is_(True),
+                    InsurancePolicyVersion.effective_to.is_not(None),
+                )
+            )
+            .order_by(InsurancePolicyVersion.effective_from.asc(), InsurancePolicyVersion.id.asc())
+        )
+        fallback = fallback_rows.scalars().first()
+        if fallback:
+            return fallback
     if not matches:
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_CONTENT,

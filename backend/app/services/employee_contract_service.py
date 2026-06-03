@@ -174,6 +174,12 @@ async def _get_company_region_as_of(
     )
     item = rows.scalars().first()
     if not item:
+        fallback_rows = await session.execute(
+            select(CompanyBhxhRegion)
+            .order_by(CompanyBhxhRegion.effective_from.asc(), CompanyBhxhRegion.id.asc())
+        )
+        item = fallback_rows.scalars().first()
+    if not item:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
             detail="Chưa có cấu hình vùng BHXH công ty hiệu lực cho ngày này",
@@ -197,6 +203,13 @@ async def _get_minimum_wage_as_of(
     )
     item = rows.scalars().first()
     if not item:
+        fallback_rows = await session.execute(
+            select(RegionalMinimumWage)
+            .where(RegionalMinimumWage.region == region)
+            .order_by(RegionalMinimumWage.effective_from.asc(), RegionalMinimumWage.id.asc())
+        )
+        item = fallback_rows.scalars().first()
+    if not item:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
             detail="Chưa có cấu hình lương tối thiểu vùng hiệu lực cho ngày này",
@@ -218,6 +231,12 @@ async def _get_salary_scale_as_of(
     )
     item = rows.scalars().first()
     if not item:
+        fallback_rows = await session.execute(
+            select(SalaryScale)
+            .order_by(SalaryScale.effective_from.asc(), SalaryScale.id.asc())
+        )
+        item = fallback_rows.scalars().first()
+    if not item:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
             detail="Chưa có thang bảng lương hiệu lực cho ngày này",
@@ -238,6 +257,12 @@ async def _get_seniority_setting_as_of(
         .order_by(BhxhSenioritySetting.effective_from.desc(), BhxhSenioritySetting.id.desc())
     )
     item = rows.scalars().first()
+    if not item:
+        fallback_rows = await session.execute(
+            select(BhxhSenioritySetting)
+            .order_by(BhxhSenioritySetting.effective_from.asc(), BhxhSenioritySetting.id.asc())
+        )
+        item = fallback_rows.scalars().first()
     if not item:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
