@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from dataclasses import dataclass
+from datetime import date, datetime, timezone
+from decimal import Decimal
 from typing import Optional
 
 from fastapi import HTTPException, status
@@ -12,8 +14,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.catalog import ContractCategory
 from app.models.employee import Employee
 from app.models.employee_contract import EmployeeContract
+from app.models.salary import (
+    BhxhPositionGroup,
+    CompanyBhxhRegion,
+    RegionalMinimumWage,
+    SalaryScale,
+    SalaryScaleEntry,
+)
 from app.schemas.employee_contract import (
+    ALLOWED_INSURANCE_SALARY_MODES,
     ContractCreate,
+    ContractInsuranceSalaryPreviewInput,
+    ContractInsuranceSalaryPreviewRead,
     ContractListPage,
     ContractRead,
     ContractUpdate,
@@ -27,6 +39,22 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
+@dataclass
+class ResolvedContractInsuranceSalary:
+    insurance_salary_mode: str
+    insurance_salary: Optional[Decimal]
+    bhxh_position_group_id: Optional[int]
+    bhxh_position_group_code: Optional[str]
+    bhxh_position_group_name: Optional[str]
+    insurance_salary_grade_no: Optional[int]
+    insurance_salary_fixed_amount: Optional[Decimal]
+    company_region: Optional[int]
+    regional_minimum_wage: Optional[Decimal]
+    salary_scale_id: Optional[int]
+    salary_scale_name: Optional[str]
+    coefficient: Optional[Decimal]
+
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _to_read(
@@ -35,6 +63,7 @@ def _to_read(
     appendices: list[ContractRead] | None = None,
     employee_name: str | None = None,
     employee_code: str | None = None,
+    position_group: BhxhPositionGroup | None = None,
 ) -> ContractRead:
     return ContractRead(
         id=c.id,
@@ -47,6 +76,12 @@ def _to_read(
         effective_from=c.effective_from,
         effective_to=c.effective_to,
         insurance_salary=c.insurance_salary,
+        insurance_salary_mode=c.insurance_salary_mode,
+        bhxh_position_group_id=c.bhxh_position_group_id,
+        bhxh_position_group_code=position_group.code if position_group else None,
+        bhxh_position_group_name=position_group.name if position_group else None,
+        insurance_salary_grade_no=c.insurance_salary_grade_no,
+        insurance_salary_fixed_amount=c.insurance_salary_fixed_amount,
         status=c.status,
         status_display=_status_display(c.status, c.effective_to),
         days_until_expiry=_days_until(c.status, c.effective_to),
@@ -86,6 +121,237 @@ async def _build_category_map(session: AsyncSession, contracts: list[EmployeeCon
     return {cat.id: cat.name for cat in rows.scalars().all()}
 
 
+async def _build_position_group_map(
+    session: AsyncSession,
+    contracts: list[EmployeeContract],
+) -> dict[int, BhxhPositionGroup]:
+    group_ids = {
+        c.bhxh_position_group_id
+        for c in contracts
+        if c.bhxh_position_group_id is not None
+    }
+    if not group_ids:
+        return {}
+    rows = await session.execute(
+        select(BhxhPositionGroup).where(BhxhPositionGroup.id.in_(group_ids))
+    )
+    return {group.id: group for group in rows.scalars().all()}
+
+
+async def _get_position_group_or_404(
+    session: AsyncSession,
+    group_id: int,
+) -> BhxhPositionGroup:
+    group = await session.get(BhxhPositionGroup, group_id)
+    if not group:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND,
+            detail="Không tìm thấy nhóm vị trí BHXH",
+        )
+    return group
+
+
+async def _get_company_region_as_of(
+    session: AsyncSession,
+    as_of_date: date,
+) -> CompanyBhxhRegion:
+    rows = await session.execute(
+        select(CompanyBhxhRegion)
+        .where(
+            CompanyBhxhRegion.effective_from <= as_of_date,
+            (CompanyBhxhRegion.effective_to.is_(None)) | (CompanyBhxhRegion.effective_to >= as_of_date),
+        )
+        .order_by(CompanyBhxhRegion.effective_from.desc(), CompanyBhxhRegion.id.desc())
+    )
+    item = rows.scalars().first()
+    if not item:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail="Chưa có cấu hình vùng BHXH công ty hiệu lực cho ngày này",
+        )
+    return item
+
+
+async def _get_minimum_wage_as_of(
+    session: AsyncSession,
+    region: int,
+    as_of_date: date,
+) -> RegionalMinimumWage:
+    rows = await session.execute(
+        select(RegionalMinimumWage)
+        .where(
+            RegionalMinimumWage.region == region,
+            RegionalMinimumWage.effective_from <= as_of_date,
+            (RegionalMinimumWage.effective_to.is_(None)) | (RegionalMinimumWage.effective_to >= as_of_date),
+        )
+        .order_by(RegionalMinimumWage.effective_from.desc(), RegionalMinimumWage.id.desc())
+    )
+    item = rows.scalars().first()
+    if not item:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail="Chưa có cấu hình lương tối thiểu vùng hiệu lực cho ngày này",
+        )
+    return item
+
+
+async def _get_salary_scale_as_of(
+    session: AsyncSession,
+    as_of_date: date,
+) -> SalaryScale:
+    rows = await session.execute(
+        select(SalaryScale)
+        .where(
+            SalaryScale.effective_from <= as_of_date,
+            (SalaryScale.effective_to.is_(None)) | (SalaryScale.effective_to >= as_of_date),
+        )
+        .order_by(SalaryScale.effective_from.desc(), SalaryScale.id.desc())
+    )
+    item = rows.scalars().first()
+    if not item:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail="Chưa có thang bảng lương hiệu lực cho ngày này",
+        )
+    return item
+
+
+def _normalize_contract_mode(
+    mode: Optional[str],
+    *,
+    bhxh_position_group_id: Optional[int],
+    insurance_salary_grade_no: Optional[int],
+    insurance_salary_fixed_amount: Optional[Decimal],
+    insurance_salary: Optional[Decimal],
+) -> str:
+    if mode:
+        if mode not in ALLOWED_INSURANCE_SALARY_MODES:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"insurance_salary_mode phải là một trong: {sorted(ALLOWED_INSURANCE_SALARY_MODES)}",
+            )
+        return mode
+    if bhxh_position_group_id is not None or insurance_salary_grade_no is not None:
+        return "computed_by_position_group"
+    if insurance_salary_fixed_amount is not None or insurance_salary is not None:
+        return "fixed_manual"
+    return "fixed_manual"
+
+
+async def _resolve_contract_insurance_salary(
+    session: AsyncSession,
+    *,
+    effective_from: date,
+    insurance_salary_mode: str,
+    bhxh_position_group_id: Optional[int],
+    insurance_salary_grade_no: Optional[int],
+    insurance_salary_fixed_amount: Optional[Decimal],
+    insurance_salary: Optional[Decimal],
+    allow_empty_fixed_amount: bool = False,
+) -> ResolvedContractInsuranceSalary:
+    mode = _normalize_contract_mode(
+        insurance_salary_mode,
+        bhxh_position_group_id=bhxh_position_group_id,
+        insurance_salary_grade_no=insurance_salary_grade_no,
+        insurance_salary_fixed_amount=insurance_salary_fixed_amount,
+        insurance_salary=insurance_salary,
+    )
+
+    if mode == "fixed_manual":
+        fixed_amount = insurance_salary_fixed_amount
+        if fixed_amount is None:
+            fixed_amount = insurance_salary
+        if fixed_amount is None:
+            if allow_empty_fixed_amount:
+                return ResolvedContractInsuranceSalary(
+                    insurance_salary_mode=mode,
+                    insurance_salary=None,
+                    bhxh_position_group_id=None,
+                    bhxh_position_group_code=None,
+                    bhxh_position_group_name=None,
+                    insurance_salary_grade_no=None,
+                    insurance_salary_fixed_amount=None,
+                    company_region=None,
+                    regional_minimum_wage=None,
+                    salary_scale_id=None,
+                    salary_scale_name=None,
+                    coefficient=None,
+                )
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Mode fixed_manual yêu cầu nhập mức lương đóng BH cố định > 0",
+            )
+        if fixed_amount <= 0:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Mode fixed_manual yêu cầu nhập mức lương đóng BH cố định > 0",
+            )
+        fixed_amount = Decimal(str(fixed_amount)).quantize(Decimal("0.01"))
+        return ResolvedContractInsuranceSalary(
+            insurance_salary_mode=mode,
+            insurance_salary=fixed_amount,
+            bhxh_position_group_id=None,
+            bhxh_position_group_code=None,
+            bhxh_position_group_name=None,
+            insurance_salary_grade_no=None,
+            insurance_salary_fixed_amount=fixed_amount,
+            company_region=None,
+            regional_minimum_wage=None,
+            salary_scale_id=None,
+            salary_scale_name=None,
+            coefficient=None,
+        )
+
+    if bhxh_position_group_id is None:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Mode computed_by_position_group yêu cầu chọn nhóm vị trí BHXH",
+        )
+    if insurance_salary_grade_no is None or insurance_salary_grade_no < 1 or insurance_salary_grade_no > 7:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Mode computed_by_position_group yêu cầu chọn bậc hệ số từ 1 đến 7",
+        )
+
+    group = await _get_position_group_or_404(session, bhxh_position_group_id)
+    company_region = await _get_company_region_as_of(session, effective_from)
+    minimum_wage = await _get_minimum_wage_as_of(session, company_region.region, effective_from)
+    salary_scale = await _get_salary_scale_as_of(session, effective_from)
+
+    entry_rows = await session.execute(
+        select(SalaryScaleEntry).where(
+            SalaryScaleEntry.salary_scale_id == salary_scale.id,
+            SalaryScaleEntry.bhxh_position_group_id == bhxh_position_group_id,
+            SalaryScaleEntry.grade_no == insurance_salary_grade_no,
+        )
+    )
+    entry = entry_rows.scalars().first()
+    if not entry:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail="Nhóm vị trí BHXH chưa có cấu hình hệ số cho bậc đã chọn trong thang bảng lương hiệu lực",
+        )
+
+    coefficient = Decimal(str(entry.coefficient)).quantize(Decimal("0.0001"))
+    regional_minimum_wage = Decimal(str(minimum_wage.amount)).quantize(Decimal("1"))
+    computed_amount = (regional_minimum_wage * coefficient).quantize(Decimal("0.01"))
+
+    return ResolvedContractInsuranceSalary(
+        insurance_salary_mode=mode,
+        insurance_salary=computed_amount,
+        bhxh_position_group_id=group.id,
+        bhxh_position_group_code=group.code,
+        bhxh_position_group_name=group.name,
+        insurance_salary_grade_no=insurance_salary_grade_no,
+        insurance_salary_fixed_amount=None,
+        company_region=company_region.region,
+        regional_minimum_wage=regional_minimum_wage,
+        salary_scale_id=salary_scale.id,
+        salary_scale_name=salary_scale.name,
+        coefficient=coefficient,
+    )
+
+
 # ── Per-employee CRUD ─────────────────────────────────────────────────────────
 
 async def get_contracts(session: AsyncSession, employee_id: int) -> list[ContractRead]:
@@ -97,19 +363,31 @@ async def get_contracts(session: AsyncSession, employee_id: int) -> list[Contrac
     )
     all_contracts = list(rows.scalars().all())
     cat_map = await _build_category_map(session, all_contracts)
+    group_map = await _build_position_group_map(session, all_contracts)
 
     # Phân nhóm: HĐ gốc và phụ lục
     appendix_map: dict[int, list[ContractRead]] = {}
     for c in all_contracts:
         if c.parent_contract_id is not None:
             appendix_map.setdefault(c.parent_contract_id, []).append(
-                _to_read(c, cat_map.get(c.contract_category_id, ""))
+                _to_read(
+                    c,
+                    cat_map.get(c.contract_category_id, ""),
+                    position_group=group_map.get(c.bhxh_position_group_id),
+                )
             )
 
     result: list[ContractRead] = []
     for c in all_contracts:
         if c.parent_contract_id is None:
-            result.append(_to_read(c, cat_map.get(c.contract_category_id, ""), appendix_map.get(c.id, [])))
+            result.append(
+                _to_read(
+                    c,
+                    cat_map.get(c.contract_category_id, ""),
+                    appendix_map.get(c.id, []),
+                    position_group=group_map.get(c.bhxh_position_group_id),
+                )
+            )
 
     return result
 
@@ -118,6 +396,7 @@ async def get_contract_detail(session: AsyncSession, employee_id: int, contract_
     c = await _get_contract_or_404(session, employee_id, contract_id)
     cat = await session.get(ContractCategory, c.contract_category_id)
     cat_name = cat.name if cat else ""
+    group = await session.get(BhxhPositionGroup, c.bhxh_position_group_id) if c.bhxh_position_group_id else None
 
     # Load phụ lục nếu là HĐ gốc
     appendices: list[ContractRead] = []
@@ -132,9 +411,17 @@ async def get_contract_detail(session: AsyncSession, employee_id: int, contract_
         )
         sub = list(rows.scalars().all())
         sub_cat_map = await _build_category_map(session, sub)
-        appendices = [_to_read(s, sub_cat_map.get(s.contract_category_id, "")) for s in sub]
+        sub_group_map = await _build_position_group_map(session, sub)
+        appendices = [
+            _to_read(
+                s,
+                sub_cat_map.get(s.contract_category_id, ""),
+                position_group=sub_group_map.get(s.bhxh_position_group_id),
+            )
+            for s in sub
+        ]
 
-    return _to_read(c, cat_name, appendices)
+    return _to_read(c, cat_name, appendices, position_group=group)
 
 
 async def create_contract(
@@ -166,6 +453,16 @@ async def create_contract(
     if dup.scalar_one_or_none():
         raise HTTPException(status.HTTP_409_CONFLICT, detail=f"Số hợp đồng '{payload.contract_number}' đã tồn tại")
 
+    resolved_salary = await _resolve_contract_insurance_salary(
+        session,
+        effective_from=payload.effective_from,
+        insurance_salary_mode=payload.insurance_salary_mode,
+        bhxh_position_group_id=payload.bhxh_position_group_id,
+        insurance_salary_grade_no=payload.insurance_salary_grade_no,
+        insurance_salary_fixed_amount=payload.insurance_salary_fixed_amount,
+        insurance_salary=payload.insurance_salary,
+    )
+
     c = EmployeeContract(
         employee_id=employee_id,
         parent_contract_id=payload.parent_contract_id,
@@ -175,7 +472,11 @@ async def create_contract(
         signed_date=payload.signed_date,
         effective_from=payload.effective_from,
         effective_to=payload.effective_to,
-        insurance_salary=payload.insurance_salary,
+        insurance_salary=resolved_salary.insurance_salary,
+        insurance_salary_mode=resolved_salary.insurance_salary_mode,
+        bhxh_position_group_id=resolved_salary.bhxh_position_group_id,
+        insurance_salary_grade_no=resolved_salary.insurance_salary_grade_no,
+        insurance_salary_fixed_amount=resolved_salary.insurance_salary_fixed_amount,
         notes=payload.notes,
         status="active",
         created_by=created_by,
@@ -185,7 +486,37 @@ async def create_contract(
     await session.flush()
     await session.commit()
     await session.refresh(c)
-    return _to_read(c, cat.name)
+    group = await session.get(BhxhPositionGroup, c.bhxh_position_group_id) if c.bhxh_position_group_id else None
+    return _to_read(c, cat.name, position_group=group)
+
+
+async def preview_contract_insurance_salary(
+    session: AsyncSession,
+    payload: ContractInsuranceSalaryPreviewInput,
+) -> ContractInsuranceSalaryPreviewRead:
+    resolved = await _resolve_contract_insurance_salary(
+        session,
+        effective_from=payload.effective_from,
+        insurance_salary_mode=payload.insurance_salary_mode,
+        bhxh_position_group_id=payload.bhxh_position_group_id,
+        insurance_salary_grade_no=payload.insurance_salary_grade_no,
+        insurance_salary_fixed_amount=payload.insurance_salary_fixed_amount,
+        insurance_salary=None,
+    )
+    return ContractInsuranceSalaryPreviewRead(
+        insurance_salary_mode=resolved.insurance_salary_mode,
+        insurance_salary=resolved.insurance_salary,
+        bhxh_position_group_id=resolved.bhxh_position_group_id,
+        bhxh_position_group_code=resolved.bhxh_position_group_code,
+        bhxh_position_group_name=resolved.bhxh_position_group_name,
+        insurance_salary_grade_no=resolved.insurance_salary_grade_no,
+        insurance_salary_fixed_amount=resolved.insurance_salary_fixed_amount,
+        company_region=resolved.company_region,
+        regional_minimum_wage=resolved.regional_minimum_wage,
+        salary_scale_id=resolved.salary_scale_id,
+        salary_scale_name=resolved.salary_scale_name,
+        coefficient=resolved.coefficient,
+    )
 
 
 async def update_contract(
@@ -207,16 +538,64 @@ async def update_contract(
             raise HTTPException(status.HTTP_409_CONFLICT, detail=f"Số hợp đồng '{payload.contract_number}' đã tồn tại")
         c.contract_number = payload.contract_number
 
-    if payload.signed_date is not None:     c.signed_date     = payload.signed_date
-    if payload.effective_from is not None:  c.effective_from  = payload.effective_from
-    if payload.effective_to is not None:    c.effective_to    = payload.effective_to
-    if payload.insurance_salary is not None: c.insurance_salary = payload.insurance_salary
-    if payload.notes is not None:           c.notes           = payload.notes
-    if payload.status == "terminated":      c.status          = "terminated"
+    if payload.signed_date is not None:
+        c.signed_date = payload.signed_date
+    if payload.effective_from is not None:
+        c.effective_from = payload.effective_from
+    if payload.effective_to is not None:
+        c.effective_to = payload.effective_to
+    if payload.notes is not None:
+        c.notes = payload.notes
+    if payload.status == "terminated":
+        c.status = "terminated"
 
     # Validate dates sau khi patch
     if c.effective_to and c.effective_to < c.effective_from:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="effective_to phải >= effective_from")
+
+    next_mode = payload.insurance_salary_mode or c.insurance_salary_mode
+    next_fixed_amount = (
+        payload.insurance_salary_fixed_amount
+        if payload.insurance_salary_fixed_amount is not None
+        else (
+            payload.insurance_salary
+            if payload.insurance_salary is not None and next_mode == "fixed_manual"
+            else c.insurance_salary_fixed_amount
+        )
+    )
+
+    resolved_salary = await _resolve_contract_insurance_salary(
+        session,
+        effective_from=c.effective_from,
+        insurance_salary_mode=next_mode,
+        bhxh_position_group_id=(
+            payload.bhxh_position_group_id
+            if payload.bhxh_position_group_id is not None
+            else c.bhxh_position_group_id
+        ),
+        insurance_salary_grade_no=(
+            payload.insurance_salary_grade_no
+            if payload.insurance_salary_grade_no is not None
+            else c.insurance_salary_grade_no
+        ),
+        insurance_salary_fixed_amount=next_fixed_amount,
+        insurance_salary=(
+            payload.insurance_salary
+            if payload.insurance_salary is not None
+            else c.insurance_salary
+        ),
+        allow_empty_fixed_amount=(
+            payload.insurance_salary_mode is None
+            and payload.insurance_salary is None
+            and payload.insurance_salary_fixed_amount is None
+            and c.insurance_salary_mode == "fixed_manual"
+        ),
+    )
+    c.insurance_salary = resolved_salary.insurance_salary
+    c.insurance_salary_mode = resolved_salary.insurance_salary_mode
+    c.bhxh_position_group_id = resolved_salary.bhxh_position_group_id
+    c.insurance_salary_grade_no = resolved_salary.insurance_salary_grade_no
+    c.insurance_salary_fixed_amount = resolved_salary.insurance_salary_fixed_amount
 
     c.updated_at = _utcnow()
     session.add(c)
@@ -224,7 +603,8 @@ async def update_contract(
     await session.refresh(c)
 
     cat = await session.get(ContractCategory, c.contract_category_id)
-    return _to_read(c, cat.name if cat else "")
+    group = await session.get(BhxhPositionGroup, c.bhxh_position_group_id) if c.bhxh_position_group_id else None
+    return _to_read(c, cat.name if cat else "", position_group=group)
 
 
 async def terminate_contract(session: AsyncSession, employee_id: int, contract_id: int) -> ContractRead:
@@ -237,7 +617,8 @@ async def terminate_contract(session: AsyncSession, employee_id: int, contract_i
     await session.commit()
     await session.refresh(c)
     cat = await session.get(ContractCategory, c.contract_category_id)
-    return _to_read(c, cat.name if cat else "")
+    group = await session.get(BhxhPositionGroup, c.bhxh_position_group_id) if c.bhxh_position_group_id else None
+    return _to_read(c, cat.name if cat else "", position_group=group)
 
 
 async def set_contract_file(
@@ -259,7 +640,8 @@ async def set_contract_file(
     await session.commit()
     await session.refresh(c)
     cat = await session.get(ContractCategory, c.contract_category_id)
-    return _to_read(c, cat.name if cat else "")
+    group = await session.get(BhxhPositionGroup, c.bhxh_position_group_id) if c.bhxh_position_group_id else None
+    return _to_read(c, cat.name if cat else "", position_group=group)
 
 
 async def remove_contract_file(
@@ -335,6 +717,8 @@ async def list_contracts_global(
     q = q.offset((page - 1) * page_size).limit(page_size)
 
     rows = (await session.execute(q)).fetchall()
+    contracts = [contract for contract, _, _ in rows]
+    group_map = await _build_position_group_map(session, contracts)
     employees = [emp for _, _, emp in rows]
     code_map = await employee_code_service.batch_build_employee_display_codes(session, employees)
     items = [
@@ -343,6 +727,7 @@ async def list_contracts_global(
             cat.name,
             employee_name=emp.full_name,
             employee_code=code_map.get(emp.id, ""),
+            position_group=group_map.get(c.bhxh_position_group_id),
         )
         for c, cat, emp in rows
     ]

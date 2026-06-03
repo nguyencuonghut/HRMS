@@ -71,6 +71,30 @@ class EmployeeContract(SQLModel, table=True):
         default=None,
         sa_column=Column(sa.Numeric(18, 2), nullable=True),
     )
+    insurance_salary_mode: str = Field(
+        default="fixed_manual",
+        sa_column=Column(
+            sa.String(40),
+            nullable=False,
+            server_default="fixed_manual",
+        ),
+    )
+    bhxh_position_group_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(
+            sa.Integer(),
+            sa.ForeignKey("bhxh_position_groups.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
+    )
+    insurance_salary_grade_no: Optional[int] = Field(
+        default=None,
+        sa_column=Column(sa.SmallInteger(), nullable=True),
+    )
+    insurance_salary_fixed_amount: Optional[Decimal] = Field(
+        default=None,
+        sa_column=Column(sa.Numeric(18, 2), nullable=True),
+    )
 
     # active | expired | terminated | draft
     status: str = Field(

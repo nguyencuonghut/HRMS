@@ -1,5 +1,7 @@
 import api from './api'
 
+export type InsuranceSalaryMode = 'computed_by_position_group' | 'fixed_manual'
+
 export interface ContractRead {
   id: number
   employee_id: number
@@ -12,6 +14,12 @@ export interface ContractRead {
   effective_from: string
   effective_to: string | null
   insurance_salary: string | null
+  insurance_salary_mode: InsuranceSalaryMode
+  bhxh_position_group_id: number | null
+  bhxh_position_group_code: string | null
+  bhxh_position_group_name: string | null
+  insurance_salary_grade_no: number | null
+  insurance_salary_fixed_amount: string | null
   status: string
   status_display: string
   days_until_expiry: number | null
@@ -31,6 +39,10 @@ export interface ContractCreate {
   signed_date: string
   effective_from: string
   effective_to?: string | null
+  insurance_salary_mode?: InsuranceSalaryMode | null
+  bhxh_position_group_id?: number | null
+  insurance_salary_grade_no?: number | null
+  insurance_salary_fixed_amount?: string | null
   insurance_salary?: string | null
   parent_contract_id?: number | null
   notes?: string | null
@@ -41,9 +53,36 @@ export interface ContractUpdate {
   signed_date?: string
   effective_from?: string
   effective_to?: string | null
+  insurance_salary_mode?: InsuranceSalaryMode | null
+  bhxh_position_group_id?: number | null
+  insurance_salary_grade_no?: number | null
+  insurance_salary_fixed_amount?: string | null
   insurance_salary?: string | null
   status?: string
   notes?: string | null
+}
+
+export interface ContractInsuranceSalaryPreviewInput {
+  effective_from: string
+  insurance_salary_mode: InsuranceSalaryMode
+  bhxh_position_group_id?: number | null
+  insurance_salary_grade_no?: number | null
+  insurance_salary_fixed_amount?: string | null
+}
+
+export interface ContractInsuranceSalaryPreviewRead {
+  insurance_salary_mode: InsuranceSalaryMode
+  insurance_salary: string | null
+  bhxh_position_group_id: number | null
+  bhxh_position_group_code: string | null
+  bhxh_position_group_name: string | null
+  insurance_salary_grade_no: number | null
+  insurance_salary_fixed_amount: string | null
+  company_region: number | null
+  regional_minimum_wage: string | null
+  salary_scale_id: number | null
+  salary_scale_name: string | null
+  coefficient: string | null
 }
 
 export interface ContractListPage {
@@ -99,6 +138,9 @@ async function downloadFile(employeeId: number, contractId: number, fileName: st
 export default {
   listContracts: (employeeId: number) =>
     api.get<ContractRead[]>(`/employees/${employeeId}/contracts`),
+
+  previewInsuranceSalary: (employeeId: number, data: ContractInsuranceSalaryPreviewInput) =>
+    api.post<ContractInsuranceSalaryPreviewRead>(`/employees/${employeeId}/contracts/preview-insurance-salary`, data),
 
   createContract: (employeeId: number, data: ContractCreate) =>
     api.post<ContractRead>(`/employees/${employeeId}/contracts`, data),

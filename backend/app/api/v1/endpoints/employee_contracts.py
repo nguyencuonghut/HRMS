@@ -17,6 +17,8 @@ from app.schemas.employee_contract import (
     ALLOWED_FILE_EXTS,
     MAX_FILE_SIZE,
     ContractCreate,
+    ContractInsuranceSalaryPreviewInput,
+    ContractInsuranceSalaryPreviewRead,
     ContractRead,
     ContractUpdate,
 )
@@ -57,6 +59,25 @@ async def create_contract(
     )
     await session.commit()
     return result
+
+
+@router.post(
+    "/{employee_id}/contracts/preview-insurance-salary",
+    response_model=ContractInsuranceSalaryPreviewRead,
+    tags=[_TAG],
+)
+async def preview_contract_insurance_salary(
+    employee_id: int,
+    payload: ContractInsuranceSalaryPreviewInput,
+    _: User = require_permission("contracts:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    from app.models.employee import Employee
+
+    employee = await session.get(Employee, employee_id)
+    if not employee:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Không tìm thấy nhân viên")
+    return await employee_contract_service.preview_contract_insurance_salary(session, payload)
 
 
 @router.get("/{employee_id}/contracts/{contract_id}", response_model=ContractRead, tags=[_TAG])
@@ -210,7 +231,8 @@ async def delete_contract_file(
     )
     await session.commit()
     from app.models.catalog import ContractCategory
+    from app.models.salary import BhxhPositionGroup
     cat = await session.get(ContractCategory, c.contract_category_id)
-    from app.schemas.employee_contract import _days_until, _status_display
     from app.services.employee_contract_service import _to_read
-    return _to_read(c, cat.name if cat else "")
+    group = await session.get(BhxhPositionGroup, c.bhxh_position_group_id) if c.bhxh_position_group_id else None
+    return _to_read(c, cat.name if cat else "", position_group=group)

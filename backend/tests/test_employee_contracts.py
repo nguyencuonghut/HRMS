@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.core.config import settings
 from app.models.employee import Employee
+from app.models.salary import BhxhPositionGroup
 
 BASE_EMP = "/api/v1/employees"
 BASE_CON = "/api/v1/contracts"
@@ -98,6 +99,14 @@ def _contract_payload(suffix: str, category_id: int = CAT_LABOR_INDEFINITE, **kw
     return base
 
 
+async def _get_bhxh_group(code: str) -> BhxhPositionGroup:
+    async with _make_session()() as s:
+        row = await s.execute(select(BhxhPositionGroup).where(BhxhPositionGroup.code == code))
+        group = row.scalar_one_or_none()
+        assert group is not None
+        return group
+
+
 # ── Tests: CRUD ────────────────────────────────────────────────────────────────
 
 def test_create_contract_success(client: TestClient):
@@ -112,6 +121,61 @@ def test_create_contract_success(client: TestClient):
     assert data["document_kind"] == "labor_contract"
     assert data["has_file"] is False
     assert data["appendices"] == []
+    assert data["insurance_salary_mode"] == "fixed_manual"
+    assert data["insurance_salary_fixed_amount"] == "10000000.00"
+
+
+def test_create_contract_computed_by_position_group(client: TestClient):
+    headers = _admin(client)
+    emp_id = _create_employee(client, headers, "C01B")
+    group = asyncio.run(_get_bhxh_group("EXEC_COMPANY"))
+
+    resp = client.post(
+        f"{BASE_EMP}/{emp_id}/contracts",
+        json=_contract_payload(
+            "C01B",
+            signed_date="2026-01-01",
+            effective_from="2026-01-01",
+            insurance_salary_mode="computed_by_position_group",
+            bhxh_position_group_id=group.id,
+            insurance_salary_grade_no=1,
+            insurance_salary=None,
+        ),
+        headers=headers,
+    )
+    assert resp.status_code == 201, resp.text
+    data = resp.json()
+    assert data["insurance_salary_mode"] == "computed_by_position_group"
+    assert data["bhxh_position_group_id"] == group.id
+    assert data["bhxh_position_group_code"] == "EXEC_COMPANY"
+    assert data["insurance_salary_grade_no"] == 1
+    assert Decimal(data["insurance_salary"]) == Decimal("11095200.00")
+    assert data["insurance_salary_fixed_amount"] is None
+
+
+def test_preview_contract_insurance_salary_computed(client: TestClient):
+    headers = _admin(client)
+    emp_id = _create_employee(client, headers, "C01C")
+    group = asyncio.run(_get_bhxh_group("OFFICE_STAFF"))
+
+    resp = client.post(
+        f"{BASE_EMP}/{emp_id}/contracts/preview-insurance-salary",
+        json={
+            "effective_from": "2026-01-01",
+            "insurance_salary_mode": "computed_by_position_group",
+            "bhxh_position_group_id": group.id,
+            "insurance_salary_grade_no": 3,
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["insurance_salary_mode"] == "computed_by_position_group"
+    assert data["bhxh_position_group_code"] == "OFFICE_STAFF"
+    assert data["company_region"] == 3
+    assert Decimal(data["regional_minimum_wage"]) == Decimal("4140000")
+    assert Decimal(data["coefficient"]) == Decimal("1.2200")
+    assert Decimal(data["insurance_salary"]) == Decimal("5050800.00")
 
 
 def test_create_contract_definite_term(client: TestClient):
@@ -218,6 +282,31 @@ def test_update_contract_success(client: TestClient):
     )
     assert resp.status_code == 200
     assert Decimal(resp.json()["insurance_salary"]) == Decimal("15000000")
+
+
+def test_update_contract_switches_to_computed_mode(client: TestClient):
+    headers = _admin(client)
+    emp_id = _create_employee(client, headers, "C08B")
+    cid = client.post(f"{BASE_EMP}/{emp_id}/contracts", json=_contract_payload("C08B"), headers=headers).json()["id"]
+    group = asyncio.run(_get_bhxh_group("DRIVER"))
+
+    resp = client.put(
+        f"{BASE_EMP}/{emp_id}/contracts/{cid}",
+        json={
+            "effective_from": "2026-01-01",
+            "insurance_salary_mode": "computed_by_position_group",
+            "bhxh_position_group_id": group.id,
+            "insurance_salary_grade_no": 4,
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["insurance_salary_mode"] == "computed_by_position_group"
+    assert data["bhxh_position_group_code"] == "DRIVER"
+    assert data["insurance_salary_grade_no"] == 4
+    assert Decimal(data["insurance_salary"]) == Decimal("5547600.00")
+    assert data["insurance_salary_fixed_amount"] is None
 
 
 def test_update_terminated_contract_400(client: TestClient):

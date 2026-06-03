@@ -61,16 +61,61 @@
       </div>
 
       <div class="field">
-        <label>Mức lương đóng BH (VNĐ)</label>
-        <InputNumber
-          v-model="form.insurance_salary_n"
+        <label>Mode lương đóng BH <span class="req">*</span></label>
+        <Select
+          v-model="form.insurance_salary_mode"
+          :options="insuranceSalaryModeOptions"
+          option-label="label"
+          option-value="value"
           class="w-full"
-          :use-grouping="true"
-          :min="0"
-          :max="999999999"
-          placeholder="Tùy chọn"
+          :invalid="!!errors.insurance_salary_mode"
         />
+        <small v-if="errors.insurance_salary_mode" class="error-msg">{{ errors.insurance_salary_mode }}</small>
       </div>
+    </div>
+
+    <div v-if="form.insurance_salary_mode === 'computed_by_position_group'" class="field-row">
+      <div class="field">
+        <label>Nhóm vị trí BHXH <span class="req">*</span></label>
+        <Select
+          v-model="form.bhxh_position_group_id"
+          :options="positionGroupOptions"
+          option-label="label"
+          option-value="value"
+          filter
+          class="w-full"
+          :loading="loadingInsuranceConfig"
+          :invalid="!!errors.bhxh_position_group_id"
+        />
+        <small v-if="errors.bhxh_position_group_id" class="error-msg">{{ errors.bhxh_position_group_id }}</small>
+      </div>
+
+      <div class="field">
+        <label>Bậc hệ số <span class="req">*</span></label>
+        <Select
+          v-model="form.insurance_salary_grade_no"
+          :options="gradeOptions"
+          option-label="label"
+          option-value="value"
+          class="w-full"
+          :invalid="!!errors.insurance_salary_grade_no"
+        />
+        <small v-if="errors.insurance_salary_grade_no" class="error-msg">{{ errors.insurance_salary_grade_no }}</small>
+      </div>
+    </div>
+
+    <div v-else class="field">
+      <label>Mức lương đóng BH cố định (VNĐ) <span class="req">*</span></label>
+      <InputNumber
+        v-model="form.insurance_salary_fixed_amount_n"
+        class="w-full"
+        :use-grouping="true"
+        :min="0"
+        :max="999999999"
+        placeholder="Nhập mức cố định"
+        :invalid="!!errors.insurance_salary_fixed_amount"
+      />
+      <small v-if="errors.insurance_salary_fixed_amount" class="error-msg">{{ errors.insurance_salary_fixed_amount }}</small>
     </div>
 
     <div class="field-row">
@@ -94,6 +139,25 @@
           show-button-bar
           placeholder="Để trống = vô thời hạn"
         />
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Mức lương đóng BH (VNĐ)</label>
+      <div class="contract-insurance-preview-box">
+        <template v-if="previewLoading">
+          Đang tính preview...
+        </template>
+        <template v-else-if="previewError">
+          <span class="error-msg">{{ previewError }}</span>
+        </template>
+        <template v-else-if="resolvedInsuranceSalaryLabel">
+          <div class="preview-amount">{{ resolvedInsuranceSalaryLabel }}</div>
+          <small v-if="previewMetaLine">{{ previewMetaLine }}</small>
+        </template>
+        <template v-else>
+          Chưa đủ dữ liệu để tính preview.
+        </template>
       </div>
     </div>
 
@@ -131,7 +195,13 @@ import InputText from 'primevue/inputtext'
 import Select from 'primevue/select'
 import Textarea from 'primevue/textarea'
 
-import contractService, { type ContractRead } from '@/services/contractService'
+import contractService, {
+  type ContractInsuranceSalaryPreviewRead,
+  type ContractRead,
+  type InsuranceSalaryMode,
+} from '@/services/contractService'
+import employeeService from '@/services/employeeService'
+import insuranceService, { type BhxhPositionGroupRead } from '@/services/insuranceService'
 import otherBusinessCatalogService, { type ContractCategoryRead } from '@/services/otherBusinessCatalogService'
 
 interface Props {
@@ -150,6 +220,13 @@ const submitting = ref(false)
 const errors     = ref<Record<string, string>>({})
 
 const categories = ref<ContractCategoryRead[]>([])
+const positionGroups = ref<BhxhPositionGroupRead[]>([])
+const employeeCurrentJobPositionId = ref<number | null>(null)
+const loadingInsuranceConfig = ref(false)
+const preview = ref<ContractInsuranceSalaryPreviewRead | null>(null)
+const previewLoading = ref(false)
+const previewError = ref('')
+let previewRequestSeq = 0
 
 const categoryOptions = computed(() =>
   categories.value
@@ -163,6 +240,51 @@ const parentOptions = computed(() =>
     .map(c => ({ label: c.contract_number, value: c.id }))
 )
 
+const insuranceSalaryModeOptions = [
+  { label: 'Theo nhóm vị trí + bậc', value: 'computed_by_position_group' },
+  { label: 'Cố định theo thỏa thuận', value: 'fixed_manual' },
+] satisfies Array<{ label: string; value: InsuranceSalaryMode }>
+
+const gradeOptions = Array.from({ length: 7 }, (_, idx) => ({
+  label: `Bậc ${idx + 1}`,
+  value: idx + 1,
+}))
+
+const positionGroupOptions = computed(() =>
+  positionGroups.value
+    .filter((group) => group.is_active)
+    .map((group) => ({
+      label: `${group.name} (${group.code})`,
+      value: group.id,
+    })),
+)
+
+const resolvedInsuranceSalaryLabel = computed(() => {
+  if (preview.value?.insurance_salary) {
+    return formatCurrency(preview.value.insurance_salary)
+  }
+  if (
+    form.value.insurance_salary_mode === 'fixed_manual' &&
+    form.value.insurance_salary_fixed_amount_n != null
+  ) {
+    return formatCurrency(String(form.value.insurance_salary_fixed_amount_n))
+  }
+  return null
+})
+
+const previewMetaLine = computed(() => {
+  if (!preview.value) return null
+  if (preview.value.insurance_salary_mode === 'fixed_manual') {
+    return 'Mode cố định theo thỏa thuận'
+  }
+  const region = preview.value.company_region != null ? `Vùng ${preview.value.company_region}` : null
+  const minimumWage = preview.value.regional_minimum_wage
+    ? formatCurrency(preview.value.regional_minimum_wage)
+    : null
+  const coefficient = preview.value.coefficient ? `Hệ số ${preview.value.coefficient}` : null
+  return [region, minimumWage, coefficient].filter(Boolean).join(' · ')
+})
+
 // ── Form state ────────────────────────────────────────────────────────────────
 const form = ref({
   contract_category_id: null as number | null,
@@ -171,7 +293,10 @@ const form = ref({
   signed_date_d:        null as Date | null,
   effective_from_d:     null as Date | null,
   effective_to_d:       null as Date | null,
-  insurance_salary_n:   null as number | null,
+  insurance_salary_mode: 'fixed_manual' as InsuranceSalaryMode,
+  bhxh_position_group_id: null as number | null,
+  insurance_salary_grade_no: 1 as number | null,
+  insurance_salary_fixed_amount_n: null as number | null,
   notes:                '',
 })
 
@@ -187,10 +312,85 @@ function fromIso(s: string | null | undefined): Date | null {
   return s ? new Date(s) : null
 }
 
+function formatCurrency(value: string | number | null): string {
+  if (value == null || value === '') return '—'
+  const parsed = typeof value === 'number' ? value : Number(value)
+  if (Number.isNaN(parsed)) return '—'
+  return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(parsed)
+}
+
+function getDefaultComputedGroupId(): number | null {
+  if (!employeeCurrentJobPositionId.value) return null
+  const match = positionGroups.value.find((group) =>
+    group.members.some((member) => member.job_position_id === employeeCurrentJobPositionId.value),
+  )
+  return match?.id ?? null
+}
+
+async function loadInsuranceConfig() {
+  loadingInsuranceConfig.value = true
+  try {
+    const [groupRes, employeeRes] = await Promise.all([
+      insuranceService.getPositionGroups(),
+      employeeService.get(props.employeeId),
+    ])
+    positionGroups.value = groupRes.data.groups
+    employeeCurrentJobPositionId.value = employeeRes.data.current_job?.job_position?.id ?? null
+  } catch {
+    positionGroups.value = []
+    employeeCurrentJobPositionId.value = null
+  } finally {
+    loadingInsuranceConfig.value = false
+  }
+}
+
+async function refreshPreview() {
+  preview.value = null
+  previewError.value = ''
+
+  const effectiveFrom = toIso(form.value.effective_from_d)
+  if (!effectiveFrom) return
+
+  if (form.value.insurance_salary_mode === 'fixed_manual') {
+    if (form.value.insurance_salary_fixed_amount_n == null) return
+  } else {
+    if (!form.value.bhxh_position_group_id || !form.value.insurance_salary_grade_no) return
+  }
+
+  previewLoading.value = true
+  const requestId = ++previewRequestSeq
+  try {
+    const res = await contractService.previewInsuranceSalary(props.employeeId, {
+      effective_from: effectiveFrom,
+      insurance_salary_mode: form.value.insurance_salary_mode,
+      bhxh_position_group_id: form.value.bhxh_position_group_id,
+      insurance_salary_grade_no: form.value.insurance_salary_grade_no,
+      insurance_salary_fixed_amount:
+        form.value.insurance_salary_fixed_amount_n != null
+          ? String(form.value.insurance_salary_fixed_amount_n)
+          : null,
+    })
+    if (requestId !== previewRequestSeq) return
+    preview.value = res.data
+  } catch (e: unknown) {
+    if (requestId !== previewRequestSeq) return
+    const err = e as { response?: { data?: { detail?: unknown } } }
+    const detail = err.response?.data?.detail
+    previewError.value = typeof detail === 'string' ? detail : 'Không tính được preview lương BH'
+  } finally {
+    if (requestId === previewRequestSeq) {
+      previewLoading.value = false
+    }
+  }
+}
+
 // Reset form when dialog opens
-watch(visible, (v) => {
+watch(visible, async (v) => {
   if (!v) return
   errors.value = {}
+  preview.value = null
+  previewError.value = ''
+  await loadInsuranceConfig()
   if (props.contract) {
     const c = props.contract
     form.value = {
@@ -200,10 +400,15 @@ watch(visible, (v) => {
       signed_date_d:        fromIso(c.signed_date),
       effective_from_d:     fromIso(c.effective_from),
       effective_to_d:       fromIso(c.effective_to),
-      insurance_salary_n:   c.insurance_salary ? parseFloat(c.insurance_salary) : null,
+      insurance_salary_mode: c.insurance_salary_mode,
+      bhxh_position_group_id: c.bhxh_position_group_id,
+      insurance_salary_grade_no: c.insurance_salary_grade_no ?? 1,
+      insurance_salary_fixed_amount_n: c.insurance_salary_fixed_amount ? parseFloat(c.insurance_salary_fixed_amount) : null,
       notes:                c.notes ?? '',
     }
+    await refreshPreview()
   } else {
+    const defaultGroupId = getDefaultComputedGroupId()
     form.value = {
       contract_category_id: null,
       parent_contract_id:   null,
@@ -211,7 +416,10 @@ watch(visible, (v) => {
       signed_date_d:        null,
       effective_from_d:     null,
       effective_to_d:       null,
-      insurance_salary_n:   null,
+      insurance_salary_mode: defaultGroupId ? 'computed_by_position_group' : 'fixed_manual',
+      bhxh_position_group_id: defaultGroupId,
+      insurance_salary_grade_no: 1,
+      insurance_salary_fixed_amount_n: null,
       notes:                '',
     }
   }
@@ -235,6 +443,13 @@ function validate(): boolean {
   if (!form.value.contract_number.trim()) errors.value.contract_number = 'Số hợp đồng không được để trống'
   if (!form.value.signed_date_d) errors.value.signed_date = 'Chọn ngày ký'
   if (!form.value.effective_from_d) errors.value.effective_from = 'Chọn ngày hiệu lực'
+  if (!form.value.insurance_salary_mode) errors.value.insurance_salary_mode = 'Chọn mode lương đóng BH'
+  if (form.value.insurance_salary_mode === 'computed_by_position_group') {
+    if (!form.value.bhxh_position_group_id) errors.value.bhxh_position_group_id = 'Chọn nhóm vị trí BHXH'
+    if (!form.value.insurance_salary_grade_no) errors.value.insurance_salary_grade_no = 'Chọn bậc hệ số'
+  } else if (form.value.insurance_salary_fixed_amount_n == null || form.value.insurance_salary_fixed_amount_n <= 0) {
+    errors.value.insurance_salary_fixed_amount = 'Nhập mức lương đóng BH cố định > 0'
+  }
   if (
     form.value.effective_to_d &&
     form.value.effective_from_d &&
@@ -256,8 +471,17 @@ async function submit() {
         signed_date:      toIso(form.value.signed_date_d)!,
         effective_from:   toIso(form.value.effective_from_d)!,
         effective_to:     toIso(form.value.effective_to_d),
-        insurance_salary: form.value.insurance_salary_n != null
-          ? String(form.value.insurance_salary_n) : null,
+        insurance_salary_mode: form.value.insurance_salary_mode,
+        bhxh_position_group_id: form.value.insurance_salary_mode === 'computed_by_position_group'
+          ? form.value.bhxh_position_group_id
+          : null,
+        insurance_salary_grade_no: form.value.insurance_salary_mode === 'computed_by_position_group'
+          ? form.value.insurance_salary_grade_no
+          : null,
+        insurance_salary_fixed_amount: form.value.insurance_salary_mode === 'fixed_manual' && form.value.insurance_salary_fixed_amount_n != null
+          ? String(form.value.insurance_salary_fixed_amount_n) : null,
+        insurance_salary: form.value.insurance_salary_mode === 'fixed_manual' && form.value.insurance_salary_fixed_amount_n != null
+          ? String(form.value.insurance_salary_fixed_amount_n) : null,
         notes: form.value.notes.trim() || null,
       }
       await contractService.updateContract(props.employeeId, props.contract.id, payload)
@@ -269,8 +493,17 @@ async function submit() {
         signed_date:          toIso(form.value.signed_date_d)!,
         effective_from:       toIso(form.value.effective_from_d)!,
         effective_to:         toIso(form.value.effective_to_d),
-        insurance_salary:     form.value.insurance_salary_n != null
-          ? String(form.value.insurance_salary_n) : null,
+        insurance_salary_mode: form.value.insurance_salary_mode,
+        bhxh_position_group_id: form.value.insurance_salary_mode === 'computed_by_position_group'
+          ? form.value.bhxh_position_group_id
+          : null,
+        insurance_salary_grade_no: form.value.insurance_salary_mode === 'computed_by_position_group'
+          ? form.value.insurance_salary_grade_no
+          : null,
+        insurance_salary_fixed_amount: form.value.insurance_salary_mode === 'fixed_manual' && form.value.insurance_salary_fixed_amount_n != null
+          ? String(form.value.insurance_salary_fixed_amount_n) : null,
+        insurance_salary: form.value.insurance_salary_mode === 'fixed_manual' && form.value.insurance_salary_fixed_amount_n != null
+          ? String(form.value.insurance_salary_fixed_amount_n) : null,
         parent_contract_id:   form.value.parent_contract_id,
         notes:                form.value.notes.trim() || null,
       }
@@ -288,4 +521,18 @@ async function submit() {
     submitting.value = false
   }
 }
+
+watch(
+  () => [
+    form.value.insurance_salary_mode,
+    form.value.bhxh_position_group_id,
+    form.value.insurance_salary_grade_no,
+    form.value.insurance_salary_fixed_amount_n,
+    form.value.effective_from_d?.toISOString() ?? null,
+  ],
+  async () => {
+    if (!visible.value) return
+    await refreshPreview()
+  },
+)
 </script>

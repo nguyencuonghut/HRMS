@@ -1,14 +1,14 @@
-import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
+import { expect, test, type APIRequestContext, type Locator, type Page } from "@playwright/test";
 
 const ADMIN_EMAIL = process.env.E2E_EMAIL || "admin@hrms.local";
 const ADMIN_PASSWORD = process.env.E2E_PASSWORD || "Hrms@2026";
 
-async function login(page: Page) {
-  await page.goto("/login");
+async function login(page: Page, redirect = "/reports/dashboard") {
+  await page.goto(`/login?redirect=${encodeURIComponent(redirect)}`);
   await page.getByLabel("Email").fill(ADMIN_EMAIL);
   await page.getByPlaceholder("Nhập mật khẩu").fill(ADMIN_PASSWORD);
   await page.getByRole("button", { name: "Đăng nhập" }).click();
-  await page.waitForURL(/\/(dashboard|reports\/dashboard|catalog\/insurance)/);
+  await page.waitForURL(new RegExp(redirect.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
 }
 
 async function adminToken(request: APIRequestContext) {
@@ -20,10 +20,25 @@ async function adminToken(request: APIRequestContext) {
   return body.access_token as string;
 }
 
+async function fillDateField(page: Page, scope: Locator, fieldLabel: RegExp, value: string) {
+  const field = scope.locator(".field").filter({ hasText: fieldLabel });
+  const input = field.locator("input");
+  await input.click();
+  await input.fill(value);
+  await input.press("Tab");
+  const overlay = page.locator(".p-datepicker-panel[aria-label='Choose Date']");
+  if (await overlay.count()) {
+    const visible = await overlay.first().isVisible().catch(() => false);
+    if (visible) {
+      await page.keyboard.press("Escape");
+      await expect(overlay.first()).toBeHidden();
+    }
+  }
+}
+
 test("insurance foundation view manages minimum wages and seniority settings", async ({ page }) => {
   await page.setViewportSize({ width: 1600, height: 1200 });
-  await login(page);
-  await page.goto("/catalog/insurance");
+  await login(page, "/catalog/insurance");
   await page.waitForLoadState("networkidle");
 
   await expect(page.getByRole("heading", { name: "Lương tối thiểu vùng" })).toBeVisible();
@@ -121,8 +136,7 @@ test("insurance foundation view manages bhxh position groups with 7 grades", asy
     positionId = position.id;
 
     await page.setViewportSize({ width: 1600, height: 1200 });
-    await login(page);
-    await page.goto("/catalog/insurance");
+    await login(page, "/catalog/insurance");
     await page.waitForLoadState("networkidle");
 
     await expect(page.getByRole("heading", { name: "Nhóm vị trí BHXH + hệ số 7 bậc" })).toBeVisible();
@@ -185,6 +199,96 @@ test("insurance foundation view manages bhxh position groups with 7 grades", asy
     }
     if (deptId) {
       await request.delete(`/api/v1/departments/${deptId}`);
+    }
+  }
+});
+
+test("employee contract form supports computed and fixed insurance salary modes", async ({ page, request }) => {
+  const token = await adminToken(request);
+  const stamp = String(Date.now()).slice(-6);
+  const computedNumber = `E2E-BHXH-C-${stamp}`;
+  const fixedNumber = `E2E-BHXH-F-${stamp}`;
+
+  try {
+    await page.setViewportSize({ width: 1600, height: 1200 });
+    await login(page, "/employees/1");
+    await page.waitForLoadState("networkidle");
+
+    await page.getByRole("tab", { name: "Hợp đồng" }).click();
+    await expect(page.getByRole("button", { name: "Thêm hợp đồng" })).toBeVisible();
+
+    await page.getByRole("button", { name: "Thêm hợp đồng" }).click();
+    const computedDialog = page.getByRole("dialog", { name: "Thêm hợp đồng" });
+    await computedDialog.locator(".field").filter({ hasText: /^Loại hợp đồng/ }).locator(".p-select").click();
+    await page.getByRole("option", { name: "HĐLĐ xác định thời hạn (HĐ)" }).click();
+    await computedDialog.locator(".field").filter({ hasText: /^Số hợp đồng/ }).locator("input").fill(computedNumber);
+    await fillDateField(page, computedDialog, /^Ngày ký/, "01/01/2026");
+    await fillDateField(page, computedDialog, /^Hiệu lực từ/, "01/01/2026");
+    await computedDialog.locator(".field").filter({ hasText: /^Mode lương đóng BH/ }).locator(".p-select").click();
+    await page.getByRole("option", { name: "Theo nhóm vị trí + bậc" }).click();
+    await computedDialog.locator(".field").filter({ hasText: /^Nhóm vị trí BHXH/ }).locator(".p-select").click();
+    await page.getByRole("option", { name: /OFFICE_STAFF/ }).click();
+    await computedDialog.locator(".field").filter({ hasText: /^Bậc hệ số/ }).locator(".p-select").click();
+    const previewResp = page.waitForResponse((response) =>
+      response.url().includes("/preview-insurance-salary") &&
+      response.request().method() === "POST",
+    );
+    await page.getByRole("option", { name: "Bậc 3" }).click();
+    expect((await previewResp).status()).toBe(200);
+    await expect(computedDialog.getByText(/5\.050\.800/)).toBeVisible();
+
+    const createComputed = page.waitForResponse((response) =>
+      response.url().match(/\/api\/v1\/employees\/1\/contracts$/) !== null &&
+      response.request().method() === "POST",
+    );
+    await computedDialog.getByRole("button", { name: "Tạo hợp đồng" }).click();
+    expect((await createComputed).status()).toBe(201);
+    const computedCard = page.locator(".contract-card").filter({ hasText: computedNumber }).first();
+    await expect(computedCard).toBeVisible();
+    await expect(computedCard.getByText("Theo nhóm vị trí + bậc")).toBeVisible();
+    await expect(computedCard.getByText(/5\.050\.800/)).toBeVisible();
+    await expect(computedCard.getByText(/OFFICE_STAFF|Nhân viên Kế toán/)).toBeVisible();
+
+    await page.getByRole("button", { name: "Thêm hợp đồng" }).click();
+    const fixedDialog = page.getByRole("dialog", { name: "Thêm hợp đồng" });
+    await fixedDialog.locator(".field").filter({ hasText: /^Loại hợp đồng/ }).locator(".p-select").click();
+    await page.getByRole("option", { name: "HĐLĐ xác định thời hạn (HĐ)" }).click();
+    await fixedDialog.locator(".field").filter({ hasText: /^Số hợp đồng/ }).locator("input").fill(fixedNumber);
+    await fillDateField(page, fixedDialog, /^Ngày ký/, "01/01/2026");
+    await fillDateField(page, fixedDialog, /^Hiệu lực từ/, "01/01/2026");
+    await fixedDialog.locator(".field").filter({ hasText: /^Mode lương đóng BH/ }).locator(".p-select").click();
+    await page.getByRole("option", { name: "Cố định theo thỏa thuận" }).click();
+    const fixedAmountInput = fixedDialog
+      .locator(".field")
+      .filter({ hasText: /^Mức lương đóng BH cố định/ })
+      .locator("input");
+    await fixedAmountInput.fill("12345678");
+    await fixedAmountInput.press("Tab");
+    await expect(fixedDialog.getByText(/12\.345\.678/)).toBeVisible();
+
+    const createFixed = page.waitForResponse((response) =>
+      response.url().match(/\/api\/v1\/employees\/1\/contracts$/) !== null &&
+      response.request().method() === "POST",
+    );
+    await fixedDialog.getByRole("button", { name: "Tạo hợp đồng" }).click();
+    expect((await createFixed).status()).toBe(201);
+    const fixedCard = page.locator(".contract-card").filter({ hasText: fixedNumber }).first();
+    await expect(fixedCard).toBeVisible();
+    await expect(fixedCard.getByText("Cố định theo thỏa thuận")).toBeVisible();
+    await expect(fixedCard.getByText(/12\.345\.678/)).toBeVisible();
+  } finally {
+    const contractsResp = await request.get("/api/v1/employees/1/contracts", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (contractsResp.ok()) {
+      const contracts = await contractsResp.json();
+      for (const item of contracts.filter((row: { contract_number: string }) =>
+        row.contract_number === computedNumber || row.contract_number === fixedNumber,
+      )) {
+        await request.delete(`/api/v1/employees/1/contracts/${item.id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      }
     }
   }
 });

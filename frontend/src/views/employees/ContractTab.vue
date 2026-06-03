@@ -85,6 +85,21 @@
             <span class="contract-info-label">Lương đóng BH</span>
             <span class="contract-info-value">{{ formatCurrency(c.insurance_salary) }}</span>
           </div>
+          <div class="contract-info-item">
+            <span class="contract-info-label">Mode BHXH</span>
+            <span class="contract-info-value">
+              {{ c.insurance_salary_mode === 'computed_by_position_group' ? 'Theo nhóm vị trí + bậc' : 'Cố định theo thỏa thuận' }}
+            </span>
+          </div>
+          <div
+            v-if="c.insurance_salary_mode === 'computed_by_position_group' && c.bhxh_position_group_name"
+            class="contract-info-item"
+          >
+            <span class="contract-info-label">Nhóm vị trí BHXH</span>
+            <span class="contract-info-value">
+              {{ c.bhxh_position_group_name }}<template v-if="c.insurance_salary_grade_no"> - Bậc {{ c.insurance_salary_grade_no }}</template>
+            </span>
+          </div>
           <div class="contract-info-item" v-if="c.notes">
             <span class="contract-info-label">Ghi chú</span>
             <span class="contract-info-value">{{ c.notes }}</span>
