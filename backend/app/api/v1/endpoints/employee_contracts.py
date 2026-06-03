@@ -77,7 +77,7 @@ async def preview_contract_insurance_salary(
     employee = await session.get(Employee, employee_id)
     if not employee:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Không tìm thấy nhân viên")
-    return await employee_contract_service.preview_contract_insurance_salary(session, payload)
+    return await employee_contract_service.preview_contract_insurance_salary(session, employee_id, payload)
 
 
 @router.get("/{employee_id}/contracts/{contract_id}", response_model=ContractRead, tags=[_TAG])
@@ -233,6 +233,7 @@ async def delete_contract_file(
     from app.models.catalog import ContractCategory
     from app.models.salary import BhxhPositionGroup
     cat = await session.get(ContractCategory, c.contract_category_id)
-    from app.services.employee_contract_service import _to_read
+    from app.services.employee_contract_service import _resolve_contract_read_grade_no, _to_read
     group = await session.get(BhxhPositionGroup, c.bhxh_position_group_id) if c.bhxh_position_group_id else None
-    return _to_read(c, cat.name if cat else "", position_group=group)
+    resolved_grade_no = await _resolve_contract_read_grade_no(session, c)
+    return _to_read(c, cat.name if cat else "", position_group=group, resolved_grade_no=resolved_grade_no)

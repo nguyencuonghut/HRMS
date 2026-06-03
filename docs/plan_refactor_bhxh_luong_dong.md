@@ -2,7 +2,7 @@
 
 **Phạm vi chính:** cấu hình lương tối thiểu vùng · cấu hình vùng BHXH của công ty · cấu hình nhóm vị trí và hệ số 7 bậc · tính mức lương đóng BHXH theo 2 mode tại hợp đồng
 
-**Tình trạng:** plan đã review lại theo yêu cầu nghiệp vụ thực tế. Slice 1, Slice 2 và Slice 3 đã được triển khai; Slice 4+ vẫn pending.
+**Tình trạng:** plan đã review lại theo yêu cầu nghiệp vụ thực tế. Slice 1, Slice 2, Slice 3 và Slice 4 đã được triển khai; Slice 5+ vẫn pending.
 
 ---
 
@@ -555,6 +555,10 @@ Exit criteria:
   - capped ở bậc `7`
   - mode `fixed_manual` không tự tăng
   - đổi `raise_month/raise_day` trong config thì kết quả thay đổi đúng
+
+Trạng thái:
+
+- đã xong
 
 ### Slice 5 — Đồng bộ runtime/report
 

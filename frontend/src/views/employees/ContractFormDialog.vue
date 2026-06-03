@@ -277,12 +277,18 @@ const previewMetaLine = computed(() => {
   if (preview.value.insurance_salary_mode === 'fixed_manual') {
     return 'Mode cố định theo thỏa thuận'
   }
+  const baseGrade = preview.value.insurance_salary_grade_no != null
+    ? `Bậc gốc ${preview.value.insurance_salary_grade_no}`
+    : null
+  const resolvedGrade = preview.value.resolved_insurance_salary_grade_no != null
+    ? `Bậc áp dụng ${preview.value.resolved_insurance_salary_grade_no}`
+    : null
   const region = preview.value.company_region != null ? `Vùng ${preview.value.company_region}` : null
   const minimumWage = preview.value.regional_minimum_wage
     ? formatCurrency(preview.value.regional_minimum_wage)
     : null
   const coefficient = preview.value.coefficient ? `Hệ số ${preview.value.coefficient}` : null
-  return [region, minimumWage, coefficient].filter(Boolean).join(' · ')
+  return [baseGrade, resolvedGrade, region, minimumWage, coefficient].filter(Boolean).join(' · ')
 })
 
 // ── Form state ────────────────────────────────────────────────────────────────

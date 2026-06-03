@@ -114,6 +114,9 @@ class ContractInsuranceSalaryPreviewRead(BaseModel):
     bhxh_position_group_code: Optional[str]
     bhxh_position_group_name: Optional[str]
     insurance_salary_grade_no: Optional[int]
+    resolved_insurance_salary_grade_no: Optional[int]
+    bhxh_seniority_start_date: Optional[date]
+    bhxh_seniority_start_source: Optional[str]
     insurance_salary_fixed_amount: Optional[Decimal]
     company_region: Optional[int]
     regional_minimum_wage: Optional[Decimal]
@@ -140,6 +143,8 @@ class ContractRead(BaseModel):
     bhxh_position_group_code: Optional[str]
     bhxh_position_group_name: Optional[str]
     insurance_salary_grade_no: Optional[int]
+    resolved_insurance_salary_grade_no: Optional[int]
+    bhxh_seniority_start_date: Optional[date]
     insurance_salary_fixed_amount: Optional[Decimal]
     status:               str
     status_display:       str

@@ -97,7 +97,16 @@
           >
             <span class="contract-info-label">Nhóm vị trí BHXH</span>
             <span class="contract-info-value">
-              {{ c.bhxh_position_group_name }}<template v-if="c.insurance_salary_grade_no"> - Bậc {{ c.insurance_salary_grade_no }}</template>
+              {{ c.bhxh_position_group_name }}
+              <template v-if="c.insurance_salary_grade_no"> - Bậc gốc {{ c.insurance_salary_grade_no }}</template>
+              <template
+                v-if="
+                  c.resolved_insurance_salary_grade_no &&
+                  c.resolved_insurance_salary_grade_no !== c.insurance_salary_grade_no
+                "
+              >
+                · Bậc áp dụng {{ c.resolved_insurance_salary_grade_no }}
+              </template>
             </span>
           </div>
           <div class="contract-info-item" v-if="c.notes">

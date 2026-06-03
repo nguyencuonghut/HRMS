@@ -12,7 +12,8 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.core.config import settings
 from app.models.employee import Employee
-from app.models.salary import BhxhPositionGroup
+from app.models.salary import BhxhPositionGroup, BhxhPositionGroupMember, BhxhSenioritySetting
+from app.models.org import Department, JobPosition, JobTitle
 
 BASE_EMP = "/api/v1/employees"
 BASE_CON = "/api/v1/contracts"
@@ -53,6 +54,18 @@ async def _cleanup():
         await s.execute(text(
             f"DELETE FROM employee_contracts WHERE contract_number LIKE '{_PREFIX}%'"
         ))
+        await s.execute(
+            text(f"DELETE FROM bhxh_seniority_settings WHERE note LIKE '{_PREFIX}%'")
+        )
+        temp_position_ids = [
+            jp.id
+            for jp in (
+                await s.execute(select(JobPosition).where(JobPosition.code.like(f"{_PREFIX}%")))
+            ).scalars().all()
+        ]
+        if temp_position_ids:
+            await s.execute(delete(BhxhPositionGroupMember).where(BhxhPositionGroupMember.job_position_id.in_(temp_position_ids)))
+            await s.execute(delete(JobPosition).where(JobPosition.id.in_(temp_position_ids)))
         if employee_ids:
             await s.execute(delete(Employee).where(Employee.id.in_(employee_ids)))
         await s.commit()
@@ -85,6 +98,39 @@ def _create_employee(client: TestClient, headers: dict, suffix: str = "001") -> 
     return resp.json()["id"]
 
 
+def _create_employee_with_job(
+    client: TestClient,
+    headers: dict,
+    *,
+    suffix: str,
+    start_date: str,
+    department_id: int,
+    job_position_id: int,
+    official_date: str | None,
+) -> int:
+    payload = {
+        "employee_code_sequence_id": 1,
+        "full_name": f"Test Contract {suffix}",
+        "last_name": "Test",
+        "first_name": f"Contract {suffix}",
+        "date_of_birth": "1990-01-01",
+        "gender": "male",
+        "nationality_id": 1,
+        "id_number": f"{_PREFIX}{suffix}",
+        "id_issued_on": "2020-01-01",
+        "id_issued_by": "Cục CA",
+        "status": "official",
+        "start_date": start_date,
+        "initial_department_id": department_id,
+        "initial_job_position_id": job_position_id,
+        "initial_job_effective_from": start_date,
+        "initial_official_date": official_date,
+    }
+    resp = client.post(BASE_EMP, json=payload, headers=headers)
+    assert resp.status_code == 201, resp.text
+    return resp.json()["id"]
+
+
 def _contract_payload(suffix: str, category_id: int = CAT_LABOR_INDEFINITE, **kwargs) -> dict:
     today = date.today().isoformat()
     base = {
@@ -105,6 +151,76 @@ async def _get_bhxh_group(code: str) -> BhxhPositionGroup:
         group = row.scalar_one_or_none()
         assert group is not None
         return group
+
+
+async def _get_bhxh_group_member_context(code: str) -> tuple[BhxhPositionGroup, JobPosition]:
+    async with _make_session()() as s:
+        row = await s.execute(
+            select(BhxhPositionGroup, JobPosition)
+            .join(BhxhPositionGroupMember, BhxhPositionGroupMember.bhxh_position_group_id == BhxhPositionGroup.id)
+            .join(JobPosition, JobPosition.id == BhxhPositionGroupMember.job_position_id)
+            .where(BhxhPositionGroup.code == code)
+            .order_by(JobPosition.id.asc())
+        )
+        item = row.first()
+        if item is not None:
+            return item
+
+        group_row = await s.execute(select(BhxhPositionGroup).where(BhxhPositionGroup.code == code))
+        group = group_row.scalar_one()
+        dept = (await s.execute(select(Department).order_by(Department.id.asc()))).scalars().first()
+        title = (await s.execute(select(JobTitle).order_by(JobTitle.id.asc()))).scalars().first()
+        assert dept is not None
+        assert title is not None
+
+        temp_position = JobPosition(
+            code=f"{_PREFIX}-{code}",
+            name=f"Test Position {code}",
+            department_id=dept.id,
+            job_title_id=title.id,
+            default_grade=1,
+            bhxh_allowance=0,
+            non_bhxh_allowance=0,
+            is_active=True,
+        )
+        s.add(temp_position)
+        await s.flush()
+        s.add(
+            BhxhPositionGroupMember(
+                bhxh_position_group_id=group.id,
+                job_position_id=temp_position.id,
+                note=f"{_PREFIX}-{code}",
+            )
+        )
+        await s.commit()
+        await s.refresh(temp_position)
+        return group, temp_position
+
+
+async def _create_seniority_setting(
+    *,
+    raise_month: int,
+    raise_day: int,
+    years_per_grade: int,
+    cutoff_month: int,
+    cutoff_day: int,
+    effective_from: date,
+    note: str,
+) -> BhxhSenioritySetting:
+    async with _make_session()() as s:
+        row = BhxhSenioritySetting(
+            raise_month=raise_month,
+            raise_day=raise_day,
+            years_per_grade=years_per_grade,
+            first_year_cutoff_month=cutoff_month,
+            first_year_cutoff_day=cutoff_day,
+            effective_from=effective_from,
+            note=note,
+        )
+        s.add(row)
+        await s.commit()
+        await s.refresh(row)
+        return row
 
 
 # ── Tests: CRUD ────────────────────────────────────────────────────────────────
@@ -149,7 +265,9 @@ def test_create_contract_computed_by_position_group(client: TestClient):
     assert data["bhxh_position_group_id"] == group.id
     assert data["bhxh_position_group_code"] == "EXEC_COMPANY"
     assert data["insurance_salary_grade_no"] == 1
-    assert Decimal(data["insurance_salary"]) == Decimal("11095200.00")
+    assert data["resolved_insurance_salary_grade_no"] == 3
+    assert data["bhxh_seniority_start_date"] == "2020-01-01"
+    assert Decimal(data["insurance_salary"]) == Decimal("14655600.00")
     assert data["insurance_salary_fixed_amount"] is None
 
 
@@ -174,8 +292,163 @@ def test_preview_contract_insurance_salary_computed(client: TestClient):
     assert data["bhxh_position_group_code"] == "OFFICE_STAFF"
     assert data["company_region"] == 3
     assert Decimal(data["regional_minimum_wage"]) == Decimal("4140000")
-    assert Decimal(data["coefficient"]) == Decimal("1.2200")
-    assert Decimal(data["insurance_salary"]) == Decimal("5050800.00")
+    assert data["resolved_insurance_salary_grade_no"] == 5
+    assert data["bhxh_seniority_start_date"] == "2020-01-01"
+    assert Decimal(data["coefficient"]) == Decimal("1.4100")
+    assert Decimal(data["insurance_salary"]) == Decimal("5837400.00")
+
+
+def test_preview_contract_seniority_before_cutoff_advances_grade(client: TestClient):
+    headers = _admin(client)
+    group, position = asyncio.run(_get_bhxh_group_member_context("OFFICE_STAFF"))
+    emp_id = _create_employee_with_job(
+        client,
+        headers,
+        suffix="S01",
+        start_date="2023-04-15",
+        department_id=position.department_id,
+        job_position_id=position.id,
+        official_date="2023-04-15",
+    )
+
+    resp = client.post(
+        f"{BASE_EMP}/{emp_id}/contracts/preview-insurance-salary",
+        json={
+            "effective_from": "2026-01-01",
+            "insurance_salary_mode": "computed_by_position_group",
+            "bhxh_position_group_id": group.id,
+            "insurance_salary_grade_no": 1,
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["bhxh_seniority_start_date"] == "2023-04-15"
+    assert data["resolved_insurance_salary_grade_no"] == 2
+    assert Decimal(data["coefficient"]) == Decimal("1.1600")
+    assert Decimal(data["insurance_salary"]) == Decimal("4802400.00")
+
+
+def test_preview_contract_seniority_after_cutoff_waits_until_next_cycle(client: TestClient):
+    headers = _admin(client)
+    group, position = asyncio.run(_get_bhxh_group_member_context("OFFICE_STAFF"))
+    emp_id = _create_employee_with_job(
+        client,
+        headers,
+        suffix="S02",
+        start_date="2023-05-01",
+        department_id=position.department_id,
+        job_position_id=position.id,
+        official_date="2023-05-01",
+    )
+
+    resp = client.post(
+        f"{BASE_EMP}/{emp_id}/contracts/preview-insurance-salary",
+        json={
+            "effective_from": "2026-01-01",
+            "insurance_salary_mode": "computed_by_position_group",
+            "bhxh_position_group_id": group.id,
+            "insurance_salary_grade_no": 1,
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["bhxh_seniority_start_date"] == "2023-05-01"
+    assert data["resolved_insurance_salary_grade_no"] == 1
+    assert Decimal(data["coefficient"]) == Decimal("1.1000")
+    assert Decimal(data["insurance_salary"]) == Decimal("4554000.00")
+
+
+def test_preview_contract_seniority_caps_at_grade_7(client: TestClient):
+    headers = _admin(client)
+    group, position = asyncio.run(_get_bhxh_group_member_context("OFFICE_STAFF"))
+    emp_id = _create_employee_with_job(
+        client,
+        headers,
+        suffix="S03",
+        start_date="2000-01-01",
+        department_id=position.department_id,
+        job_position_id=position.id,
+        official_date="2000-01-01",
+    )
+
+    resp = client.post(
+        f"{BASE_EMP}/{emp_id}/contracts/preview-insurance-salary",
+        json={
+            "effective_from": "2026-01-01",
+            "insurance_salary_mode": "computed_by_position_group",
+            "bhxh_position_group_id": group.id,
+            "insurance_salary_grade_no": 6,
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["resolved_insurance_salary_grade_no"] == 7
+    assert Decimal(data["coefficient"]) == Decimal("1.6700")
+    assert Decimal(data["insurance_salary"]) == Decimal("6913800.00")
+
+
+def test_preview_contract_fixed_manual_does_not_apply_seniority(client: TestClient):
+    headers = _admin(client)
+    emp_id = _create_employee(client, headers, "S04")
+
+    resp = client.post(
+        f"{BASE_EMP}/{emp_id}/contracts/preview-insurance-salary",
+        json={
+            "effective_from": "2026-01-01",
+            "insurance_salary_mode": "fixed_manual",
+            "insurance_salary_fixed_amount": "12345678",
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["resolved_insurance_salary_grade_no"] is None
+    assert data["bhxh_seniority_start_date"] is None
+    assert data["coefficient"] is None
+    assert Decimal(data["insurance_salary"]) == Decimal("12345678.00")
+
+
+def test_preview_contract_uses_changed_raise_day_from_config(client: TestClient):
+    headers = _admin(client)
+    group, position = asyncio.run(_get_bhxh_group_member_context("OFFICE_STAFF"))
+    emp_id = _create_employee_with_job(
+        client,
+        headers,
+        suffix="S05",
+        start_date="2028-03-01",
+        department_id=position.department_id,
+        job_position_id=position.id,
+        official_date="2028-03-01",
+    )
+    asyncio.run(
+        _create_seniority_setting(
+            raise_month=7,
+            raise_day=1,
+            years_per_grade=3,
+            cutoff_month=4,
+            cutoff_day=30,
+            effective_from=date(2030, 1, 1),
+            note=f"{_PREFIX}-SENIORITY-S05",
+        )
+    )
+
+    resp = client.post(
+        f"{BASE_EMP}/{emp_id}/contracts/preview-insurance-salary",
+        json={
+            "effective_from": "2031-01-01",
+            "insurance_salary_mode": "computed_by_position_group",
+            "bhxh_position_group_id": group.id,
+            "insurance_salary_grade_no": 1,
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["resolved_insurance_salary_grade_no"] == 1
+    assert Decimal(data["coefficient"]) == Decimal("1.1000")
 
 
 def test_create_contract_definite_term(client: TestClient):
@@ -305,7 +578,9 @@ def test_update_contract_switches_to_computed_mode(client: TestClient):
     assert data["insurance_salary_mode"] == "computed_by_position_group"
     assert data["bhxh_position_group_code"] == "DRIVER"
     assert data["insurance_salary_grade_no"] == 4
-    assert Decimal(data["insurance_salary"]) == Decimal("5547600.00")
+    assert data["resolved_insurance_salary_grade_no"] == 6
+    assert data["bhxh_seniority_start_date"] == "2020-01-01"
+    assert Decimal(data["insurance_salary"]) == Decimal("6375600.00")
     assert data["insurance_salary_fixed_amount"] is None
 
 

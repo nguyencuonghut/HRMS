@@ -14,8 +14,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.catalog import ContractCategory
 from app.models.employee import Employee
 from app.models.employee_contract import EmployeeContract
+from app.models.employee_insurance import EmployeeInsuranceProfile
+from app.models.employee_job import EmployeeJobRecord
 from app.models.salary import (
     BhxhPositionGroup,
+    BhxhSenioritySetting,
     CompanyBhxhRegion,
     RegionalMinimumWage,
     SalaryScale,
@@ -47,6 +50,9 @@ class ResolvedContractInsuranceSalary:
     bhxh_position_group_code: Optional[str]
     bhxh_position_group_name: Optional[str]
     insurance_salary_grade_no: Optional[int]
+    resolved_insurance_salary_grade_no: Optional[int]
+    bhxh_seniority_start_date: Optional[date]
+    bhxh_seniority_start_source: Optional[str]
     insurance_salary_fixed_amount: Optional[Decimal]
     company_region: Optional[int]
     regional_minimum_wage: Optional[Decimal]
@@ -64,6 +70,7 @@ def _to_read(
     employee_name: str | None = None,
     employee_code: str | None = None,
     position_group: BhxhPositionGroup | None = None,
+    resolved_grade_no: int | None = None,
 ) -> ContractRead:
     return ContractRead(
         id=c.id,
@@ -81,6 +88,8 @@ def _to_read(
         bhxh_position_group_code=position_group.code if position_group else None,
         bhxh_position_group_name=position_group.name if position_group else None,
         insurance_salary_grade_no=c.insurance_salary_grade_no,
+        resolved_insurance_salary_grade_no=resolved_grade_no,
+        bhxh_seniority_start_date=c.bhxh_seniority_start_date,
         insurance_salary_fixed_amount=c.insurance_salary_fixed_amount,
         status=c.status,
         status_display=_status_display(c.status, c.effective_to),
@@ -216,6 +225,98 @@ async def _get_salary_scale_as_of(
     return item
 
 
+async def _get_seniority_setting_as_of(
+    session: AsyncSession,
+    as_of_date: date,
+) -> BhxhSenioritySetting:
+    rows = await session.execute(
+        select(BhxhSenioritySetting)
+        .where(
+            BhxhSenioritySetting.effective_from <= as_of_date,
+            (BhxhSenioritySetting.effective_to.is_(None)) | (BhxhSenioritySetting.effective_to >= as_of_date),
+        )
+        .order_by(BhxhSenioritySetting.effective_from.desc(), BhxhSenioritySetting.id.desc())
+    )
+    item = rows.scalars().first()
+    if not item:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail="Chưa có rule thâm niên BHXH hiệu lực cho ngày này",
+        )
+    return item
+
+
+async def _resolve_contract_seniority_start_date(
+    session: AsyncSession,
+    employee_id: int,
+) -> tuple[date, str]:
+    profile_row = await session.execute(
+        select(EmployeeInsuranceProfile.company_bhxh_joined_date).where(
+            EmployeeInsuranceProfile.employee_id == employee_id
+        )
+    )
+    company_joined_date = profile_row.scalar_one_or_none()
+    if company_joined_date is not None:
+        return company_joined_date, "employee_insurance_profiles.company_bhxh_joined_date"
+
+    current_job_row = await session.execute(
+        select(EmployeeJobRecord)
+        .where(
+            EmployeeJobRecord.employee_id == employee_id,
+            EmployeeJobRecord.is_current.is_(True),
+        )
+        .order_by(EmployeeJobRecord.effective_from.desc(), EmployeeJobRecord.id.desc())
+    )
+    current_job = current_job_row.scalars().first()
+    if current_job and current_job.official_date is not None:
+        return current_job.official_date, "employee_job_records.official_date"
+
+    employee = await session.get(Employee, employee_id)
+    if not employee:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Không tìm thấy nhân viên")
+    return employee.start_date, "employees.start_date"
+
+
+def _build_raise_date(year: int, month: int, day: int) -> date:
+    try:
+        return date(year, month, day)
+    except ValueError as exc:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail="Rule thâm niên BHXH có ngày nâng bậc không hợp lệ",
+        ) from exc
+
+
+def _resolve_seniority_grade(
+    *,
+    seniority_start_date: date,
+    as_of_date: date,
+    initial_grade_no: int,
+    setting: BhxhSenioritySetting,
+) -> int:
+    if initial_grade_no < 1:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="insurance_salary_grade_no phải >= 1",
+        )
+
+    cutoff_tuple = (setting.first_year_cutoff_month, setting.first_year_cutoff_day)
+    start_tuple = (seniority_start_date.month, seniority_start_date.day)
+    counted_start_year = (
+        seniority_start_date.year
+        if start_tuple <= cutoff_tuple
+        else seniority_start_date.year + 1
+    )
+
+    resolved_grade = initial_grade_no
+    cycle_year = counted_start_year + setting.years_per_grade
+    while resolved_grade < 7 and cycle_year <= as_of_date.year:
+        if _build_raise_date(cycle_year, setting.raise_month, setting.raise_day) <= as_of_date:
+            resolved_grade += 1
+        cycle_year += setting.years_per_grade
+    return min(resolved_grade, 7)
+
+
 def _normalize_contract_mode(
     mode: Optional[str],
     *,
@@ -241,10 +342,12 @@ def _normalize_contract_mode(
 async def _resolve_contract_insurance_salary(
     session: AsyncSession,
     *,
+    employee_id: int,
     effective_from: date,
     insurance_salary_mode: str,
     bhxh_position_group_id: Optional[int],
     insurance_salary_grade_no: Optional[int],
+    bhxh_seniority_start_date: Optional[date],
     insurance_salary_fixed_amount: Optional[Decimal],
     insurance_salary: Optional[Decimal],
     allow_empty_fixed_amount: bool = False,
@@ -270,6 +373,9 @@ async def _resolve_contract_insurance_salary(
                     bhxh_position_group_code=None,
                     bhxh_position_group_name=None,
                     insurance_salary_grade_no=None,
+                    resolved_insurance_salary_grade_no=None,
+                    bhxh_seniority_start_date=None,
+                    bhxh_seniority_start_source=None,
                     insurance_salary_fixed_amount=None,
                     company_region=None,
                     regional_minimum_wage=None,
@@ -294,6 +400,9 @@ async def _resolve_contract_insurance_salary(
             bhxh_position_group_code=None,
             bhxh_position_group_name=None,
             insurance_salary_grade_no=None,
+            resolved_insurance_salary_grade_no=None,
+            bhxh_seniority_start_date=None,
+            bhxh_seniority_start_source=None,
             insurance_salary_fixed_amount=fixed_amount,
             company_region=None,
             regional_minimum_wage=None,
@@ -317,19 +426,35 @@ async def _resolve_contract_insurance_salary(
     company_region = await _get_company_region_as_of(session, effective_from)
     minimum_wage = await _get_minimum_wage_as_of(session, company_region.region, effective_from)
     salary_scale = await _get_salary_scale_as_of(session, effective_from)
+    seniority_setting = await _get_seniority_setting_as_of(session, effective_from)
+
+    seniority_start_source: Optional[str] = None
+    resolved_seniority_start_date = bhxh_seniority_start_date
+    if resolved_seniority_start_date is None:
+        resolved_seniority_start_date, seniority_start_source = await _resolve_contract_seniority_start_date(
+            session,
+            employee_id,
+        )
+
+    resolved_grade_no = _resolve_seniority_grade(
+        seniority_start_date=resolved_seniority_start_date,
+        as_of_date=effective_from,
+        initial_grade_no=insurance_salary_grade_no,
+        setting=seniority_setting,
+    )
 
     entry_rows = await session.execute(
         select(SalaryScaleEntry).where(
             SalaryScaleEntry.salary_scale_id == salary_scale.id,
             SalaryScaleEntry.bhxh_position_group_id == bhxh_position_group_id,
-            SalaryScaleEntry.grade_no == insurance_salary_grade_no,
+            SalaryScaleEntry.grade_no == resolved_grade_no,
         )
     )
     entry = entry_rows.scalars().first()
     if not entry:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
-            detail="Nhóm vị trí BHXH chưa có cấu hình hệ số cho bậc đã chọn trong thang bảng lương hiệu lực",
+            detail="Nhóm vị trí BHXH chưa có cấu hình hệ số cho bậc áp dụng trong thang bảng lương hiệu lực",
         )
 
     coefficient = Decimal(str(entry.coefficient)).quantize(Decimal("0.0001"))
@@ -343,12 +468,41 @@ async def _resolve_contract_insurance_salary(
         bhxh_position_group_code=group.code,
         bhxh_position_group_name=group.name,
         insurance_salary_grade_no=insurance_salary_grade_no,
+        resolved_insurance_salary_grade_no=resolved_grade_no,
+        bhxh_seniority_start_date=resolved_seniority_start_date,
+        bhxh_seniority_start_source=seniority_start_source,
         insurance_salary_fixed_amount=None,
         company_region=company_region.region,
         regional_minimum_wage=regional_minimum_wage,
         salary_scale_id=salary_scale.id,
         salary_scale_name=salary_scale.name,
         coefficient=coefficient,
+    )
+
+
+async def _resolve_contract_read_grade_no(
+    session: AsyncSession,
+    contract: EmployeeContract,
+) -> int | None:
+    if (
+        contract.insurance_salary_mode != "computed_by_position_group"
+        or contract.insurance_salary_grade_no is None
+    ):
+        return None
+
+    seniority_start_date = contract.bhxh_seniority_start_date
+    if seniority_start_date is None:
+        seniority_start_date, _ = await _resolve_contract_seniority_start_date(
+            session,
+            contract.employee_id,
+        )
+
+    setting = await _get_seniority_setting_as_of(session, contract.effective_from)
+    return _resolve_seniority_grade(
+        seniority_start_date=seniority_start_date,
+        as_of_date=contract.effective_from,
+        initial_grade_no=contract.insurance_salary_grade_no,
+        setting=setting,
     )
 
 
@@ -369,23 +523,27 @@ async def get_contracts(session: AsyncSession, employee_id: int) -> list[Contrac
     appendix_map: dict[int, list[ContractRead]] = {}
     for c in all_contracts:
         if c.parent_contract_id is not None:
+            resolved_grade_no = await _resolve_contract_read_grade_no(session, c)
             appendix_map.setdefault(c.parent_contract_id, []).append(
                 _to_read(
                     c,
                     cat_map.get(c.contract_category_id, ""),
                     position_group=group_map.get(c.bhxh_position_group_id),
+                    resolved_grade_no=resolved_grade_no,
                 )
             )
 
     result: list[ContractRead] = []
     for c in all_contracts:
         if c.parent_contract_id is None:
+            resolved_grade_no = await _resolve_contract_read_grade_no(session, c)
             result.append(
                 _to_read(
                     c,
                     cat_map.get(c.contract_category_id, ""),
                     appendix_map.get(c.id, []),
                     position_group=group_map.get(c.bhxh_position_group_id),
+                    resolved_grade_no=resolved_grade_no,
                 )
             )
 
@@ -417,11 +575,19 @@ async def get_contract_detail(session: AsyncSession, employee_id: int, contract_
                 s,
                 sub_cat_map.get(s.contract_category_id, ""),
                 position_group=sub_group_map.get(s.bhxh_position_group_id),
+                resolved_grade_no=await _resolve_contract_read_grade_no(session, s),
             )
             for s in sub
         ]
 
-    return _to_read(c, cat_name, appendices, position_group=group)
+    resolved_grade_no = await _resolve_contract_read_grade_no(session, c)
+    return _to_read(
+        c,
+        cat_name,
+        appendices,
+        position_group=group,
+        resolved_grade_no=resolved_grade_no,
+    )
 
 
 async def create_contract(
@@ -455,10 +621,12 @@ async def create_contract(
 
     resolved_salary = await _resolve_contract_insurance_salary(
         session,
+        employee_id=employee_id,
         effective_from=payload.effective_from,
         insurance_salary_mode=payload.insurance_salary_mode,
         bhxh_position_group_id=payload.bhxh_position_group_id,
         insurance_salary_grade_no=payload.insurance_salary_grade_no,
+        bhxh_seniority_start_date=None,
         insurance_salary_fixed_amount=payload.insurance_salary_fixed_amount,
         insurance_salary=payload.insurance_salary,
     )
@@ -476,6 +644,7 @@ async def create_contract(
         insurance_salary_mode=resolved_salary.insurance_salary_mode,
         bhxh_position_group_id=resolved_salary.bhxh_position_group_id,
         insurance_salary_grade_no=resolved_salary.insurance_salary_grade_no,
+        bhxh_seniority_start_date=resolved_salary.bhxh_seniority_start_date,
         insurance_salary_fixed_amount=resolved_salary.insurance_salary_fixed_amount,
         notes=payload.notes,
         status="active",
@@ -487,19 +656,27 @@ async def create_contract(
     await session.commit()
     await session.refresh(c)
     group = await session.get(BhxhPositionGroup, c.bhxh_position_group_id) if c.bhxh_position_group_id else None
-    return _to_read(c, cat.name, position_group=group)
+    return _to_read(
+        c,
+        cat.name,
+        position_group=group,
+        resolved_grade_no=resolved_salary.resolved_insurance_salary_grade_no,
+    )
 
 
 async def preview_contract_insurance_salary(
     session: AsyncSession,
+    employee_id: int,
     payload: ContractInsuranceSalaryPreviewInput,
 ) -> ContractInsuranceSalaryPreviewRead:
     resolved = await _resolve_contract_insurance_salary(
         session,
+        employee_id=employee_id,
         effective_from=payload.effective_from,
         insurance_salary_mode=payload.insurance_salary_mode,
         bhxh_position_group_id=payload.bhxh_position_group_id,
         insurance_salary_grade_no=payload.insurance_salary_grade_no,
+        bhxh_seniority_start_date=None,
         insurance_salary_fixed_amount=payload.insurance_salary_fixed_amount,
         insurance_salary=None,
     )
@@ -510,6 +687,9 @@ async def preview_contract_insurance_salary(
         bhxh_position_group_code=resolved.bhxh_position_group_code,
         bhxh_position_group_name=resolved.bhxh_position_group_name,
         insurance_salary_grade_no=resolved.insurance_salary_grade_no,
+        resolved_insurance_salary_grade_no=resolved.resolved_insurance_salary_grade_no,
+        bhxh_seniority_start_date=resolved.bhxh_seniority_start_date,
+        bhxh_seniority_start_source=resolved.bhxh_seniority_start_source,
         insurance_salary_fixed_amount=resolved.insurance_salary_fixed_amount,
         company_region=resolved.company_region,
         regional_minimum_wage=resolved.regional_minimum_wage,
@@ -566,6 +746,7 @@ async def update_contract(
 
     resolved_salary = await _resolve_contract_insurance_salary(
         session,
+        employee_id=employee_id,
         effective_from=c.effective_from,
         insurance_salary_mode=next_mode,
         bhxh_position_group_id=(
@@ -578,6 +759,7 @@ async def update_contract(
             if payload.insurance_salary_grade_no is not None
             else c.insurance_salary_grade_no
         ),
+        bhxh_seniority_start_date=c.bhxh_seniority_start_date,
         insurance_salary_fixed_amount=next_fixed_amount,
         insurance_salary=(
             payload.insurance_salary
@@ -595,6 +777,7 @@ async def update_contract(
     c.insurance_salary_mode = resolved_salary.insurance_salary_mode
     c.bhxh_position_group_id = resolved_salary.bhxh_position_group_id
     c.insurance_salary_grade_no = resolved_salary.insurance_salary_grade_no
+    c.bhxh_seniority_start_date = resolved_salary.bhxh_seniority_start_date
     c.insurance_salary_fixed_amount = resolved_salary.insurance_salary_fixed_amount
 
     c.updated_at = _utcnow()
@@ -604,7 +787,12 @@ async def update_contract(
 
     cat = await session.get(ContractCategory, c.contract_category_id)
     group = await session.get(BhxhPositionGroup, c.bhxh_position_group_id) if c.bhxh_position_group_id else None
-    return _to_read(c, cat.name if cat else "", position_group=group)
+    return _to_read(
+        c,
+        cat.name if cat else "",
+        position_group=group,
+        resolved_grade_no=resolved_salary.resolved_insurance_salary_grade_no,
+    )
 
 
 async def terminate_contract(session: AsyncSession, employee_id: int, contract_id: int) -> ContractRead:
@@ -618,7 +806,8 @@ async def terminate_contract(session: AsyncSession, employee_id: int, contract_i
     await session.refresh(c)
     cat = await session.get(ContractCategory, c.contract_category_id)
     group = await session.get(BhxhPositionGroup, c.bhxh_position_group_id) if c.bhxh_position_group_id else None
-    return _to_read(c, cat.name if cat else "", position_group=group)
+    resolved_grade_no = await _resolve_contract_read_grade_no(session, c)
+    return _to_read(c, cat.name if cat else "", position_group=group, resolved_grade_no=resolved_grade_no)
 
 
 async def set_contract_file(
@@ -641,7 +830,8 @@ async def set_contract_file(
     await session.refresh(c)
     cat = await session.get(ContractCategory, c.contract_category_id)
     group = await session.get(BhxhPositionGroup, c.bhxh_position_group_id) if c.bhxh_position_group_id else None
-    return _to_read(c, cat.name if cat else "", position_group=group)
+    resolved_grade_no = await _resolve_contract_read_grade_no(session, c)
+    return _to_read(c, cat.name if cat else "", position_group=group, resolved_grade_no=resolved_grade_no)
 
 
 async def remove_contract_file(
@@ -728,6 +918,7 @@ async def list_contracts_global(
             employee_name=emp.full_name,
             employee_code=code_map.get(emp.id, ""),
             position_group=group_map.get(c.bhxh_position_group_id),
+            resolved_grade_no=await _resolve_contract_read_grade_no(session, c),
         )
         for c, cat, emp in rows
     ]

@@ -235,7 +235,8 @@ test("employee contract form supports computed and fixed insurance salary modes"
     );
     await page.getByRole("option", { name: "Bậc 3" }).click();
     expect((await previewResp).status()).toBe(200);
-    await expect(computedDialog.getByText(/5\.050\.800/)).toBeVisible();
+    await expect(computedDialog.getByText(/6\.334\.200/)).toBeVisible();
+    await expect(computedDialog.getByText(/Bậc gốc 3 · Bậc áp dụng 6/)).toBeVisible();
 
     const createComputed = page.waitForResponse((response) =>
       response.url().match(/\/api\/v1\/employees\/1\/contracts$/) !== null &&
@@ -246,8 +247,9 @@ test("employee contract form supports computed and fixed insurance salary modes"
     const computedCard = page.locator(".contract-card").filter({ hasText: computedNumber }).first();
     await expect(computedCard).toBeVisible();
     await expect(computedCard.getByText("Theo nhóm vị trí + bậc")).toBeVisible();
-    await expect(computedCard.getByText(/5\.050\.800/)).toBeVisible();
+    await expect(computedCard.getByText(/6\.334\.200/)).toBeVisible();
     await expect(computedCard.getByText(/OFFICE_STAFF|Nhân viên Kế toán/)).toBeVisible();
+    await expect(computedCard.getByText(/Bậc gốc 3 · Bậc áp dụng 6/)).toBeVisible();
 
     await page.getByRole("button", { name: "Thêm hợp đồng" }).click();
     const fixedDialog = page.getByRole("dialog", { name: "Thêm hợp đồng" });

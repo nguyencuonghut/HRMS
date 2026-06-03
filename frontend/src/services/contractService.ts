@@ -19,6 +19,8 @@ export interface ContractRead {
   bhxh_position_group_code: string | null
   bhxh_position_group_name: string | null
   insurance_salary_grade_no: number | null
+  resolved_insurance_salary_grade_no: number | null
+  bhxh_seniority_start_date: string | null
   insurance_salary_fixed_amount: string | null
   status: string
   status_display: string
@@ -77,6 +79,9 @@ export interface ContractInsuranceSalaryPreviewRead {
   bhxh_position_group_code: string | null
   bhxh_position_group_name: string | null
   insurance_salary_grade_no: number | null
+  resolved_insurance_salary_grade_no: number | null
+  bhxh_seniority_start_date: string | null
+  bhxh_seniority_start_source: string | null
   insurance_salary_fixed_amount: string | null
   company_region: number | null
   regional_minimum_wage: string | null

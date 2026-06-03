@@ -91,6 +91,10 @@ class EmployeeContract(SQLModel, table=True):
         default=None,
         sa_column=Column(sa.SmallInteger(), nullable=True),
     )
+    bhxh_seniority_start_date: Optional[date] = Field(
+        default=None,
+        sa_column=Column(sa.Date(), nullable=True),
+    )
     insurance_salary_fixed_amount: Optional[Decimal] = Field(
         default=None,
         sa_column=Column(sa.Numeric(18, 2), nullable=True),
