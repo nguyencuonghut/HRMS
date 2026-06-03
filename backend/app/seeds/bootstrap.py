@@ -342,6 +342,112 @@ async def seed_departments(session: AsyncSession) -> int:
     return inserted
 
 
+async def seed_job_positions(session: AsyncSession) -> int:
+    positions = [
+        {
+            "code": "CT_HDQT",
+            "name": "Chủ tịch HĐQT",
+            "dept_code": "LD",
+            "title_code": "CTHD",
+        },
+        {
+            "code": "NV_IT",
+            "name": "Nhân viên IT",
+            "dept_code": "IT",
+            "title_code": "NV",
+        },
+        {
+            "code": "NV_KSNB",
+            "name": "Nhân viên kiểm soát nội bộ",
+            "dept_code": "KSNB",
+            "title_code": "NV",
+        },
+        {
+            "code": "CV_IT",
+            "name": "Chuyên viên IT",
+            "dept_code": "IT",
+            "title_code": "NVKT",
+        },
+        {
+            "code": "TN_KSNB",
+            "name": "Trưởng nhóm kiểm soát nội bộ",
+            "dept_code": "KSNB",
+            "title_code": "TBP",
+        },
+        {
+            "code": "TP_KSNB",
+            "name": "Trưởng phòng kiểm soát nội bộ",
+            "dept_code": "KS",
+            "title_code": "TP",
+        },
+    ]
+
+    inserted = 0
+    for pos in positions:
+        # Lấy department_id
+        r_dept = await session.execute(
+            text("SELECT id FROM departments WHERE code = :code AND deleted_at IS NULL"),
+            {"code": pos["dept_code"]}
+        )
+        dept_id = r_dept.scalar()
+        if not dept_id:
+            continue
+
+        # Lấy job_title_id
+        title_id = None
+        if pos["title_code"]:
+            r_title = await session.execute(
+                text("SELECT id FROM job_titles WHERE code = :code AND deleted_at IS NULL"),
+                {"code": pos["title_code"]}
+            )
+            title_id = r_title.scalar()
+
+        # Check if position code exists
+        existing = await session.execute(
+            text("SELECT id FROM job_positions WHERE code = :code AND deleted_at IS NULL"),
+            {"code": pos["code"]}
+        )
+        row = existing.fetchone()
+        if row:
+            r = await session.execute(
+                text("""
+                    UPDATE job_positions
+                    SET name = :name,
+                        department_id = :department_id,
+                        job_title_id = :job_title_id,
+                        is_active = true,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE id = :id
+                """),
+                {
+                    "id": row[0],
+                    "name": pos["name"],
+                    "department_id": dept_id,
+                    "job_title_id": title_id,
+                }
+            )
+        else:
+            r = await session.execute(
+                text("""
+                    INSERT INTO job_positions
+                        (code, name, department_id, job_title_id, default_grade,
+                         bhxh_allowance, non_bhxh_allowance, is_active, created_at)
+                    VALUES
+                        (:code, :name, :department_id, :job_title_id, 1,
+                         0, 0, true, CURRENT_TIMESTAMP)
+                """),
+                {
+                    "code": pos["code"],
+                    "name": pos["name"],
+                    "department_id": dept_id,
+                    "job_title_id": title_id,
+                }
+            )
+        inserted += r.rowcount
+
+    return inserted
+
+
 async def run(session: AsyncSession) -> None:
     titles = await seed_job_titles(session)
     await session.flush()
@@ -350,8 +456,12 @@ async def run(session: AsyncSession) -> None:
     await session.flush()
 
     departments = await seed_departments(session)
+    await session.flush()
+
+    positions = await seed_job_positions(session)
     await session.commit()
 
     print(f"  [bootstrap] Chức danh:        +{titles} dòng")
     print(f"  [bootstrap] Hệ số bậc lương:  +{scale_entries} dòng")
     print(f"  [bootstrap] Phòng/ban:        +{departments} dòng")
+    print(f"  [bootstrap] Vị trí công việc: +{positions} dòng")
