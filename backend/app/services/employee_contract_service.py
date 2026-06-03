@@ -506,6 +506,80 @@ async def _resolve_contract_read_grade_no(
     )
 
 
+async def _ensure_insurance_profile(
+    session: AsyncSession,
+    employee_id: int,
+) -> EmployeeInsuranceProfile:
+    row = await session.execute(
+        select(EmployeeInsuranceProfile).where(
+            EmployeeInsuranceProfile.employee_id == employee_id
+        )
+    )
+    profile = row.scalars().first()
+    if profile:
+        return profile
+
+    profile = EmployeeInsuranceProfile(
+        employee_id=employee_id,
+        participation_status="active",
+        insurance_basis_source="contract",
+        created_at=_utcnow(),
+    )
+    session.add(profile)
+    await session.flush()
+    return profile
+
+
+async def _get_latest_active_contract_for_basis(
+    session: AsyncSession,
+    employee_id: int,
+) -> EmployeeContract | None:
+    row = await session.execute(
+        select(EmployeeContract)
+        .where(
+            EmployeeContract.employee_id == employee_id,
+            EmployeeContract.status == "active",
+            EmployeeContract.insurance_salary.is_not(None),
+        )
+        .order_by(
+            EmployeeContract.effective_from.desc(),
+            EmployeeContract.id.desc(),
+        )
+        .limit(1)
+    )
+    return row.scalars().first()
+
+
+async def _sync_employee_insurance_profile_from_contracts(
+    session: AsyncSession,
+    employee_id: int,
+) -> None:
+    profile = await _ensure_insurance_profile(session, employee_id)
+    if profile.insurance_basis_source == "manual_fixed":
+        return
+
+    active_contract = await _get_latest_active_contract_for_basis(session, employee_id)
+    if active_contract is None:
+        profile.insurance_basis_source = "contract"
+        profile.insurance_basis_amount = None
+    else:
+        profile.insurance_basis_source = (
+            "computed"
+            if active_contract.insurance_salary_mode == "computed_by_position_group"
+            else "contract"
+        )
+        profile.insurance_basis_amount = active_contract.insurance_salary
+        if (
+            profile.company_bhxh_joined_date is None
+            and active_contract.bhxh_seniority_start_date is not None
+        ):
+            profile.company_bhxh_joined_date = active_contract.bhxh_seniority_start_date
+
+    profile.updated_at = _utcnow()
+    session.add(profile)
+    await session.flush()
+
+
 # ── Per-employee CRUD ─────────────────────────────────────────────────────────
 
 async def get_contracts(session: AsyncSession, employee_id: int) -> list[ContractRead]:
@@ -653,6 +727,7 @@ async def create_contract(
     )
     session.add(c)
     await session.flush()
+    await _sync_employee_insurance_profile_from_contracts(session, employee_id)
     await session.commit()
     await session.refresh(c)
     group = await session.get(BhxhPositionGroup, c.bhxh_position_group_id) if c.bhxh_position_group_id else None
@@ -782,6 +857,8 @@ async def update_contract(
 
     c.updated_at = _utcnow()
     session.add(c)
+    await session.flush()
+    await _sync_employee_insurance_profile_from_contracts(session, employee_id)
     await session.commit()
     await session.refresh(c)
 
@@ -802,6 +879,8 @@ async def terminate_contract(session: AsyncSession, employee_id: int, contract_i
     c.status = "terminated"
     c.updated_at = _utcnow()
     session.add(c)
+    await session.flush()
+    await _sync_employee_insurance_profile_from_contracts(session, employee_id)
     await session.commit()
     await session.refresh(c)
     cat = await session.get(ContractCategory, c.contract_category_id)

@@ -199,7 +199,7 @@
     :employee-id="props.employeeId"
     :contract="editingContract"
     :existing-contracts="contracts"
-    @saved="load"
+    @saved="handleSaved"
   />
 
   <!-- Generate dialog -->
@@ -256,6 +256,7 @@ import ContractFormDialog from './ContractFormDialog.vue'
 import ContractGenerateDialog from './ContractGenerateDialog.vue'
 
 const props   = defineProps<{ employeeId: number }>()
+const emit    = defineEmits<{ refresh: [] }>()
 const confirm = useConfirm()
 const toast   = useToast()
 const auth    = useAuthStore()
@@ -325,6 +326,11 @@ async function load() {
 }
 load()
 
+async function refreshContractsAndNotify() {
+  await load()
+  emit('refresh')
+}
+
 // ── Create / Edit ──────────────────────────────────────────────────
 function openCreate() {
   editingContract.value = null
@@ -334,6 +340,10 @@ function openCreate() {
 function openEdit(c: ContractRead) {
   editingContract.value = c
   formVisible.value = true
+}
+
+async function handleSaved() {
+  await refreshContractsAndNotify()
 }
 
 // ── Generate ──────────────────────────────────────────────────────
@@ -354,7 +364,7 @@ function confirmTerminate(c: ContractRead) {
       try {
         await contractService.terminateContract(props.employeeId, c.id)
         toast.add({ severity: 'success', summary: 'Đã hủy hợp đồng', life: 3000 })
-        await load()
+        await refreshContractsAndNotify()
       } catch {
         toast.add({ severity: 'error', summary: 'Lỗi', detail: 'Không hủy được hợp đồng', life: 4000 })
       }
@@ -391,7 +401,7 @@ async function submitUpload() {
     await contractService.uploadFile(props.employeeId, uploadTargetId.value, uploadFile.value)
     toast.add({ severity: 'success', summary: 'Đã tải lên', life: 3000 })
     uploadVisible.value = false
-    await load()
+    await refreshContractsAndNotify()
   } catch (e: unknown) {
     const err = e as { response?: { data?: { detail?: unknown } } }
     const detail = err.response?.data?.detail
@@ -423,7 +433,7 @@ function confirmDeleteFile(c: ContractRead) {
       try {
         await contractService.deleteFile(props.employeeId, c.id)
         toast.add({ severity: 'success', summary: 'Đã xóa file', life: 2000 })
-        await load()
+        await refreshContractsAndNotify()
       } catch {
         toast.add({ severity: 'error', summary: 'Lỗi', detail: 'Không xóa được file', life: 3000 })
       }

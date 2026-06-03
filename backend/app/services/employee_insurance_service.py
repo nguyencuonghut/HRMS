@@ -54,8 +54,11 @@ def _resolve_basis_amount(
 ) -> tuple[Optional[Decimal], str]:
     if profile.insurance_basis_source == "manual_fixed":
         return profile.insurance_basis_amount, "manual_fixed"
-    if current_contract and current_contract.insurance_salary is not None:
-        return Decimal(str(current_contract.insurance_salary)), "contract"
+    if profile.insurance_basis_source in {"contract", "computed"}:
+        if profile.insurance_basis_amount is not None:
+            return profile.insurance_basis_amount, profile.insurance_basis_source
+        if current_contract and current_contract.insurance_salary is not None:
+            return Decimal(str(current_contract.insurance_salary)), profile.insurance_basis_source
     return None, profile.insurance_basis_source
 
 
@@ -538,7 +541,7 @@ async def get_insurance_profile_detail(
                 EmployeeContract.employee_id == employee_id,
                 EmployeeContract.status == "active",
             )
-            .order_by(EmployeeContract.effective_from.desc())
+            .order_by(EmployeeContract.effective_from.desc(), EmployeeContract.id.desc())
             .limit(1)
         )
     ).scalar_one_or_none()

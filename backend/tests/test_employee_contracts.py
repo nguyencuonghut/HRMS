@@ -223,6 +223,53 @@ async def _create_seniority_setting(
         return row
 
 
+async def _get_profile_basis_state(employee_id: int) -> dict | None:
+    async with _make_session()() as s:
+        row = await s.execute(
+            text(
+                """
+                SELECT insurance_basis_source, insurance_basis_amount, company_bhxh_joined_date
+                FROM employee_insurance_profiles
+                WHERE employee_id = :eid
+                """
+            ),
+            {"eid": employee_id},
+        )
+        data = row.fetchone()
+        if data is None:
+            return None
+        return {
+            "source": data[0],
+            "amount": data[1],
+            "joined_date": data[2],
+        }
+
+
+async def _set_profile_manual_fixed(employee_id: int, amount: Decimal, joined_date: str | None = None) -> None:
+    async with _make_session()() as s:
+        await s.execute(
+            text(
+                """
+                UPDATE employee_insurance_profiles
+                SET insurance_basis_source = 'manual_fixed',
+                    insurance_basis_amount = :amount,
+                    company_bhxh_joined_date = :joined_date
+                WHERE employee_id = :eid
+                """
+            ),
+            {
+                "eid": employee_id,
+                "amount": amount,
+                "joined_date": (
+                    date.fromisoformat(joined_date)
+                    if isinstance(joined_date, str)
+                    else joined_date
+                ),
+            },
+        )
+        await s.commit()
+
+
 # ── Tests: CRUD ────────────────────────────────────────────────────────────────
 
 def test_create_contract_success(client: TestClient):
@@ -269,6 +316,110 @@ def test_create_contract_computed_by_position_group(client: TestClient):
     assert data["bhxh_seniority_start_date"] == "2020-01-01"
     assert Decimal(data["insurance_salary"]) == Decimal("14655600.00")
     assert data["insurance_salary_fixed_amount"] is None
+
+
+def test_create_contract_computed_syncs_profile_basis(client: TestClient):
+    headers = _admin(client)
+    emp_id = _create_employee(client, headers, "C01P")
+    group = asyncio.run(_get_bhxh_group("EXEC_COMPANY"))
+
+    resp = client.post(
+        f"{BASE_EMP}/{emp_id}/contracts",
+        json=_contract_payload(
+            "C01P",
+            signed_date="2026-01-01",
+            effective_from="2026-01-01",
+            insurance_salary_mode="computed_by_position_group",
+            bhxh_position_group_id=group.id,
+            insurance_salary_grade_no=1,
+            insurance_salary=None,
+        ),
+        headers=headers,
+    )
+    assert resp.status_code == 201, resp.text
+    profile = asyncio.run(_get_profile_basis_state(emp_id))
+    assert profile is not None
+    assert profile["source"] == "computed"
+    assert Decimal(str(profile["amount"])) == Decimal("14655600.00")
+    assert str(profile["joined_date"]) == "2020-01-01"
+
+
+def test_create_contract_fixed_syncs_profile_basis(client: TestClient):
+    headers = _admin(client)
+    emp_id = _create_employee(client, headers, "C01F")
+
+    resp = client.post(
+        f"{BASE_EMP}/{emp_id}/contracts",
+        json=_contract_payload(
+            "C01F",
+            signed_date="2026-01-01",
+            effective_from="2026-01-01",
+            insurance_salary_mode="fixed_manual",
+            insurance_salary="12345678",
+            insurance_salary_fixed_amount="12345678",
+        ),
+        headers=headers,
+    )
+    assert resp.status_code == 201, resp.text
+    profile = asyncio.run(_get_profile_basis_state(emp_id))
+    assert profile is not None
+    assert profile["source"] == "contract"
+    assert Decimal(str(profile["amount"])) == Decimal("12345678.00")
+
+
+def test_create_contract_does_not_override_manual_fixed_profile(client: TestClient):
+    headers = _admin(client)
+    emp_id = _create_employee(client, headers, "C01M")
+    asyncio.run(_set_profile_manual_fixed(emp_id, Decimal("9999999"), "2022-06-01"))
+    group = asyncio.run(_get_bhxh_group("EXEC_COMPANY"))
+
+    resp = client.post(
+        f"{BASE_EMP}/{emp_id}/contracts",
+        json=_contract_payload(
+            "C01M",
+            signed_date="2026-01-01",
+            effective_from="2026-01-01",
+            insurance_salary_mode="computed_by_position_group",
+            bhxh_position_group_id=group.id,
+            insurance_salary_grade_no=1,
+            insurance_salary=None,
+        ),
+        headers=headers,
+    )
+    assert resp.status_code == 201, resp.text
+    profile = asyncio.run(_get_profile_basis_state(emp_id))
+    assert profile is not None
+    assert profile["source"] == "manual_fixed"
+    assert Decimal(str(profile["amount"])) == Decimal("9999999")
+    assert str(profile["joined_date"]) == "2022-06-01"
+
+
+def test_computed_contract_syncs_salary_basis_api(client: TestClient):
+    headers = _admin(client)
+    emp_id = _create_employee(client, headers, "C01SB")
+    group = asyncio.run(_get_bhxh_group("OFFICE_STAFF"))
+
+    resp = client.post(
+        f"{BASE_EMP}/{emp_id}/contracts",
+        json=_contract_payload(
+            "C01SB",
+            signed_date="2026-01-01",
+            effective_from="2026-01-01",
+            insurance_salary_mode="computed_by_position_group",
+            bhxh_position_group_id=group.id,
+            insurance_salary_grade_no=1,
+            insurance_salary=None,
+        ),
+        headers=headers,
+    )
+    assert resp.status_code == 201, resp.text
+
+    basis_resp = client.get(f"/api/v1/salary/employees/{emp_id}/bhxh-basis", headers=headers)
+    assert basis_resp.status_code == 200, basis_resp.text
+    basis = basis_resp.json()
+    assert basis["insurance_basis_source"] == "computed"
+    assert Decimal(str(basis["insurance_basis_amount"])) == Decimal("5050800.00")
+    assert Decimal(str(basis["active_contract_insurance_salary"])) == Decimal("5050800.00")
 
 
 def test_preview_contract_insurance_salary_computed(client: TestClient):
@@ -603,6 +754,30 @@ def test_terminate_contract_success(client: TestClient):
     assert resp.status_code == 200
     assert resp.json()["status"] == "terminated"
     assert resp.json()["status_display"] == "Đã hủy"
+
+
+def test_terminate_last_active_contract_clears_profile_basis_when_not_manual(client: TestClient):
+    headers = _admin(client)
+    emp_id = _create_employee(client, headers, "C10B")
+    cid = client.post(
+        f"{BASE_EMP}/{emp_id}/contracts",
+        json=_contract_payload(
+            "C10B",
+            signed_date="2026-01-01",
+            effective_from="2026-01-01",
+            insurance_salary_mode="fixed_manual",
+            insurance_salary="12345678",
+            insurance_salary_fixed_amount="12345678",
+        ),
+        headers=headers,
+    ).json()["id"]
+
+    resp = client.delete(f"{BASE_EMP}/{emp_id}/contracts/{cid}", headers=headers)
+    assert resp.status_code == 200, resp.text
+    profile = asyncio.run(_get_profile_basis_state(emp_id))
+    assert profile is not None
+    assert profile["source"] == "contract"
+    assert profile["amount"] is None
 
 
 def test_terminate_already_terminated_400(client: TestClient):

@@ -425,6 +425,7 @@
             <ContractTab
               v-if="!isNew && employeeId"
               :employee-id="employeeId"
+              @refresh="handleContractRefresh"
             />
           </TabPanel>
 
@@ -432,6 +433,7 @@
           <TabPanel value="insurance">
             <InsuranceTab
               v-if="!isNew && employeeId"
+              :key="insuranceRefreshTick"
               :employee-id="employeeId"
               @refresh="loadEmployee"
             />
@@ -575,6 +577,7 @@ const filteredPositions = computed(() =>
 const editing   = ref(false)
 const submitting = ref(false)
 const activeTab  = ref('basic')
+const insuranceRefreshTick = ref(0)
 const errors     = ref<Record<string, string>>({})
 
 const viewOnly = computed(() => !isNew.value && !editing.value)
@@ -735,6 +738,11 @@ async function loadCatalogs() {
   departments.value = deptResp.data
   jobTitles.value = titleResp.data
   allPositions.value = positionResp.data
+}
+
+async function handleContractRefresh() {
+  insuranceRefreshTick.value += 1
+  await loadEmployee()
 }
 
 // ── Edit ───────────────────────────────────────────────────────────────────────

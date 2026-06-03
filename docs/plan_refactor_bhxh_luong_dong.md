@@ -2,7 +2,7 @@
 
 **Phạm vi chính:** cấu hình lương tối thiểu vùng · cấu hình vùng BHXH của công ty · cấu hình nhóm vị trí và hệ số 7 bậc · tính mức lương đóng BHXH theo 2 mode tại hợp đồng
 
-**Tình trạng:** plan đã review lại theo yêu cầu nghiệp vụ thực tế. Slice 1, Slice 2, Slice 3 và Slice 4 đã được triển khai; Slice 5+ vẫn pending.
+**Tình trạng:** plan đã review lại theo yêu cầu nghiệp vụ thực tế. Slice 1, Slice 2, Slice 3, Slice 4 và Slice 5 đã được triển khai.
 
 ---
 
@@ -570,6 +570,10 @@ Mục tiêu:
 Exit criteria:
 
 - không có chênh lệch không giải thích được giữa contract / profile / salary report
+
+Trạng thái:
+
+- đã xong
 
 ---
 

@@ -251,6 +251,13 @@ test("employee contract form supports computed and fixed insurance salary modes"
     await expect(computedCard.getByText(/OFFICE_STAFF|Nhân viên Kế toán/)).toBeVisible();
     await expect(computedCard.getByText(/Bậc gốc 3 · Bậc áp dụng 6/)).toBeVisible();
 
+    await page.getByRole("tab", { name: "Bảo hiểm" }).click();
+    const computedBasisRow = page.locator(".info-row").filter({ hasText: "Nền tính BHXH" }).first();
+    await expect(computedBasisRow).toContainText("6.334.200");
+    await expect(computedBasisRow).toContainText("(Tính tự động)");
+    await page.getByRole("tab", { name: "Hợp đồng" }).click();
+    await expect(page.getByRole("button", { name: "Thêm hợp đồng" })).toBeVisible();
+
     await page.getByRole("button", { name: "Thêm hợp đồng" }).click();
     const fixedDialog = page.getByRole("dialog", { name: "Thêm hợp đồng" });
     await fixedDialog.locator(".field").filter({ hasText: /^Loại hợp đồng/ }).locator(".p-select").click();
@@ -278,6 +285,11 @@ test("employee contract form supports computed and fixed insurance salary modes"
     await expect(fixedCard).toBeVisible();
     await expect(fixedCard.getByText("Cố định theo thỏa thuận")).toBeVisible();
     await expect(fixedCard.getByText(/12\.345\.678/)).toBeVisible();
+
+    await page.getByRole("tab", { name: "Bảo hiểm" }).click();
+    const fixedBasisRow = page.locator(".info-row").filter({ hasText: "Nền tính BHXH" }).first();
+    await expect(fixedBasisRow).toContainText("12.345.678");
+    await expect(fixedBasisRow).toContainText("(Từ HĐ)");
   } finally {
     const contractsResp = await request.get("/api/v1/employees/1/contracts", {
       headers: { Authorization: `Bearer ${token}` },

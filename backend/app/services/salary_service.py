@@ -74,7 +74,7 @@ async def _get_active_contract(
                 EmployeeContract.status == "active",
                 EmployeeContract.insurance_salary.is_not(None),
             )
-            .order_by(EmployeeContract.effective_from.desc())
+            .order_by(EmployeeContract.effective_from.desc(), EmployeeContract.id.desc())
             .limit(1)
         )
     ).scalars().first()
@@ -183,7 +183,7 @@ async def list_salary_employees(
         raw_basis_amount = profile.insurance_basis_amount if profile else None
         # Khi source='contract', basis_amount lưu trong contract chứ không trong profile
         basis_amount = raw_basis_amount if raw_basis_amount is not None else (
-            contract_salary if basis_source == "contract" else None
+            contract_salary if basis_source in {"contract", "computed"} else None
         )
 
         items.append(SalaryEmployeeRow(
@@ -243,7 +243,7 @@ async def get_employee_bhxh_basis(
     contract_salary = contract.insurance_salary if contract else None
     raw_basis_amount = profile.insurance_basis_amount if profile else None
     basis_amount = raw_basis_amount if raw_basis_amount is not None else (
-        contract_salary if basis_source == "contract" else None
+        contract_salary if basis_source in {"contract", "computed"} else None
     )
 
     employee_code = await employee_code_service.build_employee_display_code(session, emp)
@@ -400,7 +400,7 @@ async def create_bhxh_adjustment(
     contract_salary = contract.insurance_salary if contract else None
     raw_basis = profile.insurance_basis_amount
     old_basis: Optional[Decimal] = raw_basis if raw_basis is not None else (
-        contract_salary if profile.insurance_basis_source == "contract" else None
+        contract_salary if profile.insurance_basis_source in {"contract", "computed"} else None
     )
     if old_basis is None or old_basis <= 0:
         raise HTTPException(
@@ -798,7 +798,7 @@ def _build_summary_query(department_id: Optional[int]):
             or_(
                 EmployeeInsuranceProfile.insurance_basis_amount.is_not(None),
                 and_(
-                    EmployeeInsuranceProfile.insurance_basis_source == "contract",
+                    EmployeeInsuranceProfile.insurance_basis_source.in_(("contract", "computed")),
                     contract_sq.c.insurance_salary.is_not(None),
                 ),
             ),
