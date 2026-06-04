@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import date
 from io import BytesIO
 
 import openpyxl
@@ -41,6 +42,7 @@ def _make_session():
 async def _cleanup():
     async with _make_session()() as s:
         await s.execute(text(f"DELETE FROM leave_records WHERE EXTRACT(year FROM start_date) = {_YEAR}"))
+        await s.execute(text(f"DELETE FROM leave_entitlements WHERE year = {_YEAR}"))
         employee_ids = [e.id for e in (await s.execute(select(Employee))).scalars().all() if e.id_number.startswith("TESTIMPSEQ")]
         if employee_ids:
             await s.execute(delete(Employee).where(Employee.id.in_(employee_ids)))
@@ -136,6 +138,49 @@ async def _create_employee_same_seq(id_number: str, sequence_code: str, employee
         return employee.id
 
 
+async def _create_resigned_employee_same_seq(id_number: str, sequence_code: str, employee_seq: int) -> int:
+    sequence = await _get_sequence(sequence_code)
+    payload = _employee_payload(id_number, sequence_id=sequence.id, employee_seq=employee_seq)
+    payload.status = "resigned"
+    payload.resigned_date = date(2026, 12, 31)
+    async with _make_session()() as s:
+        employee = await employee_service.create_employee(s, payload)
+        await s.commit()
+        await s.refresh(employee)
+        return employee.id
+
+
+async def _leave_record_state(employee_id: int, year: int) -> dict | None:
+    async with _make_session()() as s:
+        row = (
+            await s.execute(
+                text(
+                    """
+                    SELECT lr.entitlement_id,
+                           le.allocated_days,
+                           le.used_days,
+                           le.year
+                    FROM leave_records lr
+                    LEFT JOIN leave_entitlements le ON le.id = lr.entitlement_id
+                    WHERE lr.employee_id = :employee_id
+                      AND EXTRACT(year FROM lr.start_date) = :year
+                    ORDER BY lr.id DESC
+                    LIMIT 1
+                    """
+                ),
+                {"employee_id": employee_id, "year": year},
+            )
+        ).fetchone()
+        if row is None:
+            return None
+        return {
+            "entitlement_id": row[0],
+            "allocated_days": row[1],
+            "used_days": row[2],
+            "year": row[3],
+        }
+
+
 # ── Template ──────────────────────────────────────────────────────────────────
 
 def test_template_download(client: TestClient):
@@ -176,6 +221,22 @@ def test_import_total_days_calculated(client: TestClient):
     assert r.json()["created_ids"]
 
 
+def test_import_links_entitlement_and_updates_used_days(client: TestClient):
+    h = _login(client)
+    employee_id = asyncio.run(_create_employee_same_seq("TESTIMPSEQLENT101", "SYS1", 9311))
+    code = _employee_display_code(client, h, employee_id)
+    rows = [[code, _LT_ANNUAL, f"01/07/{_YEAR}", f"03/07/{_YEAR}", ""]]
+    r = _upload(client, h, _make_xlsx(rows))
+    assert r.status_code == 200
+    assert r.json()["success"] == 1
+
+    state = asyncio.run(_leave_record_state(employee_id, _YEAR))
+    assert state is not None
+    assert state["entitlement_id"] is not None
+    assert float(state["allocated_days"]) >= 0
+    assert float(state["used_days"]) == 3.0
+
+
 def test_import_same_day_valid(client: TestClient):
     """start = end = 1 ngày → hợp lệ."""
     h = _login(client)
@@ -184,6 +245,22 @@ def test_import_same_day_valid(client: TestClient):
     r = _upload(client, h, _make_xlsx(rows))
     assert r.status_code == 200
     assert r.json()["success"] == 1
+
+
+def test_import_resigned_employee_still_gets_linked_entitlement(client: TestClient):
+    h = _login(client)
+    employee_id = asyncio.run(_create_resigned_employee_same_seq("TESTIMPSEQLRES101", "SYS1", 9312))
+    code = _employee_display_code(client, h, employee_id)
+    rows = [[code, _LT_ANNUAL, f"15/07/{_YEAR}", f"15/07/{_YEAR}", ""]]
+    r = _upload(client, h, _make_xlsx(rows))
+    assert r.status_code == 200, r.text
+    assert r.json()["success"] == 1
+
+    state = asyncio.run(_leave_record_state(employee_id, _YEAR))
+    assert state is not None
+    assert state["entitlement_id"] is not None
+    assert state["year"] == _YEAR
+    assert float(state["used_days"]) == 1.0
 
 
 # ── Errors ────────────────────────────────────────────────────────────────────

@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.catalog import LeaveType
 from app.models.leave_record import LeaveRecord
 from app.schemas.employee_import import ImportResult, ImportRowError
+from app.services import leave_entitlement_service
 from app.services.import_employee_lookup_service import EmployeeImportLookup
 
 IMPORT_MAX_ROWS = 1000
@@ -226,9 +227,18 @@ async def process_import(session: AsyncSession, file_bytes: bytes) -> ImportResu
         total_days = Decimal((end_date - start_date).days + 1)
 
         try:
+            entitlement = await leave_entitlement_service.ensure_entitlement_for_import(
+                session,
+                employee=employee,
+                leave_type=leave_type,
+                year=start_date.year,
+            )
+            entitlement.used_days += total_days
+            session.add(entitlement)
             record = LeaveRecord(
                 employee_id=employee.id,
                 leave_type_id=leave_type.id,
+                entitlement_id=entitlement.id,
                 start_date=start_date,
                 end_date=end_date,
                 total_days=total_days,

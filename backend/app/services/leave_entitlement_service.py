@@ -101,6 +101,59 @@ def _compute_carryover(
     return carry, expires
 
 
+def _base_allocated_days_for_leave_type(employee: Employee, leave_type: LeaveType, year: int) -> Decimal:
+    if leave_type.code == "annual_leave":
+        return Decimal(str(12 + _seniority_bonus(employee.start_date, year)))
+    if leave_type.max_days_per_year is not None:
+        return Decimal(str(leave_type.max_days_per_year))
+    return Decimal("0")
+
+
+async def ensure_entitlement_for_import(
+    session: AsyncSession,
+    *,
+    employee: Employee,
+    leave_type: LeaveType,
+    year: int,
+    created_by_id: int | None = None,
+) -> LeaveEntitlement:
+    existing = (await session.execute(
+        select(LeaveEntitlement).where(
+            LeaveEntitlement.employee_id == employee.id,
+            LeaveEntitlement.leave_type_id == leave_type.id,
+            LeaveEntitlement.year == year,
+        )
+    )).scalar_one_or_none()
+    if existing:
+        return existing
+
+    prev_ent: Optional[LeaveEntitlement] = None
+    if leave_type.carryover_allowed:
+        prev_ent = (await session.execute(
+            select(LeaveEntitlement).where(
+                LeaveEntitlement.employee_id == employee.id,
+                LeaveEntitlement.leave_type_id == leave_type.id,
+                LeaveEntitlement.year == year - 1,
+            )
+        )).scalar_one_or_none()
+
+    carry_days, carry_expires = _compute_carryover(prev_ent, leave_type, year)
+    entitlement = LeaveEntitlement(
+        employee_id=employee.id,
+        leave_type_id=leave_type.id,
+        year=year,
+        allocated_days=_base_allocated_days_for_leave_type(employee, leave_type, year),
+        carryover_days=carry_days,
+        carryover_expires=carry_expires,
+        used_days=Decimal("0"),
+        created_by_id=created_by_id,
+        created_at=_utcnow(),
+    )
+    session.add(entitlement)
+    await session.flush()
+    return entitlement
+
+
 async def _get_ent_or_404(session: AsyncSession, ent_id: int) -> LeaveEntitlement:
     row = await session.get(LeaveEntitlement, ent_id)
     if not row:
@@ -294,9 +347,9 @@ async def bulk_allocate(
         for lt in lt_rows:
             # Tính số ngày cấp
             if lt.code == "annual_leave":
-                alloc_days = Decimal(str(12 + _seniority_bonus(emp.start_date, req.year)))
+                alloc_days = _base_allocated_days_for_leave_type(emp, lt, req.year)
             elif lt.max_days_per_year is not None:
-                alloc_days = Decimal(str(lt.max_days_per_year))
+                alloc_days = _base_allocated_days_for_leave_type(emp, lt, req.year)
             else:
                 # Loại không có giới hạn và không phải annual_leave → bỏ qua
                 continue
