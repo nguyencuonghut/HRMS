@@ -290,6 +290,90 @@
       </DataTable>
     </div>
 
+    <!-- Card Danh sách Thang bảng lương -->
+    <div class="card insurance-region-history-card">
+      <div class="section-heading">
+        <h3>Thang bảng lương</h3>
+        <Button label="Thêm thang bảng lương" icon="pi pi-plus" size="small" @click="openCreateSalaryScaleDialog" />
+      </div>
+
+      <DataTable :value="salaryScales" stripedRows responsive-layout="scroll">
+        <Column field="name" header="Tên thang bảng lương" style="min-width: 260px" />
+        <Column header="Thời gian hiệu lực" style="width: 220px">
+          <template #body="{ data }">
+            <div class="range-cell">
+              <span>{{ formatDate(data.effective_from) }}</span>
+              <span>{{ data.effective_to ? `→ ${formatDate(data.effective_to)}` : '→ hiện tại' }}</span>
+            </div>
+          </template>
+        </Column>
+        <Column header="Trạng thái" style="width: 140px">
+          <template #body="{ data }">
+            <Tag
+              :value="data.is_active ? 'Đang dùng' : (data.effective_to ? 'Lịch sử' : 'Nháp')"
+              :severity="data.is_active ? 'success' : (data.effective_to ? 'contrast' : 'secondary')"
+            />
+          </template>
+        </Column>
+        <Column field="note" header="Ghi chú" style="min-width: 220px" />
+        <Column header="" style="width: 240px">
+          <template #body="{ data }">
+            <div class="action-cell">
+              <Button
+                icon="pi pi-cog"
+                v-tooltip.top="'Cấu hình hệ số'"
+                severity="secondary"
+                text
+                rounded
+                size="small"
+                @click="openCoefficientsDialog(data)"
+              />
+              <Button
+                v-if="!data.is_active"
+                icon="pi pi-check"
+                v-tooltip.top="'Kích hoạt'"
+                severity="success"
+                text
+                rounded
+                size="small"
+                :loading="activatingScaleId === data.id"
+                @click="activateSalaryScale(data)"
+              />
+              <Button
+                icon="pi pi-copy"
+                v-tooltip.top="'Nhân bản'"
+                severity="secondary"
+                text
+                rounded
+                size="small"
+                @click="openCloneSalaryScaleDialog(data)"
+              />
+              <Button
+                v-if="!data.is_active && !data.effective_to"
+                icon="pi pi-pencil"
+                v-tooltip.top="'Chỉnh sửa'"
+                severity="secondary"
+                text
+                rounded
+                size="small"
+                @click="openEditSalaryScaleDialog(data)"
+              />
+              <Button
+                v-if="!data.is_active && !data.effective_to"
+                icon="pi pi-trash"
+                v-tooltip.top="'Xóa'"
+                severity="danger"
+                text
+                rounded
+                size="small"
+                @click="confirmDeleteSalaryScale(data)"
+              />
+            </div>
+          </template>
+        </Column>
+      </DataTable>
+    </div>
+
     <div class="card insurance-region-history-card">
       <div class="section-heading">
         <h3>Nhóm vị trí BHXH + hệ số 7 bậc</h3>
@@ -639,6 +723,142 @@
         </div>
       </form>
     </Dialog>
+
+    <!-- Dialog Thêm/Sửa Thang bảng lương -->
+    <Dialog
+      v-model:visible="salaryScaleDialogVisible"
+      :header="editingSalaryScale ? 'Cập nhật thông tin thang bảng lương' : 'Thêm thang bảng lương mới'"
+      :style="{ width: '540px' }"
+      modal
+      :close-on-escape="!submittingSalaryScale"
+      :closable="!submittingSalaryScale"
+    >
+      <form @submit.prevent="submitSalaryScale">
+        <div class="field">
+          <label>Tên thang lương <span class="req">*</span></label>
+          <InputText v-model="salaryScaleForm.name" class="w-full" placeholder="Ví dụ: Thang bảng lương năm 2026" />
+        </div>
+        
+        <div class="field">
+          <label>Ngày hiệu lực <span class="req">*</span></label>
+          <input v-model="salaryScaleForm.effective_from" class="p-inputtext p-component w-full" type="date" />
+        </div>
+
+        <div class="field">
+          <label>Ghi chú</label>
+          <Textarea v-model="salaryScaleForm.note" class="w-full" rows="3" auto-resize placeholder="Nhập ghi chú thêm..." />
+        </div>
+
+        <div class="dialog-actions">
+          <Button type="button" label="Hủy" severity="secondary" text :disabled="submittingSalaryScale" @click="salaryScaleDialogVisible = false" />
+          <Button type="submit" :label="editingSalaryScale ? 'Lưu thay đổi' : 'Tạo thang lương'" icon="pi pi-check" :loading="submittingSalaryScale" />
+        </div>
+      </form>
+    </Dialog>
+
+    <!-- Dialog Nhân bản (Clone) Thang bảng lương -->
+    <Dialog
+      v-model:visible="salaryScaleCloneDialogVisible"
+      header="Nhân bản thang bảng lương"
+      :style="{ width: '540px' }"
+      modal
+      :close-on-escape="!submittingSalaryScale"
+      :closable="!submittingSalaryScale"
+    >
+      <form @submit.prevent="submitCloneSalaryScale">
+        <div class="field">
+          <label>Thang bảng lương nguồn</label>
+          <InputText v-if="cloneSourceScale" :model-value="cloneSourceScale.name" class="w-full" disabled />
+        </div>
+
+        <div class="field">
+          <label>Tên thang lương mới <span class="req">*</span></label>
+          <InputText v-model="cloneForm.name" class="w-full" placeholder="Ví dụ: Thang bảng lương năm 2026" />
+        </div>
+        
+        <div class="field">
+          <label>Ngày hiệu lực mới <span class="req">*</span></label>
+          <input v-model="cloneForm.effective_from" class="p-inputtext p-component w-full" type="date" />
+        </div>
+
+        <div class="field">
+          <label>Ghi chú</label>
+          <Textarea v-model="cloneForm.note" class="w-full" rows="3" auto-resize />
+        </div>
+
+        <div class="dialog-actions">
+          <Button type="button" label="Hủy" severity="secondary" text :disabled="submittingSalaryScale" @click="salaryScaleCloneDialogVisible = false" />
+          <Button type="submit" label="Nhân bản & Sao chép hệ số" icon="pi pi-copy" :loading="submittingSalaryScale" />
+        </div>
+      </form>
+    </Dialog>
+
+    <!-- Dialog Cấu hình hệ số 7 bậc -->
+    <Dialog
+      v-model:visible="coefficientsDialogVisible"
+      :header="configuringScale ? `Cấu hình hệ số: ${configuringScale.name}` : 'Cấu hình hệ số'"
+      :style="{ width: '1100px' }"
+      modal
+      :close-on-escape="!submittingCoefficients"
+      :closable="!submittingCoefficients"
+    >
+      <div v-if="!configuringScale" class="flex justify-center p-4">
+        <i class="pi pi-spin pi-spinner text-3xl" />
+      </div>
+      <div v-else-if="!coefficientsForm.length" class="empty-state">
+        Chưa có nhóm vị trí BHXH nào. Hãy tạo nhóm vị trí BHXH trước khi cấu hình hệ số.
+      </div>
+      <form v-else @submit.prevent="submitScaleCoefficients">
+        <div class="scale-coefficients-editor">
+          <!-- Left sidebar: groups list -->
+          <div class="scale-groups-sidebar">
+            <div
+              v-for="(group, idx) in coefficientsForm"
+              :key="group.bhxh_position_group_id"
+              class="scale-group-item"
+              :class="{ active: activeTabGroupIndex === idx }"
+              @click="activeTabGroupIndex = idx"
+            >
+              <div class="font-semibold">{{ group.name }}</div>
+              <div class="text-sm opacity-80">{{ group.code }}</div>
+            </div>
+          </div>
+
+          <!-- Right content: 7 grades for active group -->
+          <div class="scale-coefficients-content">
+            <div class="scale-group-name">
+              Nhóm: {{ coefficientsForm[activeTabGroupIndex].name }} ({{ coefficientsForm[activeTabGroupIndex].code }})
+            </div>
+
+            <DataTable :value="coefficientsForm[activeTabGroupIndex].coefficients" responsive-layout="scroll" stripedRows>
+              <Column header="Bậc" style="width: 100px">
+                <template #body="{ data }">Bậc {{ data.grade_no }}</template>
+              </Column>
+              <Column header="Hệ số *" style="width: 160px">
+                <template #body="{ data }">
+                  <InputNumber v-model="data.coefficient" class="w-full" :min="0.01" :min-fraction-digits="2" :max-fraction-digits="4" />
+                </template>
+              </Column>
+              <Column header="Số tháng xét nâng *" style="width: 160px">
+                <template #body="{ data }">
+                  <InputNumber v-model="data.promotion_months" class="w-full" :min="1" />
+                </template>
+              </Column>
+              <Column header="Tiêu chí xét" style="min-width: 320px">
+                <template #body="{ data }">
+                  <InputText v-model="data.criteria" class="w-full" />
+                </template>
+              </Column>
+            </DataTable>
+          </div>
+        </div>
+
+        <div class="dialog-actions">
+          <Button type="button" label="Hủy" severity="secondary" text :disabled="submittingCoefficients" @click="coefficientsDialogVisible = false" />
+          <Button type="submit" label="Lưu hệ số" icon="pi pi-check" :loading="submittingCoefficients" />
+        </div>
+      </form>
+    </Dialog>
   </div>
 </template>
 
@@ -675,6 +895,9 @@ import insuranceService, {
   type RegionalMinimumWageCreate,
   type RegionalMinimumWageRead,
   type RegionalMinimumWageUpdate,
+  type SalaryScaleRead,
+  type SalaryScaleDetailRead,
+  type SalaryScaleCoefficientsUpdateInput,
 } from '@/services/insuranceService'
 
 type PolicyFormComponent = {
@@ -710,6 +933,44 @@ const minimumWages = ref<RegionalMinimumWageRead[]>([])
 const senioritySettings = ref<BhxhSenioritySettingsRead>({ current: null, history: [] })
 const positionGroupCatalog = ref<BhxhPositionGroupCatalogRead>({ current_scale: null, groups: [] })
 const jobPositions = ref<JobPositionListItem[]>([])
+
+const salaryScales = ref<SalaryScaleRead[]>([])
+const salaryScaleDialogVisible = ref(false)
+const salaryScaleCloneDialogVisible = ref(false)
+const editingSalaryScale = ref<SalaryScaleRead | null>(null)
+const submittingSalaryScale = ref(false)
+const activatingScaleId = ref<number | null>(null)
+
+const cloneForm = ref({
+  source_scale_id: null as number | null,
+  name: '',
+  effective_from: '',
+  note: '',
+})
+const cloneSourceScale = ref<SalaryScaleRead | null>(null)
+
+const coefficientsDialogVisible = ref(false)
+const configuringScale = ref<SalaryScaleDetailRead | null>(null)
+const submittingCoefficients = ref(false)
+const activeTabGroupIndex = ref(0)
+
+const salaryScaleForm = ref({
+  name: '',
+  effective_from: '',
+  note: '',
+})
+
+const coefficientsForm = ref<{
+  bhxh_position_group_id: number
+  code: string
+  name: string
+  coefficients: {
+    grade_no: number
+    coefficient: number
+    promotion_months: number
+    criteria: string
+  }[]
+}[]>([])
 
 const policyDialogVisible = ref(false)
 const regionDialogVisible = ref(false)
@@ -890,7 +1151,7 @@ function buildDefaultPositionGroupCoefficients(): PositionGroupFormCoefficient[]
 async function loadAll() {
   loading.value = true
   try {
-    const [componentsResp, policyResp, regionResp, minimumWagesResp, seniorityResp, positionGroupResp, jobPositionResp] = await Promise.all([
+    const [componentsResp, policyResp, regionResp, minimumWagesResp, seniorityResp, positionGroupResp, jobPositionResp, salaryScalesResp] = await Promise.all([
       insuranceService.getComponents(),
       insuranceService.getPolicyVersions(),
       insuranceService.getCompanyRegion(),
@@ -898,6 +1159,7 @@ async function loadAll() {
       insuranceService.getSenioritySettings(),
       insuranceService.getPositionGroups(),
       jobPositionService.getList(),
+      insuranceService.listSalaryScales(),
     ])
     components.value = componentsResp.data
     policyVersions.value = policyResp.data
@@ -906,6 +1168,7 @@ async function loadAll() {
     senioritySettings.value = seniorityResp.data
     positionGroupCatalog.value = positionGroupResp.data
     jobPositions.value = jobPositionResp.data
+    salaryScales.value = salaryScalesResp.data
   } catch (error) {
     toast.add({ severity: 'error', summary: 'Lỗi', detail: apiError(error), life: 5000 })
   } finally {
@@ -1376,7 +1639,256 @@ function confirmDeletePositionGroup(item: BhxhPositionGroupRead) {
   })
 }
 
+// --- Salary Scales Functions ---
+
+function resetSalaryScaleForm() {
+  salaryScaleForm.value = {
+    name: '',
+    effective_from: '',
+    note: '',
+  }
+}
+
+function openCreateSalaryScaleDialog() {
+  editingSalaryScale.value = null
+  resetSalaryScaleForm()
+  salaryScaleDialogVisible.value = true
+}
+
+function openEditSalaryScaleDialog(scale: SalaryScaleRead) {
+  editingSalaryScale.value = scale
+  salaryScaleForm.value = {
+    name: scale.name,
+    effective_from: scale.effective_from,
+    note: scale.note ?? '',
+  }
+  salaryScaleDialogVisible.value = true
+}
+
+async function submitSalaryScale() {
+  submittingSalaryScale.value = true
+  try {
+    if (editingSalaryScale.value) {
+      await insuranceService.updateSalaryScale(editingSalaryScale.value.id, {
+        name: salaryScaleForm.value.name,
+        effective_from: salaryScaleForm.value.effective_from,
+        note: salaryScaleForm.value.note || null,
+      })
+      toast.add({ severity: 'success', summary: 'Thành công', detail: 'Đã cập nhật thông tin thang bảng lương', life: 3000 })
+    } else {
+      await insuranceService.createSalaryScale({
+        name: salaryScaleForm.value.name,
+        effective_from: salaryScaleForm.value.effective_from,
+        note: salaryScaleForm.value.note || null,
+      })
+      toast.add({ severity: 'success', summary: 'Thành công', detail: 'Đã tạo thang bảng lương nháp mới', life: 3000 })
+    }
+    salaryScaleDialogVisible.value = false
+    await loadAll()
+  } catch (error) {
+    toast.add({ severity: 'error', summary: 'Lỗi', detail: apiError(error), life: 5000 })
+  } finally {
+    submittingSalaryScale.value = false
+  }
+}
+
+async function activateSalaryScale(scale: SalaryScaleRead) {
+  confirm.require({
+    message: `Kích hoạt thang bảng lương "${scale.name}" hiệu lực từ ${formatDate(scale.effective_from)}? Thang bảng lương hiện hành khác sẽ tự động hết hiệu lực vào ngày hôm trước.`,
+    header: 'Xác nhận kích hoạt',
+    icon: 'pi pi-exclamation-triangle',
+    rejectProps: {
+      label: 'Hủy',
+      severity: 'secondary',
+      outlined: true,
+    },
+    acceptProps: {
+      label: 'Kích hoạt',
+      severity: 'success',
+    },
+    accept: async () => {
+      activatingScaleId.value = scale.id
+      try {
+        await insuranceService.activateSalaryScale(scale.id)
+        toast.add({ severity: 'success', summary: 'Thành công', detail: `Đã kích hoạt thang bảng lương "${scale.name}"`, life: 3000 })
+        await loadAll()
+      } catch (error) {
+        toast.add({ severity: 'error', summary: 'Lỗi', detail: apiError(error), life: 5000 })
+      } finally {
+        activatingScaleId.value = null
+      }
+    },
+  })
+}
+
+function openCloneSalaryScaleDialog(scale: SalaryScaleRead) {
+  cloneSourceScale.value = scale
+  cloneForm.value = {
+    source_scale_id: scale.id,
+    name: `[Bản sao] ${scale.name}`,
+    effective_from: '',
+    note: `Sao chép hệ số từ ${scale.name}`,
+  }
+  salaryScaleCloneDialogVisible.value = true
+}
+
+async function submitCloneSalaryScale() {
+  if (!cloneForm.value.source_scale_id) return
+  submittingSalaryScale.value = true
+  try {
+    const createResp = await insuranceService.createSalaryScale({
+      name: cloneForm.value.name,
+      effective_from: cloneForm.value.effective_from,
+      note: cloneForm.value.note || null,
+    })
+    await insuranceService.cloneSalaryScale(createResp.data.id, cloneForm.value.source_scale_id)
+    toast.add({ severity: 'success', summary: 'Thành công', detail: 'Nhân bản thang bảng lương và hệ số thành công', life: 3000 })
+    salaryScaleCloneDialogVisible.value = false
+    await loadAll()
+  } catch (error) {
+    toast.add({ severity: 'error', summary: 'Lỗi', detail: apiError(error), life: 5000 })
+  } finally {
+    submittingSalaryScale.value = false
+  }
+}
+
+function confirmDeleteSalaryScale(scale: SalaryScaleRead) {
+  confirm.require({
+    message: `Xóa thang bảng lương "${scale.name}"? Thao tác này sẽ xóa toàn bộ hệ số cấu hình của thang lương này.`,
+    header: 'Xác nhận xóa thang bảng lương',
+    icon: 'pi pi-trash',
+    rejectProps: {
+      label: 'Không',
+      severity: 'secondary',
+      outlined: true,
+    },
+    acceptProps: {
+      label: 'Xóa',
+      severity: 'danger',
+    },
+    accept: async () => {
+      try {
+        await insuranceService.deleteSalaryScale(scale.id)
+        toast.add({ severity: 'success', summary: 'Thành công', detail: `Đã xóa thang bảng lương "${scale.name}"`, life: 3000 })
+        await loadAll()
+      } catch (error) {
+        toast.add({ severity: 'error', summary: 'Lỗi', detail: apiError(error), life: 5000 })
+      }
+    },
+  })
+}
+
+async function openCoefficientsDialog(scale: SalaryScaleRead) {
+  configuringScale.value = null
+  try {
+    const resp = await insuranceService.getSalaryScaleDetail(scale.id)
+    configuringScale.value = resp.data
+    coefficientsForm.value = resp.data.groups.map(group => {
+      const coeffs = Array.from({ length: 7 }, (_, i) => {
+        const grade = i + 1
+        const existing = group.coefficients.find(c => c.grade_no === grade)
+        return {
+          grade_no: grade,
+          coefficient: existing ? Number(existing.coefficient) : 1.0,
+          promotion_months: existing ? existing.promotion_months : 12,
+          criteria: existing?.criteria || '',
+        }
+      })
+      return {
+        bhxh_position_group_id: group.id,
+        code: group.code,
+        name: group.name,
+        coefficients: coeffs,
+      }
+    })
+    activeTabGroupIndex.value = 0
+    coefficientsDialogVisible.value = true
+  } catch (error) {
+    toast.add({ severity: 'error', summary: 'Lỗi', detail: apiError(error), life: 5000 })
+  }
+}
+
+async function submitScaleCoefficients() {
+  if (!configuringScale.value) return
+  submittingCoefficients.value = true
+  try {
+    const payload: SalaryScaleCoefficientsUpdateInput = {
+      groups: coefficientsForm.value.map(group => ({
+        bhxh_position_group_id: group.bhxh_position_group_id,
+        coefficients: group.coefficients.map(c => ({
+          grade_no: c.grade_no,
+          coefficient: String(c.coefficient),
+          promotion_months: c.promotion_months,
+          criteria: c.criteria || null
+        }))
+      }))
+    }
+    await insuranceService.updateScaleCoefficients(configuringScale.value.id, payload)
+    toast.add({ severity: 'success', summary: 'Thành công', detail: 'Đã cập nhật hệ số thang bảng lương', life: 3000 })
+    coefficientsDialogVisible.value = false
+    await loadAll()
+  } catch (error) {
+    toast.add({ severity: 'error', summary: 'Lỗi', detail: apiError(error), life: 5000 })
+  } finally {
+    submittingCoefficients.value = false
+  }
+}
+
 onMounted(async () => {
   await loadAll()
 })
 </script>
+
+<style scoped lang="scss">
+.scale-coefficients-editor {
+  display: flex;
+  gap: 1.5rem;
+  min-height: 400px;
+}
+
+.scale-groups-sidebar {
+  width: 260px;
+  border-right: 1px solid var(--p-content-border-color);
+  padding-right: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 480px;
+  overflow-y: auto;
+}
+
+.scale-group-item {
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
+
+  &:hover {
+    background: color-mix(in srgb, var(--p-primary-50) 40%, var(--p-content-background));
+  }
+
+  &.active {
+    background: var(--p-primary-50);
+    border-color: var(--p-primary-200);
+    color: var(--p-primary-900);
+    font-weight: 600;
+  }
+}
+
+.scale-coefficients-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-height: 480px;
+  overflow-y: auto;
+}
+
+.scale-group-name {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  color: var(--p-text-color);
+}
+</style>

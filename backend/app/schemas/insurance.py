@@ -313,3 +313,88 @@ class InsuranceEffectiveContributionConfigRead(BaseModel):
     as_of_date: date
     company_region: CompanyRegionHistoryItem
     policy_version: InsurancePolicyVersionRead
+
+
+class SalaryScaleRead(BaseModel):
+    id: int
+    name: str
+    effective_from: date
+    effective_to: Optional[date]
+    note: Optional[str]
+    is_active: bool
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class SalaryScaleCreate(BaseModel):
+    name: str = Field(..., max_length=200)
+    effective_from: date
+    note: Optional[str] = Field(None, max_length=2000)
+
+    @field_validator("name")
+    @classmethod
+    def _strip_name(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("Tên thang lương không được để trống")
+        return stripped
+
+
+class SalaryScaleUpdate(BaseModel):
+    name: Optional[str] = Field(None, max_length=200)
+    effective_from: Optional[date] = None
+    note: Optional[str] = Field(None, max_length=2000)
+
+    @field_validator("name")
+    @classmethod
+    def _strip_optional_name(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return value
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("Tên thang lương không được để trống")
+        return stripped
+
+
+class SalaryScaleCloneInput(BaseModel):
+    name: str = Field(..., max_length=200)
+    effective_from: date
+    note: Optional[str] = Field(None, max_length=2000)
+
+    @field_validator("name")
+    @classmethod
+    def _strip_name(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("Tên thang lương không được để trống")
+        return stripped
+
+
+class SalaryScaleCoefficientsGroupInput(BaseModel):
+    bhxh_position_group_id: int
+    coefficients: list[BhxhPositionGroupCoefficientInput]
+
+    @model_validator(mode="after")
+    def _validate_coefficients_list(self) -> "SalaryScaleCoefficientsGroupInput":
+        grades = sorted(item.grade_no for item in self.coefficients)
+        if grades != [1, 2, 3, 4, 5, 6, 7]:
+            raise ValueError("Phải cấu hình đủ 7 bậc hệ số từ 1 đến 7")
+        return self
+
+
+class SalaryScaleCoefficientsUpdateInput(BaseModel):
+    groups: list[SalaryScaleCoefficientsGroupInput]
+
+
+class SalaryScaleDetailRead(BaseModel):
+    id: int
+    name: str
+    effective_from: date
+    effective_to: Optional[date]
+    note: Optional[str]
+    is_active: bool
+    created_at: datetime
+    groups: list[BhxhPositionGroupRead]
+
+    model_config = {"from_attributes": True}

@@ -40,6 +40,12 @@ from app.schemas.insurance import (
     InsurancePolicyComponentRateInput,
     InsurancePolicyVersionCreate,
     InsurancePolicyVersionUpdate,
+    SalaryScaleRead,
+    SalaryScaleCreate,
+    SalaryScaleUpdate,
+    SalaryScaleCloneInput,
+    SalaryScaleCoefficientsUpdateInput,
+    SalaryScaleDetailRead,
 )
 
 
@@ -970,3 +976,227 @@ async def delete_bhxh_position_group(session: AsyncSession, group_id: int) -> di
     await session.delete(group)
     await session.commit()
     return await list_bhxh_position_groups(session)
+
+
+def _scale_to_read_dto(item: SalaryScale) -> dict:
+    return {
+        "id": item.id,
+        "name": item.name,
+        "effective_from": item.effective_from,
+        "effective_to": item.effective_to,
+        "note": item.note,
+        "is_active": item.effective_to is None,
+        "created_at": item.created_at,
+    }
+
+
+async def list_salary_scales(session: AsyncSession) -> list[dict]:
+    rows = await session.execute(
+        select(SalaryScale).order_by(SalaryScale.effective_from.desc(), SalaryScale.id.desc())
+    )
+    scales = list(rows.scalars().all())
+    return [_scale_to_read_dto(scale) for scale in scales]
+
+
+async def get_salary_scale_detail(session: AsyncSession, scale_id: int) -> dict:
+    scale = await session.get(SalaryScale, scale_id)
+    if not scale:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Không tìm thấy thang bảng lương")
+    groups = (await session.execute(
+        select(BhxhPositionGroup).order_by(BhxhPositionGroup.code.asc(), BhxhPositionGroup.id.asc())
+    )).scalars().all()
+    return {
+        "id": scale.id,
+        "name": scale.name,
+        "effective_from": scale.effective_from,
+        "effective_to": scale.effective_to,
+        "note": scale.note,
+        "is_active": scale.effective_to is None,
+        "created_at": scale.created_at,
+        "groups": [await _group_to_read(session, group, scale.id) for group in groups],
+    }
+
+
+async def create_salary_scale(session: AsyncSession, payload: SalaryScaleCreate) -> dict:
+    existing = await session.execute(
+        select(SalaryScale).where(SalaryScale.name == payload.name)
+    )
+    if existing.scalar_one_or_none():
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail=f"Tên thang bảng lương '{payload.name}' đã tồn tại",
+        )
+    scale = SalaryScale(
+        name=payload.name,
+        effective_from=payload.effective_from,
+        effective_to=payload.effective_from,  # Starts as draft (inactive)
+        note=payload.note,
+    )
+    session.add(scale)
+    await session.commit()
+    await session.refresh(scale)
+    return _scale_to_read_dto(scale)
+
+
+async def update_salary_scale(session: AsyncSession, scale_id: int, payload: SalaryScaleUpdate) -> dict:
+    scale = await session.get(SalaryScale, scale_id)
+    if not scale:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Không tìm thấy thang bảng lương")
+
+    is_draft = scale.effective_to is not None and scale.effective_to == scale.effective_from
+
+    provided = payload.model_fields_set
+    if "name" in provided and payload.name is not None and payload.name != scale.name:
+        existing = await session.execute(
+            select(SalaryScale).where(
+                SalaryScale.name == payload.name,
+                SalaryScale.id != scale_id,
+            )
+        )
+        if existing.scalar_one_or_none():
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                detail=f"Tên thang bảng lương '{payload.name}' đã tồn tại",
+            )
+        scale.name = payload.name
+
+    if "effective_from" in provided and payload.effective_from is not None:
+        if not is_draft:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Chỉ cho phép thay đổi ngày hiệu lực đối với thang bảng lương nháp",
+            )
+        scale.effective_from = payload.effective_from
+        scale.effective_to = payload.effective_from  # Keep draft state synced
+
+    if "note" in provided:
+        scale.note = payload.note
+
+    session.add(scale)
+    await session.commit()
+    await session.refresh(scale)
+    return _scale_to_read_dto(scale)
+
+
+async def delete_salary_scale(session: AsyncSession, scale_id: int) -> list[dict]:
+    scale = await session.get(SalaryScale, scale_id)
+    if not scale:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Không tìm thấy thang bảng lương")
+
+    is_active = scale.effective_to is None
+
+    if is_active:
+        prev_stmt = (
+            select(SalaryScale)
+            .where(SalaryScale.id != scale_id)
+            .order_by(SalaryScale.effective_from.desc(), SalaryScale.id.desc())
+            .limit(1)
+        )
+        prev_scale = (await session.execute(prev_stmt)).scalar_one_or_none()
+        if prev_scale:
+            prev_scale.effective_to = None
+            session.add(prev_scale)
+
+    await session.execute(
+        sa.delete(SalaryScaleEntry).where(SalaryScaleEntry.salary_scale_id == scale_id)
+    )
+    await session.delete(scale)
+    await session.commit()
+    return await list_salary_scales(session)
+
+
+async def activate_salary_scale(session: AsyncSession, scale_id: int) -> dict:
+    scale = await session.get(SalaryScale, scale_id)
+    if not scale:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Không tìm thấy thang bảng lương")
+
+    is_active = scale.effective_to is None
+    if is_active:
+        return _scale_to_read_dto(scale)
+
+    active_stmt = select(SalaryScale).where(SalaryScale.effective_to.is_(None))
+    active = (await session.execute(active_stmt)).scalar_one_or_none()
+
+    if active:
+        if scale.effective_from <= active.effective_from:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Ngày hiệu lực thang lương mới phải lớn hơn thang lương đang áp dụng",
+            )
+        active.effective_to = scale.effective_from - timedelta(days=1)
+        session.add(active)
+
+    scale.effective_to = None
+    session.add(scale)
+    await session.commit()
+    await session.refresh(scale)
+    return _scale_to_read_dto(scale)
+
+
+async def clone_salary_scale(session: AsyncSession, scale_id: int, source_scale_id: int) -> dict:
+    scale = await session.get(SalaryScale, scale_id)
+    if not scale:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Không tìm thấy thang bảng lương đích")
+
+    source = await session.get(SalaryScale, source_scale_id)
+    if not source:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Không tìm thấy thang bảng lương nguồn")
+
+    await session.execute(
+        sa.delete(SalaryScaleEntry).where(SalaryScaleEntry.salary_scale_id == scale_id)
+    )
+    await session.flush()
+
+    source_entries_stmt = select(SalaryScaleEntry).where(SalaryScaleEntry.salary_scale_id == source_scale_id)
+    source_entries = (await session.execute(source_entries_stmt)).scalars().all()
+
+    for entry in source_entries:
+        session.add(
+            SalaryScaleEntry(
+                salary_scale_id=scale_id,
+                job_title_id=entry.job_title_id,
+                bhxh_position_group_id=entry.bhxh_position_group_id,
+                grade_no=entry.grade_no,
+                coefficient=entry.coefficient,
+                promotion_months=entry.promotion_months,
+                criteria=entry.criteria,
+            )
+        )
+
+    await session.commit()
+    return await get_salary_scale_detail(session, scale_id)
+
+
+async def update_scale_coefficients(
+    session: AsyncSession,
+    scale_id: int,
+    payload: SalaryScaleCoefficientsUpdateInput,
+) -> dict:
+    scale = await session.get(SalaryScale, scale_id)
+    if not scale:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Không tìm thấy thang bảng lương")
+
+    for group_input in payload.groups:
+        await session.execute(
+            sa.delete(SalaryScaleEntry).where(
+                SalaryScaleEntry.salary_scale_id == scale_id,
+                SalaryScaleEntry.bhxh_position_group_id == group_input.bhxh_position_group_id,
+            )
+        )
+        await session.flush()
+
+        for coef in group_input.coefficients:
+            session.add(
+                SalaryScaleEntry(
+                    salary_scale_id=scale_id,
+                    job_title_id=None,
+                    bhxh_position_group_id=group_input.bhxh_position_group_id,
+                    grade_no=coef.grade_no,
+                    coefficient=float(coef.coefficient),
+                    promotion_months=coef.promotion_months,
+                    criteria=coef.criteria,
+                )
+            )
+
+    await session.commit()
+    return await get_salary_scale_detail(session, scale_id)

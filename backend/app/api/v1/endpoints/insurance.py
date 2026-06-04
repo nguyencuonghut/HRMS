@@ -30,6 +30,12 @@ from app.schemas.insurance import (
     RegionalMinimumWageCreate,
     RegionalMinimumWageRead,
     RegionalMinimumWageUpdate,
+    SalaryScaleRead,
+    SalaryScaleCreate,
+    SalaryScaleUpdate,
+    SalaryScaleCloneInput,
+    SalaryScaleCoefficientsUpdateInput,
+    SalaryScaleDetailRead,
 )
 from app.schemas.insurance_change import (
     InsuranceChangeEventCreate,
@@ -303,6 +309,113 @@ async def delete_bhxh_position_group(
     session: AsyncSession = Depends(get_session),
 ):
     return await insurance_policy_service.delete_bhxh_position_group(session, group_id)
+
+
+@router.get(
+    "/salary-scales",
+    response_model=list[SalaryScaleRead],
+    summary="Danh sách tất cả thang bảng lương",
+)
+async def list_salary_scales(
+    _: User = require_permission("insurance:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await insurance_policy_service.list_salary_scales(session)
+
+
+@router.get(
+    "/salary-scales/{scale_id}",
+    response_model=SalaryScaleDetailRead,
+    summary="Chi tiết một thang bảng lương kèm hệ số",
+)
+async def get_salary_scale_detail(
+    scale_id: int,
+    _: User = require_permission("insurance:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await insurance_policy_service.get_salary_scale_detail(session, scale_id)
+
+
+@router.post(
+    "/salary-scales",
+    response_model=SalaryScaleRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Tạo thang bảng lương nháp mới",
+)
+async def create_salary_scale(
+    body: SalaryScaleCreate,
+    _: User = require_permission("insurance:create"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await insurance_policy_service.create_salary_scale(session, body)
+
+
+@router.put(
+    "/salary-scales/{scale_id}",
+    response_model=SalaryScaleRead,
+    summary="Cập nhật thông tin cơ bản thang bảng lương",
+)
+async def update_salary_scale(
+    scale_id: int,
+    body: SalaryScaleUpdate,
+    _: User = require_permission("insurance:edit"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await insurance_policy_service.update_salary_scale(session, scale_id, body)
+
+
+@router.delete(
+    "/salary-scales/{scale_id}",
+    response_model=list[SalaryScaleRead],
+    summary="Xóa thang bảng lương",
+)
+async def delete_salary_scale(
+    scale_id: int,
+    _: User = require_permission("insurance:delete"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await insurance_policy_service.delete_salary_scale(session, scale_id)
+
+
+@router.post(
+    "/salary-scales/{scale_id}/activate",
+    response_model=SalaryScaleRead,
+    summary="Kích hoạt thang bảng lương hiện hành",
+)
+async def activate_salary_scale(
+    scale_id: int,
+    _: User = require_permission("insurance:edit"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await insurance_policy_service.activate_salary_scale(session, scale_id)
+
+
+@router.post(
+    "/salary-scales/{scale_id}/clone",
+    response_model=SalaryScaleDetailRead,
+    summary="Sao chép hệ số từ thang lương khác",
+)
+async def clone_salary_scale(
+    scale_id: int,
+    source_scale_id: int = Query(..., description="ID của thang bảng lương nguồn cần sao chép"),
+    _: User = require_permission("insurance:edit"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await insurance_policy_service.clone_salary_scale(session, scale_id, source_scale_id)
+
+
+@router.put(
+    "/salary-scales/{scale_id}/coefficients",
+    response_model=SalaryScaleDetailRead,
+    summary="Cập nhật hệ số lương cho các nhóm vị trí",
+)
+async def update_scale_coefficients(
+    scale_id: int,
+    body: SalaryScaleCoefficientsUpdateInput,
+    _: User = require_permission("insurance:edit"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await insurance_policy_service.update_scale_coefficients(session, scale_id, body)
 
 
 # ── Employee insurance profile endpoints ──────────────────────────────────────

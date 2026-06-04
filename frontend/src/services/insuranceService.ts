@@ -146,6 +146,48 @@ export interface SalaryScaleSummaryRead {
   note: string | null
 }
 
+export interface SalaryScaleRead {
+  id: number
+  name: string
+  effective_from: string
+  effective_to: string | null
+  note: string | null
+  is_active: boolean
+  created_at: string
+}
+
+export interface SalaryScaleCreate {
+  name: string
+  effective_from: string
+  note?: string | null
+}
+
+export interface SalaryScaleUpdate {
+  name?: string
+  effective_from?: string
+  note?: string | null
+}
+
+export interface SalaryScaleCoefficientsGroupInput {
+  bhxh_position_group_id: number
+  coefficients: BhxhPositionGroupCoefficientInput[]
+}
+
+export interface SalaryScaleCoefficientsUpdateInput {
+  groups: SalaryScaleCoefficientsGroupInput[]
+}
+
+export interface SalaryScaleDetailRead {
+  id: number
+  name: string
+  effective_from: string
+  effective_to: string | null
+  note: string | null
+  is_active: boolean
+  created_at: string
+  groups: BhxhPositionGroupRead[]
+}
+
 export interface BhxhPositionGroupCoefficientRead {
   grade_no: number
   coefficient: string
@@ -421,6 +463,32 @@ export default {
 
   deletePositionGroup: (groupId: number) =>
     api.delete<BhxhPositionGroupCatalogRead>(`/insurance/position-groups/${groupId}`),
+
+  listSalaryScales: () =>
+    api.get<SalaryScaleRead[]>('/insurance/salary-scales'),
+
+  getSalaryScaleDetail: (scaleId: number) =>
+    api.get<SalaryScaleDetailRead>(`/insurance/salary-scales/${scaleId}`),
+
+  createSalaryScale: (payload: SalaryScaleCreate) =>
+    api.post<SalaryScaleRead>('/insurance/salary-scales', payload),
+
+  updateSalaryScale: (scaleId: number, payload: SalaryScaleUpdate) =>
+    api.put<SalaryScaleRead>(`/insurance/salary-scales/${scaleId}`, payload),
+
+  deleteSalaryScale: (scaleId: number) =>
+    api.delete<SalaryScaleRead[]>(`/insurance/salary-scales/${scaleId}`),
+
+  activateSalaryScale: (scaleId: number) =>
+    api.post<SalaryScaleRead>(`/insurance/salary-scales/${scaleId}/activate`),
+
+  cloneSalaryScale: (scaleId: number, sourceScaleId: number) =>
+    api.post<SalaryScaleDetailRead>(`/insurance/salary-scales/${scaleId}/clone`, null, {
+      params: { source_scale_id: sourceScaleId }
+    }),
+
+  updateScaleCoefficients: (scaleId: number, payload: SalaryScaleCoefficientsUpdateInput) =>
+    api.put<SalaryScaleDetailRead>(`/insurance/salary-scales/${scaleId}/coefficients`, payload),
 
   getEffectiveConfig: (asOfDate: string) =>
     api.get<InsuranceEffectiveContributionConfigRead>('/insurance/effective-config', { params: { as_of_date: asOfDate } }),
