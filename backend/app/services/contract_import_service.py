@@ -1,7 +1,6 @@
 """Import hợp đồng hàng loạt từ file Excel (12.1 — Slice 1)."""
 from __future__ import annotations
 
-import re
 import structlog
 
 logger = structlog.get_logger(__name__)
@@ -17,14 +16,15 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.catalog import ContractCategory
-from app.models.employee import Employee
 from app.models.employee_contract import EmployeeContract
 from app.schemas.employee_import import ImportResult, ImportRowError
+from app.services.import_employee_lookup_service import EmployeeImportLookup
 
 IMPORT_MAX_ROWS = 1000
 
 COLUMNS = [
     "Mã nhân viên",
+    "Hệ mã nhân viên",
     "Số hợp đồng",
     "Loại văn bản",
     "Mã loại hợp đồng",
@@ -60,13 +60,13 @@ def generate_template() -> bytes:
 
     # Sample row
     sample = [
-        "1", "HDLD/01/2026-001", "labor_contract", "labor_indefinite",
+        "1", "SYS1", "HDLD/01/2026-001", "labor_contract", "labor_indefinite",
         "01/01/2026", "01/01/2026", "", "5000000",
     ]
     for col_idx, val in enumerate(sample, start=1):
         ws.cell(row=2, column=col_idx, value=val)
 
-    widths = [16, 22, 20, 22, 14, 14, 14, 18]
+    widths = [16, 16, 22, 20, 22, 14, 14, 14, 18]
     for i, w in enumerate(widths, start=1):
         ws.column_dimensions[ws.cell(row=1, column=i).column_letter].width = w
     ws.row_dimensions[1].height = 36
@@ -75,7 +75,8 @@ def generate_template() -> bytes:
     guide = wb.create_sheet("Hướng dẫn")
     guide_rows = [
         ["Cột", "Bắt buộc", "Mô tả", "Giá trị hợp lệ / Ví dụ"],
-        ["Mã nhân viên", "✅", "Mã số thứ tự nhân viên trong hệ thống", "1 / 001 / NV001"],
+        ["Mã nhân viên", "✅", "Mã hiển thị hoặc phần số nhân viên", "1 / 001 / NV001"],
+        ["Hệ mã nhân viên", "", "Bắt buộc khi công ty dùng nhiều hệ mã", "SYS1 / SYS2 / SYS3"],
         ["Số hợp đồng", "✅", "Số hợp đồng duy nhất trong hệ thống", "HDLD/01/2026-001"],
         ["Loại văn bản", "✅", "Phân loại tài liệu hợp đồng", "labor_contract / contract_appendix"],
         ["Mã loại hợp đồng", "✅", "Mã danh mục loại hợp đồng", "labor_indefinite / labor_definite / probation_agreement"],
@@ -124,20 +125,6 @@ def _cell(row_vals: tuple, col_name: str, col_map: dict[str, int]) -> str:
     v = row_vals[idx] if idx < len(row_vals) else None
     return str(v).strip() if v is not None else ""
 
-
-async def _find_employee_by_code(session: AsyncSession, code_raw: str) -> Optional[Employee]:
-    """Tra cứu employee theo employee_seq (parse số từ mã NV)."""
-    digits = re.sub(r"\D", "", code_raw.strip())
-    if not digits:
-        return None
-    try:
-        seq = int(digits)
-    except ValueError:
-        return None
-    result = await session.execute(select(Employee).where(Employee.employee_seq == seq))
-    return result.scalar_one_or_none()
-
-
 async def _find_contract_category(session: AsyncSession, code: str) -> Optional[ContractCategory]:
     result = await session.execute(
         select(ContractCategory).where(ContractCategory.code == code.strip())
@@ -169,6 +156,7 @@ async def process_import(session: AsyncSession, file_bytes: bytes) -> ImportResu
     total = success = failed = 0
     errors: list[ImportRowError] = []
     created_ids: list[int] = []
+    employee_lookup = await EmployeeImportLookup.build(session)
 
     for rel_idx, row_vals in enumerate(data_rows):
         excel_row = rel_idx + 2
@@ -182,6 +170,7 @@ async def process_import(session: AsyncSession, file_bytes: bytes) -> ImportResu
 
         # ── Required string fields ────────────────────────────────────
         emp_code      = get("Mã nhân viên")
+        emp_sequence  = get("Hệ mã nhân viên")
         contract_num  = get("Số hợp đồng")
         doc_kind      = get("Loại văn bản")
         category_code = get("Mã loại hợp đồng")
@@ -235,9 +224,17 @@ async def process_import(session: AsyncSession, file_bytes: bytes) -> ImportResu
             continue
 
         # ── DB lookups ────────────────────────────────────────────────
-        employee = await _find_employee_by_code(session, emp_code)
+        employee_lookup_result = employee_lookup.resolve(
+            employee_code_raw=emp_code,
+            sequence_code_raw=emp_sequence,
+        )
+        employee = employee_lookup_result.employee
         if not employee:
-            errors.append(ImportRowError(row=excel_row, column="Mã nhân viên", message=f"Không tìm thấy nhân viên với mã '{emp_code}'"))
+            errors.append(ImportRowError(
+                row=excel_row,
+                column="Mã nhân viên",
+                message=employee_lookup_result.error or f"Không tìm thấy nhân viên với mã '{emp_code}'",
+            ))
             failed += 1
             continue
 

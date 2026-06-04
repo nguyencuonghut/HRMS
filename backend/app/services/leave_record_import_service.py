@@ -1,7 +1,6 @@
 """Import nghỉ phép hàng loạt từ file Excel (12.1 — Slice 2)."""
 from __future__ import annotations
 
-import re
 import structlog
 
 logger = structlog.get_logger(__name__)
@@ -17,14 +16,15 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.catalog import LeaveType
-from app.models.employee import Employee
 from app.models.leave_record import LeaveRecord
 from app.schemas.employee_import import ImportResult, ImportRowError
+from app.services.import_employee_lookup_service import EmployeeImportLookup
 
 IMPORT_MAX_ROWS = 1000
 
 COLUMNS = [
     "Mã nhân viên",
+    "Hệ mã nhân viên",
     "Mã loại phép",
     "Ngày bắt đầu",
     "Ngày kết thúc",
@@ -49,11 +49,11 @@ def generate_template() -> bytes:
         cell.fill = header_fill if col_name in REQUIRED_COLUMNS else opt_fill
         cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
 
-    sample = ["1", "annual_leave", "01/06/2026", "03/06/2026", "Nghỉ phép năm"]
+    sample = ["1", "SYS1", "annual_leave", "01/06/2026", "03/06/2026", "Nghỉ phép năm"]
     for col_idx, val in enumerate(sample, start=1):
         ws.cell(row=2, column=col_idx, value=val)
 
-    widths = [16, 18, 14, 14, 30]
+    widths = [16, 16, 18, 14, 14, 30]
     for i, w in enumerate(widths, start=1):
         ws.column_dimensions[ws.cell(row=1, column=i).column_letter].width = w
     ws.row_dimensions[1].height = 36
@@ -61,7 +61,8 @@ def generate_template() -> bytes:
     guide = wb.create_sheet("Hướng dẫn")
     guide_rows = [
         ["Cột", "Bắt buộc", "Mô tả", "Giá trị hợp lệ / Ví dụ"],
-        ["Mã nhân viên", "✅", "Số thứ tự nhân viên", "1 / 001 / NV001"],
+        ["Mã nhân viên", "✅", "Mã hiển thị hoặc phần số nhân viên", "1 / 001 / NV001"],
+        ["Hệ mã nhân viên", "", "Bắt buộc khi công ty dùng nhiều hệ mã", "SYS1 / SYS2 / SYS3"],
         ["Mã loại phép", "✅", "Mã loại phép nghỉ", "annual_leave / sick_leave / maternity_leave"],
         ["Ngày bắt đầu", "✅", "Định dạng dd/mm/yyyy", "01/06/2026"],
         ["Ngày kết thúc", "✅", "Định dạng dd/mm/yyyy (≥ ngày bắt đầu)", "03/06/2026"],
@@ -106,19 +107,6 @@ def _cell(row_vals: tuple, col_name: str, col_map: dict[str, int]) -> str:
         return ""
     v = row_vals[idx] if idx < len(row_vals) else None
     return str(v).strip() if v is not None else ""
-
-
-async def _find_employee(session: AsyncSession, code_raw: str) -> Optional[Employee]:
-    digits = re.sub(r"\D", "", code_raw.strip())
-    if not digits:
-        return None
-    try:
-        seq = int(digits)
-    except ValueError:
-        return None
-    result = await session.execute(select(Employee).where(Employee.employee_seq == seq))
-    return result.scalar_one_or_none()
-
 
 async def _find_leave_type(session: AsyncSession, code: str) -> Optional[LeaveType]:
     result = await session.execute(select(LeaveType).where(LeaveType.code == code.strip()))
@@ -166,6 +154,7 @@ async def process_import(session: AsyncSession, file_bytes: bytes) -> ImportResu
     errors: list[ImportRowError] = []
     warnings: list[ImportRowError] = []
     created_ids: list[int] = []
+    employee_lookup = await EmployeeImportLookup.build(session)
 
     for rel_idx, row_vals in enumerate(data_rows):
         excel_row = rel_idx + 2
@@ -178,6 +167,7 @@ async def process_import(session: AsyncSession, file_bytes: bytes) -> ImportResu
             return _cell(row_vals, col_name, col_map)
 
         emp_code      = get("Mã nhân viên")
+        emp_sequence  = get("Hệ mã nhân viên")
         leave_type_code = get("Mã loại phép")
         notes         = get("Ghi chú")[:500] if get("Ghi chú") else None
 
@@ -205,9 +195,17 @@ async def process_import(session: AsyncSession, file_bytes: bytes) -> ImportResu
             continue
 
         # DB lookups
-        employee = await _find_employee(session, emp_code)
+        employee_lookup_result = employee_lookup.resolve(
+            employee_code_raw=emp_code,
+            sequence_code_raw=emp_sequence,
+        )
+        employee = employee_lookup_result.employee
         if not employee:
-            errors.append(ImportRowError(row=excel_row, column="Mã nhân viên", message=f"Không tìm thấy nhân viên với mã '{emp_code}'"))
+            errors.append(ImportRowError(
+                row=excel_row,
+                column="Mã nhân viên",
+                message=employee_lookup_result.error or f"Không tìm thấy nhân viên với mã '{emp_code}'",
+            ))
             failed += 1
             continue
 

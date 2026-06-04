@@ -50,13 +50,15 @@ Vì vậy:
 
 **Trạng thái nghiệp vụ đã xác nhận:** công ty hiện đang chạy với **3 hệ mã số nhân viên khác nhau**.
 
+**Trạng thái source hiện tại trên nhánh làm việc ngày 2026-06-04:** đã vá xong blocker này trong code, nhưng chỉ được coi là gỡ blocker trên production sau khi bản build chứa fix đã được deploy.
+
 Đã xác nhận trong source:
 
 - [backend/app/services/contract_import_service.py](/run/media/cuong/DATA/02_Project/166_HonghaHRM/HRMS/backend/app/services/contract_import_service.py:128)
 - [backend/app/services/leave_record_import_service.py](/run/media/cuong/DATA/02_Project/166_HonghaHRM/HRMS/backend/app/services/leave_record_import_service.py:111)
 - [backend/app/services/insurance_import_service.py](/run/media/cuong/DATA/02_Project/166_HonghaHRM/HRMS/backend/app/services/insurance_import_service.py:116)
 
-Các hàm này:
+Trước khi sửa, các hàm này:
 
 - bỏ toàn bộ ký tự chữ của mã nhân viên
 - lấy phần số
@@ -79,9 +81,23 @@ thì import HĐ / nghỉ phép / bảo hiểm có thể:
 - ném `MultipleResultsFound`
 - hoặc liên kết sai nhân viên
 
+### Cách đã sửa trong source hiện tại
+
+Importer `HĐ / Nghỉ phép / Bảo hiểm` giờ tra cứu nhân viên theo rule:
+
+1. nếu file có cột `Hệ mã nhân viên`:
+   - parse phần số từ `Mã nhân viên`
+   - lookup theo cặp `(employee_code_sequence.code, employee_seq)`
+2. nếu file không có cột `Hệ mã nhân viên`:
+   - ưu tiên match đúng `display_code` hiện tại
+   - nếu không có `display_code` duy nhất thì mới fallback theo `employee_seq`
+   - nếu `employee_seq` đang tồn tại ở nhiều hệ mã thì reject rõ ràng và yêu cầu điền `Hệ mã nhân viên`
+
+Template import cho 3 module cũng đã có thêm cột `Hệ mã nhân viên` để dùng cho môi trường multi-sequence.
+
 ### Quyết định vận hành hiện tại
 
-Với xác nhận mới rằng doanh nghiệp đang dùng **3 hệ mã nhân viên**, đây không còn là “giới hạn có thể né”, mà là:
+Trước khi deploy bản fix này lên production, với xác nhận mới rằng doanh nghiệp đang dùng **3 hệ mã nhân viên**, đây vẫn là:
 
 - **blocker go-live chính thức** cho import `HĐ / Nghỉ phép / Bảo hiểm`
 
