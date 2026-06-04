@@ -11,16 +11,21 @@ from typing import Optional
 
 from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Alignment, Font, PatternFill
+from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.catalog import ContractCategory
 from app.models.employee_contract import EmployeeContract
+from app.models.salary import BhxhPositionGroup
+from app.schemas.employee_contract import ContractCreate
 from app.schemas.employee_import import ImportResult, ImportRowError
+from app.services import employee_contract_service
 from app.services.import_employee_lookup_service import EmployeeImportLookup
 
 IMPORT_MAX_ROWS = 1000
+VALID_INSURANCE_SALARY_MODES = {"computed_by_position_group", "fixed_manual"}
 
 COLUMNS = [
     "Mã nhân viên",
@@ -31,6 +36,10 @@ COLUMNS = [
     "Ngày ký",
     "Ngày hiệu lực",
     "Ngày hết hạn",
+    "Mode lương BHXH",
+    "Mã nhóm vị trí BHXH",
+    "Bậc hệ số BHXH",
+    "Ngày bắt đầu tính thâm niên BHXH",
     "Mức lương BHXH",
 ]
 REQUIRED_COLUMNS = {
@@ -61,12 +70,12 @@ def generate_template() -> bytes:
     # Sample row
     sample = [
         "1", "SYS1", "HDLD/01/2026-001", "labor_contract", "labor_indefinite",
-        "01/01/2026", "01/01/2026", "", "5000000",
+        "01/01/2026", "01/01/2026", "", "fixed_manual", "", "", "", "5000000",
     ]
     for col_idx, val in enumerate(sample, start=1):
         ws.cell(row=2, column=col_idx, value=val)
 
-    widths = [16, 16, 22, 20, 22, 14, 14, 14, 18]
+    widths = [16, 16, 22, 20, 22, 14, 14, 14, 22, 22, 16, 24, 18]
     for i, w in enumerate(widths, start=1):
         ws.column_dimensions[ws.cell(row=1, column=i).column_letter].width = w
     ws.row_dimensions[1].height = 36
@@ -83,7 +92,11 @@ def generate_template() -> bytes:
         ["Ngày ký", "✅", "Ngày ký kết hợp đồng (dd/mm/yyyy)", "01/01/2026"],
         ["Ngày hiệu lực", "✅", "Ngày bắt đầu có hiệu lực (dd/mm/yyyy)", "01/01/2026"],
         ["Ngày hết hạn", "", "Để trống = vô thời hạn (dd/mm/yyyy)", "31/12/2026"],
-        ["Mức lương BHXH", "", "Mức đóng BHXH (VNĐ, số nguyên)", "5000000"],
+        ["Mode lương BHXH", "", "Mode tính lương BHXH", "fixed_manual / computed_by_position_group"],
+        ["Mã nhóm vị trí BHXH", "", "Bắt buộc khi mode = computed_by_position_group", "OFFICE_STAFF / EXEC_COMPANY"],
+        ["Bậc hệ số BHXH", "", "Bậc gốc 1..7, bắt buộc khi mode = computed_by_position_group", "1"],
+        ["Ngày bắt đầu tính thâm niên BHXH", "", "Nếu để trống, hệ thống tự lấy theo employee.start_date", "01/01/2023"],
+        ["Mức lương BHXH", "", "Bắt buộc khi mode = fixed_manual; để trống khi mode = computed_by_position_group", "5000000"],
         [],
         ["LƯU Ý:", "", "Cột header màu xanh đậm = bắt buộc.", ""],
         ["", "", f"Tối đa {IMPORT_MAX_ROWS} dòng mỗi lần import.", ""],
@@ -128,6 +141,13 @@ def _cell(row_vals: tuple, col_name: str, col_map: dict[str, int]) -> str:
 async def _find_contract_category(session: AsyncSession, code: str) -> Optional[ContractCategory]:
     result = await session.execute(
         select(ContractCategory).where(ContractCategory.code == code.strip())
+    )
+    return result.scalar_one_or_none()
+
+
+async def _find_bhxh_position_group(session: AsyncSession, code: str) -> Optional[BhxhPositionGroup]:
+    result = await session.execute(
+        select(BhxhPositionGroup).where(BhxhPositionGroup.code == code.strip())
     )
     return result.scalar_one_or_none()
 
@@ -206,7 +226,43 @@ async def process_import(session: AsyncSession, file_bytes: bytes) -> ImportResu
                 message="Ngày hết hạn phải sau hoặc bằng ngày hiệu lực"
             ))
 
-        # ── Optional: insurance_salary ────────────────────────────────
+        # ── Optional: insurance/BHXH metadata ────────────────────────
+        insurance_salary_mode_raw = get("Mode lương BHXH")
+        insurance_salary_mode = insurance_salary_mode_raw or None
+        if insurance_salary_mode and insurance_salary_mode not in VALID_INSURANCE_SALARY_MODES:
+            row_errors.append(ImportRowError(
+                row=excel_row,
+                column="Mode lương BHXH",
+                message="Mode lương BHXH phải là fixed_manual hoặc computed_by_position_group",
+            ))
+
+        bhxh_group_code = get("Mã nhóm vị trí BHXH")
+        grade_raw = get("Bậc hệ số BHXH")
+        insurance_salary_grade_no: Optional[int] = None
+        if grade_raw:
+            try:
+                insurance_salary_grade_no = int(str(grade_raw))
+            except ValueError:
+                row_errors.append(ImportRowError(
+                    row=excel_row,
+                    column="Bậc hệ số BHXH",
+                    message="Bậc hệ số BHXH phải là số nguyên từ 1 đến 7",
+                ))
+            else:
+                if insurance_salary_grade_no < 1 or insurance_salary_grade_no > 7:
+                    row_errors.append(ImportRowError(
+                        row=excel_row,
+                        column="Bậc hệ số BHXH",
+                        message="Bậc hệ số BHXH phải từ 1 đến 7",
+                    ))
+
+        bhxh_seniority_start_date = _parse_date(
+            get("Ngày bắt đầu tính thâm niên BHXH"),
+            "Ngày bắt đầu tính thâm niên BHXH",
+            excel_row,
+            row_errors,
+        )
+
         insurance_salary: Optional[Decimal] = None
         salary_raw = get("Mức lương BHXH")
         if salary_raw:
@@ -217,6 +273,38 @@ async def process_import(session: AsyncSession, file_bytes: bytes) -> ImportResu
                     insurance_salary = None
             except InvalidOperation:
                 row_errors.append(ImportRowError(row=excel_row, column="Mức lương BHXH", message=f"Giá trị không hợp lệ: '{salary_raw}'"))
+
+        if insurance_salary_mode is None:
+            if bhxh_group_code or insurance_salary_grade_no is not None or bhxh_seniority_start_date is not None:
+                insurance_salary_mode = "computed_by_position_group"
+            elif insurance_salary is not None:
+                insurance_salary_mode = "fixed_manual"
+
+        if insurance_salary_mode == "computed_by_position_group":
+            if not bhxh_group_code:
+                row_errors.append(ImportRowError(
+                    row=excel_row,
+                    column="Mã nhóm vị trí BHXH",
+                    message="Mode computed_by_position_group yêu cầu nhập Mã nhóm vị trí BHXH",
+                ))
+            if insurance_salary_grade_no is None:
+                row_errors.append(ImportRowError(
+                    row=excel_row,
+                    column="Bậc hệ số BHXH",
+                    message="Mode computed_by_position_group yêu cầu nhập Bậc hệ số BHXH",
+                ))
+            if salary_raw:
+                row_errors.append(ImportRowError(
+                    row=excel_row,
+                    column="Mức lương BHXH",
+                    message="Mode computed_by_position_group không nhận nhập tay Mức lương BHXH; hãy để trống để hệ thống tự tính",
+                ))
+        elif insurance_salary_mode == "fixed_manual" and insurance_salary is None and salary_raw == "":
+            row_errors.append(ImportRowError(
+                row=excel_row,
+                column="Mức lương BHXH",
+                message="Mode fixed_manual yêu cầu nhập Mức lương BHXH > 0",
+            ))
 
         if row_errors:
             errors.extend(row_errors)
@@ -253,6 +341,18 @@ async def process_import(session: AsyncSession, file_bytes: bytes) -> ImportResu
             failed += 1
             continue
 
+        bhxh_group: Optional[BhxhPositionGroup] = None
+        if bhxh_group_code:
+            bhxh_group = await _find_bhxh_position_group(session, bhxh_group_code)
+            if not bhxh_group:
+                errors.append(ImportRowError(
+                    row=excel_row,
+                    column="Mã nhóm vị trí BHXH",
+                    message=f"Không tìm thấy nhóm vị trí BHXH với mã '{bhxh_group_code}'",
+                ))
+                failed += 1
+                continue
+
         # Check contract_number unique
         existing = await session.execute(
             select(EmployeeContract).where(EmployeeContract.contract_number == contract_num)
@@ -264,21 +364,56 @@ async def process_import(session: AsyncSession, file_bytes: bytes) -> ImportResu
 
         # ── Create ────────────────────────────────────────────────────
         try:
-            contract = EmployeeContract(
-                employee_id=employee.id,
-                contract_category_id=category.id,
-                document_kind=category.document_kind,
-                contract_number=contract_num,
-                signed_date=signed_date,
-                effective_from=effective_from,
-                effective_to=effective_to,
-                insurance_salary=insurance_salary,
-                status="active",
+            has_bhxh_config = (
+                insurance_salary_mode is not None
+                or insurance_salary is not None
+                or bhxh_group is not None
+                or insurance_salary_grade_no is not None
+                or bhxh_seniority_start_date is not None
             )
-            session.add(contract)
-            await session.flush()
-            created_ids.append(contract.id)
+            if has_bhxh_config:
+                created = await employee_contract_service.create_contract(
+                    session,
+                    employee.id,
+                    ContractCreate(
+                        contract_category_id=category.id,
+                        contract_number=contract_num,
+                        signed_date=signed_date,
+                        effective_from=effective_from,
+                        effective_to=effective_to,
+                        insurance_salary=insurance_salary if insurance_salary_mode == "fixed_manual" else None,
+                        insurance_salary_mode=insurance_salary_mode,
+                        bhxh_position_group_id=bhxh_group.id if bhxh_group else None,
+                        insurance_salary_grade_no=insurance_salary_grade_no,
+                        bhxh_seniority_start_date=bhxh_seniority_start_date,
+                        insurance_salary_fixed_amount=insurance_salary if insurance_salary_mode == "fixed_manual" else None,
+                    ),
+                )
+                created_ids.append(created.id)
+            else:
+                contract = EmployeeContract(
+                    employee_id=employee.id,
+                    contract_category_id=category.id,
+                    document_kind=category.document_kind,
+                    contract_number=contract_num,
+                    signed_date=signed_date,
+                    effective_from=effective_from,
+                    effective_to=effective_to,
+                    insurance_salary=None,
+                    status="active",
+                )
+                session.add(contract)
+                await session.flush()
+                created_ids.append(contract.id)
             success += 1
+        except HTTPException as exc:
+            await session.rollback()
+            errors.append(ImportRowError(
+                row=excel_row,
+                column="Mức lương BHXH",
+                message=str(exc.detail),
+            ))
+            failed += 1
         except IntegrityError:
             await session.rollback()
             errors.append(ImportRowError(row=excel_row, column="Số hợp đồng", message=f"Số hợp đồng '{contract_num}' bị trùng (race condition)"))

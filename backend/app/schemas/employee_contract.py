@@ -46,6 +46,7 @@ class ContractCreate(BaseModel):
     insurance_salary_mode: Optional[str] = None
     bhxh_position_group_id: Optional[int] = None
     insurance_salary_grade_no: Optional[int] = None
+    bhxh_seniority_start_date: Optional[date] = None
     insurance_salary_fixed_amount: Optional[Decimal] = None
     parent_contract_id:   Optional[int] = None
     notes:                Optional[str] = None
@@ -73,6 +74,7 @@ class ContractUpdate(BaseModel):
     insurance_salary_mode: Optional[str] = None
     bhxh_position_group_id: Optional[int] = None
     insurance_salary_grade_no: Optional[int] = None
+    bhxh_seniority_start_date: Optional[date] = None
     insurance_salary_fixed_amount: Optional[Decimal] = None
     status:           Optional[str]     = None   # chỉ cho phép "terminated"
     notes:            Optional[str]     = None

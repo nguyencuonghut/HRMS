@@ -725,7 +725,7 @@ async def create_contract(
         insurance_salary_mode=payload.insurance_salary_mode,
         bhxh_position_group_id=payload.bhxh_position_group_id,
         insurance_salary_grade_no=payload.insurance_salary_grade_no,
-        bhxh_seniority_start_date=None,
+        bhxh_seniority_start_date=payload.bhxh_seniority_start_date,
         insurance_salary_fixed_amount=payload.insurance_salary_fixed_amount,
         insurance_salary=payload.insurance_salary,
     )
@@ -859,7 +859,11 @@ async def update_contract(
             if payload.insurance_salary_grade_no is not None
             else c.insurance_salary_grade_no
         ),
-        bhxh_seniority_start_date=c.bhxh_seniority_start_date,
+        bhxh_seniority_start_date=(
+            payload.bhxh_seniority_start_date
+            if payload.bhxh_seniority_start_date is not None
+            else c.bhxh_seniority_start_date
+        ),
         insurance_salary_fixed_amount=next_fixed_amount,
         insurance_salary=(
             payload.insurance_salary

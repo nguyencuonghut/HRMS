@@ -10,10 +10,13 @@ from fastapi.testclient import TestClient
 from sqlalchemy import delete, select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
+from app.models.catalog import ContractCategory
 from app.core.config import settings
 from app.models.employee import Employee
 from app.models.employee_code import EmployeeCodeSequence
+from app.models.salary import BhxhPositionGroup
 from app.schemas.employee import EmployeeCreate
+from app.seeds import bootstrap
 from app.services import employee_service
 
 BASE      = "/api/v1/imports"
@@ -57,6 +60,7 @@ async def cleanup():
 
 HEADERS = ["Mã nhân viên", "Mã BHXH", "Ngày tham gia", "Mức lương đóng", "Mã bệnh viện KCB", "Trạng thái"]
 HEADERS_WITH_SEQUENCE = ["Mã nhân viên", "Hệ mã nhân viên", "Mã BHXH", "Ngày tham gia", "Mức lương đóng", "Mã bệnh viện KCB", "Trạng thái"]
+HEADERS_WITH_SOURCE = ["Mã nhân viên", "Hệ mã nhân viên", "Mã BHXH", "Ngày tham gia", "Mức lương đóng", "Nguồn mức lương đóng", "Mã bệnh viện KCB", "Trạng thái"]
 
 
 def _make_xlsx(rows: list[list]) -> bytes:
@@ -135,6 +139,78 @@ async def _create_employee_same_seq(id_number: str, sequence_code: str, employee
         await s.commit()
         await s.refresh(employee)
         return employee.id
+
+
+async def _ensure_bhxh_foundation() -> None:
+    async with _make_session()() as s:
+        await bootstrap.seed_salary_scale(s)
+        await s.commit()
+
+
+async def _get_bhxh_group(code: str) -> BhxhPositionGroup:
+    async with _make_session()() as s:
+        row = await s.execute(select(BhxhPositionGroup).where(BhxhPositionGroup.code == code))
+        group = row.scalar_one_or_none()
+        assert group is not None
+        return group
+
+
+async def _get_contract_category_id(code: str) -> int:
+    async with _make_session()() as s:
+        row = await s.execute(select(ContractCategory).where(ContractCategory.code == code))
+        category = row.scalar_one_or_none()
+        assert category is not None
+        return category.id
+
+
+async def _get_profile_basis_state(employee_id: int) -> dict | None:
+    async with _make_session()() as s:
+        row = await s.execute(
+            text(
+                """
+                SELECT insurance_basis_source, insurance_basis_amount, company_bhxh_joined_date
+                FROM employee_insurance_profiles
+                WHERE employee_id = :eid
+                """
+            ),
+            {"eid": employee_id},
+        )
+        data = row.fetchone()
+        if data is None:
+            return None
+        return {
+            "source": data[0],
+            "amount": data[1],
+            "joined_date": data[2],
+        }
+
+
+def _create_computed_contract(
+    client: TestClient,
+    headers: dict,
+    employee_id: int,
+    *,
+    group_code: str = "OFFICE_STAFF",
+    grade_no: int = 3,
+) -> None:
+    asyncio.run(_ensure_bhxh_foundation())
+    group = asyncio.run(_get_bhxh_group(group_code))
+    category_id = asyncio.run(_get_contract_category_id("labor_indefinite"))
+    resp = client.post(
+        f"/api/v1/employees/{employee_id}/contracts",
+        json={
+            "contract_category_id": category_id,
+            "contract_number": f"INS-{employee_id}-{group_code}",
+            "signed_date": "2026-01-01",
+            "effective_from": "2026-01-01",
+            "effective_to": None,
+            "insurance_salary_mode": "computed_by_position_group",
+            "bhxh_position_group_id": group.id,
+            "insurance_salary_grade_no": grade_no,
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 201, resp.text
 
 
 # ── Template ──────────────────────────────────────────────────────────────────
@@ -329,3 +405,39 @@ def test_import_rejects_ambiguous_seq_without_sequence_code(client: TestClient):
     assert body["success"] == 0
     assert body["failed"] == 1
     assert any("Hệ mã nhân viên" in e["message"] for e in body["errors"])
+
+
+def test_import_preserves_computed_profile_source_from_active_contract(client: TestClient):
+    h = _login(client)
+    employee_id = asyncio.run(_create_employee_same_seq("TESTIMPSEQI777", "SYS1", 9773))
+    _create_computed_contract(client, h, employee_id)
+
+    rows = [[
+        "9773", "SYS1", "TESTIMP_COMPUTED", "01/02/2026", "", "", _BHYT_CODE, "active",
+    ]]
+    r = _upload(client, h, _make_xlsx_with_headers(HEADERS_WITH_SOURCE, rows))
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["success"] == 1
+    assert body["failed"] == 0
+
+    profile = asyncio.run(_get_profile_basis_state(employee_id))
+    assert profile is not None
+    assert profile["source"] == "computed"
+    assert str(profile["amount"]) == "5050800.00"
+
+
+def test_import_rejects_computed_salary_mismatch_with_active_contract(client: TestClient):
+    h = _login(client)
+    employee_id = asyncio.run(_create_employee_same_seq("TESTIMPSEQI778", "SYS1", 9774))
+    _create_computed_contract(client, h, employee_id)
+
+    rows = [[
+        "9774", "SYS1", "TESTIMP_COMPUTED_BAD", "01/02/2026", "5000000", "computed", _BHYT_CODE, "active",
+    ]]
+    r = _upload(client, h, _make_xlsx_with_headers(HEADERS_WITH_SOURCE, rows))
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["success"] == 0
+    assert body["failed"] == 1
+    assert any("không khớp với hợp đồng active" in e["message"] for e in body["errors"])

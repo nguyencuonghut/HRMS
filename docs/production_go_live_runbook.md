@@ -144,6 +144,49 @@ Chỉ coi blocker này là đã xử lý khi thỏa cả 3 điều kiện:
 - sync contract -> insurance profile sẽ bỏ qua profile đang là `manual_fixed`:
   - [backend/app/services/employee_contract_service.py](/run/media/cuong/DATA/02_Project/166_HonghaHRM/HRMS/backend/app/services/employee_contract_service.py:583)
 
+Trạng thái mới của source trên branch làm việc hiện tại:
+
+- `blocker 2.2` đã được fix trong source tính đến ngày **04/06/2026**
+- nhưng chỉ được coi là **gỡ blocker go-live** sau khi môi trường production deploy đúng build có chứa fix này
+- trên môi trường dev hiện tại đã verify runtime thật qua HTTP multipart:
+  - `POST /api/v1/imports/contracts`
+  - `POST /api/v1/imports/insurance`
+  - với case `computed_by_position_group`, state cuối đã khớp:
+    - `insurance_salary_mode = computed_by_position_group`
+    - `bhxh_position_group = OFFICE_STAFF`
+    - `insurance_salary_grade_no = 3`
+    - `bhxh_seniority_start_date = 2023-01-01`
+    - `insurance_salary = 5.423.400`
+    - `insurance_basis_source = computed`
+    - `insurance_basis_amount = 5.423.400`
+
+### Cách đã sửa trong source hiện tại
+
+1. Import hợp đồng:
+- đã hỗ trợ đủ 2 mode:
+  - `fixed_manual`
+  - `computed_by_position_group`
+- template import hợp đồng có thêm các cột:
+  - `Mode lương BHXH`
+  - `Mã nhóm vị trí BHXH`
+  - `Bậc hệ số BHXH`
+  - `Ngày bắt đầu tính thâm niên BHXH`
+- nếu dòng import khai báo metadata BHXH, importer sẽ đi qua engine hợp đồng mới thay vì `INSERT` thẳng model
+- với mode `computed_by_position_group`, importer sẽ:
+  - resolve hệ số theo `bhxh_position_group`
+  - tính bậc áp dụng theo rule thâm niên
+  - snapshot `bhxh_seniority_start_date`
+  - sync `employee_insurance_profiles` sang source `computed`
+
+2. Import hồ sơ BHXH:
+- không còn ép mọi hồ sơ về `insurance_basis_source = manual_fixed`
+- nếu profile/hợp đồng active hiện tại đang ở mode:
+  - `computed`
+  - hoặc `contract`
+  thì importer sẽ giữ source đúng và lấy mức đóng từ hợp đồng active mới nhất
+- nếu user nhập `Mức lương đóng` không khớp với hợp đồng active trong mode `computed/contract`, importer sẽ reject rõ ràng
+- mode `manual_fixed` vẫn giữ behavior nhập tay như cũ
+
 ### Hệ quả
 
 Với đa số nhân viên đáng ra phải chạy mode:
@@ -156,18 +199,22 @@ thì nếu import theo source hiện tại:
 - insurance profile import vào sẽ bị coi là `manual_fixed`
 - sync runtime về sau có thể không còn bám đúng rule BHXH theo nhóm vị trí + bậc
 
-### Quyết định vận hành hiện tại
+### Exit criteria để gỡ blocker B
 
-Trước khi fix importer cho BHXH slices 3–5, runbook production phải tách 2 nhóm:
+Chỉ coi blocker B đã gỡ khi đủ cả 3 điều kiện:
 
-1. Nhóm `fixed_manual`
-- có thể import hồ sơ BHXH với mức đóng cố định
-
-2. Nhóm `computed_by_position_group`
-- **không nên** rely vào importer HĐ/BHXH hiện tại để chốt state cuối
-- nên nhập/xử lý qua UI hợp đồng hoặc một script/importer riêng đã đi qua engine mới
-
-Nếu mục tiêu go-live là đưa toàn bộ công ty vào mode BHXH mới ngay từ đầu, đây là blocker cần fix trước.
+1. môi trường go-live đã deploy build chứa fix này
+2. đã verify runtime thật trên môi trường chạy:
+- import hợp đồng `computed_by_position_group` tạo đúng:
+  - `insurance_salary_mode`
+  - `bhxh_position_group_id`
+  - `insurance_salary_grade_no`
+  - `bhxh_seniority_start_date`
+  - `insurance_salary`
+- import BHXH sau đó không làm profile bị tụt từ `computed/contract` về `manual_fixed`
+3. đã chạy test regression cho cả hai mode:
+- `fixed_manual`
+- `computed_by_position_group`
 
 ---
 
