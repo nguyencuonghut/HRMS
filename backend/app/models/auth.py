@@ -29,6 +29,10 @@ class User(SQLModel, table=True):
     # Liên kết hồ sơ nhân viên — sẽ có FK thực khi triển khai module Nhân sự
     employee_id: Optional[int] = Field(default=None)
     last_login_at: Optional[datetime] = Field(default=None)
+    refresh_token_version: int = Field(
+        default=0,
+        sa_column=Column(sa.Integer(), nullable=False, server_default="0"),
+    )
     created_at: datetime = Field(default_factory=_utcnow)
     updated_at: Optional[datetime] = Field(default=None)
 

@@ -119,7 +119,7 @@ async def login(
     access_token = create_access_token(
         user.email, extra_claims={"user_id": user.id, "roles": roles}
     )
-    refresh_token = create_refresh_token(user.email)
+    refresh_token = create_refresh_token(user.email, user.refresh_token_version)
 
     await auth_service.clear_failed_login(payload.email)
     await auth_service.update_last_login(session, user)
@@ -169,20 +169,34 @@ async def refresh_token(
         if data.get("type") != "refresh":
             raise exc
         email: str = data.get("sub", "")
+        refresh_jti: str = data.get("jti", "")
+        refresh_version = data.get("rtv")
+        refresh_exp = data.get("exp")
         if not email:
+            raise exc
+        if not refresh_jti or refresh_version is None or not refresh_exp:
             raise exc
     except JWTError:
         raise exc
 
+    if await auth_service.is_refresh_token_blacklisted(refresh_jti):
+        raise exc
+
     user = await auth_service.get_user_by_email(session, email)
     if not user or not user.is_active:
+        raise exc
+    if int(refresh_version) != user.refresh_token_version:
         raise exc
 
     roles = await auth_service.get_user_roles(session, user.id)
     new_access = create_access_token(
         user.email, extra_claims={"user_id": user.id, "roles": roles}
     )
-    new_refresh = create_refresh_token(user.email)
+    await auth_service.blacklist_refresh_token(
+        refresh_jti,
+        datetime.fromtimestamp(refresh_exp, tz=timezone.utc),
+    )
+    new_refresh = create_refresh_token(user.email, user.refresh_token_version)
 
     # Set cookie mới + trả access_token trong body
     result = TokenResponse(access_token=new_access).model_dump()
@@ -243,6 +257,23 @@ async def logout(
 
     expires_at = datetime.fromtimestamp(exp, tz=timezone.utc)
     await auth_service.blacklist_token(jti, expires_at)
+    raw_refresh = request.cookies.get(settings.REFRESH_TOKEN_COOKIE_NAME)
+    if raw_refresh:
+        try:
+            refresh_payload = decode_token(raw_refresh)
+            refresh_jti = refresh_payload.get("jti")
+            refresh_exp = refresh_payload.get("exp")
+            if (
+                refresh_payload.get("type") == "refresh"
+                and refresh_jti
+                and refresh_exp
+            ):
+                await auth_service.blacklist_refresh_token(
+                    refresh_jti,
+                    datetime.fromtimestamp(refresh_exp, tz=timezone.utc),
+                )
+        except JWTError:
+            pass
     await auth_service.log_audit(
         session, current_user.id, "LOGOUT",
         ip_address=request.client.host if request.client else None,
@@ -303,6 +334,7 @@ async def change_password(
             detail="Mật khẩu cũ không đúng",
         )
     current_user.hashed_password = hash_password(payload.new_password)
+    current_user.refresh_token_version += 1
     session.add(current_user)
     await auth_service.log_audit(
         session, current_user.id, "RESET_PASSWORD",

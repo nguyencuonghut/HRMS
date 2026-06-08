@@ -25,11 +25,12 @@ def create_access_token(subject: str, extra_claims: Optional[dict] = None) -> st
     )
 
 
-def create_refresh_token(subject: str) -> str:
+def create_refresh_token(subject: str, token_version: int = 0) -> str:
     return create_signed_token(
         subject,
         token_type="refresh",
         expires=timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
+        extra_claims={"rtv": token_version},
     )
 
 

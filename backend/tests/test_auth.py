@@ -173,6 +173,17 @@ def test_refresh_returns_new_tokens(client: TestClient):
     assert me.status_code == 200
 
 
+def test_refresh_rejects_rotated_refresh_token_reuse(client: TestClient):
+    login_resp = _login(client)
+    refresh_token = login_resp.cookies.get(settings.REFRESH_TOKEN_COOKIE_NAME)
+    assert refresh_token
+    first_refresh = _refresh(client, refresh_token)
+    assert first_refresh.status_code == 200
+    client.cookies.clear()
+    replay_refresh = _refresh(client, refresh_token)
+    assert replay_refresh.status_code == 401
+
+
 def test_refresh_sets_secure_refresh_cookie_when_enabled(client: TestClient, monkeypatch):
     monkeypatch.setattr(settings, "REFRESH_TOKEN_COOKIE_SECURE", True)
     login_resp = _login(client)
@@ -277,6 +288,52 @@ def test_change_password_requires_auth(client: TestClient):
         json={"old_password": "x", "new_password": "y"},
     )
     assert resp.status_code == 401
+
+
+def test_logout_revokes_current_refresh_token(client: TestClient):
+    login_resp = _login(client)
+    access_token = login_resp.json()["access_token"]
+    refresh_token = login_resp.cookies.get(settings.REFRESH_TOKEN_COOKIE_NAME)
+    assert refresh_token
+
+    logout_resp = client.post(
+        f"{BASE}/logout",
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+    assert logout_resp.status_code == 200
+
+    client.cookies.clear()
+    refresh_resp = _refresh(client, refresh_token)
+    assert refresh_resp.status_code == 401
+
+
+def test_change_password_revokes_existing_refresh_sessions(
+    client: TestClient, reset_officer_password
+):
+    login_resp = _login(client, _OFFICER_EMAIL, _ADMIN_PASSWORD)
+    refresh_token = login_resp.cookies.get(settings.REFRESH_TOKEN_COOKIE_NAME)
+    assert refresh_token
+    access_token = login_resp.json()["access_token"]
+
+    change_resp = client.post(
+        f"{BASE}/change-password",
+        json={"old_password": _ADMIN_PASSWORD, "new_password": "NewPass@2026"},
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+    assert change_resp.status_code == 200
+
+    client.cookies.clear()
+    refresh_resp = _refresh(client, refresh_token)
+    assert refresh_resp.status_code == 401
+    assert _login(client, _OFFICER_EMAIL, "NewPass@2026").status_code == 200
+
+    headers2 = _bearer(client, _OFFICER_EMAIL, "NewPass@2026")
+    restore_resp = client.post(
+        f"{BASE}/change-password",
+        json={"old_password": "NewPass@2026", "new_password": _ADMIN_PASSWORD},
+        headers=headers2,
+    )
+    assert restore_resp.status_code == 200
 
 
 def test_settings_rejects_insecure_refresh_cookie_in_production():

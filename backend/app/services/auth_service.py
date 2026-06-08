@@ -19,6 +19,7 @@ LOCKOUT_SECONDS = 30 * 60
 LOGIN_RATE_LIMIT_ATTEMPTS = 5
 LOGIN_RATE_LIMIT_WINDOW_SECONDS = 60
 _TOKEN_BLACKLIST_PREFIX = "token:blacklist:"
+_REFRESH_BLACKLIST_PREFIX = "refresh:blacklist:"
 _LOGIN_FAILED_PREFIX = "login_failed:"
 _LOGIN_RATE_PREFIX = "login_rate:"
 
@@ -37,6 +38,10 @@ def _login_failed_key(email: str) -> str:
 
 def _token_blacklist_key(jti: str) -> str:
     return f"{_TOKEN_BLACKLIST_PREFIX}{jti}"
+
+
+def _refresh_blacklist_key(jti: str) -> str:
+    return f"{_REFRESH_BLACKLIST_PREFIX}{jti}"
 
 
 def _login_rate_key(client_ip: str) -> str:
@@ -109,9 +114,22 @@ async def blacklist_token(jti: str, expires_at: datetime) -> None:
     await client.setex(_token_blacklist_key(jti), ttl, "1")
 
 
+async def blacklist_refresh_token(jti: str, expires_at: datetime) -> None:
+    ttl = int((expires_at - _utcnow()).total_seconds())
+    if ttl <= 0:
+        return
+    client = await get_redis()
+    await client.setex(_refresh_blacklist_key(jti), ttl, "1")
+
+
 async def is_token_blacklisted(jti: str) -> bool:
     client = await get_redis()
     return bool(await client.exists(_token_blacklist_key(jti)))
+
+
+async def is_refresh_token_blacklisted(jti: str) -> bool:
+    client = await get_redis()
+    return bool(await client.exists(_refresh_blacklist_key(jti)))
 
 
 async def get_user_roles(session: AsyncSession, user_id: int) -> list[str]:
