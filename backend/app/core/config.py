@@ -1,5 +1,6 @@
 import logging
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -135,6 +136,41 @@ class Settings(BaseSettings):
         "http://localhost:3000",
         "http://127.0.0.1:3000",
     ]
+
+    @field_validator("CORS_ORIGINS")
+    @classmethod
+    def validate_cors_origins(cls, origins: list[str], info) -> list[str]:
+        env = (info.data.get("ENVIRONMENT") or "development").lower()
+        normalized: list[str] = []
+
+        for raw_origin in origins:
+            origin = raw_origin.strip()
+            if not origin:
+                continue
+            parsed = urlsplit(origin)
+            if not parsed.scheme or not parsed.netloc:
+                raise ValueError(
+                    "Mỗi phần tử trong CORS_ORIGINS phải là origin hợp lệ, ví dụ "
+                    "'https://hrms.example.com'."
+                )
+            if parsed.path not in ("", "/") or parsed.query or parsed.fragment:
+                raise ValueError(
+                    "CORS_ORIGINS chỉ được chứa origin thuần, không kèm path, query hoặc fragment."
+                )
+            normalized_origin = f"{parsed.scheme}://{parsed.netloc}".rstrip("/")
+            if normalized_origin not in normalized:
+                normalized.append(normalized_origin)
+
+        if env == "production":
+            if not normalized:
+                raise ValueError("CORS_ORIGINS bắt buộc phải cấu hình trong production.")
+            loopback_hosts = {"localhost", "127.0.0.1", "::1"}
+            if any(urlsplit(origin).hostname in loopback_hosts for origin in normalized):
+                raise ValueError(
+                    "CORS_ORIGINS trong production không được dùng localhost/127.0.0.1."
+                )
+
+        return normalized
 
     # SMTP email
     SMTP_HOST: str = "localhost"

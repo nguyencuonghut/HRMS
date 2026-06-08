@@ -1,11 +1,12 @@
 import pytest
 import uuid
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from itertools import count
 
-from app.core.config import settings
+from app.core.config import Settings, settings
 from app.core.encryption import decrypt, encrypt
 from app.core import storage
 from app.services import auth_service
@@ -168,6 +169,92 @@ def test_csrf_allows_state_change_from_loopback_frontend_origin(client: TestClie
         headers=headers,
     )
     assert resp.status_code == 201, resp.text
+
+
+def test_csrf_allows_state_change_from_configured_production_origin(client: TestClient, monkeypatch):
+    monkeypatch.setattr(settings, "CORS_ORIGINS", ["https://hrms.example.com"])
+    headers = {
+        **_bearer(client),
+        "Origin": "https://hrms.example.com",
+    }
+    code = f"SEC-SKILL-{uuid.uuid4().hex[:8].upper()}"
+    resp = client.post(
+        "/api/v1/skills",
+        json={"code": code, "name": f"Skill {code}"},
+        headers=headers,
+    )
+    assert resp.status_code == 201, resp.text
+
+
+def test_csrf_rejects_state_change_from_untrusted_origin(client: TestClient, monkeypatch):
+    monkeypatch.setattr(settings, "CORS_ORIGINS", ["https://hrms.example.com"])
+    headers = {
+        **_bearer(client),
+        "Origin": "https://evil.example.com",
+    }
+    code = f"SEC-SKILL-{uuid.uuid4().hex[:8].upper()}"
+    resp = client.post(
+        "/api/v1/skills",
+        json={"code": code, "name": f"Skill {code}"},
+        headers=headers,
+    )
+    assert resp.status_code == 403
+    assert "Origin" in resp.json()["detail"]
+
+
+def test_csrf_allows_trusted_referer_when_origin_header_is_missing(client: TestClient, monkeypatch):
+    monkeypatch.setattr(settings, "CORS_ORIGINS", ["https://hrms.example.com"])
+    headers = {
+        **_bearer(client),
+        "Referer": "https://hrms.example.com/catalog/skills",
+    }
+    code = f"SEC-SKILL-{uuid.uuid4().hex[:8].upper()}"
+    resp = client.post(
+        "/api/v1/skills",
+        json={"code": code, "name": f"Skill {code}"},
+        headers=headers,
+    )
+    assert resp.status_code == 201, resp.text
+
+
+def test_csrf_rejects_untrusted_referer_when_origin_header_is_missing(client: TestClient, monkeypatch):
+    monkeypatch.setattr(settings, "CORS_ORIGINS", ["https://hrms.example.com"])
+    headers = {
+        **_bearer(client),
+        "Referer": "https://evil.example.com/catalog/skills",
+    }
+    code = f"SEC-SKILL-{uuid.uuid4().hex[:8].upper()}"
+    resp = client.post(
+        "/api/v1/skills",
+        json={"code": code, "name": f"Skill {code}"},
+        headers=headers,
+    )
+    assert resp.status_code == 403
+    assert "Origin" in resp.json()["detail"]
+
+
+def test_settings_rejects_loopback_cors_origins_in_production():
+    with pytest.raises(ValidationError):
+        Settings(
+            ENVIRONMENT="production",
+            SECRET_KEY="a" * 64,
+            ENCRYPTION_KEY="prod-encryption-key",
+            MINIO_ACCESS_KEY="prod-access-key",
+            MINIO_SECRET_KEY="prod-secret-key",
+            CORS_ORIGINS=["http://localhost:5173"],
+        )
+
+
+def test_settings_normalizes_cors_origins():
+    cfg = Settings(
+        ENVIRONMENT="production",
+        SECRET_KEY="b" * 64,
+        ENCRYPTION_KEY="prod-encryption-key",
+        MINIO_ACCESS_KEY="prod-access-key",
+        MINIO_SECRET_KEY="prod-secret-key",
+        CORS_ORIGINS=["https://hrms.example.com/"],
+    )
+    assert cfg.CORS_ORIGINS == ["https://hrms.example.com"]
 
 
 def test_encryption_roundtrip():

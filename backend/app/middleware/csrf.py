@@ -7,7 +7,7 @@ Tuy nhiên, để defense-in-depth, middleware này validate Origin/Referer head
 cho state-changing requests (POST/PUT/PATCH/DELETE) từ browser.
 
 Cho phép:
-  - Requests không có Origin header (API clients, mobile apps, curl, Postman)
+  - Requests không có Origin/Referer header (API clients, mobile apps, curl, Postman)
   - Requests từ trusted origins (CORS_ORIGINS config)
 
 Từ chối:
@@ -44,6 +44,8 @@ def _extract_origin(url: str) -> str:
     """Trích origin (scheme + host + port) từ URL string."""
     try:
         p = urlparse(url)
+        if not p.scheme or not p.netloc:
+            return ""
         origin = f"{p.scheme}://{p.netloc}"
         return origin.rstrip("/")
     except Exception:
@@ -56,7 +58,7 @@ class CSRFMiddleware(BaseHTTPMiddleware):
 
     Không ảnh hưởng đến:
     - GET, HEAD, OPTIONS requests
-    - Requests không có Origin header (API clients, Postman, curl)
+    - Requests không có Origin/Referer header (API clients, Postman, curl)
     - Requests từ trusted origins (CORS_ORIGINS)
     """
 
@@ -67,20 +69,17 @@ class CSRFMiddleware(BaseHTTPMiddleware):
         if request.url.path in _EXEMPT_PATHS:
             return await call_next(request)
 
-        # Lấy Origin header (browser gửi khi cross-origin request)
+        # Browser thường gửi Origin; nếu thiếu thì fallback sang Referer.
         origin = request.headers.get("Origin", "").strip()
+        if not origin:
+            referer = request.headers.get("Referer", "").strip()
+            origin = _extract_origin(referer)
 
-        # Không có Origin → API client / mobile / server-to-server → cho qua
+        # Không có Origin/Referer → API client / mobile / server-to-server → cho qua
         if not origin:
             return await call_next(request)
 
-        # Có Origin → kiểm tra whitelist
         trusted = [o.rstrip("/") for o in settings.CORS_ORIGINS]
-
-        # Cũng kiểm tra Referer nếu Origin không có
-        if not origin:
-            referer = request.headers.get("Referer", "")
-            origin = _extract_origin(referer)
 
         if origin not in trusted:
             logger.warning(

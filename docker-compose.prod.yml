@@ -48,6 +48,7 @@ services:
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
       SECRET_KEY: ${SECRET_KEY}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      CORS_ORIGINS: ${CORS_ORIGINS}
       DEBUG: "false"
       ENVIRONMENT: production
       SENTRY_DSN: ${SENTRY_DSN:-}
@@ -70,6 +71,7 @@ services:
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
       SECRET_KEY: ${SECRET_KEY}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      CORS_ORIGINS: ${CORS_ORIGINS}
       ENVIRONMENT: production
       SENTRY_DSN: ${SENTRY_DSN:-}
     depends_on:
@@ -88,6 +90,7 @@ services:
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
       SECRET_KEY: ${SECRET_KEY}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      CORS_ORIGINS: ${CORS_ORIGINS}
       ENVIRONMENT: production
       SENTRY_DSN: ${SENTRY_DSN:-}
     depends_on:
