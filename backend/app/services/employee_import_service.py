@@ -22,7 +22,6 @@ from app.models.employee import Employee
 from app.models.employee_code import EmployeeCodeSequence
 from app.models.org import Department, JobPosition, JobTitle
 from app.schemas.employee import EmployeeCreate
-from app.services import employee_service
 from app.schemas.employee_import import (
     GENDER_MAP,
     IMPORT_COLUMNS,
@@ -32,6 +31,8 @@ from app.schemas.employee_import import (
     ImportResult,
     ImportRowError,
 )
+from app.services import employee_service
+from app.services.import_excel_helper import extract_header_and_non_blank_rows
 
 
 # ── Template generation ───────────────────────────────────────────────────────
@@ -248,12 +249,11 @@ async def process_import(session: AsyncSession, file_bytes: bytes) -> ImportResu
         raise ValueError("Không đọc được file Excel. Hãy dùng file .xlsx hợp lệ.") from exc
 
     ws = wb.worksheets[0]
-    rows_iter = list(ws.iter_rows(values_only=True))
-    if not rows_iter:
+    header_row, data_rows = extract_header_and_non_blank_rows(ws)
+    if not header_row:
         return ImportResult(total=0, success=0, failed=0, errors=[], created_ids=[])
 
     # Map header → col index (0-based)
-    header_row = [str(c).strip() if c else "" for c in rows_iter[0]]
     col_idx: dict[str, int] = {h: i for i, h in enumerate(header_row)}
 
     def get(row_vals: tuple, col_name: str) -> str:
@@ -263,7 +263,6 @@ async def process_import(session: AsyncSession, file_bytes: bytes) -> ImportResu
         v = row_vals[idx] if idx < len(row_vals) else None
         return str(v).strip() if v is not None else ""
 
-    data_rows = rows_iter[1:]
     if len(data_rows) > IMPORT_MAX_ROWS:
         raise ValueError(f"File có quá nhiều dòng. Tối đa {IMPORT_MAX_ROWS} dòng mỗi lần import.")
 
@@ -273,11 +272,7 @@ async def process_import(session: AsyncSession, file_bytes: bytes) -> ImportResu
     errors: list[ImportRowError] = []
     created_ids: list[int] = []
 
-    for rel_idx, row_vals in enumerate(data_rows):
-        excel_row = rel_idx + 2  # row 1 = header
-        # Skip blank rows
-        if all((v is None or str(v).strip() == "") for v in row_vals):
-            continue
+    for excel_row, row_vals in data_rows:
         total += 1
         row_errors: list[ImportRowError] = []
 

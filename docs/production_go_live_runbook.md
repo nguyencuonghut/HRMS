@@ -374,6 +374,20 @@ Tạo hoặc chỉnh:
 2. chức danh
 3. vị trí công việc
 
+UI hiện tại:
+
+- màn `Nhập dữ liệu` đã có 3 tab riêng theo đúng thứ tự phụ thuộc:
+  1. `Phòng ban`
+  2. `Chức danh`
+  3. `Vị trí công việc`
+- sau 3 tab này mới đến:
+  - `Nhân viên`
+  - `Nghỉ phép`
+  - `Hợp đồng`
+  - `Bảo hiểm`
+- nguồn:
+  - [frontend/src/views/data/DataImportView.vue](/run/media/cuong/DATA/02_Project/166_HonghaHRM/HRMS/frontend/src/views/data/DataImportView.vue)
+
 Lý do:
 
 - import nhân viên phụ thuộc trực tiếp vào các danh mục này

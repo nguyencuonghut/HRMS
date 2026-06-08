@@ -3,46 +3,49 @@
     <div class="page-header">
       <div>
         <h2>Nhập dữ liệu hàng loạt</h2>
-        <div class="subtitle">Import hợp đồng, nghỉ phép, bảo hiểm từ file Excel</div>
+        <div class="subtitle">Import danh mục tổ chức, nhân viên và dữ liệu vận hành từ file Excel</div>
       </div>
     </div>
 
     <Tabs v-model:value="activeTab">
       <TabList>
-        <Tab value="contracts">Hợp đồng</Tab>
-        <Tab value="leave-records">Nghỉ phép</Tab>
-        <Tab value="insurance">Bảo hiểm</Tab>
+        <Tab value="departments">Phòng ban</Tab>
+        <Tab value="job-titles">Chức danh</Tab>
+        <Tab value="job-positions">Vị trí công việc</Tab>
         <Tab value="employees">Nhân viên</Tab>
+        <Tab value="leave-records">Nghỉ phép</Tab>
+        <Tab value="contracts">Hợp đồng</Tab>
+        <Tab value="insurance">Bảo hiểm</Tab>
       </TabList>
 
       <TabPanels>
-        <!-- ── Hợp đồng ─────────────────────────────────────────────────── -->
-        <TabPanel value="contracts">
+        <!-- ── Phòng ban ────────────────────────────────────────────────── -->
+        <TabPanel value="departments">
           <ImportPanel
-            title="Import hợp đồng lao động"
-            description="Tạo hàng loạt hợp đồng từ file Excel. Mỗi dòng = 1 hợp đồng."
-            :download-template="svc.downloadContractTemplate"
-            :upload-fn="svc.importContracts"
+            title="Import phòng ban"
+            description="Nhập hoặc cập nhật cây phòng ban trước khi import nhân viên và vị trí công việc."
+            :download-template="svc.downloadDepartmentTemplate"
+            :upload-fn="svc.importDepartments"
           />
         </TabPanel>
 
-        <!-- ── Nghỉ phép ───────────────────────────────────────────────── -->
-        <TabPanel value="leave-records">
+        <!-- ── Chức danh ───────────────────────────────────────────────── -->
+        <TabPanel value="job-titles">
           <ImportPanel
-            title="Import nghỉ phép"
-            description="Tạo hàng loạt bản ghi nghỉ phép. Số ngày được tính tự động từ ngày bắt đầu đến ngày kết thúc."
-            :download-template="svc.downloadLeaveRecordTemplate"
-            :upload-fn="svc.importLeaveRecords"
+            title="Import chức danh"
+            description="Nhập hoặc cập nhật danh mục chức danh dùng cho vị trí công việc và cơ cấu tổ chức."
+            :download-template="svc.downloadJobTitleTemplate"
+            :upload-fn="svc.importJobTitles"
           />
         </TabPanel>
 
-        <!-- ── Bảo hiểm ────────────────────────────────────────────────── -->
-        <TabPanel value="insurance">
+        <!-- ── Vị trí công việc ────────────────────────────────────────── -->
+        <TabPanel value="job-positions">
           <ImportPanel
-            title="Import hồ sơ bảo hiểm"
-            description="Tạo hoặc cập nhật hồ sơ BHXH/BHYT. Nếu nhân viên đã có hồ sơ → tự động cập nhật."
-            :download-template="svc.downloadInsuranceTemplate"
-            :upload-fn="svc.importInsurance"
+            title="Import vị trí công việc"
+            description="Nhập hoặc cập nhật vị trí công việc sau khi đã có phòng ban và chức danh."
+            :download-template="svc.downloadJobPositionTemplate"
+            :upload-fn="svc.importJobPositions"
           />
         </TabPanel>
 
@@ -55,6 +58,36 @@
               <Button label="Đến trang Nhân viên" icon="pi pi-arrow-right" icon-pos="right" />
             </RouterLink>
           </div>
+        </TabPanel>
+
+        <!-- ── Nghỉ phép ───────────────────────────────────────────────── -->
+        <TabPanel value="leave-records">
+          <ImportPanel
+            title="Import nghỉ phép"
+            description="Tạo hàng loạt bản ghi nghỉ phép. Số ngày được tính tự động từ ngày bắt đầu đến ngày kết thúc."
+            :download-template="svc.downloadLeaveRecordTemplate"
+            :upload-fn="svc.importLeaveRecords"
+          />
+        </TabPanel>
+
+        <!-- ── Hợp đồng ─────────────────────────────────────────────────── -->
+        <TabPanel value="contracts">
+          <ImportPanel
+            title="Import hợp đồng lao động"
+            description="Tạo hàng loạt hợp đồng từ file Excel. Mỗi dòng = 1 hợp đồng."
+            :download-template="svc.downloadContractTemplate"
+            :upload-fn="svc.importContracts"
+          />
+        </TabPanel>
+
+        <!-- ── Bảo hiểm ────────────────────────────────────────────────── -->
+        <TabPanel value="insurance">
+          <ImportPanel
+            title="Import hồ sơ bảo hiểm"
+            description="Tạo hoặc cập nhật hồ sơ BHXH/BHYT. Nếu nhân viên đã có hồ sơ → tự động cập nhật."
+            :download-template="svc.downloadInsuranceTemplate"
+            :upload-fn="svc.importInsurance"
+          />
         </TabPanel>
       </TabPanels>
     </Tabs>
@@ -74,7 +107,7 @@ import Tabs from 'primevue/tabs'
 import dataImportService from '@/services/dataImportService'
 import ImportPanel from './ImportPanel.vue'
 
-const activeTab = ref('contracts')
+const activeTab = ref('departments')
 const svc = dataImportService
 </script>
 

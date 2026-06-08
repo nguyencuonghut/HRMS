@@ -35,6 +35,27 @@ function uploadXlsx(url: string, file: File) {
 }
 
 export default {
+  // ── Phòng ban ──────────────────────────────────────────────────────────────
+  downloadDepartmentTemplate: () =>
+    downloadBlob(`${BASE}/departments/template`, 'mau_import_phong_ban.xlsx'),
+
+  importDepartments: (file: File) =>
+    uploadXlsx(`${BASE}/departments`, file),
+
+  // ── Chức danh ──────────────────────────────────────────────────────────────
+  downloadJobTitleTemplate: () =>
+    downloadBlob(`${BASE}/job-titles/template`, 'mau_import_chuc_danh.xlsx'),
+
+  importJobTitles: (file: File) =>
+    uploadXlsx(`${BASE}/job-titles`, file),
+
+  // ── Vị trí công việc ───────────────────────────────────────────────────────
+  downloadJobPositionTemplate: () =>
+    downloadBlob(`${BASE}/job-positions/template`, 'mau_import_vi_tri_cong_viec.xlsx'),
+
+  importJobPositions: (file: File) =>
+    uploadXlsx(`${BASE}/job-positions`, file),
+
   // ── Hợp đồng ──────────────────────────────────────────────────────────────
   downloadContractTemplate: () =>
     downloadBlob(`${BASE}/contracts/template`, 'mau_import_hop_dong.xlsx'),

@@ -9,7 +9,14 @@ from app.api.v1.deps import require_permission
 from app.core.database import get_session
 from app.models.auth import User
 from app.schemas.employee_import import ImportResult
-from app.services import contract_import_service, leave_record_import_service, insurance_import_service
+from app.services import (
+    contract_import_service,
+    department_import_service,
+    insurance_import_service,
+    job_position_import_service,
+    job_title_import_service,
+    leave_record_import_service,
+)
 
 router = APIRouter()
 
@@ -30,6 +37,113 @@ def _content_disposition(filename: str) -> str:
 def _validate_xlsx(file: UploadFile) -> None:
     if not (file.filename or "").lower().endswith(".xlsx"):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Chỉ chấp nhận file .xlsx")
+
+
+# ── Danh mục tổ chức ──────────────────────────────────────────────────────────
+
+@router.get(
+    "/departments/template",
+    summary="Tải file mẫu import phòng ban (.xlsx)",
+)
+async def download_department_template(
+    _: User = require_permission("org:edit"),
+) -> Response:
+    content = department_import_service.generate_template()
+    return Response(
+        content=content,
+        media_type=_XLSX_MEDIA,
+        headers={"Content-Disposition": _content_disposition("mau_import_phong_ban.xlsx")},
+    )
+
+
+@router.post(
+    "/departments",
+    response_model=ImportResult,
+    summary="Import phòng ban hàng loạt từ file Excel",
+)
+async def import_departments(
+    file: UploadFile = File(...),
+    _: User = require_permission("org:edit"),
+    session: AsyncSession = Depends(get_session),
+) -> ImportResult:
+    _validate_xlsx(file)
+    content = await file.read()
+    if len(content) > _MAX_FILE_BYTES:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="File quá lớn (tối đa 5MB)")
+    try:
+        return await department_import_service.process_import(session, content)
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+
+@router.get(
+    "/job-titles/template",
+    summary="Tải file mẫu import chức danh (.xlsx)",
+)
+async def download_job_title_template(
+    _: User = require_permission("org:edit"),
+) -> Response:
+    content = job_title_import_service.generate_template()
+    return Response(
+        content=content,
+        media_type=_XLSX_MEDIA,
+        headers={"Content-Disposition": _content_disposition("mau_import_chuc_danh.xlsx")},
+    )
+
+
+@router.post(
+    "/job-titles",
+    response_model=ImportResult,
+    summary="Import chức danh hàng loạt từ file Excel",
+)
+async def import_job_titles(
+    file: UploadFile = File(...),
+    _: User = require_permission("org:edit"),
+    session: AsyncSession = Depends(get_session),
+) -> ImportResult:
+    _validate_xlsx(file)
+    content = await file.read()
+    if len(content) > _MAX_FILE_BYTES:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="File quá lớn (tối đa 5MB)")
+    try:
+        return await job_title_import_service.process_import(session, content)
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+
+@router.get(
+    "/job-positions/template",
+    summary="Tải file mẫu import vị trí công việc (.xlsx)",
+)
+async def download_job_position_template(
+    _: User = require_permission("org:edit"),
+) -> Response:
+    content = job_position_import_service.generate_template()
+    return Response(
+        content=content,
+        media_type=_XLSX_MEDIA,
+        headers={"Content-Disposition": _content_disposition("mau_import_vi_tri_cong_viec.xlsx")},
+    )
+
+
+@router.post(
+    "/job-positions",
+    response_model=ImportResult,
+    summary="Import vị trí công việc hàng loạt từ file Excel",
+)
+async def import_job_positions(
+    file: UploadFile = File(...),
+    _: User = require_permission("org:edit"),
+    session: AsyncSession = Depends(get_session),
+) -> ImportResult:
+    _validate_xlsx(file)
+    content = await file.read()
+    if len(content) > _MAX_FILE_BYTES:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="File quá lớn (tối đa 5MB)")
+    try:
+        return await job_position_import_service.process_import(session, content)
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc))
 
 
 # ── Hợp đồng ─────────────────────────────────────────────────────────────────

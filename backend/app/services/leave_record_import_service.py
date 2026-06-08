@@ -19,6 +19,7 @@ from app.models.catalog import LeaveType
 from app.models.leave_record import LeaveRecord
 from app.schemas.employee_import import ImportResult, ImportRowError
 from app.services import leave_entitlement_service
+from app.services.import_excel_helper import extract_header_and_non_blank_rows
 from app.services.import_employee_lookup_service import EmployeeImportLookup
 
 IMPORT_MAX_ROWS = 1000
@@ -43,10 +44,11 @@ def generate_template() -> bytes:
     header_fill = PatternFill("solid", fgColor="1F4E79")
     header_font = Font(color="FFFFFF", bold=True)
     opt_fill = PatternFill("solid", fgColor="D6E4F0")
+    opt_font = Font(color="1F2937", bold=True)
 
     for col_idx, col_name in enumerate(COLUMNS, start=1):
         cell = ws.cell(row=1, column=col_idx, value=col_name)
-        cell.font = header_font
+        cell.font = header_font if col_name in REQUIRED_COLUMNS else opt_font
         cell.fill = header_fill if col_name in REQUIRED_COLUMNS else opt_fill
         cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
 
@@ -140,14 +142,11 @@ async def process_import(session: AsyncSession, file_bytes: bytes) -> ImportResu
         raise ValueError("Không đọc được file Excel. Hãy dùng file .xlsx hợp lệ.") from exc
 
     ws = wb.worksheets[0]
-    all_rows = list(ws.iter_rows(values_only=True))
-    if not all_rows:
+    header_row, data_rows = extract_header_and_non_blank_rows(ws)
+    if not header_row:
         return ImportResult(total=0, success=0, failed=0, errors=[], created_ids=[])
 
-    header_row = [str(c).strip() if c else "" for c in all_rows[0]]
     col_map = {h: i for i, h in enumerate(header_row)}
-
-    data_rows = all_rows[1:]
     if len(data_rows) > IMPORT_MAX_ROWS:
         raise ValueError(f"File có quá nhiều dòng. Tối đa {IMPORT_MAX_ROWS} dòng mỗi lần import.")
 
@@ -157,10 +156,7 @@ async def process_import(session: AsyncSession, file_bytes: bytes) -> ImportResu
     created_ids: list[int] = []
     employee_lookup = await EmployeeImportLookup.build(session)
 
-    for rel_idx, row_vals in enumerate(data_rows):
-        excel_row = rel_idx + 2
-        if all(v is None or str(v).strip() == "" for v in row_vals):
-            continue
+    for excel_row, row_vals in data_rows:
         total += 1
         row_errors: list[ImportRowError] = []
 
