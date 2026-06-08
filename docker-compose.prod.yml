@@ -32,7 +32,7 @@ services:
       retries: 5
 
   backend:
-    build: ./backend
+    image: ${BACKEND_IMAGE}:${IMAGE_TAG}
     restart: always
     command: >
       gunicorn app.main:app
@@ -69,7 +69,7 @@ services:
         condition: service_healthy
 
   celery_worker:
-    build: ./backend
+    image: ${BACKEND_IMAGE}:${IMAGE_TAG}
     restart: always
     command: celery -A app.core.celery_app.celery_app worker --loglevel=info --concurrency=4
     environment:
@@ -92,7 +92,7 @@ services:
         condition: service_healthy
 
   celery_beat:
-    build: ./backend
+    image: ${BACKEND_IMAGE}:${IMAGE_TAG}
     restart: always
     # RedBeatScheduler: chỉ 1 instance giữ lock Redis — tránh duplicate tasks khi restart
     command: celery -A app.core.celery_app.celery_app beat --loglevel=info --scheduler redbeat.RedBeatScheduler
@@ -114,9 +114,7 @@ services:
       - celery_worker
 
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
+    image: ${FRONTEND_IMAGE}:${IMAGE_TAG}
     restart: always
 
   nginx:

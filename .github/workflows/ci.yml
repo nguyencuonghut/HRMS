@@ -149,6 +149,9 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     environment: staging
+    permissions:
+      contents: read
+      packages: read
 
     steps:
       - uses: actions/checkout@v4
@@ -162,10 +165,14 @@ jobs:
           script: |
             set -e
             cd /opt/hrms-staging
-            # Pull latest images
-            docker compose -f docker-compose.prod.yml pull backend frontend
-            # Rolling restart (zero-downtime for backend)
-            docker compose -f docker-compose.prod.yml up -d --no-deps --remove-orphans backend frontend
+            export BACKEND_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_BACKEND }}
+            export FRONTEND_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_FRONTEND }}
+            export IMAGE_TAG=${{ github.sha }}
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ${{ env.REGISTRY }} -u "${{ github.actor }}" --password-stdin
+            # Pull đúng artifact vừa build/push
+            docker compose -f docker-compose.prod.yml pull backend celery_worker celery_beat frontend
+            # Restart đủ services dùng image mới
+            docker compose -f docker-compose.prod.yml up -d --no-deps --remove-orphans backend celery_worker celery_beat frontend
             # Run migrations
             docker compose -f docker-compose.prod.yml exec -T backend alembic upgrade head
             echo "Staging deploy complete at $(date)"
