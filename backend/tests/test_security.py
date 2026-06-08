@@ -239,6 +239,7 @@ def test_settings_rejects_loopback_cors_origins_in_production():
             ENVIRONMENT="production",
             SECRET_KEY="a" * 64,
             ENCRYPTION_KEY="prod-encryption-key",
+            MINIO_ENDPOINT="s3.example.com",
             MINIO_ACCESS_KEY="prod-access-key",
             MINIO_SECRET_KEY="prod-secret-key",
             CORS_ORIGINS=["http://localhost:5173"],
@@ -250,11 +251,38 @@ def test_settings_normalizes_cors_origins():
         ENVIRONMENT="production",
         SECRET_KEY="b" * 64,
         ENCRYPTION_KEY="prod-encryption-key",
+        MINIO_ENDPOINT="s3.example.com",
         MINIO_ACCESS_KEY="prod-access-key",
         MINIO_SECRET_KEY="prod-secret-key",
         CORS_ORIGINS=["https://hrms.example.com/"],
     )
     assert cfg.CORS_ORIGINS == ["https://hrms.example.com"]
+
+
+def test_settings_rejects_default_minio_endpoint_in_production():
+    with pytest.raises(ValidationError):
+        Settings(
+            ENVIRONMENT="production",
+            SECRET_KEY="c" * 64,
+            ENCRYPTION_KEY="prod-encryption-key",
+            MINIO_ENDPOINT="minio:9000",
+            MINIO_ACCESS_KEY="prod-access-key",
+            MINIO_SECRET_KEY="prod-secret-key",
+            CORS_ORIGINS=["https://hrms.example.com"],
+        )
+
+
+def test_settings_normalizes_minio_endpoint_in_production():
+    cfg = Settings(
+        ENVIRONMENT="production",
+        SECRET_KEY="d" * 64,
+        ENCRYPTION_KEY="prod-encryption-key",
+        MINIO_ENDPOINT="s3.example.com/",
+        MINIO_ACCESS_KEY="prod-access-key",
+        MINIO_SECRET_KEY="prod-secret-key",
+        CORS_ORIGINS=["https://hrms.example.com"],
+    )
+    assert cfg.MINIO_ENDPOINT == "s3.example.com"
 
 
 def test_encryption_roundtrip():

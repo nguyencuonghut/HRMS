@@ -22,6 +22,10 @@ _UNSAFE_MINIO_CREDS = frozenset({
     "admin",
 })
 
+_UNSAFE_MINIO_ENDPOINTS = frozenset({
+    "minio:9000",
+})
+
 
 _BASE_DIR = Path(__file__).resolve().parents[2]
 
@@ -110,8 +114,16 @@ class Settings(BaseSettings):
     MINIO_SECURE:     bool = False
 
     @model_validator(mode="after")
-    def validate_minio_credentials(self) -> "Settings":
+    def validate_minio_configuration(self) -> "Settings":
+        endpoint = self.MINIO_ENDPOINT.strip().rstrip("/")
         if self.ENVIRONMENT.lower() == "production":
+            if not endpoint:
+                raise ValueError("MINIO_ENDPOINT bắt buộc trong production.")
+            if endpoint.lower() in _UNSAFE_MINIO_ENDPOINTS:
+                raise ValueError(
+                    "MINIO_ENDPOINT đang dùng giá trị mặc định 'minio:9000' — "
+                    "không hợp lệ cho production hiện tại. Đặt endpoint object storage thật trong .env."
+                )
             if self.MINIO_ACCESS_KEY.lower() in _UNSAFE_MINIO_CREDS:
                 raise ValueError(
                     "MINIO_ACCESS_KEY đang dùng giá trị mặc định 'minioadmin' — "
@@ -127,6 +139,7 @@ class Settings(BaseSettings):
                 "MINIO credentials đang dùng giá trị mặc định — "
                 "KHÔNG an toàn cho production."
             )
+        self.MINIO_ENDPOINT = endpoint
         return self
 
     # CORS
