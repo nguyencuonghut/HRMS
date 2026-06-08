@@ -19,7 +19,7 @@ Tài liệu này được viết lại sau khi đối chiếu trực tiếp vớ
 
 ## 1. Kết luận ngắn
 
-Có thể đưa hệ thống lên production sạch và chạy thật với các phần sau:
+Source hiện tại đã có nhiều nền tảng production:
 
 - migrate DB
 - seed required
@@ -32,15 +32,27 @@ Có thể đưa hệ thống lên production sạch và chạy thật với các
 - import bảo hiểm
 - chạy worker / beat
 
-Nhưng trước khi coi đây là runbook go-live hoàn chỉnh, phải ghi rõ 2 blocker kỹ thuật hiện có trong source:
+Nhưng **chưa đủ điều kiện deploy production ngay** nếu dùng cấu hình/runbook hiện tại. Review ngày **08/06/2026** đã xác nhận thêm các blocker production ở tầng cấu hình, bảo mật, CI/CD và vận hành.
+
+Các blocker import/runtime đã ghi nhận trước đó:
 
 1. importer `Hợp đồng`, `Nghỉ phép`, `Bảo hiểm` đang tra cứu nhân viên bằng `employee_seq` parse từ mã hiển thị, chưa an toàn nếu doanh nghiệp dùng nhiều `employee_code_sequence`
 2. importer `Hợp đồng` và `Bảo hiểm` chưa đi theo đúng engine BHXH mới `computed_by_position_group / fixed_manual`, nên có thể làm lệch state BHXH runtime nếu áp dụng máy móc cho dữ liệu production
 
+Các blocker production mới đã xác nhận:
+
+1. production domain/CORS/CSRF chưa được cấu hình trong `docker-compose.prod.yml`
+2. MinIO/object storage chưa được wiring vào production stack
+3. refresh cookie chưa bật `Secure` trong production compose
+4. refresh session chưa revoke được server-side sau logout/đổi mật khẩu
+5. CI/CD build image nhưng production compose không dùng image đó
+6. backup/restore mới ở mức script + hướng dẫn crontab, chưa xác nhận scheduler production chạy thật
+
 Vì vậy:
 
-- phần runbook production sạch: dùng được ngay
-- phần runbook import dữ liệu thực tế: dùng được, nhưng phải tuân thủ các giới hạn hiện tại ghi ở mục 2
+- phần runbook production sạch: chỉ dùng làm checklist chuẩn bị, **chưa được coi là go-live-ready**
+- phần runbook import dữ liệu thực tế: dùng được sau khi các blocker import/runtime tương ứng đã có build deploy và verify runtime
+- trước khi chạy thật phải xử lý hoặc có quyết định chấp nhận rủi ro bằng văn bản cho từng blocker ở mục 2
 
 ---
 
@@ -247,6 +259,191 @@ Trạng thái hiện tại:
 
 - không cần chạy script link `leave_records -> leave_entitlements` sau import nghỉ phép nữa
 - importer hiện đã support cả dữ liệu nghỉ phép của nhân viên đã nghỉ việc, miễn bản thân mã nhân viên được resolve đúng
+
+---
+
+### 2.4. Blocker C — production domain/CORS/CSRF chưa được cấu hình
+
+**Mức độ:** Critical.
+
+Đã xác nhận trong source:
+
+- `CORS_ORIGINS` mặc định chỉ có localhost:
+  - [backend/app/core/config.py](/run/media/cuong/DATA/02_Project/166_HonghaHRM/HRMS/backend/app/core/config.py:131)
+- `CSRFMiddleware` reject các request ghi (`POST`, `PUT`, `PATCH`, `DELETE`) nếu `Origin` không nằm trong `settings.CORS_ORIGINS`:
+  - [backend/app/middleware/csrf.py](/run/media/cuong/DATA/02_Project/166_HonghaHRM/HRMS/backend/app/middleware/csrf.py:63)
+- `FastAPI CORSMiddleware` cũng dùng cùng `settings.CORS_ORIGINS`:
+  - [backend/app/main.py](/run/media/cuong/DATA/02_Project/166_HonghaHRM/HRMS/backend/app/main.py:102)
+- `docker-compose.prod.yml` hiện chưa truyền `CORS_ORIGINS` vào backend / worker / beat:
+  - [docker-compose.prod.yml](/run/media/cuong/DATA/02_Project/166_HonghaHRM/HRMS/docker-compose.prod.yml:46)
+
+### Hệ quả
+
+Khi chạy domain thật, trình duyệt sẽ gửi `Origin: https://<domain-production>`. Nếu domain này không nằm trong `CORS_ORIGINS`, các thao tác ghi như đăng nhập, import, CRUD, lưu cấu hình có thể bị 403.
+
+### Exit criteria để gỡ blocker C
+
+1. `docker-compose.prod.yml` truyền `CORS_ORIGINS` production cho backend, worker, beat nếu các process đó load settings.
+2. `.env.example` ghi rõ format domain production.
+3. Browser-level smoke test trên domain thật pass các thao tác:
+   - login
+   - tạo/sửa một record đơn giản
+   - upload/import một file nhỏ
+
+---
+
+### 2.5. Blocker D — MinIO/object storage chưa được wiring vào production stack
+
+**Mức độ:** Critical.
+
+Đã xác nhận trong source:
+
+- app gọi `ensure_bucket()` khi startup:
+  - [backend/app/main.py](/run/media/cuong/DATA/02_Project/166_HonghaHRM/HRMS/backend/app/main.py:78)
+- readiness check phụ thuộc MinIO:
+  - [backend/app/main.py](/run/media/cuong/DATA/02_Project/166_HonghaHRM/HRMS/backend/app/main.py:141)
+- config mặc định đang là `MINIO_ENDPOINT=minio:9000`, `MINIO_ACCESS_KEY=minioadmin`, `MINIO_SECRET_KEY=minioadmin`:
+  - [backend/app/core/config.py](/run/media/cuong/DATA/02_Project/166_HonghaHRM/HRMS/backend/app/core/config.py:104)
+- production config reject default MinIO credentials:
+  - [backend/app/core/config.py](/run/media/cuong/DATA/02_Project/166_HonghaHRM/HRMS/backend/app/core/config.py:111)
+- `docker-compose.prod.yml` không có service MinIO và không truyền `MINIO_*` vào backend / worker / beat:
+  - [docker-compose.prod.yml](/run/media/cuong/DATA/02_Project/166_HonghaHRM/HRMS/docker-compose.prod.yml:34)
+
+### Hệ quả
+
+Production có thể fail startup hoặc fail readiness nếu không có object storage hợp lệ. Các tính năng upload/view/download file phụ thuộc trực tiếp vào storage này.
+
+### Exit criteria để gỡ blocker D
+
+1. Chốt mô hình storage production:
+   - MinIO container trong compose; hoặc
+   - MinIO/S3 external managed.
+2. `docker-compose.prod.yml` truyền đủ `MINIO_ENDPOINT`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `MINIO_BUCKET`, `MINIO_SECURE`.
+3. Runtime check pass:
+   - backend startup không lỗi `ensure_bucket`
+   - `/health/ready` báo MinIO `ok`
+   - upload và preview/download file PDF hoặc ảnh hoạt động qua UI.
+
+---
+
+### 2.6. Blocker E — refresh cookie chưa bật `Secure` trong production
+
+**Mức độ:** High.
+
+Đã xác nhận trong source:
+
+- default `REFRESH_TOKEN_COOKIE_SECURE = False`:
+  - [backend/app/core/config.py](/run/media/cuong/DATA/02_Project/166_HonghaHRM/HRMS/backend/app/core/config.py:95)
+- login/refresh set cookie theo setting này:
+  - [backend/app/api/v1/endpoints/auth.py](/run/media/cuong/DATA/02_Project/166_HonghaHRM/HRMS/backend/app/api/v1/endpoints/auth.py:135)
+  - [backend/app/api/v1/endpoints/auth.py](/run/media/cuong/DATA/02_Project/166_HonghaHRM/HRMS/backend/app/api/v1/endpoints/auth.py:190)
+- `docker-compose.prod.yml` hiện chưa override setting này:
+  - [docker-compose.prod.yml](/run/media/cuong/DATA/02_Project/166_HonghaHRM/HRMS/docker-compose.prod.yml:46)
+
+### Hệ quả
+
+Refresh token cookie có thể không được browser giới hạn HTTPS-only nếu production không set `Secure`.
+
+### Exit criteria để gỡ blocker E
+
+1. Production compose set `REFRESH_TOKEN_COOKIE_SECURE=true`.
+2. Runtime browser check xác nhận cookie `refresh_token` có `HttpOnly`, `Secure`, `SameSite=Strict`, path `/api/v1/auth`.
+
+---
+
+### 2.7. Blocker F — refresh session chưa revoke được server-side
+
+**Mức độ:** High.
+
+Đã xác nhận trong source:
+
+- refresh token là JWT tự chứa, có `jti` nhưng không được lưu session server-side:
+  - [backend/app/core/security.py](/run/media/cuong/DATA/02_Project/166_HonghaHRM/HRMS/backend/app/core/security.py:28)
+  - [backend/app/core/security.py](/run/media/cuong/DATA/02_Project/166_HonghaHRM/HRMS/backend/app/core/security.py:36)
+- `logout` blacklist access token hiện tại:
+  - [backend/app/api/v1/endpoints/auth.py](/run/media/cuong/DATA/02_Project/166_HonghaHRM/HRMS/backend/app/api/v1/endpoints/auth.py:225)
+- access-token blacklist có được kiểm khi gọi API:
+  - [backend/app/api/v1/deps.py](/run/media/cuong/DATA/02_Project/166_HonghaHRM/HRMS/backend/app/api/v1/deps.py:34)
+- `change-password` đổi mật khẩu nhưng không invalidate refresh sessions đang tồn tại:
+  - [backend/app/api/v1/endpoints/auth.py](/run/media/cuong/DATA/02_Project/166_HonghaHRM/HRMS/backend/app/api/v1/endpoints/auth.py:294)
+
+### Hệ quả
+
+Nếu refresh token bị lộ, token vẫn có thể dùng đến khi hết hạn tự nhiên, kể cả sau logout hoặc đổi mật khẩu, trừ khi bổ sung cơ chế revoke refresh token/session version.
+
+### Exit criteria để gỡ blocker F
+
+1. Có bảng/session store hoặc version field để revoke refresh tokens.
+2. Logout revoke refresh token hiện tại.
+3. Đổi mật khẩu revoke toàn bộ refresh sessions cũ của user.
+4. Test regression:
+   - refresh sau logout bị từ chối
+   - refresh sau đổi mật khẩu bị từ chối
+
+---
+
+### 2.8. Blocker G — CI/CD build image nhưng production compose không dùng image đó
+
+**Mức độ:** High.
+
+Đã xác nhận trong source:
+
+- CI build và push backend/frontend image lên registry:
+  - [.github/workflows/ci.yml](/run/media/cuong/DATA/02_Project/166_HonghaHRM/HRMS/.github/workflows/ci.yml:123)
+  - [.github/workflows/ci.yml](/run/media/cuong/DATA/02_Project/166_HonghaHRM/HRMS/.github/workflows/ci.yml:134)
+- deploy step chạy `docker compose pull backend frontend` rồi restart backend/frontend:
+  - [.github/workflows/ci.yml](/run/media/cuong/DATA/02_Project/166_HonghaHRM/HRMS/.github/workflows/ci.yml:162)
+- production compose lại dùng `build:` cho backend/frontend/worker/beat, không dùng `image:` tag từ registry:
+  - [docker-compose.prod.yml](/run/media/cuong/DATA/02_Project/166_HonghaHRM/HRMS/docker-compose.prod.yml:35)
+  - [docker-compose.prod.yml](/run/media/cuong/DATA/02_Project/166_HonghaHRM/HRMS/docker-compose.prod.yml:65)
+  - [docker-compose.prod.yml](/run/media/cuong/DATA/02_Project/166_HonghaHRM/HRMS/docker-compose.prod.yml:82)
+  - [docker-compose.prod.yml](/run/media/cuong/DATA/02_Project/166_HonghaHRM/HRMS/docker-compose.prod.yml:98)
+
+### Hệ quả
+
+Không có bằng chứng deploy đang chạy đúng artifact vừa build/push. Worker/beat cũng có thể không được restart cùng backend khi có thay đổi code.
+
+### Exit criteria để gỡ blocker G
+
+1. Chốt strategy deploy:
+   - compose production dùng `image:` từ registry; hoặc
+   - server deploy bằng `git pull` + `docker compose build` có kiểm soát.
+2. Backend, celery worker, celery beat dùng cùng image/version.
+3. Deploy step restart đủ service cần restart:
+   - `backend`
+   - `celery_worker`
+   - `celery_beat`
+   - `frontend`
+4. Smoke test sau deploy xác nhận version/build đang chạy đúng.
+
+---
+
+### 2.9. Blocker H — backup/restore chưa được xác nhận là schedule production thật
+
+**Mức độ:** Medium.
+
+Đã xác nhận trong repo:
+
+- có script backup DB:
+  - [scripts/backup_db.sh](/run/media/cuong/DATA/02_Project/166_HonghaHRM/HRMS/scripts/backup_db.sh:1)
+- có hướng dẫn crontab:
+  - [scripts/restore_procedure.md](/run/media/cuong/DATA/02_Project/166_HonghaHRM/HRMS/scripts/restore_procedure.md:162)
+- docs hiện ghi rõ chưa xác nhận cron/scheduler production chạy định kỳ thực tế:
+  - [docs/production_improvements.md](/run/media/cuong/DATA/02_Project/166_HonghaHRM/HRMS/docs/production_improvements.md:957)
+- `docker-compose.prod.yml` hiện không có backup service/scheduler riêng:
+  - [docker-compose.prod.yml](/run/media/cuong/DATA/02_Project/166_HonghaHRM/HRMS/docker-compose.prod.yml:1)
+
+### Hệ quả
+
+Nếu host production chưa tự cấu hình cron/systemd timer/container backup riêng thì chưa có backup tự động, dù script đã tồn tại.
+
+### Exit criteria để gỡ blocker H
+
+1. Có cơ chế schedule production thật cho DB backup và object storage backup.
+2. Backup job gửi notification success/failure.
+3. Restore drill staging pass theo checklist:
+   - [scripts/restore_procedure.md](/run/media/cuong/DATA/02_Project/166_HonghaHRM/HRMS/scripts/restore_procedure.md:216)
+4. Ghi lại thời gian restore thực tế để đối chiếu RTO.
 
 ---
 
@@ -569,31 +766,50 @@ Vì vậy runbook production phải bám `docker-compose.prod.yml`, không bám 
 
 ### 8.1. Bắt buộc trước go-live
 
-1. `make migrate`
-2. `make seed-required`
-3. `make seed-bootstrap`
-4. `make seed-bootstrap-admin`
-5. đăng nhập được bằng admin bootstrap
-6. rà lại `Cấu hình BHXH dùng chung`
-7. rà lại phòng ban / chức danh / vị trí / loại hợp đồng / leave types / bệnh viện KCB
-8. import nhân viên
-9. kiểm tra employee code / sequence thực tế
-10. import phần dữ liệu còn lại theo đúng giới hạn ở mục 5
-11. chạy thử các task Celery thủ công
-12. bật `celery_worker` + `celery_beat` production
+1. gỡ hoặc có quyết định chấp nhận rủi ro cho toàn bộ blocker ở mục 2
+2. cấu hình domain production trong `CORS_ORIGINS`
+3. cấu hình object storage production và verify `/health/ready`
+4. bật `REFRESH_TOKEN_COOKIE_SECURE=true`
+5. chốt deploy strategy để production chạy đúng artifact đã build
+6. cấu hình backup scheduler production thật
+7. `make migrate`
+8. `make seed-required`
+9. `make seed-bootstrap`
+10. `make seed-bootstrap-admin`
+11. đăng nhập được bằng admin bootstrap
+12. rà lại `Cấu hình BHXH dùng chung`
+13. rà lại phòng ban / chức danh / vị trí / loại hợp đồng / leave types / bệnh viện KCB
+14. import nhân viên
+15. kiểm tra employee code / sequence thực tế
+16. import phần dữ liệu còn lại theo đúng giới hạn ở mục 5
+17. chạy thử các task Celery thủ công
+18. bật `celery_worker` + `celery_beat` production
 
 ### 8.2. Không được bỏ qua
 
 1. không bỏ qua bước `migrate`
-2. không giả định importer BHXH hiện tại đã support đầy đủ mode `computed_by_position_group`
-3. vì công ty đang dùng 3 hệ mã, không import `HĐ / Nghỉ phép / BHXH` nếu blocker A chưa được gỡ hoặc chưa có bằng chứng runtime rằng dataset thực tế không trùng `employee_seq`
-4. không giả định dữ liệu nghỉ phép đã đúng nếu chưa kiểm tra ngẫu nhiên `entitlement_id` và `used_days` sau import
+2. không deploy nếu `CORS_ORIGINS` vẫn chỉ là localhost
+3. không deploy nếu MinIO/object storage chưa có runtime check pass
+4. không deploy HTTPS production nếu refresh cookie chưa có `Secure`
+5. không giả định CI/CD đã deploy đúng image nếu compose vẫn dùng `build:`
+6. không giả định backup đang chạy nếu chưa thấy log/notification của schedule production
+7. không giả định importer BHXH hiện tại đã support đầy đủ mode `computed_by_position_group`
+8. vì công ty đang dùng 3 hệ mã, không import `HĐ / Nghỉ phép / BHXH` nếu blocker A chưa được gỡ hoặc chưa có bằng chứng runtime rằng dataset thực tế không trùng `employee_seq`
+9. không giả định dữ liệu nghỉ phép đã đúng nếu chưa kiểm tra ngẫu nhiên `entitlement_id` và `used_days` sau import
 
 ---
 
 ## 9. Việc nên làm tiếp trước khi coi runbook này là production-ready hoàn toàn
 
 ### Ưu tiên 1
+
+Fix các blocker production infrastructure/security:
+
+1. truyền `CORS_ORIGINS` production vào compose
+2. wiring MinIO/object storage production
+3. bật `REFRESH_TOKEN_COOKIE_SECURE=true`
+4. sửa CI/CD để production chạy đúng image/build artifact
+5. cấu hình backup scheduler production thật
 
 Fix importer HĐ / nghỉ phép / BHXH để tra nhân viên bằng:
 
@@ -605,6 +821,12 @@ Fix importer HĐ / nghỉ phép / BHXH để tra nhân viên bằng:
 thay vì chỉ dùng `employee_seq`.
 
 ### Ưu tiên 2
+
+Thiết kế refresh session revocation:
+
+1. revoke refresh token khi logout
+2. revoke toàn bộ refresh sessions cũ khi đổi mật khẩu
+3. thêm regression test cho refresh sau logout/đổi mật khẩu
 
 Làm importer / script import mới cho hợp đồng và BHXH để hỗ trợ đúng 2 mode:
 
