@@ -102,6 +102,16 @@ class Settings(BaseSettings):
     # secure=True in production (HTTPS only); False in dev (HTTP)
     REFRESH_TOKEN_COOKIE_SECURE: bool = False
 
+    @field_validator("REFRESH_TOKEN_COOKIE_SECURE")
+    @classmethod
+    def validate_refresh_cookie_secure(cls, v: bool, info) -> bool:
+        env = (info.data.get("ENVIRONMENT") or "development").lower()
+        if env == "production" and not v:
+            raise ValueError(
+                "REFRESH_TOKEN_COOKIE_SECURE phải = true trong production."
+            )
+        return v
+
     # Redis / Celery
     REDIS_URL:      str = "redis://localhost:6379/0"
     REDIS_PASSWORD: str = ""   # Nếu set → production mode có password

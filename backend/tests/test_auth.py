@@ -4,12 +4,13 @@ from itertools import count
 
 import pytest
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 from starlette.requests import Request
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.api.v1.endpoints import auth as auth_endpoint
-from app.core.config import settings
+from app.core.config import Settings, settings
 from app.core.security import create_refresh_token, hash_password
 
 BASE = "/api/v1/auth"
@@ -84,6 +85,15 @@ def test_login_success(client: TestClient):
     assert "refresh_token" not in body
     # Cookie được set bởi backend
     assert "refresh_token" in resp.cookies or "Set-Cookie" in str(resp.headers)
+
+
+def test_login_sets_secure_refresh_cookie_when_enabled(client: TestClient, monkeypatch):
+    monkeypatch.setattr(settings, "REFRESH_TOKEN_COOKIE_SECURE", True)
+    resp = _login(client)
+    assert resp.status_code == 200
+    set_cookie = resp.headers.get("set-cookie", "")
+    assert "refresh_token=" in set_cookie
+    assert "Secure" in set_cookie
 
 
 def test_login_wrong_password(client: TestClient):
@@ -161,6 +171,18 @@ def test_refresh_returns_new_tokens(client: TestClient):
     assert resp.headers.get("content-length") != "0"
     me = client.get(f"{BASE}/me", headers={"Authorization": f"Bearer {body['access_token']}"})
     assert me.status_code == 200
+
+
+def test_refresh_sets_secure_refresh_cookie_when_enabled(client: TestClient, monkeypatch):
+    monkeypatch.setattr(settings, "REFRESH_TOKEN_COOKIE_SECURE", True)
+    login_resp = _login(client)
+    refresh_token = login_resp.cookies.get(settings.REFRESH_TOKEN_COOKIE_NAME)
+    assert refresh_token
+    resp = _refresh(client, refresh_token)
+    assert resp.status_code == 200
+    set_cookie = resp.headers.get("set-cookie", "")
+    assert "refresh_token=" in set_cookie
+    assert "Secure" in set_cookie
 
 
 def test_refresh_rate_limit_key_uses_refresh_subject_over_proxy_ip():
@@ -255,3 +277,17 @@ def test_change_password_requires_auth(client: TestClient):
         json={"old_password": "x", "new_password": "y"},
     )
     assert resp.status_code == 401
+
+
+def test_settings_rejects_insecure_refresh_cookie_in_production():
+    with pytest.raises(ValidationError):
+        Settings(
+            ENVIRONMENT="production",
+            SECRET_KEY="e" * 64,
+            ENCRYPTION_KEY="prod-encryption-key",
+            REFRESH_TOKEN_COOKIE_SECURE=False,
+            MINIO_ENDPOINT="s3.example.com",
+            MINIO_ACCESS_KEY="prod-access-key",
+            MINIO_SECRET_KEY="prod-secret-key",
+            CORS_ORIGINS=["https://hrms.example.com"],
+        )
