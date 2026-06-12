@@ -66,7 +66,9 @@
 
         <Column field="name" header="Tên phòng/ban" expander sortable style="min-width: 280px">
           <template #body="{ node }">
-            <span class="dept-name">{{ node.data.name }}</span>
+            <button type="button" class="dept-link" @click="openDetail(node.data.id)">
+              <span class="dept-name">{{ node.data.name }}</span>
+            </button>
             <span v-if="node.data.short_name" class="short-name"> ({{ node.data.short_name }})</span>
           </template>
         </Column>
@@ -301,6 +303,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
 import { useConfirm } from 'primevue/useconfirm'
 import Button from 'primevue/button'
@@ -348,6 +351,7 @@ interface FormState {
 
 const toast   = useToast()
 const confirm = useConfirm()
+const router = useRouter()
 
 const loading      = ref(false)
 const treeData     = ref<PvTreeNode[]>([])
@@ -464,6 +468,10 @@ function apiError(e: unknown): string {
   const detail = err.response?.data?.detail
   if (Array.isArray(detail)) return detail.map((d: { msg: string }) => d.msg).join('; ')
   return typeof detail === 'string' ? detail : 'Đã xảy ra lỗi, vui lòng thử lại'
+}
+
+function openDetail(id: number) {
+  router.push({ name: 'org-department-detail', params: { id } })
 }
 
 // ── Watchers ───────────────────────────────────────────────────────────────────
@@ -635,6 +643,18 @@ onMounted(loadData)
 
 <style scoped>
 .dept-name  { font-weight: 500; }
+.dept-link {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+}
+.dept-link:hover .dept-name,
+.dept-link:focus-visible .dept-name {
+  text-decoration: underline;
+}
 .short-name { color: var(--p-text-muted-color); font-size: 0.85em; }
 .dept-form  { display: flex; flex-direction: column; gap: 0.1rem; }
 .fieldset-block {

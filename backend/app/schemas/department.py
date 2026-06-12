@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from enum import Enum
 from typing import Optional
 
@@ -106,3 +106,43 @@ class DepartmentRead(BaseModel):
 class DepartmentTreeNode(DepartmentRead):
     """Node trong cây phân cấp — có danh sách con đệ quy."""
     children: list[DepartmentTreeNode] = []
+
+
+class DepartmentBrief(BaseModel):
+    id: int
+    code: str
+    name: str
+    parent_id: Optional[int]
+    dept_type: str
+    is_active: bool
+
+    @computed_field
+    @property
+    def dept_type_label(self) -> str:
+        return _DEPT_TYPE_LABELS.get(self.dept_type, self.dept_type)
+
+    model_config = {"from_attributes": True}
+
+
+class DepartmentDetailSummary(BaseModel):
+    direct_headcount: int
+    total_headcount: int
+    direct_child_count: int
+    job_position_count: int
+
+
+class DepartmentDirectEmployeeItem(BaseModel):
+    id: int
+    display_code: str
+    full_name: str
+    status: str
+    start_date: date
+    job_title_name: Optional[str] = None
+    job_position_name: Optional[str] = None
+
+
+class DepartmentDetailRead(BaseModel):
+    department: DepartmentRead
+    parent: Optional[DepartmentBrief] = None
+    summary: DepartmentDetailSummary
+    direct_employees: list[DepartmentDirectEmployeeItem]

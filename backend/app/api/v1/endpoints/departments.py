@@ -4,7 +4,13 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_session
-from app.schemas.department import DepartmentCreate, DepartmentRead, DepartmentTreeNode, DepartmentUpdate
+from app.schemas.department import (
+    DepartmentCreate,
+    DepartmentDetailRead,
+    DepartmentRead,
+    DepartmentTreeNode,
+    DepartmentUpdate,
+)
 from app.schemas.employee_code_rule import EmployeeCodeSequenceRuleRead, EmployeeCodeSequenceRuleUpsert
 from app.services import department_service, employee_code_rule_service
 
@@ -41,6 +47,14 @@ async def get_department(
     session: AsyncSession = Depends(get_session),
 ):
     return await department_service.get_by_id(session, dept_id)
+
+
+@router.get("/{dept_id}/detail", response_model=DepartmentDetailRead, summary="Chi tiết phòng/ban cho trang detail")
+async def get_department_detail(
+    dept_id: int,
+    session: AsyncSession = Depends(get_session),
+):
+    return await department_service.get_detail(session, dept_id)
 
 
 @router.put("/{dept_id}", response_model=DepartmentRead, summary="Cập nhật phòng/ban")

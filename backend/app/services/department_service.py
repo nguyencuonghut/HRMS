@@ -4,12 +4,25 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import HTTPException, status
-from sqlalchemy import func, select, text
+from sqlalchemy import and_, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.cache import cache_delete_pattern, cache_get, cache_set
+from app.models.employee import Employee
+from app.models.employee_job import EmployeeJobRecord
 from app.models.org import Department, OrgChangeLog
-from app.schemas.department import DepartmentCreate, DepartmentTreeNode, DepartmentUpdate
+from app.models.org import JobPosition, JobTitle
+from app.schemas.department import (
+    DepartmentBrief,
+    DepartmentCreate,
+    DepartmentDetailRead,
+    DepartmentDetailSummary,
+    DepartmentDirectEmployeeItem,
+    DepartmentRead,
+    DepartmentTreeNode,
+    DepartmentUpdate,
+)
+from app.services import employee_code_service
 
 _CACHE_TTL = 3600          # 1 giờ
 _CACHE_KEY  = "cache:departments:{suffix}"
@@ -66,6 +79,28 @@ async def _get_descendant_ids(session: AsyncSession, dept_id: int) -> set[int]:
     return {row[0] for row in result.fetchall()}
 
 
+async def _get_subtree_ids(session: AsyncSession, dept_id: int) -> set[int]:
+    result = await session.execute(
+        text(
+            """
+            WITH RECURSIVE subtree AS (
+                SELECT id
+                FROM departments
+                WHERE id = :dept_id AND deleted_at IS NULL
+                UNION ALL
+                SELECT d.id
+                FROM departments d
+                JOIN subtree s ON d.parent_id = s.id
+                WHERE d.deleted_at IS NULL
+            )
+            SELECT id FROM subtree
+            """
+        ),
+        {"dept_id": dept_id},
+    )
+    return {row[0] for row in result.fetchall()}
+
+
 async def _invalidate_cache() -> None:
     await cache_delete_pattern("cache:departments:*")
 
@@ -80,6 +115,139 @@ async def get_by_id(session: AsyncSession, dept_id: int) -> Department:
     if not dept:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Không tìm thấy phòng/ban")
     return dept
+
+
+async def get_detail(session: AsyncSession, dept_id: int) -> DepartmentDetailRead:
+    dept = await get_by_id(session, dept_id)
+
+    parent = None
+    if dept.parent_id is not None:
+        parent_row = await session.execute(
+            select(Department).where(
+                Department.id == dept.parent_id,
+                Department.deleted_at.is_(None),
+            )
+        )
+        parent_dept = parent_row.scalar_one_or_none()
+        if parent_dept is not None:
+            parent = DepartmentBrief.model_validate(parent_dept)
+
+    subtree_ids = await _get_subtree_ids(session, dept_id)
+
+    direct_child_count = (
+        await session.execute(
+            select(func.count())
+            .select_from(Department)
+            .where(
+                Department.parent_id == dept_id,
+                Department.deleted_at.is_(None),
+            )
+        )
+    ).scalar_one()
+
+    job_position_count = (
+        await session.execute(
+            select(func.count())
+            .select_from(JobPosition)
+            .where(
+                JobPosition.department_id == dept_id,
+                JobPosition.deleted_at.is_(None),
+            )
+        )
+    ).scalar_one()
+
+    direct_headcount = (
+        await session.execute(
+            select(func.count(Employee.id.distinct()))
+            .select_from(EmployeeJobRecord)
+            .join(
+                Employee,
+                and_(
+                    Employee.id == EmployeeJobRecord.employee_id,
+                    Employee.is_active == True,  # noqa: E712
+                    Employee.status != "resigned",
+                ),
+            )
+            .where(
+                EmployeeJobRecord.department_id == dept_id,
+                EmployeeJobRecord.is_current == True,  # noqa: E712
+            )
+        )
+    ).scalar_one()
+
+    total_headcount = 0
+    if subtree_ids:
+        total_headcount = (
+            await session.execute(
+                select(func.count(Employee.id.distinct()))
+                .select_from(EmployeeJobRecord)
+                .join(
+                    Employee,
+                    and_(
+                        Employee.id == EmployeeJobRecord.employee_id,
+                        Employee.is_active == True,  # noqa: E712
+                        Employee.status != "resigned",
+                    ),
+                )
+                .where(
+                    EmployeeJobRecord.department_id.in_(subtree_ids),
+                    EmployeeJobRecord.is_current == True,  # noqa: E712
+                )
+            )
+        ).scalar_one()
+
+    direct_rows = (
+        await session.execute(
+            select(
+                Employee,
+                JobTitle.name.label("job_title_name"),
+                JobPosition.name.label("job_position_name"),
+            )
+            .select_from(EmployeeJobRecord)
+            .join(
+                Employee,
+                and_(
+                    Employee.id == EmployeeJobRecord.employee_id,
+                    Employee.is_active == True,  # noqa: E712
+                    Employee.status != "resigned",
+                ),
+            )
+            .outerjoin(JobTitle, JobTitle.id == EmployeeJobRecord.job_title_id)
+            .outerjoin(JobPosition, JobPosition.id == EmployeeJobRecord.job_position_id)
+            .where(
+                EmployeeJobRecord.department_id == dept_id,
+                EmployeeJobRecord.is_current == True,  # noqa: E712
+            )
+            .order_by(Employee.employee_seq.asc(), Employee.id.asc())
+        )
+    ).all()
+
+    employees = [row[0] for row in direct_rows]
+    display_codes = await employee_code_service.batch_build_employee_display_codes(session, employees)
+    direct_employees = [
+        DepartmentDirectEmployeeItem(
+            id=employee.id,
+            display_code=display_codes.get(employee.id, str(employee.employee_seq)),
+            full_name=employee.full_name,
+            status=employee.status,
+            start_date=employee.start_date,
+            job_title_name=job_title_name,
+            job_position_name=job_position_name,
+        )
+        for employee, job_title_name, job_position_name in direct_rows
+    ]
+
+    return DepartmentDetailRead(
+        department=DepartmentRead.model_validate(dept),
+        parent=parent,
+        summary=DepartmentDetailSummary(
+            direct_headcount=int(direct_headcount or 0),
+            total_headcount=int(total_headcount or 0),
+            direct_child_count=int(direct_child_count or 0),
+            job_position_count=int(job_position_count or 0),
+        ),
+        direct_employees=direct_employees,
+    )
 
 
 async def get_list(

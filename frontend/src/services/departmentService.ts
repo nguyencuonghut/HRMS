@@ -25,6 +25,40 @@ export interface DepartmentTreeNode extends DepartmentRead {
   children: DepartmentTreeNode[]
 }
 
+export interface DepartmentBrief {
+  id: number
+  code: string
+  name: string
+  parent_id: number | null
+  dept_type: string
+  dept_type_label: string
+  is_active: boolean
+}
+
+export interface DepartmentDetailSummary {
+  direct_headcount: number
+  total_headcount: number
+  direct_child_count: number
+  job_position_count: number
+}
+
+export interface DepartmentDirectEmployeeItem {
+  id: number
+  display_code: string
+  full_name: string
+  status: string
+  start_date: string
+  job_title_name: string | null
+  job_position_name: string | null
+}
+
+export interface DepartmentDetailRead {
+  department: DepartmentRead
+  parent: DepartmentBrief | null
+  summary: DepartmentDetailSummary
+  direct_employees: DepartmentDirectEmployeeItem[]
+}
+
 export interface DepartmentCreate {
   code: string
   name: string
@@ -60,6 +94,9 @@ export default {
         ...response,
         data: toDepartmentSelectOptions(response.data) as DepartmentOption[],
       })),
+
+  getDetail: (id: number) =>
+    api.get<DepartmentDetailRead>(`/departments/${id}/detail`),
 
   create: (data: DepartmentCreate) =>
     api.post<DepartmentRead>('/departments', data),

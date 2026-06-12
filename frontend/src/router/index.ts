@@ -54,6 +54,12 @@ const router = createRouter({
           meta: { title: "Phòng / Ban" },
         },
         {
+          path: "org/departments/:id",
+          name: "org-department-detail",
+          component: () => import("@/views/org/DepartmentDetailView.vue"),
+          meta: { title: "Chi tiết phòng / Ban" },
+        },
+        {
           path: "org/positions",
           name: "org-positions",
           component: () => import("@/views/org/PositionListView.vue"),
