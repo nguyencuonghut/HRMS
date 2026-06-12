@@ -7,14 +7,6 @@
       </div>
       <div class="page-header-actions">
         <Button
-          v-if="canEdit"
-          label="Import Excel"
-          icon="pi pi-upload"
-          severity="secondary"
-          outlined
-          @click="showImport = true"
-        />
-        <Button
           label="Tải về Excel"
           icon="pi pi-download"
           severity="secondary"
@@ -25,8 +17,6 @@
         <Button label="Thêm mới" icon="pi pi-plus" @click="router.push('/employees/new')" />
       </div>
     </div>
-
-    <ImportDialog v-model="showImport" @imported="loadData" />
 
     <div class="toolbar">
       <Select
@@ -167,7 +157,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
 import { useConfirm } from 'primevue/useconfirm'
@@ -180,17 +170,12 @@ import InputText from 'primevue/inputtext'
 import Select from 'primevue/select'
 import Tag from 'primevue/tag'
 
-import { useAuthStore } from '@/stores/auth'
 import employeeService, { type EmployeeListItem } from '@/services/employeeService'
-import ImportDialog from './ImportDialog.vue'
 
 const router  = useRouter()
 const toast   = useToast()
 const confirm = useConfirm()
-const auth    = useAuthStore()
 
-const canEdit  = computed(() => auth.hasPermission('employees:edit'))
-const showImport = ref(false)
 const exporting  = ref(false)
 
 // ── State ──────────────────────────────────────────────────────────────────────
@@ -373,4 +358,3 @@ async function doExport() {
 
 onMounted(loadData)
 </script>
-

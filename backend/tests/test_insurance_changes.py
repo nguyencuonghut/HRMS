@@ -17,12 +17,14 @@ from decimal import Decimal
 import openpyxl
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import text
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.core.config import settings
 from app.core.encryption import hash_sensitive
+from app.models.catalog import Nationality
 from app.models.employee import Employee
+from app.models.employee_code import EmployeeCodeSequence
 
 BASE = "/api/v1/insurance"
 _ADMIN_EMAIL = "admin@hrms.local"
@@ -49,6 +51,24 @@ def _admin(client: TestClient) -> dict:
     return {"Authorization": f"Bearer {token}"}
 
 
+async def _get_sys1_sequence_id() -> int:
+    async with _make_session()() as s:
+        sequence = (
+            await s.execute(
+                select(EmployeeCodeSequence).where(EmployeeCodeSequence.code == "SYS1")
+            )
+        ).scalar_one()
+        return sequence.id
+
+
+async def _get_vn_nationality_id() -> int:
+    async with _make_session()() as s:
+        nationality = (
+            await s.execute(select(Nationality).where(Nationality.code == "VN"))
+        ).scalar_one()
+        return nationality.id
+
+
 async def _ensure_employee_with_basis() -> dict:
     """Đảm bảo có 1 employee test với profile active + active contract + insurance_salary > 0."""
     async with _make_session()() as s:
@@ -71,11 +91,8 @@ async def _ensure_employee_with_basis() -> dict:
             max_seq = (
                 await s.execute(text("SELECT COALESCE(MAX(employee_seq), 0) FROM employees"))
             ).scalar_one()
-            nationality_id = (
-                await s.execute(
-                    text("SELECT id FROM nationalities WHERE iso2_code IS NOT NULL ORDER BY id LIMIT 1")
-                )
-            ).scalar_one()
+            nationality_id = await _get_vn_nationality_id()
+            sequence_id = await _get_sys1_sequence_id()
             ethnicity_id = (
                 await s.execute(
                     text("SELECT id FROM ethnicities WHERE bhxh_code IS NOT NULL ORDER BY id LIMIT 1")
@@ -83,7 +100,7 @@ async def _ensure_employee_with_basis() -> dict:
             ).scalar_one()
             employee_row = Employee(
                 employee_seq=max_seq + 1,
-                employee_code_sequence_id=1,
+                employee_code_sequence_id=sequence_id,
                 full_name=_TEST_EMPLOYEE_NAME,
                 normalized_name="test insurance change",
                 last_name="Test Insurance",

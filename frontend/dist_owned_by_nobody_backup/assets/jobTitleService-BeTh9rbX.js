@@ -1,0 +1,1 @@
+import{R as t}from"./index-C3KpH1wY.js";const o="/job-titles",s={getList:e=>t.get(o,{params:e!==void 0?{is_active:e}:void 0}),create:e=>t.post(o,e),update:(e,a)=>t.put(`${o}/${e}`,a),delete:e=>t.delete(`${o}/${e}`)};export{s as j};

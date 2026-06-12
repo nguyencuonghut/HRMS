@@ -6,6 +6,7 @@ from sqlalchemy import delete, select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.core.config import settings
+from app.models.catalog import Nationality
 from app.models.employee import Employee
 from app.models.employee_code import EmployeeCodeSequence
 from app.schemas.employee import EmployeeCreate
@@ -40,7 +41,21 @@ async def _get_sequence(code: str) -> EmployeeCodeSequence:
         ).scalar_one()
 
 
-def _payload(id_number: str, *, sequence_id: int | None = None, employee_seq: int | None = None) -> EmployeeCreate:
+async def _get_nationality_id(code: str = "VN") -> int:
+    async with _make_session()() as s:
+        nationality = (
+            await s.execute(select(Nationality).where(Nationality.code == code))
+        ).scalar_one()
+        return nationality.id
+
+
+def _payload(
+    id_number: str,
+    *,
+    nationality_id: int,
+    sequence_id: int | None = None,
+    employee_seq: int | None = None,
+) -> EmployeeCreate:
     return EmployeeCreate(
         employee_seq=employee_seq,
         employee_code_sequence_id=sequence_id,
@@ -49,7 +64,7 @@ def _payload(id_number: str, *, sequence_id: int | None = None, employee_seq: in
         first_name=id_number,
         date_of_birth="1990-01-01",
         gender="male",
-        nationality_id=1,
+        nationality_id=nationality_id,
         id_number=id_number,
         id_issued_on="2020-01-01",
         id_issued_by="Cuc Canh sat",
@@ -60,10 +75,11 @@ def _payload(id_number: str, *, sequence_id: int | None = None, employee_seq: in
 
 async def _create_employee_with_sequence(id_number: str, sequence_code: str) -> Employee:
     sequence = await _get_sequence(sequence_code)
+    nationality_id = await _get_nationality_id()
     async with _make_session()() as s:
         employee = await employee_service.create_employee(
             s,
-            _payload(id_number, sequence_id=sequence.id),
+            _payload(id_number, sequence_id=sequence.id, nationality_id=nationality_id),
         )
         await s.commit()
         await s.refresh(employee)
@@ -109,11 +125,17 @@ async def test_allocator_concurrent_different_sequences_increment_independently(
 async def test_explicit_employee_seq_is_unique_per_sequence_only():
     sys2 = await _get_sequence("SYS2")
     sys3 = await _get_sequence("SYS3")
+    nationality_id = await _get_nationality_id()
 
     async with _make_session()() as s:
         first = await employee_service.create_employee(
             s,
-            _payload("TESTSEQ4C001", sequence_id=sys2.id, employee_seq=9000),
+            _payload(
+                "TESTSEQ4C001",
+                sequence_id=sys2.id,
+                employee_seq=9000,
+                nationality_id=nationality_id,
+            ),
         )
         await s.commit()
         await s.refresh(first)
@@ -121,7 +143,12 @@ async def test_explicit_employee_seq_is_unique_per_sequence_only():
     async with _make_session()() as s:
         second = await employee_service.create_employee(
             s,
-            _payload("TESTSEQ4C002", sequence_id=sys3.id, employee_seq=9000),
+            _payload(
+                "TESTSEQ4C002",
+                sequence_id=sys3.id,
+                employee_seq=9000,
+                nationality_id=nationality_id,
+            ),
         )
         await s.commit()
         await s.refresh(second)
@@ -132,7 +159,12 @@ async def test_explicit_employee_seq_is_unique_per_sequence_only():
         with pytest.raises(HTTPException) as exc:
             await employee_service.create_employee(
                 s,
-                _payload("TESTSEQ4C003", sequence_id=sys2.id, employee_seq=9000),
+                _payload(
+                    "TESTSEQ4C003",
+                    sequence_id=sys2.id,
+                    employee_seq=9000,
+                    nationality_id=nationality_id,
+                ),
             )
         assert exc.value.status_code == 409
 

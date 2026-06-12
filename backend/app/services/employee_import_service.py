@@ -18,6 +18,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.encryption import hash_sensitive
+from app.models.catalog import Nationality
 from app.models.employee import Employee
 from app.models.employee_code import EmployeeCodeSequence
 from app.models.org import Department, JobPosition, JobTitle
@@ -46,12 +47,13 @@ def generate_template() -> bytes:
 
     header_fill = PatternFill("solid", fgColor="1F4E79")
     header_font = Font(color="FFFFFF", bold=True)
-    req_fill    = PatternFill("solid", fgColor="D6E4F0")
+    opt_fill = PatternFill("solid", fgColor="D6E4F0")
+    opt_font = Font(color="1F2937", bold=True)
 
     for col_idx, col_name in enumerate(IMPORT_COLUMNS, start=1):
         cell = ws.cell(row=1, column=col_idx, value=col_name)
-        cell.font      = header_font
-        cell.fill      = header_fill if col_name in REQUIRED_COLUMNS else req_fill
+        cell.font = header_font if col_name in REQUIRED_COLUMNS else opt_font
+        cell.fill = header_fill if col_name in REQUIRED_COLUMNS else opt_fill
         cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
 
     # Sample row
@@ -100,7 +102,7 @@ def generate_template() -> bytes:
         ["Ngày bắt đầu thử việc", "", "Định dạng dd/mm/yyyy", "01/01/2026"],
         ["Ngày kết thúc thử việc", "", "Định dạng dd/mm/yyyy", "31/03/2026"],
         [],
-        ["LƯU Ý:", "", "Cột header màu xanh đậm = bắt buộc. Dòng trống sẽ bị bỏ qua.", ""],
+        ["LƯU Ý:", "", "Cột header màu xanh đậm = bắt buộc; xanh nhạt = không bắt buộc. Dòng trống sẽ bị bỏ qua.", ""],
         ["", "", f"Tối đa {IMPORT_MAX_ROWS} dòng dữ liệu mỗi lần import.", ""],
     ]
     for row in guide_rows:
@@ -211,6 +213,25 @@ async def _find_job_position(
     return None
 
 
+async def _find_job_positions_any_department(
+    session: AsyncSession,
+    name_or_code: str,
+) -> list[JobPosition]:
+    if not name_or_code:
+        return []
+
+    raw = name_or_code.strip()
+    exact = (
+        await session.execute(select(JobPosition).where(JobPosition.code == raw))
+    ).scalars().all()
+    if exact:
+        return list(exact)
+
+    norm_val = _norm(raw)
+    rows = await session.execute(select(JobPosition))
+    return [position for position in rows.scalars().all() if _norm(position.name) == norm_val]
+
+
 async def _find_employee_code_sequence(
     session: AsyncSession,
     code_or_name: str,
@@ -237,6 +258,17 @@ async def _find_employee_code_sequence(
         if _norm(sequence.name) == norm_val:
             return sequence.id
     return None
+
+
+async def _get_default_nationality_id(session: AsyncSession) -> int:
+    nationality = (
+        await session.execute(
+            select(Nationality).where(Nationality.code == "VN")
+        )
+    ).scalar_one_or_none()
+    if not nationality:
+        raise ValueError("Không tìm thấy quốc tịch mặc định 'VN' trong danh mục quốc tịch.")
+    return nationality.id
 
 
 # ── Main import ───────────────────────────────────────────────────────────────
@@ -271,6 +303,7 @@ async def process_import(session: AsyncSession, file_bytes: bytes) -> ImportResu
     failed = 0
     errors: list[ImportRowError] = []
     created_ids: list[int] = []
+    default_nationality_id = await _get_default_nationality_id(session)
 
     for excel_row, row_vals in data_rows:
         total += 1
@@ -349,7 +382,41 @@ async def process_import(session: AsyncSession, file_bytes: bytes) -> ImportResu
             failed += 1
             continue
         if position_raw and not job_position:
-            errors.append(ImportRowError(row=excel_row, column="Vị trí công việc", message=f"Không tìm thấy vị trí công việc '{position_raw}' trong phòng ban đã chọn"))
+            candidate_positions = await _find_job_positions_any_department(session, position_raw)
+            if candidate_positions and dept_id:
+                selected_dept = await session.get(Department, dept_id)
+                if len(candidate_positions) == 1:
+                    actual_dept = await session.get(Department, candidate_positions[0].department_id)
+                    actual_label = (
+                        f"{actual_dept.code} - {actual_dept.name}"
+                        if actual_dept
+                        else f"ID {candidate_positions[0].department_id}"
+                    )
+                    selected_label = (
+                        f"{selected_dept.code} - {selected_dept.name}"
+                        if selected_dept
+                        else f"ID {dept_id}"
+                    )
+                    message = (
+                        f"Vị trí công việc '{position_raw}' có tồn tại nhưng thuộc phòng ban "
+                        f"'{actual_label}', không thuộc phòng ban đã chọn '{selected_label}'"
+                    )
+                else:
+                    department_labels: list[str] = []
+                    for candidate in candidate_positions[:3]:
+                        actual_dept = await session.get(Department, candidate.department_id)
+                        department_labels.append(
+                            f"{actual_dept.code} - {actual_dept.name}"
+                            if actual_dept
+                            else f"ID {candidate.department_id}"
+                        )
+                    message = (
+                        f"Vị trí công việc '{position_raw}' có tồn tại nhưng không thuộc phòng ban đã chọn. "
+                        f"Tìm thấy ở: {', '.join(department_labels)}"
+                    )
+            else:
+                message = f"Không tìm thấy vị trí công việc '{position_raw}' trong phòng ban đã chọn"
+            errors.append(ImportRowError(row=excel_row, column="Vị trí công việc", message=message))
             failed += 1
             continue
         if sequence_raw and not sequence_id:
@@ -365,7 +432,7 @@ async def process_import(session: AsyncSession, file_bytes: bytes) -> ImportResu
                 first_name=first_name,
                 date_of_birth=date_of_birth,
                 gender=gender,
-                nationality_id=1,  # mặc định Việt Nam
+                nationality_id=default_nationality_id,
                 id_number=id_number,
                 id_issued_on=id_issued_on,
                 id_issued_by=id_issued_by,

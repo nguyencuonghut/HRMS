@@ -1,6 +1,6 @@
 <template>
   <nav>
-    <template v-for="item in menu" :key="item.label">
+    <template v-for="item in filteredMenu" :key="item.label">
       <!-- Section header -->
       <div v-if="item.section" class="layout-menu-section-label">
         {{ item.label }}
@@ -58,7 +58,8 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
+import { useAuthStore } from "@/stores/auth";
 import reminderService from "@/services/reminderService";
 
 defineProps<{ collapsed: boolean }>();
@@ -68,8 +69,12 @@ interface MenuItem {
   label: string;
   icon?: string;
   section?: boolean;
+  permission?: string;
+  anyPermissions?: string[];
   items?: { to: string; label: string; icon?: string }[];
 }
+
+const auth = useAuthStore();
 
 const openGroups = ref<Set<string>>(
   new Set(["Cơ cấu tổ chức", "Nhân sự", "Tuyển dụng", "Báo cáo", "Danh mục"]),
@@ -91,6 +96,16 @@ function toggleGroup(label: string) {
   } else {
     openGroups.value.add(label);
   }
+}
+
+function canAccess(item: Pick<MenuItem, "permission" | "anyPermissions">): boolean {
+  if (item.permission && !auth.hasPermission(item.permission)) {
+    return false;
+  }
+  if (item.anyPermissions && !item.anyPermissions.some((permission) => auth.hasPermission(permission))) {
+    return false;
+  }
+  return true;
 }
 
 const menu: MenuItem[] = [
@@ -256,6 +271,13 @@ const menu: MenuItem[] = [
     to: "/data/import",
     label: "Nhập dữ liệu",
     icon: "pi-upload",
+    anyPermissions: [
+      "org:edit",
+      "employees:edit",
+      "leaves:edit",
+      "contracts:edit",
+      "insurance:edit",
+    ],
   },
   { section: true, label: "Hệ thống" },
   {
@@ -313,4 +335,26 @@ const menu: MenuItem[] = [
   { to: "/admin/roles", label: "Vai trò & Quyền", icon: "pi-shield" },
   { to: "/admin/audit-logs", label: "Nhật ký hệ thống", icon: "pi-list" },
 ];
+
+const filteredMenu = computed(() => {
+  const result: MenuItem[] = [];
+  let pendingSection: MenuItem | null = null;
+
+  for (const item of menu) {
+    if (item.section) {
+      pendingSection = item;
+      continue;
+    }
+    if (!canAccess(item)) {
+      continue;
+    }
+    if (pendingSection) {
+      result.push(pendingSection);
+      pendingSection = null;
+    }
+    result.push(item);
+  }
+
+  return result;
+});
 </script>

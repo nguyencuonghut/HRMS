@@ -1,0 +1,1 @@
+import{R as e}from"./index-C3KpH1wY.js";const o="/job-positions",p={getList:t=>e.get(o,{params:t}),getById:t=>e.get(`${o}/${t}`),create:t=>e.post(o,t),update:(t,s)=>e.put(`${o}/${t}`,s),delete:t=>e.delete(`${o}/${t}`)};export{p as j};

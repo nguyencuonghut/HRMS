@@ -1,0 +1,1 @@
+import{R as a}from"./index-C3KpH1wY.js";const t={birthday:"Sinh nhật",anniversary:"Thâm niên",probation_end:"Hết thử việc",contract_expiry:"HĐ sắp hết hạn"},e={birthday:"🎂",anniversary:"⭐",probation_end:"📋",contract_expiry:"📄"},o={getReminders:(r=30,n)=>a.get("/reminders",{params:{days:r,...n!=null&&n.length?{types:n.join(",")}:{}}})};export{e as E,t as a,o as r};

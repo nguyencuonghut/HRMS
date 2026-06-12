@@ -8,6 +8,7 @@ declare module "vue-router" {
     title?: string
     public?: boolean
     permission?: string   // permission code cần có — VD: 'users:view'
+    anyPermissions?: string[]
   }
 }
 
@@ -365,7 +366,16 @@ const router = createRouter({
           path: "data/import",
           name: "data-import",
           component: () => import("@/views/data/DataImportView.vue"),
-          meta: { title: "Nhập dữ liệu" },
+          meta: {
+            title: "Nhập dữ liệu",
+            anyPermissions: [
+              "org:edit",
+              "employees:edit",
+              "leaves:edit",
+              "contracts:edit",
+              "insurance:edit",
+            ],
+          },
         },
         // Danh mục
         {
@@ -490,6 +500,11 @@ router.beforeEach(async (to) => {
   // 3. Check permission nếu route yêu cầu
   const requiredPermission = to.meta.permission;
   if (requiredPermission && !auth.hasPermission(requiredPermission)) {
+    return { name: "forbidden" };
+  }
+
+  const anyPermissions = to.meta.anyPermissions;
+  if (anyPermissions && !anyPermissions.some((permission) => auth.hasPermission(permission))) {
     return { name: "forbidden" };
   }
 

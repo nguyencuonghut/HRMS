@@ -8,7 +8,7 @@
  *   const { sanitizeHtml } = useSanitize()
  *   <div v-html="sanitizeHtml(rawHtml)" />
  */
-import DOMPurify from 'dompurify'
+import DOMPurify from '../vendor/dompurify/purify.es.mjs'
 
 // Cấu hình tags/attrs được phép — đủ cho email template HTML
 const EMAIL_ALLOWED_TAGS = [

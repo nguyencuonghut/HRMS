@@ -11,6 +11,7 @@ from sqlalchemy import delete, select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.core.config import settings
+from app.models.catalog import Nationality
 from app.models.employee import Employee
 from app.models.employee_code import EmployeeCodeSequence
 from app.models.salary import BhxhPositionGroup
@@ -125,7 +126,15 @@ async def _get_sequence(code: str) -> EmployeeCodeSequence:
         ).scalar_one()
 
 
-def _employee_payload(id_number: str, *, sequence_id: int, employee_seq: int) -> EmployeeCreate:
+async def _get_nationality_id(code: str = "VN") -> int:
+    async with _make_session()() as s:
+        nationality = (
+            await s.execute(select(Nationality).where(Nationality.code == code))
+        ).scalar_one()
+        return nationality.id
+
+
+def _employee_payload(id_number: str, *, sequence_id: int, employee_seq: int, nationality_id: int) -> EmployeeCreate:
     return EmployeeCreate(
         employee_seq=employee_seq,
         employee_code_sequence_id=sequence_id,
@@ -134,7 +143,7 @@ def _employee_payload(id_number: str, *, sequence_id: int, employee_seq: int) ->
         first_name=id_number,
         date_of_birth="1990-01-01",
         gender="male",
-        nationality_id=1,
+        nationality_id=nationality_id,
         id_number=id_number,
         id_issued_on="2020-01-01",
         id_issued_by="Cuc Canh sat",
@@ -145,10 +154,16 @@ def _employee_payload(id_number: str, *, sequence_id: int, employee_seq: int) ->
 
 async def _create_employee_same_seq(id_number: str, sequence_code: str, employee_seq: int) -> int:
     sequence = await _get_sequence(sequence_code)
+    nationality_id = await _get_nationality_id()
     async with _make_session()() as s:
         employee = await employee_service.create_employee(
             s,
-            _employee_payload(id_number, sequence_id=sequence.id, employee_seq=employee_seq),
+            _employee_payload(
+                id_number,
+                sequence_id=sequence.id,
+                employee_seq=employee_seq,
+                nationality_id=nationality_id,
+            ),
         )
         await s.commit()
         await s.refresh(employee)

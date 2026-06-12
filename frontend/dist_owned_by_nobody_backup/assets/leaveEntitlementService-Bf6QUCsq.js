@@ -1,0 +1,1 @@
+import{R as t}from"./index-C3KpH1wY.js";const n={list:e=>t.get("/leave-entitlements",{params:e}),get:e=>t.get(`/leave-entitlements/${e}`),create:e=>t.post("/leave-entitlements",e),update:(e,l)=>t.put(`/leave-entitlements/${e}`,l),remove:e=>t.delete(`/leave-entitlements/${e}`),bulkAllocate:e=>t.post("/leave-entitlements/bulk-allocate",e)};export{n as l};

@@ -1,4 +1,5 @@
 import api from './api'
+import employeeService from './employeeService'
 
 export interface ImportRowError {
   row: number
@@ -55,6 +56,16 @@ export default {
 
   importJobPositions: (file: File) =>
     uploadXlsx(`${BASE}/job-positions`, file),
+
+  // ── Nhân viên ──────────────────────────────────────────────────────────────
+  downloadEmployeeTemplate: () =>
+    employeeService.downloadImportTemplate(),
+
+  importEmployees: (file: File) => {
+    const form = new FormData()
+    form.append('file', file)
+    return employeeService.importEmployees(form)
+  },
 
   // ── Hợp đồng ──────────────────────────────────────────────────────────────
   downloadContractTemplate: () =>

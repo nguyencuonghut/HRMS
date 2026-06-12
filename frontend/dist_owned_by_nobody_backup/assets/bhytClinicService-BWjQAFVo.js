@@ -1,0 +1,1 @@
+import{R as i}from"./index-C3KpH1wY.js";const s={list:t=>i.get("/bhyt-clinics",{params:t}),create:t=>i.post("/bhyt-clinics",t),update:(t,e)=>i.put(`/bhyt-clinics/${t}`,e),delete:t=>i.delete(`/bhyt-clinics/${t}`)};export{s as b};

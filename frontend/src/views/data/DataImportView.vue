@@ -9,18 +9,18 @@
 
     <Tabs v-model:value="activeTab">
       <TabList>
-        <Tab value="departments">Phòng ban</Tab>
-        <Tab value="job-titles">Chức danh</Tab>
-        <Tab value="job-positions">Vị trí công việc</Tab>
-        <Tab value="employees">Nhân viên</Tab>
-        <Tab value="leave-records">Nghỉ phép</Tab>
-        <Tab value="contracts">Hợp đồng</Tab>
-        <Tab value="insurance">Bảo hiểm</Tab>
+        <Tab
+          v-for="tab in visibleTabs"
+          :key="tab.value"
+          :value="tab.value"
+        >
+          {{ tab.label }}
+        </Tab>
       </TabList>
 
       <TabPanels>
         <!-- ── Phòng ban ────────────────────────────────────────────────── -->
-        <TabPanel value="departments">
+        <TabPanel v-if="canImportOrg" value="departments">
           <ImportPanel
             title="Import phòng ban"
             description="Nhập hoặc cập nhật cây phòng ban trước khi import nhân viên và vị trí công việc."
@@ -30,7 +30,7 @@
         </TabPanel>
 
         <!-- ── Chức danh ───────────────────────────────────────────────── -->
-        <TabPanel value="job-titles">
+        <TabPanel v-if="canImportOrg" value="job-titles">
           <ImportPanel
             title="Import chức danh"
             description="Nhập hoặc cập nhật danh mục chức danh dùng cho vị trí công việc và cơ cấu tổ chức."
@@ -40,7 +40,7 @@
         </TabPanel>
 
         <!-- ── Vị trí công việc ────────────────────────────────────────── -->
-        <TabPanel value="job-positions">
+        <TabPanel v-if="canImportOrg" value="job-positions">
           <ImportPanel
             title="Import vị trí công việc"
             description="Nhập hoặc cập nhật vị trí công việc sau khi đã có phòng ban và chức danh."
@@ -49,19 +49,17 @@
           />
         </TabPanel>
 
-        <!-- ── Nhân viên (link ra) ─────────────────────────────────────── -->
-        <TabPanel value="employees">
-          <div class="import-redirect-panel">
-            <i class="pi pi-users import-redirect-icon" />
-            <p>Import nhân viên được thực hiện tại trang Danh sách nhân viên.</p>
-            <RouterLink to="/employees">
-              <Button label="Đến trang Nhân viên" icon="pi pi-arrow-right" icon-pos="right" />
-            </RouterLink>
-          </div>
+        <TabPanel v-if="canImportEmployees" value="employees">
+          <ImportPanel
+            title="Import nhân viên"
+            description="Nhập hồ sơ nhân viên hàng loạt từ file Excel. Có thể gán phòng ban, chức danh, vị trí công việc và hệ mã nhân viên ngay trong file."
+            :download-template="svc.downloadEmployeeTemplate"
+            :upload-fn="svc.importEmployees"
+          />
         </TabPanel>
 
         <!-- ── Nghỉ phép ───────────────────────────────────────────────── -->
-        <TabPanel value="leave-records">
+        <TabPanel v-if="canImportLeaves" value="leave-records">
           <ImportPanel
             title="Import nghỉ phép"
             description="Tạo hàng loạt bản ghi nghỉ phép. Số ngày được tính tự động từ ngày bắt đầu đến ngày kết thúc."
@@ -71,7 +69,7 @@
         </TabPanel>
 
         <!-- ── Hợp đồng ─────────────────────────────────────────────────── -->
-        <TabPanel value="contracts">
+        <TabPanel v-if="canImportContracts" value="contracts">
           <ImportPanel
             title="Import hợp đồng lao động"
             description="Tạo hàng loạt hợp đồng từ file Excel. Mỗi dòng = 1 hợp đồng."
@@ -81,7 +79,7 @@
         </TabPanel>
 
         <!-- ── Bảo hiểm ────────────────────────────────────────────────── -->
-        <TabPanel value="insurance">
+        <TabPanel v-if="canImportInsurance" value="insurance">
           <ImportPanel
             title="Import hồ sơ bảo hiểm"
             description="Tạo hoặc cập nhật hồ sơ BHXH/BHYT. Nếu nhân viên đã có hồ sơ → tự động cập nhật."
@@ -95,9 +93,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import { RouterLink } from 'vue-router'
-import Button from 'primevue/button'
+import { computed, ref, watchEffect } from 'vue'
 import Tab from 'primevue/tab'
 import TabList from 'primevue/tablist'
 import TabPanel from 'primevue/tabpanel'
@@ -105,25 +101,35 @@ import TabPanels from 'primevue/tabpanels'
 import Tabs from 'primevue/tabs'
 
 import dataImportService from '@/services/dataImportService'
+import { useAuthStore } from '@/stores/auth'
 import ImportPanel from './ImportPanel.vue'
 
 const activeTab = ref('departments')
 const svc = dataImportService
+const auth = useAuthStore()
+
+const canImportOrg = computed(() => auth.hasPermission('org:edit'))
+const canImportEmployees = computed(() => auth.hasPermission('employees:edit'))
+const canImportLeaves = computed(() => auth.hasPermission('leaves:edit'))
+const canImportContracts = computed(() => auth.hasPermission('contracts:edit'))
+const canImportInsurance = computed(() => auth.hasPermission('insurance:edit'))
+
+const visibleTabs = computed(() => [
+  canImportOrg.value ? { value: 'departments', label: 'Phòng ban' } : null,
+  canImportOrg.value ? { value: 'job-titles', label: 'Chức danh' } : null,
+  canImportOrg.value ? { value: 'job-positions', label: 'Vị trí công việc' } : null,
+  canImportEmployees.value ? { value: 'employees', label: 'Nhân viên' } : null,
+  canImportLeaves.value ? { value: 'leave-records', label: 'Nghỉ phép' } : null,
+  canImportContracts.value ? { value: 'contracts', label: 'Hợp đồng' } : null,
+  canImportInsurance.value ? { value: 'insurance', label: 'Bảo hiểm' } : null,
+].filter((tab): tab is { value: string; label: string } => tab !== null))
+
+watchEffect(() => {
+  if (!visibleTabs.value.some((tab) => tab.value === activeTab.value)) {
+    activeTab.value = visibleTabs.value[0]?.value ?? ''
+  }
+})
 </script>
 
 <style>
-.import-redirect-panel {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1rem;
-  padding: 3rem 1rem;
-  text-align: center;
-  color: var(--l-text-muted);
-}
-
-.import-redirect-icon {
-  font-size: 3rem;
-  color: var(--l-text-muted);
-}
 </style>
