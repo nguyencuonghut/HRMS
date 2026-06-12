@@ -148,6 +148,36 @@ Trang chi tiết nên có 3 khối:
    - bảng đối soát
    - hiển thị các nhân viên hiện đang thuộc đúng đơn vị đó
 
+### 3.4. Vị trí giao diện gán người đứng đầu
+
+Giao diện `gán người đứng đầu` đặt ở **trang chi tiết Phòng ban**, không đặt ở màn danh sách phòng ban.
+
+Vị trí cụ thể:
+
+1. trong khối `Summary cards`
+2. ngay card `Người đứng đầu hiện tại`
+3. đồng thời có thể lặp lại action nhỏ ở node gốc của org chart nếu cần
+
+Hành vi mong muốn:
+
+1. nếu đơn vị chưa có head:
+   - hiện trạng thái `Chưa gán`
+   - hiện nút `Gán người đứng đầu`
+2. nếu đơn vị đã có head:
+   - hiện họ tên, vị trí, ảnh
+   - hiện nút `Thay đổi`
+   - hiện nút `Gỡ`
+
+Không khuyến nghị đặt action này ngay trên `DepartmentListView`, vì:
+
+1. list view là màn quản lý cây và CRUD cơ bản
+2. gán head là nghiệp vụ chi tiết
+3. user cần nhìn bối cảnh của đúng đơn vị, gồm:
+   - đơn vị cha
+   - đơn vị con
+   - headcount
+   - org chart
+
 ### 3.3. Phạm vi node trên org chart
 
 Không nên nhét toàn bộ nhân viên của mỗi phòng vào org chart.
@@ -425,6 +455,121 @@ Nếu chưa có head:
 3. action `Gán người đứng đầu`
    - mở dialog chọn employee
 
+## 8.5. Thiết kế dialog `Gán người đứng đầu`
+
+Dialog này mở từ card `Người đứng đầu hiện tại` ở trang chi tiết phòng ban.
+
+### Mục tiêu
+
+Cho phép user:
+
+1. gán mới head cho đơn vị
+2. thay đổi head hiện tại
+3. gỡ head hiện tại
+
+### Trường trên dialog
+
+1. `Nhân sự`
+   - select / autocomplete chọn employee
+   - hiển thị:
+     - mã nhân viên
+     - họ tên
+     - phòng ban hiện tại
+     - vị trí hiện tại
+
+2. `Vai trò hiển thị`
+   - text hoặc select
+   - ví dụ:
+     - Trưởng phòng
+     - Trưởng bộ phận
+     - Tổ trưởng
+     - Phụ trách
+
+3. `Ngày hiệu lực`
+   - date picker
+
+4. `Ghi chú`
+   - optional
+
+### Footer actions
+
+1. `Hủy`
+2. `Lưu`
+3. nếu đang có head hiện tại:
+   - `Gỡ người đứng đầu`
+
+### Thông tin chỉ đọc nên hiển thị trong dialog
+
+1. đơn vị đang thao tác
+2. head hiện tại, nếu có
+3. cảnh báo nếu employee được chọn đang đồng thời đứng đầu đơn vị khác
+
+---
+
+## 8.6. Rule chọn employee trong dialog
+
+### Rule nghiệp vụ tối thiểu
+
+1. employee phải đang active trong hệ thống
+2. employee không ở trạng thái `resigned`
+3. employee nên có bản ghi công việc current để hiển thị được phòng ban/vị trí hiện tại
+
+### Rule chọn theo phạm vi đơn vị
+
+Có 2 phương án:
+
+#### Phương án A — chỉ cho chọn employee đang thuộc chính đơn vị đó
+
+Ưu điểm:
+
+1. dữ liệu sạch hơn
+2. dễ hiểu hơn với HR
+3. giảm case head chéo đơn vị
+
+Nhược điểm:
+
+1. không phù hợp hoàn toàn với requirement thực tế “1 employee có thể quản lý nhiều đơn vị”
+
+#### Phương án B — cho chọn mọi employee active, nhưng cảnh báo nếu không thuộc đơn vị hiện tại
+
+Ưu điểm:
+
+1. support đúng case quản lý chéo nhiều đơn vị
+2. không ép HR phải tạo workaround dữ liệu
+
+Nhược điểm:
+
+1. cần UI cảnh báo rõ hơn
+2. cần xử lý cách hiển thị `job_position_name` trên node
+
+### Khuyến nghị
+
+Khuyến nghị dùng **Phương án B**:
+
+1. cho chọn mọi employee active
+2. nếu employee không thuộc đơn vị đang xem thì hiện warning rõ:
+   - `Nhân sự này hiện không thuộc đơn vị X, nhưng có thể được gán là người đứng đầu theo mô hình quản lý chéo`
+3. nếu employee đang là head của đơn vị khác thì hiện info:
+   - `Nhân sự này hiện đang phụ trách N đơn vị khác`
+
+### Rule validate backend
+
+Backend phải validate:
+
+1. employee tồn tại
+2. employee active
+3. employee không resigned
+4. mỗi department chỉ có tối đa 1 head current
+5. một employee được phép head nhiều department
+
+### Hiển thị vị trí trên node khi quản lý chéo
+
+Nếu employee là head của đơn vị khác với đơn vị công tác chính, node nên hiển thị theo ưu tiên:
+
+1. `department_heads.head_role_label`, nếu có
+2. `job_position_name` từ job record current, nếu có
+3. fallback `Người phụ trách`
+
 ---
 
 ## 9. Kế hoạch triển khai theo slice
@@ -443,6 +588,33 @@ Chưa bao gồm:
 - org chart
 - CRUD người đứng đầu
 
+Đầu ra cần có:
+
+1. user từ danh sách phòng ban vào được trang chi tiết
+2. backend trả được:
+   - thông tin đơn vị
+   - headcount trực tiếp
+   - headcount toàn subtree
+   - danh sách nhân sự trực tiếp
+3. frontend render được empty state khi đơn vị chưa có nhân sự
+
+Tiêu chí done:
+
+1. số headcount trực tiếp khớp với `employee_job_records.is_current = TRUE`
+2. số headcount toàn subtree khớp logic cây phòng ban hiện tại
+3. trang detail usable mà chưa cần org chart
+
+Dependency / rủi ro:
+
+1. cần chốt contract response cho `GET /departments/{id}/detail`
+2. cần quyết định có reuse trực tiếp `hr_report_service` hay tách service detail riêng
+
+Khuyến nghị:
+
+1. làm slice này đầu tiên
+2. không đụng schema mới
+3. không chờ phần head assignment
+
 ## Slice 2 — Mô hình người đứng đầu đơn vị
 
 Bao gồm:
@@ -452,6 +624,33 @@ Bao gồm:
 3. validation nghiệp vụ
 4. audit log
 
+Đầu ra cần có:
+
+1. bảng `department_heads`
+2. API:
+   - `GET /departments/{id}/head`
+   - `PUT /departments/{id}/head`
+   - `DELETE /departments/{id}/head`
+3. rule:
+   - một đơn vị chỉ có tối đa 1 head current
+   - một employee có thể head nhiều đơn vị
+
+Tiêu chí done:
+
+1. DB chặn được case 2 current heads trên cùng 1 đơn vị
+2. backend cho phép 1 employee phụ trách nhiều đơn vị khác nhau
+3. audit log ghi được thao tác gán, thay đổi, gỡ
+
+Dependency / rủi ro:
+
+1. cần chốt tên cột và trường nào là bắt buộc
+2. cần chốt có lưu `note` trong bảng hay chỉ log audit
+
+Khuyến nghị:
+
+1. đây là slice schema bắt buộc trước org chart thật
+2. phải có test seam DB/service cho constraint unique theo department
+
 ## Slice 3 — Org chart
 
 Bao gồm:
@@ -460,6 +659,32 @@ Bao gồm:
 2. frontend `OrganizationChart`
 3. node template có avatar, họ tên, vị trí
 
+Đầu ra cần có:
+
+1. node gốc là đơn vị đang xem
+2. children đúng theo subtree `departments.parent_id`
+3. mỗi node hiển thị:
+   - tên đơn vị
+   - loại đơn vị
+   - head hiện tại hoặc trạng thái chưa gán
+   - headcount trực tiếp / toàn cây
+
+Tiêu chí done:
+
+1. cây render đúng với nhiều cấp cha/con
+2. node không có head vẫn hiển thị ổn định
+3. click node con điều hướng được sang chi tiết đơn vị con
+
+Dependency / rủi ro:
+
+1. phụ thuộc slice 1 và slice 2
+2. cần tránh N+1 query khi resolve subtree + head + avatar
+
+Khuyến nghị:
+
+1. backend nên trả tree shape hoàn chỉnh cho UI
+2. frontend không tự ghép nhiều API để dựng chart
+
 ## Slice 4 — Vận hành
 
 Bao gồm:
@@ -467,6 +692,77 @@ Bao gồm:
 1. dialog gán head
 2. điều hướng giữa các node
 3. loading / empty state / error state
+
+Đầu ra cần có:
+
+1. dialog `Gán người đứng đầu`
+2. action `Thay đổi`
+3. action `Gỡ`
+4. warning rõ cho case quản lý chéo đơn vị
+
+Tiêu chí done:
+
+1. save xong UI refresh ngay card summary và org chart
+2. user nhìn rõ employee đang phụ trách đơn vị khác nếu có
+3. toast và error message đủ rõ cho HR vận hành
+
+Dependency / rủi ro:
+
+1. phụ thuộc slice 2
+2. nếu muốn refresh chart ngay sau save thì phụ thuộc luôn slice 3
+
+Khuyến nghị:
+
+1. phần dialog chỉ nên làm sau khi API head đã ổn định
+2. đây là slice bắt buộc phải verify ở browser-level
+
+## Slice 5 — Chuẩn hóa ảnh và polish
+
+Bao gồm:
+
+1. chốt nguồn ảnh chuẩn cho node
+2. placeholder khi không có ảnh
+3. tối ưu loading với cây lớn
+4. hoàn thiện quyền và audit UX
+
+Đầu ra cần có:
+
+1. employee có attachment `avatar` thì node hiển thị đúng ảnh
+2. employee không có ảnh vẫn có placeholder thống nhất
+3. chart không sinh nhiều request preview rời rạc từ frontend
+
+Tiêu chí done:
+
+1. chart load ổn định với subtree lớn
+2. không phụ thuộc thủ công vào `employees.avatar_path` nếu attachment đã là nguồn chuẩn
+3. không có hiện tượng nhấp nháy ảnh hoặc tải quá chậm từng node
+
+Dependency / rủi ro:
+
+1. cần chốt chiến lược giữa `employee_attachments.avatar` và `employees.avatar_path`
+2. có thể cần helper URL/avatar API riêng
+
+Khuyến nghị:
+
+1. để slice này cuối cùng
+2. ưu tiên tính đúng nghiệp vụ trước, polish ảnh và performance sau
+
+## Thứ tự triển khai khuyến nghị
+
+Thứ tự nên là:
+
+1. Slice 1
+2. Slice 2
+3. Slice 3
+4. Slice 4
+5. Slice 5
+
+Lý do:
+
+1. phải có page detail trước
+2. phải có mô hình `department_heads` trước org chart thật
+3. phải có org chart rồi mới hoàn thiện dialog refresh-state end-to-end
+4. ảnh và performance là lớp cuối, không nên chặn foundation
 
 ---
 
