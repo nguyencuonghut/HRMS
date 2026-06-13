@@ -502,3 +502,114 @@ test("department detail shows retry state when current head cannot be loaded ini
   await expect(headCard.getByRole("button", { name: "Nguyễn Văn Cường" })).toBeVisible();
   expect(headRequestCount).toBe(2);
 });
+
+test("org chart falls back to initials when avatar preview image fails", async ({
+  page,
+}) => {
+  await page.goto("/login");
+  await page.getByLabel("Email").fill(ADMIN_EMAIL);
+  await page.getByPlaceholder("Nhập mật khẩu").fill(ADMIN_PASSWORD);
+  await page.getByRole("button", { name: "Đăng nhập" }).click();
+  await page.waitForURL(/\/(dashboard|reports\/dashboard)/);
+
+  await page.route("**/api/v1/departments/903/detail", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        department: {
+          id: 903,
+          code: "AVT",
+          name: "Phòng avatar",
+          short_name: "AVT",
+          display_prefix: "AVT",
+          parent_id: null,
+          dept_type: "PHONG",
+          dept_type_label: "Phòng",
+          order_no: 1,
+          is_active: true,
+          created_at: "2026-01-01T00:00:00",
+          updated_at: null,
+        },
+        parent: null,
+        summary: {
+          direct_headcount: 1,
+          total_headcount: 1,
+          direct_child_count: 0,
+          job_position_count: 1,
+        },
+        org_chart: {
+          key: "dept-903",
+          type: "department",
+          department_id: 903,
+          department_code: "AVT",
+          department_name: "Phòng avatar",
+          dept_type: "PHONG",
+          dept_type_label: "Phòng",
+          direct_headcount: 1,
+          total_headcount: 1,
+          head: {
+            employee_id: 1401,
+            display_code: "AVT001",
+            full_name: "Lê Minh",
+            status: "official",
+            display_position_label: "Phụ trách",
+            current_department_name: "Phòng avatar",
+            current_job_position_name: "Phụ trách",
+            current_job_title_name: null,
+            is_cross_department_assignment: false,
+            avatar_preview_url: "/api/v1/employees/1401/attachments/9/preview?token=broken",
+            avatar_initials: "LM",
+          },
+          children: [],
+        },
+        direct_employees: [],
+      }),
+    });
+  });
+
+  await page.route("**/api/v1/departments/903/head", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        id: 601,
+        department_id: 903,
+        employee_id: 1401,
+        head_role_label: "Phụ trách",
+        display_position_label: "Phụ trách",
+        effective_from: "2026-01-01",
+        effective_to: null,
+        is_current: true,
+        employee: {
+          id: 1401,
+          display_code: "AVT001",
+          full_name: "Lê Minh",
+          status: "official",
+          current_department_id: 903,
+          current_department_name: "Phòng avatar",
+          current_job_position_id: 1,
+          current_job_position_name: "Phụ trách",
+          current_job_title_id: null,
+          current_job_title_name: null,
+          is_cross_department_assignment: false,
+        },
+      }),
+    });
+  });
+
+  await page.route("**/api/v1/employees/1401/attachments/9/preview?token=broken", async (route) => {
+    await route.fulfill({
+      status: 404,
+      contentType: "text/plain",
+      body: "not found",
+    });
+  });
+
+  await page.goto("/org/departments/903");
+
+  const orgChartCard = page.locator(".dept-org-card");
+  await expect(orgChartCard.getByRole("button", { name: "Phòng avatar" })).toBeVisible();
+  await expect(orgChartCard.getByText("LM")).toBeVisible();
+  await expect(orgChartCard.locator(".dept-org-avatar-image")).toHaveCount(0);
+});

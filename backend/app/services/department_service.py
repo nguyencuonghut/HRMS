@@ -192,16 +192,23 @@ async def _build_org_chart(
     ).all()
     direct_headcounts = {department_id: int(count or 0) for department_id, count in direct_headcount_rows}
 
-    avatar_latest = (
+    avatar_ranked = (
         select(
             EmployeeAttachment.employee_id.label("employee_id"),
-            func.max(EmployeeAttachment.uploaded_at).label("max_uploaded_at"),
+            EmployeeAttachment.id.label("attachment_id"),
+            func.row_number()
+            .over(
+                partition_by=EmployeeAttachment.employee_id,
+                order_by=(
+                    EmployeeAttachment.uploaded_at.desc(),
+                    EmployeeAttachment.id.desc(),
+                ),
+            )
+            .label("row_no"),
         )
         .where(EmployeeAttachment.document_type == "avatar")
-        .group_by(EmployeeAttachment.employee_id)
         .subquery()
     )
-    avatar_attachment = EmployeeAttachment.__table__.alias("avatar_attachment")
 
     head_rows = (
         await session.execute(
@@ -215,7 +222,7 @@ async def _build_org_chart(
                 Department.name.label("current_department_name"),
                 JobPosition.name.label("current_job_position_name"),
                 JobTitle.name.label("current_job_title_name"),
-                avatar_attachment.c.id.label("avatar_attachment_id"),
+                avatar_ranked.c.attachment_id.label("avatar_attachment_id"),
             )
             .select_from(DepartmentHead)
             .join(Employee, Employee.id == DepartmentHead.employee_id)
@@ -229,13 +236,11 @@ async def _build_org_chart(
             .outerjoin(Department, Department.id == EmployeeJobRecord.department_id)
             .outerjoin(JobPosition, JobPosition.id == EmployeeJobRecord.job_position_id)
             .outerjoin(JobTitle, JobTitle.id == EmployeeJobRecord.job_title_id)
-            .outerjoin(avatar_latest, avatar_latest.c.employee_id == Employee.id)
             .outerjoin(
-                avatar_attachment,
+                avatar_ranked,
                 and_(
-                    avatar_attachment.c.employee_id == Employee.id,
-                    avatar_attachment.c.document_type == "avatar",
-                    avatar_attachment.c.uploaded_at == avatar_latest.c.max_uploaded_at,
+                    avatar_ranked.c.employee_id == Employee.id,
+                    avatar_ranked.c.row_no == 1,
                 ),
             )
             .where(

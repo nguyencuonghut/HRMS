@@ -1,4 +1,5 @@
 import asyncio
+import io
 
 from fastapi.testclient import TestClient
 from sqlalchemy import delete, select, text
@@ -153,6 +154,17 @@ def _create_employee(client: TestClient, headers: dict, *, id_number: str, full_
     return resp.json()
 
 
+def _upload_avatar(client: TestClient, headers: dict, employee_id: int, *, filename: str, content: bytes) -> dict:
+    resp = client.post(
+        f"{EMP_BASE}/{employee_id}/attachments",
+        data={"document_type": "avatar"},
+        files={"file": (filename, io.BytesIO(content), "image/jpeg")},
+        headers=headers,
+    )
+    assert resp.status_code == 201, resp.text
+    return resp.json()
+
+
 def test_department_detail_returns_summary_and_direct_employees(client: TestClient):
     asyncio.run(_cleanup_detail_test_data())
     headers = _login(client)
@@ -272,5 +284,76 @@ def test_department_detail_returns_summary_and_direct_employees(client: TestClie
     assert child_node["direct_headcount"] == 1
     assert child_node["total_headcount"] == 1
     assert child_node["head"] is None
+
+    asyncio.run(_cleanup_detail_test_data())
+
+
+def test_department_detail_org_chart_uses_latest_avatar_attachment(client: TestClient):
+    asyncio.run(_cleanup_detail_test_data())
+    headers = _login(client)
+
+    root = client.post(
+        BASE,
+        json={
+            "code": "TESTDEPTROOT",
+            "name": "Test Department Root",
+            "dept_type": "PHONG",
+            "display_prefix": "tr",
+        },
+    )
+    assert root.status_code == 201, root.text
+    root_id = root.json()["id"]
+
+    root_employee = _create_employee(
+        client,
+        headers,
+        id_number="TESTDEPTDETAIL0003",
+        full_name="Test Detail Avatar",
+    )
+
+    root_job = client.post(
+        f"{EMP_BASE}/{root_employee['id']}/job-records",
+        json={
+            "department_id": root_id,
+            "effective_from": "2026-01-01",
+        },
+        headers=headers,
+    )
+    assert root_job.status_code == 201, root_job.text
+
+    root_head = client.put(
+        f"{BASE}/{root_id}/head",
+        json={
+            "employee_id": root_employee["id"],
+            "head_role_label": "Trưởng phòng",
+            "effective_from": "2026-01-01",
+        },
+        headers=headers,
+    )
+    assert root_head.status_code == 200, root_head.text
+
+    first_avatar = _upload_avatar(
+        client,
+        headers,
+        root_employee["id"],
+        filename="avatar-1.jpg",
+        content=b"avatar-1",
+    )
+    second_avatar = _upload_avatar(
+        client,
+        headers,
+        root_employee["id"],
+        filename="avatar-2.jpg",
+        content=b"avatar-2",
+    )
+    assert second_avatar["id"] > first_avatar["id"]
+
+    detail = client.get(f"{BASE}/{root_id}/detail")
+    assert detail.status_code == 200, detail.text
+    body = detail.json()
+
+    avatar_preview_url = body["org_chart"]["head"]["avatar_preview_url"]
+    assert avatar_preview_url is not None
+    assert f"/api/v1/employees/{root_employee['id']}/attachments/{second_avatar['id']}/preview?token=" in avatar_preview_url
 
     asyncio.run(_cleanup_detail_test_data())

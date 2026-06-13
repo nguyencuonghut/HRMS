@@ -248,10 +248,15 @@
             <div v-if="node.head" class="dept-org-head">
               <div class="dept-org-avatar">
                 <img
-                  v-if="node.head.avatar_preview_url"
+                  v-if="shouldShowOrgAvatar(node.head)"
                   :src="node.head.avatar_preview_url"
                   :alt="node.head.full_name"
                   class="dept-org-avatar-image"
+                  loading="lazy"
+                  decoding="async"
+                  width="48"
+                  height="48"
+                  @error="handleOrgAvatarError(node.head.employee_id)"
                 />
                 <template v-else>
                   {{ node.head.avatar_initials }}
@@ -516,6 +521,7 @@ const savingHead = ref(false)
 const deletingHead = ref(false)
 const detailError = ref<string | null>(null)
 const headError = ref<string | null>(null)
+const failedOrgAvatarEmployeeIds = ref<Set<number>>(new Set())
 
 const detail = ref<DepartmentDetailRead | null>(null)
 const head = ref<DepartmentHeadRead | null>(null)
@@ -633,6 +639,23 @@ function resetHeadDialog() {
   }
 }
 
+function resetOrgAvatarFailures() {
+  failedOrgAvatarEmployeeIds.value = new Set()
+}
+
+function shouldShowOrgAvatar(head: DepartmentDetailRead["org_chart"]["head"]): boolean {
+  return Boolean(
+    head?.avatar_preview_url &&
+    !failedOrgAvatarEmployeeIds.value.has(head.employee_id)
+  )
+}
+
+function handleOrgAvatarError(employeeId: number) {
+  const next = new Set(failedOrgAvatarEmployeeIds.value)
+  next.add(employeeId)
+  failedOrgAvatarEmployeeIds.value = next
+}
+
 function openHeadDialog() {
   headFormErrors.value = {}
   if (head.value) {
@@ -711,6 +734,7 @@ async function loadDetail() {
 
   loadingDetail.value = true
   detailError.value = null
+  resetOrgAvatarFailures()
   try {
     const response = await departmentService.getDetail(departmentId.value)
     detail.value = response.data

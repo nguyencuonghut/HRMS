@@ -1,0 +1,60 @@
+import {
+  script
+} from "./chunk-VKB4EPHO.js";
+import {
+  BaseStyle
+} from "./chunk-SPJMUJTG.js";
+import {
+  createElementBlock,
+  mergeProps,
+  openBlock,
+  renderSlot
+} from "./chunk-YCI2X4UR.js";
+
+// node_modules/primevue/inputicon/style/index.mjs
+var classes = {
+  root: "p-inputicon"
+};
+var InputIconStyle = BaseStyle.extend({
+  name: "inputicon",
+  classes
+});
+
+// node_modules/primevue/inputicon/index.mjs
+var script$1 = {
+  name: "BaseInputIcon",
+  "extends": script,
+  style: InputIconStyle,
+  props: {
+    "class": null
+  },
+  provide: function provide() {
+    return {
+      $pcInputIcon: this,
+      $parentInstance: this
+    };
+  }
+};
+var script2 = {
+  name: "InputIcon",
+  "extends": script$1,
+  inheritAttrs: false,
+  computed: {
+    containerClass: function containerClass() {
+      return [this.cx("root"), this["class"]];
+    }
+  }
+};
+function render(_ctx, _cache, $props, $setup, $data, $options) {
+  return openBlock(), createElementBlock("span", mergeProps({
+    "class": $options.containerClass
+  }, _ctx.ptmi("root"), {
+    "aria-hidden": "true"
+  }), [renderSlot(_ctx.$slots, "default")], 16);
+}
+script2.render = render;
+
+export {
+  script2 as script
+};
+//# sourceMappingURL=chunk-3HHSBYGC.js.map
