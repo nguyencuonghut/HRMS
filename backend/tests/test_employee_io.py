@@ -96,6 +96,7 @@ def _valid_row(suffix: str, dept_code: str = "", sequence_code: str = "SYS1") ->
         "probation", today.strftime("%d/%m/%Y"),
         "0901234567", f"testio{suffix}@email.com",
         "", "",
+        "", "", "",
         dept_code, "", "",
         sequence_code,
         "", "",

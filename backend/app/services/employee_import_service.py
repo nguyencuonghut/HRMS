@@ -18,7 +18,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.encryption import hash_sensitive
-from app.models.catalog import Nationality
+from app.models.catalog import Ethnicity, Nationality, Religion
 from app.models.employee import Employee
 from app.models.employee_code import EmployeeCodeSequence
 from app.models.org import Department, JobPosition, JobTitle
@@ -63,7 +63,7 @@ def generate_template() -> bytes:
         "01/01/2020", "Cục Cảnh sát ĐKQLCƯ",
         "probation", "01/01/2026",
         "0901234567", "vana@email.com",
-        "1234567890", "BHXH123456",
+        "1234567890", "BHXH123456", "Việt Nam", "Kinh", "Không",
         "HC", "Chuyên viên nhân sự", "", "",
         "01/01/2026", "31/03/2026",
     ]
@@ -71,7 +71,7 @@ def generate_template() -> bytes:
         ws.cell(row=2, column=col_idx, value=val)
 
     # Column widths
-    widths = [20, 12, 12, 14, 10, 16, 14, 24, 12, 14, 14, 22, 14, 14, 14, 22, 22, 18, 20, 20]
+    widths = [20, 12, 12, 14, 10, 16, 14, 24, 12, 14, 14, 22, 14, 14, 16, 16, 16, 14, 22, 22, 18, 20, 20]
     for i, w in enumerate(widths, start=1):
         ws.column_dimensions[ws.cell(row=1, column=i).column_letter].width = w
 
@@ -95,6 +95,9 @@ def generate_template() -> bytes:
         ["Email cá nhân", "", "Tùy chọn", "email@example.com"],
         ["Mã số thuế", "", "Mã số thuế thu nhập cá nhân", "1234567890"],
         ["Số BHXH", "", "Mã BHXH", "BHXH123456"],
+        ["Quốc tịch", "", "Tên, mã hoặc ISO quốc tịch để auto-map sang catalog", "Việt Nam / VN"],
+        ["Dân tộc", "", "Tên hoặc mã dân tộc để auto-map sang catalog", "Kinh / KINH"],
+        ["Tôn giáo", "", "Tên hoặc mã tôn giáo để auto-map sang catalog", "Không / KHONG"],
         ["Phòng ban", "", "Mã hoặc tên phòng ban (tìm kiếm tương đối)", "HC"],
         ["Chức danh", "", "Tên chức danh (tìm kiếm tương đối)", "Chuyên viên nhân sự"],
         ["Vị trí công việc", "", "Tên vị trí công việc, nên đi cùng phòng ban", "Nhân viên nhân sự tổng hợp"],
@@ -271,6 +274,53 @@ async def _get_default_nationality_id(session: AsyncSession) -> int:
     return nationality.id
 
 
+async def _find_nationality(session: AsyncSession, raw_value: str) -> Optional[int]:
+    if not raw_value:
+        return None
+    raw = raw_value.strip()
+    norm_val = _norm(raw)
+    rows = await session.execute(
+        select(Nationality).where(Nationality.is_active.is_(True))
+    )
+    for nationality in rows.scalars().all():
+        if (
+            nationality.code.lower() == raw.lower()
+            or (nationality.iso2_code and nationality.iso2_code.lower() == raw.lower())
+            or (nationality.iso3_code and nationality.iso3_code.lower() == raw.lower())
+            or nationality.normalized_name == norm_val
+        ):
+            return nationality.id
+    return None
+
+
+async def _find_ethnicity(session: AsyncSession, raw_value: str) -> Optional[int]:
+    if not raw_value:
+        return None
+    raw = raw_value.strip()
+    norm_val = _norm(raw)
+    rows = await session.execute(
+        select(Ethnicity).where(Ethnicity.is_active.is_(True))
+    )
+    for ethnicity in rows.scalars().all():
+        if ethnicity.code.lower() == raw.lower() or ethnicity.normalized_name == norm_val:
+            return ethnicity.id
+    return None
+
+
+async def _find_religion(session: AsyncSession, raw_value: str) -> Optional[int]:
+    if not raw_value:
+        return None
+    raw = raw_value.strip()
+    norm_val = _norm(raw)
+    rows = await session.execute(
+        select(Religion).where(Religion.is_active.is_(True))
+    )
+    for religion in rows.scalars().all():
+        if religion.code.lower() == raw.lower() or religion.normalized_name == norm_val:
+            return religion.id
+    return None
+
+
 # ── Main import ───────────────────────────────────────────────────────────────
 
 async def process_import(session: AsyncSession, file_bytes: bytes) -> ImportResult:
@@ -351,6 +401,9 @@ async def process_import(session: AsyncSession, file_bytes: bytes) -> ImportResu
         email        = get(row_vals, "Email cá nhân") or None
         tax_code     = get(row_vals, "Mã số thuế") or None
         bhxh_code    = get(row_vals, "Số BHXH") or None
+        nationality_raw = get(row_vals, "Quốc tịch")
+        ethnicity_raw = get(row_vals, "Dân tộc")
+        religion_raw = get(row_vals, "Tôn giáo")
         dept_raw     = get(row_vals, "Phòng ban")
         jt_raw       = get(row_vals, "Chức danh")
         position_raw = get(row_vals, "Vị trí công việc")
@@ -374,9 +427,24 @@ async def process_import(session: AsyncSession, file_bytes: bytes) -> ImportResu
         job_title_id = await _find_job_title(session, jt_raw)
         job_position = await _find_job_position(session, position_raw, department_id=dept_id) if position_raw else None
         sequence_id  = await _find_employee_code_sequence(session, sequence_raw) if sequence_raw else None
+        nationality_id = await _find_nationality(session, nationality_raw) if nationality_raw else default_nationality_id
+        ethnicity_id = await _find_ethnicity(session, ethnicity_raw) if ethnicity_raw else None
+        religion_id = await _find_religion(session, religion_raw) if religion_raw else None
 
         if dept_raw and not dept_id:
             errors.append(ImportRowError(row=excel_row, column="Phòng ban", message=f"Không tìm thấy phòng ban '{dept_raw}' — nhân viên được tạo nhưng chưa gán phòng ban"))
+        if nationality_raw and not nationality_id:
+            errors.append(ImportRowError(row=excel_row, column="Quốc tịch", message=f"Không tìm thấy quốc tịch '{nationality_raw}' trong danh mục"))
+            failed += 1
+            continue
+        if ethnicity_raw and not ethnicity_id:
+            errors.append(ImportRowError(row=excel_row, column="Dân tộc", message=f"Không tìm thấy dân tộc '{ethnicity_raw}' trong danh mục"))
+            failed += 1
+            continue
+        if religion_raw and not religion_id:
+            errors.append(ImportRowError(row=excel_row, column="Tôn giáo", message=f"Không tìm thấy tôn giáo '{religion_raw}' trong danh mục"))
+            failed += 1
+            continue
         if position_raw and not dept_id:
             errors.append(ImportRowError(row=excel_row, column="Vị trí công việc", message="Muốn gán vị trí công việc thì phải xác định được phòng ban"))
             failed += 1
@@ -432,7 +500,9 @@ async def process_import(session: AsyncSession, file_bytes: bytes) -> ImportResu
                 first_name=first_name,
                 date_of_birth=date_of_birth,
                 gender=gender,
-                nationality_id=default_nationality_id,
+                nationality_id=nationality_id,
+                ethnicity_id=ethnicity_id,
+                religion_id=religion_id,
                 id_number=id_number,
                 id_issued_on=id_issued_on,
                 id_issued_by=id_issued_by,
