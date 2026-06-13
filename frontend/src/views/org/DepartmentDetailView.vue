@@ -12,6 +12,9 @@
               · Thuộc {{ detail.parent.name }}
             </template>
           </template>
+          <template v-else-if="detailError">
+            Không tải được thông tin đơn vị
+          </template>
           <template v-else>
             Đang tải thông tin đơn vị
           </template>
@@ -50,6 +53,24 @@
       <span class="dept-meta-item">Mã: {{ detail.department.code }}</span>
     </div>
 
+    <div v-if="detailError" class="card dept-error-card">
+      <div class="dept-error-state">
+        <i class="pi pi-exclamation-circle" />
+        <div>
+          <h3>Không tải được chi tiết đơn vị</h3>
+          <p>{{ detailError }}</p>
+        </div>
+        <Button
+          label="Tải lại"
+          icon="pi pi-refresh"
+          severity="secondary"
+          outlined
+          :loading="loadingDetail || loadingHead"
+          @click="refreshAll"
+        />
+      </div>
+    </div>
+
     <div class="dept-summary-grid">
       <article v-for="card in summaryCards" :key="card.label" class="dept-summary-card card">
         <span class="dept-summary-label">{{ card.label }}</span>
@@ -64,7 +85,7 @@
           <h3>Người đứng đầu hiện tại</h3>
           <p>Quản lý một head hiện hành cho đơn vị này. Một nhân sự có thể phụ trách nhiều đơn vị khác nhau.</p>
         </div>
-        <div v-if="canEditHead" class="dept-head-actions">
+        <div v-if="canEditHead && !headError" class="dept-head-actions">
           <Button
             v-if="!head"
             label="Gán người đứng đầu"
@@ -97,6 +118,23 @@
       <div v-if="loadingHead" class="dept-head-loading">
         <i class="pi pi-spin pi-spinner" />
         <span>Đang tải người đứng đầu hiện tại...</span>
+      </div>
+
+      <div v-else-if="headError" class="dept-error-state compact">
+        <i class="pi pi-exclamation-triangle" />
+        <div>
+          <h4>Không tải được người đứng đầu hiện tại</h4>
+          <p>{{ headError }}</p>
+        </div>
+        <Button
+          label="Tải lại"
+          icon="pi pi-refresh"
+          severity="secondary"
+          outlined
+          size="small"
+          :loading="loadingHead"
+          @click="loadHead"
+        />
       </div>
 
       <div v-else-if="!head" class="empty-state dept-head-empty">
@@ -164,6 +202,23 @@
       <div v-if="loadingDetail" class="dept-head-loading">
         <i class="pi pi-spin pi-spinner" />
         <span>Đang tải sơ đồ đơn vị...</span>
+      </div>
+
+      <div v-else-if="detailError" class="dept-error-state compact">
+        <i class="pi pi-exclamation-triangle" />
+        <div>
+          <h4>Không tải được sơ đồ đơn vị</h4>
+          <p>{{ detailError }}</p>
+        </div>
+        <Button
+          label="Tải lại"
+          icon="pi pi-refresh"
+          severity="secondary"
+          outlined
+          size="small"
+          :loading="loadingDetail"
+          @click="loadDetail"
+        />
       </div>
 
       <div v-else-if="!detail?.org_chart" class="empty-state">
@@ -241,7 +296,25 @@
         </div>
       </div>
 
+      <div v-if="detailError" class="dept-error-state compact">
+        <i class="pi pi-exclamation-triangle" />
+        <div>
+          <h4>Không tải được danh sách nhân sự trực tiếp</h4>
+          <p>{{ detailError }}</p>
+        </div>
+        <Button
+          label="Tải lại"
+          icon="pi pi-refresh"
+          severity="secondary"
+          outlined
+          size="small"
+          :loading="loadingDetail"
+          @click="loadDetail"
+        />
+      </div>
+
       <DataTable
+        v-else
         :value="detail?.direct_employees ?? []"
         :loading="loadingDetail"
         responsive-layout="scroll"
@@ -312,6 +385,12 @@
                 <div class="dept-head-option">
                   <strong>{{ option.full_name }}</strong>
                   <small>{{ option.display_code }} · {{ statusLabel(option.status) }}</small>
+                  <small v-if="option.current_department_name || option.current_job_position_name || option.current_job_title_name">
+                    {{ option.current_department_name || 'Chưa có đơn vị hiện hành' }}
+                    <template v-if="option.current_job_position_name || option.current_job_title_name">
+                      · {{ option.current_job_position_name || option.current_job_title_name }}
+                    </template>
+                  </small>
                 </div>
               </template>
             </AutoComplete>
@@ -350,9 +429,28 @@
               <span class="dept-head-selected-label">Mã nhân viên</span>
               <span>{{ selectedEmployeeOption.display_code }}</span>
             </div>
+            <div class="dept-head-selected-row">
+              <span class="dept-head-selected-label">Đơn vị hiện tại</span>
+              <span>{{ selectedEmployeeOption.current_department_name || 'Chưa có bản ghi công việc hiện hành' }}</span>
+            </div>
+            <div class="dept-head-selected-row">
+              <span class="dept-head-selected-label">Vị trí / Chức danh hiện tại</span>
+              <span>{{ selectedEmployeeOption.current_job_position_name || selectedEmployeeOption.current_job_title_name || '—' }}</span>
+            </div>
           <div v-if="selectedEmployeeOption.status !== 'official'" class="dept-head-warning subtle">
             <i class="pi pi-info-circle" />
             <span>Nhân sự này hiện có trạng thái {{ statusLabel(selectedEmployeeOption.status).toLowerCase() }}.</span>
+          </div>
+          <div
+            v-if="selectedEmployeeCrossDepartment"
+            class="dept-head-warning"
+          >
+            <i class="pi pi-exclamation-triangle" />
+            <span>
+              Nhân sự này đang thuộc đơn vị
+              <strong>{{ selectedEmployeeOption.current_department_name }}</strong>,
+              không thuộc đúng đơn vị đang xem.
+            </span>
           </div>
           <div
             v-if="head?.employee.id === selectedEmployeeOption.id"
@@ -416,6 +514,8 @@ const loadingDetail = ref(false)
 const loadingHead = ref(false)
 const savingHead = ref(false)
 const deletingHead = ref(false)
+const detailError = ref<string | null>(null)
+const headError = ref<string | null>(null)
 
 const detail = ref<DepartmentDetailRead | null>(null)
 const head = ref<DepartmentHeadRead | null>(null)
@@ -436,6 +536,13 @@ const departmentId = computed(() => Number(route.params.id))
 const canEditHead = computed(() => auth.hasPermission('org:edit'))
 const selectedEmployeeOption = computed<EmployeeLookupItem | null>(() =>
   selectedEmployee.value && typeof selectedEmployee.value === 'object' ? selectedEmployee.value : null
+)
+const selectedEmployeeCrossDepartment = computed(() =>
+  Boolean(
+    selectedEmployeeOption.value?.current_department_id &&
+    detail.value?.department.id &&
+    selectedEmployeeOption.value.current_department_id !== detail.value.department.id
+  )
 )
 
 const summaryCards = computed(() => {
@@ -535,6 +642,12 @@ function openHeadDialog() {
       display_code: head.value.employee.display_code,
       full_name: head.value.employee.full_name,
       status: head.value.employee.status as EmployeeLookupItem['status'],
+      current_department_id: head.value.employee.current_department_id,
+      current_department_name: head.value.employee.current_department_name,
+      current_job_position_id: head.value.employee.current_job_position_id,
+      current_job_position_name: head.value.employee.current_job_position_name,
+      current_job_title_id: head.value.employee.current_job_title_id,
+      current_job_title_name: head.value.employee.current_job_title_name,
     }
     headForm.value = {
       employee_id: head.value.employee.id,
@@ -597,15 +710,17 @@ async function loadDetail() {
   }
 
   loadingDetail.value = true
+  detailError.value = null
   try {
     const response = await departmentService.getDetail(departmentId.value)
     detail.value = response.data
   } catch (e) {
     detail.value = null
+    detailError.value = apiError(e)
     toast.add({
       severity: 'error',
       summary: 'Không tải được chi tiết phòng / ban',
-      detail: apiError(e),
+      detail: detailError.value,
       life: 5000,
     })
   } finally {
@@ -618,15 +733,17 @@ async function loadHead() {
     return
   }
   loadingHead.value = true
+  headError.value = null
   try {
     const response = await departmentService.getHead(departmentId.value)
     head.value = response.data
   } catch (e) {
     head.value = null
+    headError.value = apiError(e)
     toast.add({
       severity: 'error',
       summary: 'Không tải được người đứng đầu',
-      detail: apiError(e),
+      detail: headError.value,
       life: 5000,
     })
   } finally {
@@ -745,6 +862,30 @@ onMounted(refreshAll)
 .dept-meta-item {
   color: var(--p-text-muted-color);
   font-size: 0.95rem;
+}
+
+.dept-error-card {
+  border: 1px solid color-mix(in srgb, var(--p-red-500) 28%, transparent);
+}
+
+.dept-error-state {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.dept-error-state h3,
+.dept-error-state h4 {
+  margin: 0 0 0.25rem;
+}
+
+.dept-error-state p {
+  margin: 0;
+  color: var(--p-text-muted-color);
+}
+
+.dept-error-state.compact {
+  justify-content: space-between;
 }
 
 .dept-summary-grid {

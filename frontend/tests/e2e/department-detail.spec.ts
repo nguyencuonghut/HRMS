@@ -317,6 +317,12 @@ test("department list navigates to detail page and renders summary/direct employ
           display_code: "KS002",
           full_name: "Trần Thị Lan",
           status: "official",
+          current_department_id: 902,
+          current_department_name: "Ban dự án",
+          current_job_position_id: 778,
+          current_job_position_name: "Phó trưởng phòng kiểm soát",
+          current_job_title_id: 32,
+          current_job_title_name: "Phó phòng",
         },
       ]),
     });
@@ -363,6 +369,9 @@ test("department list navigates to detail page and renders summary/direct employ
   await headCard.getByRole("button", { name: "Thay đổi" }).click();
   await page.getByPlaceholder("Tìm theo mã nhân viên, họ tên hoặc mã số nhân viên").fill("Lan");
   await page.getByText("Trần Thị Lan").click();
+  const selectedCard = page.locator(".dept-head-selected");
+  await expect(selectedCard.getByText("Nhân sự này đang thuộc đơn vị")).toBeVisible();
+  await expect(selectedCard).toContainText("Ban dự án");
   await page.getByPlaceholder("VD: Trưởng phòng, Phụ trách khối...").fill("Phụ trách kiểm soát");
   await page.getByRole("button", { name: "Lưu người đứng đầu" }).click();
 
@@ -386,4 +395,110 @@ test("department list navigates to detail page and renders summary/direct employ
     head_role_label: "Phụ trách kiểm soát",
     effective_from: "2026-01-01",
   });
+});
+
+test("department detail shows retry state when current head cannot be loaded initially", async ({
+  page,
+}) => {
+  let headRequestCount = 0;
+
+  await page.goto("/login");
+  await page.getByLabel("Email").fill(ADMIN_EMAIL);
+  await page.getByPlaceholder("Nhập mật khẩu").fill(ADMIN_PASSWORD);
+  await page.getByRole("button", { name: "Đăng nhập" }).click();
+  await page.waitForURL(/\/(dashboard|reports\/dashboard)/);
+
+  await page.route("**/api/v1/departments/901/detail", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        department: {
+          id: 901,
+          code: "KS",
+          name: "Phòng kiểm soát",
+          short_name: "KS",
+          display_prefix: "KS",
+          parent_id: null,
+          dept_type: "PHONG",
+          dept_type_label: "Phòng",
+          order_no: 1,
+          is_active: true,
+          created_at: "2026-01-01T00:00:00",
+          updated_at: null,
+        },
+        parent: null,
+        summary: {
+          direct_headcount: 3,
+          total_headcount: 3,
+          direct_child_count: 0,
+          job_position_count: 1,
+        },
+        org_chart: {
+          key: "dept-901",
+          type: "department",
+          department_id: 901,
+          department_code: "KS",
+          department_name: "Phòng kiểm soát",
+          dept_type: "PHONG",
+          dept_type_label: "Phòng",
+          direct_headcount: 3,
+          total_headcount: 3,
+          head: null,
+          children: [],
+        },
+        direct_employees: [],
+      }),
+    });
+  });
+
+  await page.route("**/api/v1/departments/901/head", async (route) => {
+    headRequestCount += 1;
+    if (headRequestCount === 1) {
+      await route.fulfill({
+        status: 500,
+        contentType: "application/json",
+        body: JSON.stringify({ detail: "Mock head service error" }),
+      });
+      return;
+    }
+
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        id: 501,
+        department_id: 901,
+        employee_id: 1201,
+        head_role_label: "Trưởng phòng kiểm soát",
+        display_position_label: "Trưởng phòng kiểm soát",
+        effective_from: "2026-01-01",
+        effective_to: null,
+        is_current: true,
+        employee: {
+          id: 1201,
+          display_code: "KS001",
+          full_name: "Nguyễn Văn Cường",
+          status: "official",
+          current_department_id: 901,
+          current_department_name: "Phòng kiểm soát",
+          current_job_position_id: 777,
+          current_job_position_name: "Giám đốc khối kiểm soát",
+          current_job_title_id: 31,
+          current_job_title_name: "Trưởng phòng",
+          is_cross_department_assignment: false,
+        },
+      }),
+    });
+  });
+
+  await page.goto("/org/departments/901");
+
+  const headCard = page.locator(".dept-head-card");
+  await expect(headCard.getByText("Không tải được người đứng đầu hiện tại")).toBeVisible();
+  await expect(headCard.getByText("Mock head service error")).toBeVisible();
+
+  await headCard.getByRole("button", { name: "Tải lại" }).click();
+  await expect(headCard.getByRole("button", { name: "Nguyễn Văn Cường" })).toBeVisible();
+  expect(headRequestCount).toBe(2);
 });

@@ -202,6 +202,46 @@ async def lookup_employees(
     return list((await session.execute(q)).scalars().all())
 
 
+async def get_employee_lookup_context_map(
+    session: AsyncSession,
+    employee_ids: list[int],
+) -> dict[int, dict[str, Optional[int | str]]]:
+    if not employee_ids:
+        return {}
+
+    result = await session.execute(
+        select(
+            EmployeeJobRecord.employee_id.label("employee_id"),
+            Department.id.label("current_department_id"),
+            Department.name.label("current_department_name"),
+            JobPosition.id.label("current_job_position_id"),
+            JobPosition.name.label("current_job_position_name"),
+            JobTitle.id.label("current_job_title_id"),
+            JobTitle.name.label("current_job_title_name"),
+        )
+        .select_from(EmployeeJobRecord)
+        .join(Department, Department.id == EmployeeJobRecord.department_id)
+        .outerjoin(JobPosition, JobPosition.id == EmployeeJobRecord.job_position_id)
+        .outerjoin(JobTitle, JobTitle.id == EmployeeJobRecord.job_title_id)
+        .where(
+            EmployeeJobRecord.employee_id.in_(employee_ids),
+            EmployeeJobRecord.is_current.is_(True),
+        )
+    )
+
+    return {
+        row.employee_id: {
+            "current_department_id": row.current_department_id,
+            "current_department_name": row.current_department_name,
+            "current_job_position_id": row.current_job_position_id,
+            "current_job_position_name": row.current_job_position_name,
+            "current_job_title_id": row.current_job_title_id,
+            "current_job_title_name": row.current_job_title_name,
+        }
+        for row in result
+    }
+
+
 async def create_employee(session: AsyncSession, payload: EmployeeCreate) -> Employee:
     department, job_title, job_position = await _resolve_initial_job_context(session, payload)
     sequence_id = await _resolve_employee_code_sequence_id(

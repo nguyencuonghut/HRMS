@@ -282,6 +282,12 @@ class EmployeeLookupItem(BaseModel):
     display_code: str
     full_name: str
     status: str
+    current_department_id: Optional[int] = None
+    current_department_name: Optional[str] = None
+    current_job_position_id: Optional[int] = None
+    current_job_position_name: Optional[str] = None
+    current_job_title_id: Optional[int] = None
+    current_job_title_name: Optional[str] = None
 
     model_config = {"from_attributes": True}
 

@@ -152,6 +152,10 @@ async def lookup_employees(
 ):
     items = await employee_service.lookup_employees(session, keyword=keyword, limit=limit)
     display_codes = await employee_code_service.batch_build_employee_display_codes(session, items)
+    contexts = await employee_service.get_employee_lookup_context_map(
+        session,
+        [employee.id for employee in items],
+    )
     return [
         EmployeeLookupItem(
             id=e.id,
@@ -159,6 +163,12 @@ async def lookup_employees(
             display_code=display_codes[e.id],
             full_name=e.full_name,
             status=e.status,
+            current_department_id=contexts.get(e.id, {}).get("current_department_id"),
+            current_department_name=contexts.get(e.id, {}).get("current_department_name"),
+            current_job_position_id=contexts.get(e.id, {}).get("current_job_position_id"),
+            current_job_position_name=contexts.get(e.id, {}).get("current_job_position_name"),
+            current_job_title_id=contexts.get(e.id, {}).get("current_job_title_id"),
+            current_job_title_name=contexts.get(e.id, {}).get("current_job_title_name"),
         )
         for e in items
     ]

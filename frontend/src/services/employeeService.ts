@@ -222,6 +222,12 @@ export interface EmployeeLookupItem {
   display_code: string
   full_name: string
   status: StatusType
+  current_department_id?: number | null
+  current_department_name?: string | null
+  current_job_position_id?: number | null
+  current_job_position_name?: string | null
+  current_job_title_id?: number | null
+  current_job_title_name?: string | null
 }
 
 export interface EmployeeCreate {
