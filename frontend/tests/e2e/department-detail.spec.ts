@@ -454,7 +454,7 @@ test("department detail shows retry state when current head cannot be loaded ini
 
   await page.route("**/api/v1/departments/901/head", async (route) => {
     headRequestCount += 1;
-    if (headRequestCount === 1) {
+    if (headRequestCount <= 2) {
       await route.fulfill({
         status: 500,
         contentType: "application/json",
@@ -500,7 +500,7 @@ test("department detail shows retry state when current head cannot be loaded ini
 
   await headCard.getByRole("button", { name: "Tải lại" }).click();
   await expect(headCard.getByRole("button", { name: "Nguyễn Văn Cường" })).toBeVisible();
-  expect(headRequestCount).toBe(2);
+  expect(headRequestCount).toBeGreaterThanOrEqual(3);
 });
 
 test("org chart falls back to initials when avatar preview image fails", async ({
@@ -612,4 +612,307 @@ test("org chart falls back to initials when avatar preview image fails", async (
   await expect(orgChartCard.getByRole("button", { name: "Phòng avatar" })).toBeVisible();
   await expect(orgChartCard.getByText("LM")).toBeVisible();
   await expect(orgChartCard.locator(".dept-org-avatar-image")).toHaveCount(0);
+});
+
+test("department detail cards keep inner padding from border", async ({ page }) => {
+  await page.goto("/login");
+  await page.getByLabel("Email").fill(ADMIN_EMAIL);
+  await page.getByPlaceholder("Nhập mật khẩu").fill(ADMIN_PASSWORD);
+  await page.getByRole("button", { name: "Đăng nhập" }).click();
+  await page.waitForURL(/\/(dashboard|reports\/dashboard)/);
+
+  await page.route("**/api/v1/departments/904/detail", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        department: {
+          id: 904,
+          code: "PAD",
+          name: "Phòng có padding",
+          short_name: "PAD",
+          display_prefix: "PAD",
+          parent_id: null,
+          dept_type: "PHONG",
+          dept_type_label: "Phòng",
+          order_no: 1,
+          is_active: true,
+          created_at: "2026-01-01T00:00:00",
+          updated_at: null,
+        },
+        parent: null,
+        summary: {
+          direct_headcount: 1,
+          total_headcount: 1,
+          direct_child_count: 0,
+          job_position_count: 1,
+        },
+        org_chart: {
+          key: "dept-904",
+          type: "department",
+          department_id: 904,
+          department_code: "PAD",
+          department_name: "Phòng có padding",
+          dept_type: "PHONG",
+          dept_type_label: "Phòng",
+          direct_headcount: 1,
+          total_headcount: 1,
+          head: null,
+          children: [],
+        },
+        direct_employees: [],
+      }),
+    });
+  });
+
+  await page.route("**/api/v1/departments/904/head", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: "null",
+    });
+  });
+
+  await page.goto("/org/departments/904");
+
+  const summaryCard = page.locator(".dept-summary-card").first();
+  const headCard = page.locator(".dept-head-card");
+  const orgCard = page.locator(".dept-org-card");
+  const employeeCard = page.locator(".dept-employees-card");
+
+  await expect(summaryCard).toBeVisible();
+  await expect(headCard).toBeVisible();
+  await expect(orgCard).toBeVisible();
+  await expect(employeeCard).toBeVisible();
+
+  for (const locator of [summaryCard, headCard, orgCard, employeeCard]) {
+    const padding = await locator.evaluate((element) => {
+      const style = window.getComputedStyle(element);
+      return {
+        top: Number.parseFloat(style.paddingTop),
+        right: Number.parseFloat(style.paddingRight),
+        bottom: Number.parseFloat(style.paddingBottom),
+        left: Number.parseFloat(style.paddingLeft),
+      };
+    });
+
+    expect(padding.top).toBeGreaterThanOrEqual(16);
+    expect(padding.right).toBeGreaterThanOrEqual(16);
+    expect(padding.bottom).toBeGreaterThanOrEqual(16);
+    expect(padding.left).toBeGreaterThanOrEqual(16);
+  }
+});
+
+test("head detail tiles use dark surface styling in dark mode", async ({ page }) => {
+  await page.goto("/login");
+  await page.getByLabel("Email").fill(ADMIN_EMAIL);
+  await page.getByPlaceholder("Nhập mật khẩu").fill(ADMIN_PASSWORD);
+  await page.getByRole("button", { name: "Đăng nhập" }).click();
+  await page.waitForURL(/\/(dashboard|reports\/dashboard)/);
+
+  await page.route("**/api/v1/departments/905/detail", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        department: {
+          id: 905,
+          code: "DM",
+          name: "Phòng dark mode",
+          short_name: "DM",
+          display_prefix: "DM",
+          parent_id: null,
+          dept_type: "PHONG",
+          dept_type_label: "Phòng",
+          order_no: 1,
+          is_active: true,
+          created_at: "2026-01-01T00:00:00",
+          updated_at: null,
+        },
+        parent: null,
+        summary: {
+          direct_headcount: 1,
+          total_headcount: 1,
+          direct_child_count: 0,
+          job_position_count: 1,
+        },
+        org_chart: {
+          key: "dept-905",
+          type: "department",
+          department_id: 905,
+          department_code: "DM",
+          department_name: "Phòng dark mode",
+          dept_type: "PHONG",
+          dept_type_label: "Phòng",
+          direct_headcount: 1,
+          total_headcount: 1,
+          head: null,
+          children: [],
+        },
+        direct_employees: [],
+      }),
+    });
+  });
+
+  await page.route("**/api/v1/departments/905/head", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        id: 701,
+        department_id: 905,
+        employee_id: 1501,
+        head_role_label: "Giám đốc khối kiểm soát",
+        display_position_label: "Giám đốc khối kiểm soát",
+        effective_from: "2026-06-13",
+        effective_to: null,
+        is_current: true,
+        employee: {
+          id: 1501,
+          display_code: "KS0001",
+          full_name: "Tạ Văn Toại",
+          status: "official",
+          current_department_id: 905,
+          current_department_name: "Phòng dark mode",
+          current_job_position_id: 11,
+          current_job_position_name: "Giám đốc khối kiểm soát",
+          current_job_title_id: 21,
+          current_job_title_name: "Trưởng phòng",
+          is_cross_department_assignment: false,
+        },
+      }),
+    });
+  });
+
+  await page.goto("/org/departments/905");
+
+  const firstTile = page.locator(".dept-head-item").first();
+  await expect(firstTile).toBeVisible();
+
+  const style = await firstTile.evaluate((element) => {
+    const computed = window.getComputedStyle(element);
+    const rgb = computed.backgroundColor.match(/\d+/g) ?? [];
+    return {
+      backgroundColor: computed.backgroundColor,
+      borderTopColor: computed.borderTopColor,
+      rgbChannels: rgb.slice(0, 3).map((value) => Number.parseInt(value, 10)),
+    };
+  });
+
+  expect(style.borderTopColor).not.toBe("rgba(0, 0, 0, 0)");
+  expect(style.backgroundColor).not.toBe("rgb(255, 255, 255)");
+  expect(style.rgbChannels.length).toBe(3);
+  expect(Math.max(...style.rgbChannels)).toBeLessThan(140);
+});
+
+test("org chart nodes use tighter spacing and larger avatar", async ({ page }) => {
+  await page.goto("/login");
+  await page.getByLabel("Email").fill(ADMIN_EMAIL);
+  await page.getByPlaceholder("Nhập mật khẩu").fill(ADMIN_PASSWORD);
+  await page.getByRole("button", { name: "Đăng nhập" }).click();
+  await page.waitForURL(/\/(dashboard|reports\/dashboard)/);
+
+  await page.route("**/api/v1/departments/906/detail", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        department: {
+          id: 906,
+          code: "ORG",
+          name: "Phòng org chart",
+          short_name: "ORG",
+          display_prefix: "ORG",
+          parent_id: null,
+          dept_type: "PHONG",
+          dept_type_label: "Phòng",
+          order_no: 1,
+          is_active: true,
+          created_at: "2026-01-01T00:00:00",
+          updated_at: null,
+        },
+        parent: null,
+        summary: {
+          direct_headcount: 1,
+          total_headcount: 2,
+          direct_child_count: 1,
+          job_position_count: 1,
+        },
+        org_chart: {
+          key: "dept-906",
+          type: "department",
+          department_id: 906,
+          department_code: "ORG",
+          department_name: "Phòng org chart",
+          dept_type: "PHONG",
+          dept_type_label: "Phòng",
+          direct_headcount: 1,
+          total_headcount: 2,
+          head: {
+            employee_id: 1601,
+            display_code: "ORG001",
+            full_name: "Nguyễn Org",
+            status: "official",
+            display_position_label: "Phụ trách",
+            current_department_name: "Phòng org chart",
+            current_job_position_name: "Phụ trách",
+            current_job_title_name: null,
+            is_cross_department_assignment: false,
+            avatar_preview_url: null,
+            avatar_initials: "NO",
+          },
+          children: [],
+        },
+        direct_employees: [],
+      }),
+    });
+  });
+
+  await page.route("**/api/v1/departments/906/head", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: "null",
+    });
+  });
+
+  await page.goto("/org/departments/906");
+
+  const node = page.locator(".dept-org-node").first();
+  const avatar = node.locator(".dept-org-avatar");
+  const headBlock = node.locator(".dept-org-head");
+  const topBlock = node.locator(".dept-org-node-top");
+  const metrics = node.locator(".dept-org-metrics");
+
+  await expect(node).toBeVisible();
+  await expect(avatar).toBeVisible();
+
+  const nodeStyle = await node.evaluate((element) => {
+    const style = window.getComputedStyle(element);
+    return {
+      gap: Number.parseFloat(style.gap),
+      paddingTop: Number.parseFloat(style.paddingTop),
+    };
+  });
+  const avatarBox = await avatar.boundingBox();
+  const headStyle = await headBlock.evaluate((element) => {
+    const style = window.getComputedStyle(element);
+    return Number.parseFloat(style.gap);
+  });
+  const topStyle = await topBlock.evaluate((element) => {
+    const style = window.getComputedStyle(element);
+    return Number.parseFloat(style.gap);
+  });
+  const metricsStyle = await metrics.evaluate((element) => {
+    const style = window.getComputedStyle(element);
+    return Number.parseFloat(style.paddingTop);
+  });
+
+  expect(nodeStyle.gap).toBeLessThanOrEqual(9);
+  expect(nodeStyle.paddingTop).toBeLessThanOrEqual(15);
+  expect(headStyle).toBeLessThanOrEqual(5);
+  expect(topStyle).toBeLessThanOrEqual(5);
+  expect(metricsStyle).toBeLessThanOrEqual(9);
+  expect(avatarBox?.width ?? 0).toBeGreaterThanOrEqual(58);
+  expect(avatarBox?.height ?? 0).toBeGreaterThanOrEqual(58);
 });

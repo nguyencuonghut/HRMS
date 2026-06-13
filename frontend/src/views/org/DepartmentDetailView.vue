@@ -53,7 +53,7 @@
       <span class="dept-meta-item">Mã: {{ detail.department.code }}</span>
     </div>
 
-    <div v-if="detailError" class="card dept-error-card">
+    <div v-if="detailError" class="card dept-panel-card dept-error-card">
       <div class="dept-error-state">
         <i class="pi pi-exclamation-circle" />
         <div>
@@ -72,14 +72,14 @@
     </div>
 
     <div class="dept-summary-grid">
-      <article v-for="card in summaryCards" :key="card.label" class="dept-summary-card card">
+      <article v-for="card in summaryCards" :key="card.label" class="dept-summary-card card dept-panel-card">
         <span class="dept-summary-label">{{ card.label }}</span>
         <strong class="dept-summary-value">{{ card.value }}</strong>
         <small v-if="card.note" class="dept-summary-note">{{ card.note }}</small>
       </article>
     </div>
 
-    <div class="card dept-head-card">
+    <div class="card dept-panel-card dept-head-card">
       <div class="dept-section-head">
         <div>
           <h3>Người đứng đầu hiện tại</h3>
@@ -191,7 +191,7 @@
       </div>
     </div>
 
-    <div class="card dept-org-card">
+    <div class="card dept-panel-card dept-org-card">
       <div class="dept-section-head">
         <div>
           <h3>Sơ đồ đơn vị</h3>
@@ -293,7 +293,7 @@
       </OrganizationChart>
     </div>
 
-    <div class="card dept-employees-card">
+    <div class="card dept-panel-card dept-employees-card">
       <div class="dept-section-head">
         <div>
           <h3>Nhân sự trực tiếp</h3>
@@ -892,6 +892,10 @@ onMounted(refreshAll)
   border: 1px solid color-mix(in srgb, var(--p-red-500) 28%, transparent);
 }
 
+.dept-panel-card {
+  padding: 1.25rem;
+}
+
 .dept-error-state {
   display: flex;
   align-items: center;
@@ -1040,7 +1044,14 @@ onMounted(refreshAll)
   gap: 0.35rem;
   padding: 0.9rem 1rem;
   border-radius: 16px;
-  background: color-mix(in srgb, var(--p-surface-100) 75%, transparent);
+  border: 1px solid color-mix(in srgb, var(--p-surface-border) 82%, transparent);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--p-surface-card) 88%, var(--p-surface-0) 12%) 0%,
+      color-mix(in srgb, var(--p-surface-card) 94%, black 6%) 100%
+    );
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 6%, transparent);
 }
 
 .dept-head-label {
@@ -1074,7 +1085,7 @@ onMounted(refreshAll)
 
 .dept-org-node {
   width: 15rem;
-  padding: 1rem;
+  padding: 0.9rem;
   border-radius: 18px;
   border: 1px solid var(--p-surface-border);
   background:
@@ -1083,14 +1094,14 @@ onMounted(refreshAll)
   box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
   display: flex;
   flex-direction: column;
-  gap: 0.8rem;
+  gap: 0.55rem;
   text-align: center;
 }
 
 .dept-org-node-top {
   display: flex;
   flex-direction: column;
-  gap: 0.45rem;
+  gap: 0.3rem;
   align-items: center;
 }
 
@@ -1103,12 +1114,12 @@ onMounted(refreshAll)
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.3rem;
 }
 
 .dept-org-avatar {
-  width: 3rem;
-  height: 3rem;
+  width: 3.75rem;
+  height: 3.75rem;
   border-radius: 999px;
   overflow: hidden;
   display: grid;
@@ -1116,6 +1127,7 @@ onMounted(refreshAll)
   background: linear-gradient(135deg, #0f766e, #14b8a6);
   color: #fff;
   font-weight: 700;
+  font-size: 1rem;
 }
 
 .dept-org-avatar-image {
@@ -1130,7 +1142,8 @@ onMounted(refreshAll)
 
 .dept-org-role {
   color: var(--p-text-muted-color);
-  font-size: 0.9rem;
+  font-size: 0.88rem;
+  line-height: 1.3;
 }
 
 .dept-org-cross-note {
@@ -1154,10 +1167,10 @@ onMounted(refreshAll)
   display: flex;
   justify-content: space-between;
   gap: 0.75rem;
-  padding-top: 0.75rem;
+  padding-top: 0.55rem;
   border-top: 1px dashed var(--p-surface-border);
   color: var(--p-text-muted-color);
-  font-size: 0.85rem;
+  font-size: 0.82rem;
 }
 
 .dept-head-dialog {
