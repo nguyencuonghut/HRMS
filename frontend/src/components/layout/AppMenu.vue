@@ -30,7 +30,7 @@
             :key="child.to"
             class="layout-menu-item"
           >
-            <RouterLink :to="child.to">
+            <RouterLink :to="child.to" :class="{ 'router-link-active': isRouteActive(child.to) }">
               <i
                 :class="['pi menu-icon', child.icon ?? 'pi-minus']"
                 style="font-size: 0.75rem"
@@ -43,7 +43,7 @@
 
       <!-- Single menu item -->
       <div v-else class="layout-menu-item">
-        <RouterLink :to="item.to!">
+        <RouterLink :to="item.to!" :class="{ 'router-link-active': isRouteActive(item.to!) }">
           <i :class="['pi menu-icon', item.icon]" />
           <span class="menu-label" v-show="!collapsed">{{ item.label }}</span>
           <span
@@ -59,6 +59,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
+import { useRoute } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
 import reminderService from "@/services/reminderService";
 
@@ -75,6 +76,7 @@ interface MenuItem {
 }
 
 const auth = useAuthStore();
+const route = useRoute();
 
 const openGroups = ref<Set<string>>(
   new Set(["Cơ cấu tổ chức", "Nhân sự", "Tuyển dụng", "Báo cáo", "Danh mục"]),
@@ -106,6 +108,10 @@ function canAccess(item: Pick<MenuItem, "permission" | "anyPermissions">): boole
     return false;
   }
   return true;
+}
+
+function isRouteActive(target: string): boolean {
+  return route.path === target || route.path.startsWith(`${target}/`);
 }
 
 const menu: MenuItem[] = [
