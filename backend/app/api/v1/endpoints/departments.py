@@ -1,18 +1,22 @@
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.v1.deps import require_permission
 from app.core.database import get_session
+from app.models.auth import User
 from app.schemas.department import (
     DepartmentCreate,
+    DepartmentHeadRead,
+    DepartmentHeadUpsert,
     DepartmentDetailRead,
     DepartmentRead,
     DepartmentTreeNode,
     DepartmentUpdate,
 )
 from app.schemas.employee_code_rule import EmployeeCodeSequenceRuleRead, EmployeeCodeSequenceRuleUpsert
-from app.services import department_service, employee_code_rule_service
+from app.services import auth_service, department_head_service, department_service, employee_code_rule_service
 
 router = APIRouter()
 
@@ -55,6 +59,66 @@ async def get_department_detail(
     session: AsyncSession = Depends(get_session),
 ):
     return await department_service.get_detail(session, dept_id)
+
+
+@router.get("/{dept_id}/head", response_model=DepartmentHeadRead | None, summary="Người đứng đầu hiện hành của đơn vị")
+async def get_department_head(
+    dept_id: int,
+    _: User = require_permission("org:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await department_head_service.get_current_head(session, dept_id)
+
+
+@router.put("/{dept_id}/head", response_model=DepartmentHeadRead, summary="Gán hoặc thay đổi người đứng đầu đơn vị")
+async def upsert_department_head(
+    dept_id: int,
+    body: DepartmentHeadUpsert,
+    request: Request,
+    current_user: User = require_permission("org:edit"),
+    session: AsyncSession = Depends(get_session),
+):
+    result, action, old_data, new_data = await department_head_service.upsert_head(
+        session, dept_id, body, current_user.id
+    )
+    await auth_service.log_audit(
+        session,
+        current_user.id,
+        action,
+        entity_type="department_head",
+        entity_id=result.id,
+        entity_name=result.employee.full_name,
+        old_data=old_data,
+        new_data=new_data,
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
+    await session.commit()
+    return result
+
+
+@router.delete("/{dept_id}/head", summary="Gỡ người đứng đầu hiện hành của đơn vị")
+async def delete_department_head(
+    dept_id: int,
+    request: Request,
+    current_user: User = require_permission("org:edit"),
+    session: AsyncSession = Depends(get_session),
+):
+    old_data, new_data = await department_head_service.delete_current_head(session, dept_id, current_user.id)
+    await auth_service.log_audit(
+        session,
+        current_user.id,
+        "DELETE",
+        entity_type="department_head",
+        entity_id=old_data["id"],
+        entity_name=f"department:{dept_id}",
+        old_data=old_data,
+        new_data=new_data,
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
+    await session.commit()
+    return {"message": "Đã gỡ người đứng đầu hiện hành"}
 
 
 @router.put("/{dept_id}", response_model=DepartmentRead, summary="Cập nhật phòng/ban")

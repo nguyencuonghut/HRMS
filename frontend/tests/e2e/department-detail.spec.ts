@@ -7,6 +7,30 @@ test("department list navigates to detail page and renders summary/direct employ
   page,
 }) => {
   let detailRequestCount = 0;
+  let currentHead = {
+    id: 501,
+    department_id: 901,
+    employee_id: 1201,
+    head_role_label: "Trưởng phòng kiểm soát",
+    display_position_label: "Trưởng phòng kiểm soát",
+    effective_from: "2026-01-01",
+    effective_to: null,
+    is_current: true,
+    employee: {
+      id: 1201,
+      display_code: "KS001",
+      full_name: "Nguyễn Văn Cường",
+      status: "official",
+      current_department_id: 901,
+      current_department_name: "Phòng kiểm soát",
+      current_job_position_id: 777,
+      current_job_position_name: "Giám đốc khối kiểm soát",
+      current_job_title_id: 31,
+      current_job_title_name: "Trưởng phòng",
+      is_cross_department_assignment: false,
+    },
+  };
+  let lastHeadPayload: Record<string, unknown> | null = null;
 
   await page.goto("/login");
   await page.getByLabel("Email").fill(ADMIN_EMAIL);
@@ -80,6 +104,73 @@ test("department list navigates to detail page and renders summary/direct employ
     });
   });
 
+  await page.route("**/api/v1/departments/901/head", async (route) => {
+    const method = route.request().method();
+    if (method === "GET") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(currentHead),
+      });
+      return;
+    }
+    if (method === "PUT") {
+      lastHeadPayload = route.request().postDataJSON() as Record<string, unknown>;
+      currentHead = {
+        ...currentHead,
+        employee_id: 1302,
+        head_role_label: "Phụ trách kiểm soát",
+        display_position_label: "Phụ trách kiểm soát",
+        effective_from: "2026-01-01",
+        employee: {
+          id: 1302,
+          display_code: "KS002",
+          full_name: "Trần Thị Lan",
+          status: "official",
+          current_department_id: 902,
+          current_department_name: "Ban dự án",
+          current_job_position_id: 778,
+          current_job_position_name: "Phó trưởng phòng kiểm soát",
+          current_job_title_id: 32,
+          current_job_title_name: "Phó phòng",
+          is_cross_department_assignment: true,
+        },
+      };
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(currentHead),
+      });
+      return;
+    }
+    if (method === "DELETE") {
+      currentHead = null as never;
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ message: "Đã gỡ người đứng đầu hiện hành" }),
+      });
+      return;
+    }
+    await route.fallback();
+  });
+
+  await page.route("**/api/v1/employees/lookup**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify([
+        {
+          id: 1302,
+          employee_seq: 2,
+          display_code: "KS002",
+          full_name: "Trần Thị Lan",
+          status: "official",
+        },
+      ]),
+    });
+  });
+
   await page.goto("/org/departments");
   await expect(page.getByRole("heading", { name: "Phòng / Ban" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Phòng kiểm soát" })).toBeVisible();
@@ -101,10 +192,33 @@ test("department list navigates to detail page and renders summary/direct employ
   await expect(summaryCards.nth(3)).toContainText("Vị trí công việc");
   await expect(summaryCards.nth(3)).toContainText("4");
 
+  const headCard = page.locator(".dept-head-card");
   await expect(page.getByRole("cell", { name: "KS001" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Nguyễn Văn Cường" })).toBeVisible();
+  await expect(page.getByRole("table").getByRole("button", { name: "Nguyễn Văn Cường" })).toBeVisible();
   await expect(page.getByRole("cell", { name: "Giám đốc khối kiểm soát" })).toBeVisible();
-  await expect(page.getByText("Chính thức")).toBeVisible();
+  await expect(page.getByRole("table").getByText("Chính thức")).toBeVisible();
+  await expect(headCard.getByRole("heading", { name: "Người đứng đầu hiện tại" })).toBeVisible();
+  await expect(headCard.getByRole("button", { name: "Nguyễn Văn Cường" })).toBeVisible();
+  await expect(headCard.getByText("Trưởng phòng kiểm soát")).toBeVisible();
+
+  await headCard.getByRole("button", { name: "Thay đổi" }).click();
+  await page.getByPlaceholder("Tìm theo mã nhân viên, họ tên hoặc mã số nhân viên").fill("Lan");
+  await page.getByText("Trần Thị Lan").click();
+  await page.getByPlaceholder("VD: Trưởng phòng, Phụ trách khối...").fill("Phụ trách kiểm soát");
+  await page.getByRole("button", { name: "Lưu người đứng đầu" }).click();
+
+  await expect(headCard.getByRole("button", { name: "Trần Thị Lan" })).toBeVisible();
+  await expect(headCard.getByText("Phụ trách kiểm soát")).toBeVisible();
+  await expect(headCard.getByText("Nhân sự này đang thuộc đơn vị")).toBeVisible();
+
+  await headCard.getByRole("button", { name: "Gỡ" }).click();
+  await page.getByRole("alertdialog", { name: "Gỡ người đứng đầu hiện hành" }).getByRole("button", { name: "Gỡ" }).click();
+  await expect(headCard.getByText("Đơn vị này chưa được gán người đứng đầu.")).toBeVisible();
 
   expect(detailRequestCount).toBe(1);
+  expect(lastHeadPayload).toEqual({
+    employee_id: 1302,
+    head_role_label: "Phụ trách kiểm soát",
+    effective_from: "2026-01-01",
+  });
 });

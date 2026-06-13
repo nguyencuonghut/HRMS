@@ -146,3 +146,35 @@ class DepartmentDetailRead(BaseModel):
     parent: Optional[DepartmentBrief] = None
     summary: DepartmentDetailSummary
     direct_employees: list[DepartmentDirectEmployeeItem]
+
+
+class DepartmentHeadUpsert(BaseModel):
+    employee_id: int
+    head_role_label: Optional[str] = Field(default=None, max_length=100)
+    effective_from: date
+
+
+class DepartmentHeadEmployeeRead(BaseModel):
+    id: int
+    display_code: str
+    full_name: str
+    status: str
+    current_department_id: Optional[int] = None
+    current_department_name: Optional[str] = None
+    current_job_position_id: Optional[int] = None
+    current_job_position_name: Optional[str] = None
+    current_job_title_id: Optional[int] = None
+    current_job_title_name: Optional[str] = None
+    is_cross_department_assignment: bool
+
+
+class DepartmentHeadRead(BaseModel):
+    id: int
+    department_id: int
+    employee_id: int
+    head_role_label: Optional[str] = None
+    display_position_label: str
+    effective_from: date
+    effective_to: Optional[date] = None
+    is_current: bool
+    employee: DepartmentHeadEmployeeRead

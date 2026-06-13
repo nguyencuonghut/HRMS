@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Any, Optional
 
 import sqlalchemy as sa
@@ -105,6 +105,57 @@ class JobPositionAttachment(SQLModel, table=True):
     file_path: str = Field(max_length=500)
     file_size: Optional[int] = Field(default=None)
     uploaded_at: datetime = Field(default_factory=_utcnow)
+
+
+class DepartmentHead(SQLModel, table=True):
+    """Người đứng đầu đơn vị theo từng giai đoạn hiệu lực.
+
+    Một employee có thể đồng thời phụ trách nhiều đơn vị.
+    Mỗi department chỉ có tối đa 1 dòng is_current = TRUE.
+    """
+
+    __tablename__ = "department_heads"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    department_id: int = Field(
+        sa_column=Column(
+            sa.Integer(),
+            sa.ForeignKey("departments.id", ondelete="RESTRICT"),
+            nullable=False,
+            index=True,
+        )
+    )
+    employee_id: int = Field(
+        sa_column=Column(
+            sa.Integer(),
+            sa.ForeignKey("employees.id", ondelete="RESTRICT"),
+            nullable=False,
+            index=True,
+        )
+    )
+    head_role_label: Optional[str] = Field(default=None, max_length=100)
+    effective_from: date = Field()
+    effective_to: Optional[date] = Field(default=None)
+    is_current: bool = Field(default=True)
+    changed_by: Optional[int] = Field(
+        default=None,
+        sa_column=Column(
+            sa.Integer(),
+            sa.ForeignKey("users.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
+    )
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: Optional[datetime] = Field(default=None)
+
+    __table_args__ = (
+        sa.Index(
+            "uq_department_head_current",
+            "department_id",
+            unique=True,
+            postgresql_where=sa.text("is_current = TRUE"),
+        ),
+    )
 
 
 class OrgChangeLog(SQLModel, table=True):

@@ -9,6 +9,7 @@ from app.models.auth import (  # noqa: F401
 )
 from app.models.org import (  # noqa: F401
     Department,
+    DepartmentHead,
     JobTitle,
     JobPosition,
     JobPositionAttachment,

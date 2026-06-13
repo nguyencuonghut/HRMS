@@ -59,6 +59,38 @@ export interface DepartmentDetailRead {
   direct_employees: DepartmentDirectEmployeeItem[]
 }
 
+export interface DepartmentHeadEmployeeRead {
+  id: number
+  display_code: string
+  full_name: string
+  status: string
+  current_department_id: number | null
+  current_department_name: string | null
+  current_job_position_id: number | null
+  current_job_position_name: string | null
+  current_job_title_id: number | null
+  current_job_title_name: string | null
+  is_cross_department_assignment: boolean
+}
+
+export interface DepartmentHeadRead {
+  id: number
+  department_id: number
+  employee_id: number
+  head_role_label: string | null
+  display_position_label: string
+  effective_from: string
+  effective_to: string | null
+  is_current: boolean
+  employee: DepartmentHeadEmployeeRead
+}
+
+export interface DepartmentHeadUpsert {
+  employee_id: number
+  head_role_label?: string | null
+  effective_from: string
+}
+
 export interface DepartmentCreate {
   code: string
   name: string
@@ -97,6 +129,15 @@ export default {
 
   getDetail: (id: number) =>
     api.get<DepartmentDetailRead>(`/departments/${id}/detail`),
+
+  getHead: (id: number) =>
+    api.get<DepartmentHeadRead | null>(`/departments/${id}/head`),
+
+  upsertHead: (id: number, data: DepartmentHeadUpsert) =>
+    api.put<DepartmentHeadRead>(`/departments/${id}/head`, data),
+
+  deleteHead: (id: number) =>
+    api.delete<{ message: string }>(`/departments/${id}/head`),
 
   create: (data: DepartmentCreate) =>
     api.post<DepartmentRead>('/departments', data),
