@@ -403,6 +403,7 @@ async def get_detail(session: AsyncSession, dept_id: int) -> DepartmentDetailRea
         await session.execute(
             select(
                 Employee,
+                Department,
                 JobTitle.name.label("job_title_name"),
                 JobPosition.name.label("job_position_name"),
             )
@@ -415,13 +416,19 @@ async def get_detail(session: AsyncSession, dept_id: int) -> DepartmentDetailRea
                     Employee.status != "resigned",
                 ),
             )
+            .join(Department, Department.id == EmployeeJobRecord.department_id)
             .outerjoin(JobTitle, JobTitle.id == EmployeeJobRecord.job_title_id)
             .outerjoin(JobPosition, JobPosition.id == EmployeeJobRecord.job_position_id)
             .where(
-                EmployeeJobRecord.department_id == dept_id,
+                EmployeeJobRecord.department_id.in_(subtree_ids),
                 EmployeeJobRecord.is_current == True,  # noqa: E712
             )
-            .order_by(Employee.employee_seq.asc(), Employee.id.asc())
+            .order_by(
+                Department.order_no.asc(),
+                Department.id.asc(),
+                Employee.employee_seq.asc(),
+                Employee.id.asc(),
+            )
         )
     ).all()
 
@@ -434,10 +441,16 @@ async def get_detail(session: AsyncSession, dept_id: int) -> DepartmentDetailRea
             full_name=employee.full_name,
             status=employee.status,
             start_date=employee.start_date,
+            department_id=department.id,
+            department_code=department.code,
+            department_name=department.name,
+            department_parent_id=department.parent_id,
+            department_dept_type=department.dept_type,
+            department_dept_type_label=DepartmentRead.model_validate(department).dept_type_label,
             job_title_name=job_title_name,
             job_position_name=job_position_name,
         )
-        for employee, job_title_name, job_position_name in direct_rows
+        for employee, department, job_title_name, job_position_name in direct_rows
     ]
 
     return DepartmentDetailRead(

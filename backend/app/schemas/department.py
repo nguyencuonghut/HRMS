@@ -137,6 +137,12 @@ class DepartmentDirectEmployeeItem(BaseModel):
     full_name: str
     status: str
     start_date: date
+    department_id: int
+    department_code: str
+    department_name: str
+    department_parent_id: Optional[int] = None
+    department_dept_type: str
+    department_dept_type_label: str
     job_title_name: Optional[str] = None
     job_position_name: Optional[str] = None
 

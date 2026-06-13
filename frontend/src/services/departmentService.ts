@@ -48,6 +48,12 @@ export interface DepartmentDirectEmployeeItem {
   full_name: string
   status: string
   start_date: string
+  department_id: number
+  department_code: string
+  department_name: string
+  department_parent_id: number | null
+  department_dept_type: string
+  department_dept_type_label: string
   job_title_name: string | null
   job_position_name: string | null
 }

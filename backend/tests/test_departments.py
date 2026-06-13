@@ -165,7 +165,7 @@ def _upload_avatar(client: TestClient, headers: dict, employee_id: int, *, filen
     return resp.json()
 
 
-def test_department_detail_returns_summary_and_direct_employees(client: TestClient):
+def test_department_detail_returns_summary_and_subtree_employees(client: TestClient):
     asyncio.run(_cleanup_detail_test_data())
     headers = _login(client)
 
@@ -261,12 +261,23 @@ def test_department_detail_returns_summary_and_direct_employees(client: TestClie
         "direct_child_count": 1,
         "job_position_count": 1,
     }
-    assert len(body["direct_employees"]) == 1
-    direct_employee = body["direct_employees"][0]
-    assert direct_employee["id"] == root_employee["id"]
-    assert direct_employee["full_name"] == "Test Detail Root"
-    assert direct_employee["job_position_name"] == "Test Root Position"
-    assert direct_employee["display_code"].startswith("TR")
+    assert len(body["direct_employees"]) == 2
+    employees_by_id = {item["id"]: item for item in body["direct_employees"]}
+
+    root_employee_row = employees_by_id[root_employee["id"]]
+    assert root_employee_row["full_name"] == "Test Detail Root"
+    assert root_employee_row["job_position_name"] == "Test Root Position"
+    assert root_employee_row["display_code"].startswith("TR")
+    assert root_employee_row["department_id"] == root_id
+    assert root_employee_row["department_name"] == "Test Department Root"
+    assert root_employee_row["department_dept_type_label"] == "Phòng"
+
+    child_employee_row = employees_by_id[child_employee["id"]]
+    assert child_employee_row["full_name"] == "Test Detail Child"
+    assert child_employee_row["department_id"] == child_id
+    assert child_employee_row["department_name"] == "Test Department Child"
+    assert child_employee_row["department_parent_id"] == root_id
+    assert child_employee_row["department_dept_type_label"] == "Tổ"
 
     org_chart = body["org_chart"]
     assert org_chart["department_id"] == root_id

@@ -143,8 +143,29 @@ test("department list navigates to detail page and renders summary/direct employ
         full_name: "Nguyễn Văn Cường",
         status: "official",
         start_date: "2024-01-10",
+        department_id: 901,
+        department_code: "KS",
+        department_name: "Phòng kiểm soát",
+        department_parent_id: null,
+        department_dept_type: "PHONG",
+        department_dept_type_label: "Phòng",
         job_title_name: "Trưởng phòng",
         job_position_name: "Giám đốc khối kiểm soát",
+      },
+      {
+        id: 1302,
+        display_code: "KS002",
+        full_name: "Trần Thị Lan",
+        status: "official",
+        start_date: "2024-03-01",
+        department_id: 902,
+        department_code: "KSNB",
+        department_name: "Tổ kiểm soát nội bộ",
+        department_parent_id: 901,
+        department_dept_type: "TO",
+        department_dept_type_label: "Tổ",
+        job_title_name: "Phó phòng",
+        job_position_name: "Phó trưởng phòng kiểm soát",
       },
     ],
   };
@@ -352,9 +373,15 @@ test("department list navigates to detail page and renders summary/direct employ
   const headCard = page.locator(".dept-head-card");
   const orgChartCard = page.locator(".dept-org-card");
   const directEmployeesCard = page.locator(".dept-employees-card");
+  await expect(directEmployeesCard.getByRole("cell", { name: "Phòng kiểm soát" })).toBeVisible();
+  await expect(directEmployeesCard.getByRole("cell", { name: "Tổ kiểm soát nội bộ" })).toBeVisible();
   await expect(page.getByRole("cell", { name: "KS001" })).toBeVisible();
+  await expect(page.getByRole("cell", { name: "KS002" })).toBeVisible();
   await expect(directEmployeesCard.getByRole("button", { name: "Nguyễn Văn Cường" })).toBeVisible();
+  await expect(directEmployeesCard.getByRole("button", { name: "Trần Thị Lan" })).toBeVisible();
+  await expect(directEmployeesCard.getByText("Trưởng phòng")).toBeVisible();
   await expect(page.getByRole("cell", { name: "Giám đốc khối kiểm soát" })).toBeVisible();
+  await expect(page.getByRole("cell", { name: "Phó trưởng phòng kiểm soát" })).toBeVisible();
   await expect(directEmployeesCard.getByText("Chính thức")).toBeVisible();
   await expect(headCard.getByRole("heading", { name: "Người đứng đầu hiện tại" })).toBeVisible();
   await expect(headCard.getByRole("button", { name: "Nguyễn Văn Cường" })).toBeVisible();

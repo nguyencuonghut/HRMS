@@ -296,8 +296,8 @@
     <div class="card dept-panel-card dept-employees-card">
       <div class="dept-section-head">
         <div>
-          <h3>Nhân sự trực tiếp</h3>
-          <p>Danh sách nhân sự hiện đang thuộc đúng đơn vị này.</p>
+          <h3>Nhân sự theo cây đơn vị</h3>
+          <p>Mặc định hiển thị toàn bộ nhân sự của đơn vị hiện tại và tất cả đơn vị con.</p>
         </div>
       </div>
 
@@ -318,47 +318,86 @@
         />
       </div>
 
-      <DataTable
+      <TreeTable
         v-else
-        :value="detail?.direct_employees ?? []"
+        :value="employeeTreeNodes"
+        v-model:expandedKeys="employeeTreeExpandedKeys"
         :loading="loadingDetail"
         responsive-layout="scroll"
+        class="dept-employee-tree"
       >
         <template #empty>
           <div class="empty-state">
             <i class="pi pi-users" />
-            <span>Đơn vị này chưa có nhân sự trực tiếp.</span>
+            <span>Đơn vị này và các đơn vị con chưa có nhân sự.</span>
           </div>
         </template>
 
-        <Column field="display_code" header="Mã NV" style="width: 120px" />
+        <Column field="department_name" header="Đơn vị" expander style="min-width: 280px">
+          <template #body="{ node }">
+            <div v-if="node.data.row_type === 'department'" class="dept-employee-unit-cell">
+              <Tag :value="node.data.department_dept_type_label" severity="secondary" />
+              <button type="button" class="dept-inline-link dept-employee-unit-link" @click="goToDepartment(node.data.department_id)">
+                {{ node.data.department_name }}
+              </button>
+            </div>
+            <span v-else />
+          </template>
+        </Column>
+
+        <Column field="display_code" header="Mã NV" style="width: 120px">
+          <template #body="{ node }">
+            {{ node.data.row_type === 'employee' ? node.data.display_code : '—' }}
+          </template>
+        </Column>
 
         <Column field="full_name" header="Họ và tên" style="min-width: 220px">
-          <template #body="{ data }">
-            <button type="button" class="dept-inline-link" @click="goToEmployee(data.id)">
-              {{ data.full_name }}
-            </button>
+          <template #body="{ node }">
+            <template v-if="node.data.row_type === 'employee'">
+              <div class="dept-employee-name-cell">
+                <button type="button" class="dept-inline-link" @click="goToEmployee(node.data.id)">
+                  {{ node.data.full_name }}
+                </button>
+                <div v-if="node.data.head_badges?.length" class="dept-employee-head-badges">
+                  <Tag
+                    v-for="badge in node.data.head_badges"
+                    :key="badge.title"
+                    :value="badge.label"
+                    severity="warn"
+                    :title="badge.title"
+                  />
+                </div>
+              </div>
+            </template>
+            <span v-else class="dept-employee-summary-note">
+              {{ node.data.direct_headcount }} trực tiếp · {{ node.data.total_headcount }} toàn cây
+            </span>
           </template>
         </Column>
 
         <Column field="job_position_name" header="Vị trí" style="min-width: 220px">
-          <template #body="{ data }">
-            {{ data.job_position_name || data.job_title_name || '—' }}
+          <template #body="{ node }">
+            {{ node.data.row_type === 'employee' ? (node.data.job_position_name || node.data.job_title_name || '—') : '—' }}
           </template>
         </Column>
 
         <Column field="status" header="Trạng thái" style="width: 140px">
-          <template #body="{ data }">
-            <Tag :value="statusLabel(data.status)" :severity="statusSeverity(data.status)" />
+          <template #body="{ node }">
+            <Tag
+              v-if="node.data.row_type === 'employee'"
+              :value="statusLabel(node.data.status)"
+              :severity="statusSeverity(node.data.status)"
+            />
+            <span v-else>—</span>
           </template>
         </Column>
 
         <Column field="start_date" header="Ngày vào làm" style="width: 140px">
-          <template #body="{ data }">
-            {{ formatDate(data.start_date) }}
+          <template #body="{ node }">
+            {{ node.data.row_type === 'employee' ? formatDate(node.data.start_date) : '—' }}
           </template>
         </Column>
-      </DataTable>
+      </TreeTable>
     </div>
 
     <Dialog
@@ -486,19 +525,21 @@ import { useRoute, useRouter } from 'vue-router'
 import AutoComplete from 'primevue/autocomplete'
 import Button from 'primevue/button'
 import Column from 'primevue/column'
-import DataTable from 'primevue/datatable'
 import DatePicker from 'primevue/datepicker'
 import Dialog from 'primevue/dialog'
 import InputText from 'primevue/inputtext'
 import OrganizationChart from 'primevue/organizationchart'
 import Tag from 'primevue/tag'
 import Toast from 'primevue/toast'
+import TreeTable from 'primevue/treetable'
 import { useConfirm } from 'primevue/useconfirm'
 import { useToast } from 'primevue/usetoast'
 
 import departmentService, {
   type DepartmentDetailRead,
+  type DepartmentDirectEmployeeItem,
   type DepartmentHeadRead,
+  type DepartmentOrgChartNodeRead,
 } from '@/services/departmentService'
 import employeeService, { type EmployeeLookupItem } from '@/services/employeeService'
 import { useAuthStore } from '@/stores/auth'
@@ -507,6 +548,12 @@ import { toLocalIso } from '@/utils/format'
 type HeadFormErrors = {
   employee_id?: string
   effective_from?: string
+}
+
+type DepartmentEmployeeTreeNode = {
+  key: string
+  data: Record<string, unknown>
+  children: DepartmentEmployeeTreeNode[]
 }
 
 const route = useRoute()
@@ -530,6 +577,7 @@ const headDialogVisible = ref(false)
 const employeeSuggestions = ref<EmployeeLookupItem[]>([])
 const searchingEmployees = ref(false)
 const selectedEmployee = ref<EmployeeLookupItem | string | null>(null)
+const employeeTreeExpandedKeys = ref<Record<string, boolean>>({})
 
 const headForm = ref({
   employee_id: null as number | null,
@@ -582,6 +630,68 @@ const summaryCards = computed(() => {
       note: 'Thuộc riêng đơn vị hiện tại',
     },
   ]
+})
+
+const employeeTreeNodes = computed<DepartmentEmployeeTreeNode[]>(() => {
+  if (!detail.value?.org_chart) {
+    return []
+  }
+
+  const headBadgesByEmployee = new Map<number, Array<{ label: string; title: string }>>()
+  const collectHeadDepartments = (departmentNode: DepartmentOrgChartNodeRead) => {
+    if (departmentNode.head?.employee_id) {
+      const existing = headBadgesByEmployee.get(departmentNode.head.employee_id) ?? []
+      existing.push({
+        label: `Trưởng ${departmentNode.dept_type_label.toLowerCase()}`,
+        title: `${departmentNode.department_name} (${departmentNode.department_code})`,
+      })
+      headBadgesByEmployee.set(departmentNode.head.employee_id, existing)
+    }
+    for (const child of departmentNode.children) {
+      collectHeadDepartments(child)
+    }
+  }
+  collectHeadDepartments(detail.value.org_chart)
+
+  const employeesByDepartment = new Map<number, DepartmentDirectEmployeeItem[]>()
+  for (const employee of detail.value.direct_employees) {
+    const existing = employeesByDepartment.get(employee.department_id) ?? []
+    existing.push(employee)
+    employeesByDepartment.set(employee.department_id, existing)
+  }
+
+  const buildNode = (departmentNode: DepartmentOrgChartNodeRead): DepartmentEmployeeTreeNode => {
+    const childDepartments = departmentNode.children.map(buildNode)
+    const employeeNodes = (employeesByDepartment.get(departmentNode.department_id) ?? []).map((employee) => ({
+      key: `dept-${departmentNode.department_id}-emp-${employee.id}`,
+      data: {
+        row_type: 'employee',
+        head_badges: headBadgesByEmployee.get(employee.id) ?? [],
+        ...employee,
+      },
+      children: [],
+    }))
+    const isRootDepartment = departmentNode.department_id === detail.value?.department.id
+
+    return {
+      key: `dept-${departmentNode.department_id}`,
+      data: {
+        row_type: 'department',
+        department_id: departmentNode.department_id,
+        department_name: departmentNode.department_name,
+        department_code: departmentNode.department_code,
+        department_dept_type: departmentNode.dept_type,
+        department_dept_type_label: departmentNode.dept_type_label,
+        direct_headcount: departmentNode.direct_headcount,
+        total_headcount: departmentNode.total_headcount,
+      },
+      children: isRootDepartment
+        ? [...employeeNodes, ...childDepartments]
+        : [...childDepartments, ...employeeNodes],
+    }
+  }
+
+  return [buildNode(detail.value.org_chart)]
 })
 
 function apiError(e: unknown): string {
@@ -726,6 +836,20 @@ function handleEmployeeClear() {
   headForm.value.employee_id = null
 }
 
+function buildEmployeeTreeExpandedKeys(root: DepartmentOrgChartNodeRead): Record<string, boolean> {
+  const keys: Record<string, boolean> = {}
+
+  const visit = (node: DepartmentOrgChartNodeRead) => {
+    keys[`dept-${node.department_id}`] = true
+    for (const child of node.children) {
+      visit(child)
+    }
+  }
+
+  visit(root)
+  return keys
+}
+
 async function loadDetail() {
   if (!Number.isFinite(departmentId.value)) {
     toast.add({ severity: 'error', summary: 'Không hợp lệ', detail: 'ID phòng / ban không hợp lệ', life: 4000 })
@@ -738,8 +862,10 @@ async function loadDetail() {
   try {
     const response = await departmentService.getDetail(departmentId.value)
     detail.value = response.data
+    employeeTreeExpandedKeys.value = buildEmployeeTreeExpandedKeys(response.data.org_chart)
   } catch (e) {
     detail.value = null
+    employeeTreeExpandedKeys.value = {}
     detailError.value = apiError(e)
     toast.add({
       severity: 'error',
@@ -1171,6 +1297,40 @@ onMounted(refreshAll)
   border-top: 1px dashed var(--p-surface-border);
   color: var(--p-text-muted-color);
   font-size: 0.82rem;
+}
+
+.dept-employee-tree :deep(.p-treetable-tbody > tr > td) {
+  vertical-align: middle;
+}
+
+.dept-employee-unit-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: 2rem;
+}
+
+.dept-employee-unit-link {
+  font-weight: 700;
+}
+
+.dept-employee-summary-note {
+  color: var(--p-text-muted-color);
+  font-size: 0.9rem;
+}
+
+.dept-employee-name-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.dept-employee-head-badges {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
 }
 
 .dept-head-dialog {
