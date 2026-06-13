@@ -19,6 +19,8 @@ from app.services.employee_import_service import IMPORT_COLUMNS, process_import
 TEST_ID_NUMBER = "IMPORTNATVN001"
 TEST_ID_NUMBER_WITH_CATALOGS = "IMPORTNATVN002"
 TEST_ID_NUMBER_INVALID_CATALOG = "IMPORTNATVN003"
+TEST_ID_NUMBER_LEGACY_CODE = "IMPORTNATVN004"
+TEST_ID_NUMBER_LEGACY_CODE_MISMATCH = "IMPORTNATVN005"
 
 
 def _make_engine_and_sessionmaker():
@@ -44,6 +46,8 @@ def _make_import_row(
     nationality: str = "",
     ethnicity: str = "",
     religion: str = "",
+    employee_seq: str = "",
+    display_code: str = "",
 ) -> list[str]:
     values = {column: "" for column in IMPORT_COLUMNS}
     values.update(
@@ -62,13 +66,21 @@ def _make_import_row(
             "Quốc tịch": nationality,
             "Dân tộc": ethnicity,
             "Tôn giáo": religion,
+            "Số thứ tự mã NV": employee_seq,
+            "Mã NV hiện hữu": display_code,
         }
     )
     return [values[column] for column in IMPORT_COLUMNS]
 
 
 async def _cleanup_employee(session: AsyncSession) -> None:
-    for test_id_number in (TEST_ID_NUMBER, TEST_ID_NUMBER_WITH_CATALOGS, TEST_ID_NUMBER_INVALID_CATALOG):
+    for test_id_number in (
+        TEST_ID_NUMBER,
+        TEST_ID_NUMBER_WITH_CATALOGS,
+        TEST_ID_NUMBER_INVALID_CATALOG,
+        TEST_ID_NUMBER_LEGACY_CODE,
+        TEST_ID_NUMBER_LEGACY_CODE_MISMATCH,
+    ):
         employee = (
             await session.execute(
                 select(Employee).where(Employee.id_number_hash == hash_sensitive(test_id_number))
@@ -116,6 +128,100 @@ async def test_employee_import_defaults_nationality_to_vn():
             assert employee.nationality_id == vn.id
 
             await _cleanup_employee(session)
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_employee_import_preserves_legacy_employee_code_and_bumps_sequence():
+    engine, session_factory = _make_engine_and_sessionmaker()
+    try:
+        async with session_factory() as session:
+            await _cleanup_employee(session)
+
+            sequence = (
+                await session.execute(
+                    select(EmployeeCodeSequence).where(EmployeeCodeSequence.code == "SYS1")
+                )
+            ).scalar_one()
+            original_next_value = sequence.next_value
+            legacy_seq = max(original_next_value + 25, 1200)
+
+            workbook = _make_xlsx(
+                [
+                    IMPORT_COLUMNS,
+                    _make_import_row(
+                        id_number=TEST_ID_NUMBER_LEGACY_CODE,
+                        start_date_value=date.today().strftime("%d/%m/%Y"),
+                        sequence_code=sequence.code,
+                        employee_seq=str(legacy_seq),
+                        display_code=f"{legacy_seq:04d}",
+                    ),
+                ]
+            )
+
+            result = await process_import(session, workbook)
+            assert result.success == 1
+            assert len(result.created_ids) == 1
+
+            employee = (
+                await session.execute(select(Employee).where(Employee.id == result.created_ids[0]))
+            ).scalar_one()
+            assert employee.employee_seq == legacy_seq
+            assert employee.employee_code_sequence_id == sequence.id
+
+            updated_sequence = (
+                await session.execute(
+                    select(EmployeeCodeSequence).where(EmployeeCodeSequence.id == sequence.id)
+                )
+            ).scalar_one()
+            assert updated_sequence.next_value == legacy_seq + 1
+
+            await _cleanup_employee(session)
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_employee_import_fails_when_legacy_display_code_does_not_match():
+    engine, session_factory = _make_engine_and_sessionmaker()
+    try:
+        async with session_factory() as session:
+            await _cleanup_employee(session)
+
+            sequence = (
+                await session.execute(
+                    select(EmployeeCodeSequence).where(EmployeeCodeSequence.code == "SYS1")
+                )
+            ).scalar_one()
+
+            workbook = _make_xlsx(
+                [
+                    IMPORT_COLUMNS,
+                    _make_import_row(
+                        id_number=TEST_ID_NUMBER_LEGACY_CODE_MISMATCH,
+                        start_date_value=date.today().strftime("%d/%m/%Y"),
+                        sequence_code=sequence.code,
+                        employee_seq="1500",
+                        display_code="SAI1500",
+                    ),
+                ]
+            )
+
+            result = await process_import(session, workbook)
+            assert result.success == 0
+            assert result.failed == 1
+            assert any(
+                error.column == "Mã NV hiện hữu" and "không khớp" in error.message
+                for error in result.errors
+            )
+
+            employee = (
+                await session.execute(
+                    select(Employee).where(Employee.id_number_hash == hash_sensitive(TEST_ID_NUMBER_LEGACY_CODE_MISMATCH))
+                )
+            ).scalar_one_or_none()
+            assert employee is None
     finally:
         await engine.dispose()
 

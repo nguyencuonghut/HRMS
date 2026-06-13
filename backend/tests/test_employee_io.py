@@ -100,6 +100,7 @@ def _valid_row(suffix: str, dept_code: str = "", sequence_code: str = "SYS1") ->
         dept_code, "", "",
         sequence_code,
         "", "",
+        "", "",
     ]
 
 

@@ -139,6 +139,30 @@ async def allocate_employee_seq(
     return current
 
 
+async def ensure_sequence_next_value_at_least(
+    session: AsyncSession,
+    *,
+    sequence_id: int,
+    candidate_next_value: int,
+) -> None:
+    sequence = (
+        await session.execute(
+            select(EmployeeCodeSequence)
+            .where(
+                EmployeeCodeSequence.id == sequence_id,
+                EmployeeCodeSequence.is_active.is_(True),
+            )
+            .with_for_update()
+        )
+    ).scalar_one_or_none()
+    if not sequence:
+        raise ValueError(f"Employee code sequence {sequence_id} not found or inactive")
+
+    if sequence.next_value < candidate_next_value:
+        sequence.next_value = candidate_next_value
+        await session.flush()
+
+
 async def build_employee_display_code(
     session: AsyncSession,
     emp: Employee,

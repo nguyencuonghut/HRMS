@@ -170,6 +170,31 @@ async def test_explicit_employee_seq_is_unique_per_sequence_only():
 
 
 @pytest.mark.asyncio
+async def test_explicit_employee_seq_advances_sequence_next_value_when_higher():
+    sys2_before = await _get_sequence("SYS2")
+    nationality_id = await _get_nationality_id()
+    explicit_seq = max(sys2_before.next_value + 10, 9500)
+
+    async with _make_session()() as s:
+        employee = await employee_service.create_employee(
+            s,
+            _payload(
+                "TESTSEQ4C004",
+                sequence_id=sys2_before.id,
+                employee_seq=explicit_seq,
+                nationality_id=nationality_id,
+            ),
+        )
+        await s.commit()
+        await s.refresh(employee)
+
+    assert employee.employee_seq == explicit_seq
+
+    sys2_after = await _get_sequence("SYS2")
+    assert sys2_after.next_value == explicit_seq + 1
+
+
+@pytest.mark.asyncio
 async def test_employee_sequence_cutover_constraints_applied():
     async with _make_session()() as s:
         nullable = (

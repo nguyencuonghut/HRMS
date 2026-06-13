@@ -269,6 +269,11 @@ async def create_employee(session: AsyncSession, payload: EmployeeCreate) -> Emp
                 detail=f"Mã số nhân viên {payload.employee_seq} đã tồn tại trong hệ mã đã chọn",
             )
         seq = payload.employee_seq
+        await employee_code_service.ensure_sequence_next_value_at_least(
+            session,
+            sequence_id=sequence_id,
+            candidate_next_value=seq + 1,
+        )
     else:
         seq = await employee_code_service.allocate_employee_seq(
             session,

@@ -33,6 +33,7 @@ from app.schemas.employee_import import (
     ImportRowError,
 )
 from app.services import employee_service
+from app.services.employee_code_service import compute_employee_display_code
 from app.services.import_excel_helper import extract_header_and_non_blank_rows
 
 
@@ -64,14 +65,14 @@ def generate_template() -> bytes:
         "probation", "01/01/2026",
         "0901234567", "vana@email.com",
         "1234567890", "BHXH123456", "Việt Nam", "Kinh", "Không",
-        "HC", "Chuyên viên nhân sự", "", "",
+        "HC", "Chuyên viên nhân sự", "", "SYS1", "1024", "HC1024",
         "01/01/2026", "31/03/2026",
     ]
     for col_idx, val in enumerate(sample, start=1):
         ws.cell(row=2, column=col_idx, value=val)
 
     # Column widths
-    widths = [20, 12, 12, 14, 10, 16, 14, 24, 12, 14, 14, 22, 14, 14, 16, 16, 16, 14, 22, 22, 18, 20, 20]
+    widths = [20, 12, 12, 14, 10, 16, 14, 24, 12, 14, 14, 22, 14, 14, 16, 16, 16, 14, 22, 22, 18, 16, 18, 20, 20]
     for i, w in enumerate(widths, start=1):
         ws.column_dimensions[ws.cell(row=1, column=i).column_letter].width = w
 
@@ -101,7 +102,9 @@ def generate_template() -> bytes:
         ["Phòng ban", "", "Mã hoặc tên phòng ban (tìm kiếm tương đối)", "HC"],
         ["Chức danh", "", "Tên chức danh (tìm kiếm tương đối)", "Chuyên viên nhân sự"],
         ["Vị trí công việc", "", "Tên vị trí công việc, nên đi cùng phòng ban", "Nhân viên nhân sự tổng hợp"],
-        ["Hệ mã nhân viên", "", "Override hệ mã trong case ngoại lệ", "SYS2 / SYS3"],
+        ["Hệ mã nhân viên", "", "Hệ mã để xác định employee code; bắt buộc nếu nhập mã nhân viên cũ", "SYS1 / SYS2 / SYS3"],
+        ["Số thứ tự mã NV", "", "Seq cũ nếu cần giữ nguyên mã nhân viên hiện hữu", "1024"],
+        ["Mã NV hiện hữu", "", "Dùng để đối chiếu. Hệ thống sẽ báo lỗi nếu mã tính ra không khớp", "HC1024"],
         ["Ngày bắt đầu thử việc", "", "Định dạng dd/mm/yyyy", "01/01/2026"],
         ["Ngày kết thúc thử việc", "", "Định dạng dd/mm/yyyy", "31/03/2026"],
         [],
@@ -263,6 +266,46 @@ async def _find_employee_code_sequence(
     return None
 
 
+def _parse_positive_int(
+    raw_value: str,
+    col: str,
+    row: int,
+    errors: list[ImportRowError],
+) -> int | None:
+    raw = (raw_value or "").strip()
+    if not raw:
+        return None
+    try:
+        value = int(raw)
+    except ValueError:
+        errors.append(
+            ImportRowError(row=row, column=col, message=f"Giá trị phải là số nguyên dương, nhận được: '{raw}'")
+        )
+        return None
+    if value <= 0:
+        errors.append(
+            ImportRowError(row=row, column=col, message=f"Giá trị phải lớn hơn 0, nhận được: '{raw}'")
+        )
+        return None
+    return value
+
+
+def _compute_expected_display_code(
+    *,
+    employee_seq: int,
+    sequence: EmployeeCodeSequence,
+    department: Department | None,
+) -> str:
+    prefix = None
+    if department is not None:
+        prefix = (department.display_prefix or "").strip() or department.code
+    return compute_employee_display_code(
+        employee_seq,
+        prefix,
+        min_digits=sequence.min_digits,
+    )
+
+
 async def _get_default_nationality_id(session: AsyncSession) -> int:
     nationality = (
         await session.execute(
@@ -408,6 +451,14 @@ async def process_import(session: AsyncSession, file_bytes: bytes) -> ImportResu
         jt_raw       = get(row_vals, "Chức danh")
         position_raw = get(row_vals, "Vị trí công việc")
         sequence_raw = get(row_vals, "Hệ mã nhân viên")
+        employee_seq_raw = get(row_vals, "Số thứ tự mã NV")
+        display_code_raw = get(row_vals, "Mã NV hiện hữu")
+        employee_seq = _parse_positive_int(
+            employee_seq_raw,
+            "Số thứ tự mã NV",
+            excel_row,
+            row_errors,
+        )
 
         if row_errors:
             errors.extend(row_errors)
@@ -427,6 +478,7 @@ async def process_import(session: AsyncSession, file_bytes: bytes) -> ImportResu
         job_title_id = await _find_job_title(session, jt_raw)
         job_position = await _find_job_position(session, position_raw, department_id=dept_id) if position_raw else None
         sequence_id  = await _find_employee_code_sequence(session, sequence_raw) if sequence_raw else None
+        sequence = await session.get(EmployeeCodeSequence, sequence_id) if sequence_id else None
         nationality_id = await _find_nationality(session, nationality_raw) if nationality_raw else default_nationality_id
         ethnicity_id = await _find_ethnicity(session, ethnicity_raw) if ethnicity_raw else None
         religion_id = await _find_religion(session, religion_raw) if religion_raw else None
@@ -491,10 +543,51 @@ async def process_import(session: AsyncSession, file_bytes: bytes) -> ImportResu
             errors.append(ImportRowError(row=excel_row, column="Hệ mã nhân viên", message=f"Không tìm thấy hệ mã nhân viên '{sequence_raw}'"))
             failed += 1
             continue
+        if employee_seq is not None and not sequence_id:
+            errors.append(
+                ImportRowError(
+                    row=excel_row,
+                    column="Hệ mã nhân viên",
+                    message="Muốn giữ mã nhân viên cũ thì phải nhập Hệ mã nhân viên",
+                )
+            )
+            failed += 1
+            continue
+        if display_code_raw and (employee_seq is None or not sequence):
+            errors.append(
+                ImportRowError(
+                    row=excel_row,
+                    column="Mã NV hiện hữu",
+                    message="Muốn đối chiếu Mã NV hiện hữu thì phải nhập cả Hệ mã nhân viên và Số thứ tự mã NV",
+                )
+            )
+            failed += 1
+            continue
+        if display_code_raw and employee_seq is not None and sequence is not None:
+            department = await session.get(Department, dept_id) if dept_id else None
+            expected_display_code = _compute_expected_display_code(
+                employee_seq=employee_seq,
+                sequence=sequence,
+                department=department,
+            )
+            if display_code_raw.strip() != expected_display_code:
+                errors.append(
+                    ImportRowError(
+                        row=excel_row,
+                        column="Mã NV hiện hữu",
+                        message=(
+                            f"Mã NV hiện hữu '{display_code_raw}' không khớp với mã hệ thống tính ra "
+                            f"'{expected_display_code}' từ Hệ mã nhân viên + Số thứ tự mã NV + đơn vị hiện tại"
+                        ),
+                    )
+                )
+                failed += 1
+                continue
 
         # ── Create employee ───────────────────────────────────────────
         try:
             payload = EmployeeCreate(
+                employee_seq=employee_seq,
                 full_name=full_name,
                 last_name=last_name,
                 first_name=first_name,

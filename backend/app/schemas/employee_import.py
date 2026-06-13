@@ -31,6 +31,8 @@ IMPORT_COLUMNS = [
     "Chức danh",
     "Vị trí công việc",
     "Hệ mã nhân viên",
+    "Số thứ tự mã NV",
+    "Mã NV hiện hữu",
     "Ngày bắt đầu thử việc",
     "Ngày kết thúc thử việc",
 ]
