@@ -153,6 +153,86 @@
       </div>
     </div>
 
+    <div class="card dept-org-card">
+      <div class="dept-section-head">
+        <div>
+          <h3>Sơ đồ đơn vị</h3>
+          <p>Cây đơn vị con và người đứng đầu hiện hành của từng node trong subtree.</p>
+        </div>
+      </div>
+
+      <div v-if="loadingDetail" class="dept-head-loading">
+        <i class="pi pi-spin pi-spinner" />
+        <span>Đang tải sơ đồ đơn vị...</span>
+      </div>
+
+      <div v-else-if="!detail?.org_chart" class="empty-state">
+        <i class="pi pi-sitemap" />
+        <span>Chưa có dữ liệu sơ đồ đơn vị.</span>
+      </div>
+
+      <OrganizationChart
+        v-else
+        :value="detail.org_chart"
+        collapsible
+        class="dept-org-chart"
+      >
+        <template #default="{ node }">
+          <div class="dept-org-node">
+            <div class="dept-org-node-top">
+              <Tag :value="node.dept_type_label" severity="secondary" />
+              <button
+                type="button"
+                class="dept-inline-link dept-org-department-link"
+                @click.stop="goToDepartment(node.department_id)"
+              >
+                {{ node.department_name }}
+              </button>
+            </div>
+
+            <div v-if="node.head" class="dept-org-head">
+              <div class="dept-org-avatar">
+                <img
+                  v-if="node.head.avatar_preview_url"
+                  :src="node.head.avatar_preview_url"
+                  :alt="node.head.full_name"
+                  class="dept-org-avatar-image"
+                />
+                <template v-else>
+                  {{ node.head.avatar_initials }}
+                </template>
+              </div>
+              <button
+                type="button"
+                class="dept-inline-link dept-org-head-link"
+                @click.stop="goToEmployee(node.head.employee_id)"
+              >
+                {{ node.head.full_name }}
+              </button>
+              <div class="dept-org-role">
+                {{ node.head.display_position_label }}
+              </div>
+              <div
+                v-if="node.head.is_cross_department_assignment"
+                class="dept-org-cross-note"
+              >
+                Quản lý chéo đơn vị
+              </div>
+            </div>
+
+            <div v-else class="dept-org-empty">
+              Chưa gán người phụ trách
+            </div>
+
+            <div class="dept-org-metrics">
+              <span>Trực tiếp: {{ node.direct_headcount }}</span>
+              <span>Toàn cây: {{ node.total_headcount }}</span>
+            </div>
+          </div>
+        </template>
+      </OrganizationChart>
+    </div>
+
     <div class="card dept-employees-card">
       <div class="dept-section-head">
         <div>
@@ -307,6 +387,7 @@ import DataTable from 'primevue/datatable'
 import DatePicker from 'primevue/datepicker'
 import Dialog from 'primevue/dialog'
 import InputText from 'primevue/inputtext'
+import OrganizationChart from 'primevue/organizationchart'
 import Tag from 'primevue/tag'
 import Toast from 'primevue/toast'
 import { useConfirm } from 'primevue/useconfirm'
@@ -576,6 +657,7 @@ async function submitHead() {
       life: 4000,
     })
     resetHeadDialog()
+    await refreshAll()
   } catch (e) {
     toast.add({
       severity: 'error',
@@ -614,6 +696,7 @@ function confirmDeleteHead() {
           detail: response.data.message,
           life: 4000,
         })
+        await refreshAll()
       } catch (e) {
         toast.add({
           severity: 'error',
@@ -813,6 +896,103 @@ onMounted(refreshAll)
 
 .dept-head-warning.subtle {
   margin-top: 0.75rem;
+}
+
+.dept-org-chart {
+  overflow-x: auto;
+  padding-bottom: 0.5rem;
+}
+
+:deep(.dept-org-chart .p-organizationchart-table) {
+  margin-inline: auto;
+}
+
+.dept-org-node {
+  width: 15rem;
+  padding: 1rem;
+  border-radius: 18px;
+  border: 1px solid var(--p-surface-border);
+  background:
+    radial-gradient(circle at top left, color-mix(in srgb, #99f6e4 18%, transparent) 0, transparent 46%),
+    linear-gradient(180deg, color-mix(in srgb, var(--p-surface-0) 88%, #f8fafc) 0%, var(--p-surface-card) 100%);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  text-align: center;
+}
+
+.dept-org-node-top {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  align-items: center;
+}
+
+.dept-org-department-link {
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.dept-org-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.dept-org-avatar {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 999px;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, #0f766e, #14b8a6);
+  color: #fff;
+  font-weight: 700;
+}
+
+.dept-org-avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.dept-org-head-link {
+  font-weight: 700;
+}
+
+.dept-org-role {
+  color: var(--p-text-muted-color);
+  font-size: 0.9rem;
+}
+
+.dept-org-cross-note {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, #fef3c7 70%, white);
+  color: #92400e;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.dept-org-empty {
+  color: var(--p-text-muted-color);
+  font-size: 0.92rem;
+}
+
+.dept-org-metrics {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px dashed var(--p-surface-border);
+  color: var(--p-text-muted-color);
+  font-size: 0.85rem;
 }
 
 .dept-head-dialog {

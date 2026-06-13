@@ -141,10 +141,39 @@ class DepartmentDirectEmployeeItem(BaseModel):
     job_position_name: Optional[str] = None
 
 
+class DepartmentOrgChartHeadRead(BaseModel):
+    employee_id: int
+    display_code: str
+    full_name: str
+    status: str
+    display_position_label: str
+    current_department_name: Optional[str] = None
+    current_job_position_name: Optional[str] = None
+    current_job_title_name: Optional[str] = None
+    is_cross_department_assignment: bool
+    avatar_preview_url: Optional[str] = None
+    avatar_initials: str
+
+
+class DepartmentOrgChartNodeRead(BaseModel):
+    key: str
+    type: str = "department"
+    department_id: int
+    department_code: str
+    department_name: str
+    dept_type: str
+    dept_type_label: str
+    direct_headcount: int
+    total_headcount: int
+    head: Optional[DepartmentOrgChartHeadRead] = None
+    children: list["DepartmentOrgChartNodeRead"] = []
+
+
 class DepartmentDetailRead(BaseModel):
     department: DepartmentRead
     parent: Optional[DepartmentBrief] = None
     summary: DepartmentDetailSummary
+    org_chart: DepartmentOrgChartNodeRead
     direct_employees: list[DepartmentDirectEmployeeItem]
 
 
@@ -178,3 +207,6 @@ class DepartmentHeadRead(BaseModel):
     effective_to: Optional[date] = None
     is_current: bool
     employee: DepartmentHeadEmployeeRead
+
+
+DepartmentOrgChartNodeRead.model_rebuild()

@@ -56,6 +56,10 @@ async def _cleanup_detail_test_data() -> None:
         ]
         if employee_ids:
             await session.execute(
+                text("DELETE FROM department_heads WHERE employee_id = ANY(:employee_ids)"),
+                {"employee_ids": employee_ids},
+            )
+            await session.execute(
                 text("DELETE FROM employee_job_records WHERE employee_id = ANY(:employee_ids)"),
                 {"employee_ids": employee_ids},
             )
@@ -212,6 +216,17 @@ def test_department_detail_returns_summary_and_direct_employees(client: TestClie
     )
     assert root_job.status_code == 201, root_job.text
 
+    root_head = client.put(
+        f"{BASE}/{root_id}/head",
+        json={
+            "employee_id": root_employee["id"],
+            "head_role_label": "Trưởng phòng",
+            "effective_from": "2026-01-01",
+        },
+        headers=headers,
+    )
+    assert root_head.status_code == 200, root_head.text
+
     child_job = client.post(
         f"{EMP_BASE}/{child_employee['id']}/job-records",
         json={
@@ -240,5 +255,22 @@ def test_department_detail_returns_summary_and_direct_employees(client: TestClie
     assert direct_employee["full_name"] == "Test Detail Root"
     assert direct_employee["job_position_name"] == "Test Root Position"
     assert direct_employee["display_code"].startswith("TR")
+
+    org_chart = body["org_chart"]
+    assert org_chart["department_id"] == root_id
+    assert org_chart["department_name"] == "Test Department Root"
+    assert org_chart["direct_headcount"] == 1
+    assert org_chart["total_headcount"] == 2
+    assert org_chart["head"]["employee_id"] == root_employee["id"]
+    assert org_chart["head"]["full_name"] == "Test Detail Root"
+    assert org_chart["head"]["display_position_label"] == "Trưởng phòng"
+    assert org_chart["head"]["avatar_preview_url"] is None
+    assert org_chart["head"]["avatar_initials"] == "TR"
+    assert len(org_chart["children"]) == 1
+    child_node = org_chart["children"][0]
+    assert child_node["department_id"] == child_id
+    assert child_node["direct_headcount"] == 1
+    assert child_node["total_headcount"] == 1
+    assert child_node["head"] is None
 
     asyncio.run(_cleanup_detail_test_data())

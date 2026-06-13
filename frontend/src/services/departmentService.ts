@@ -52,10 +52,39 @@ export interface DepartmentDirectEmployeeItem {
   job_position_name: string | null
 }
 
+export interface DepartmentOrgChartHeadRead {
+  employee_id: number
+  display_code: string
+  full_name: string
+  status: string
+  display_position_label: string
+  current_department_name: string | null
+  current_job_position_name: string | null
+  current_job_title_name: string | null
+  is_cross_department_assignment: boolean
+  avatar_preview_url: string | null
+  avatar_initials: string
+}
+
+export interface DepartmentOrgChartNodeRead {
+  key: string
+  type: string
+  department_id: number
+  department_code: string
+  department_name: string
+  dept_type: string
+  dept_type_label: string
+  direct_headcount: number
+  total_headcount: number
+  head: DepartmentOrgChartHeadRead | null
+  children: DepartmentOrgChartNodeRead[]
+}
+
 export interface DepartmentDetailRead {
   department: DepartmentRead
   parent: DepartmentBrief | null
   summary: DepartmentDetailSummary
+  org_chart: DepartmentOrgChartNodeRead
   direct_employees: DepartmentDirectEmployeeItem[]
 }
 

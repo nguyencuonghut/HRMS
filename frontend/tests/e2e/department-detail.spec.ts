@@ -3,6 +3,62 @@ import { expect, test } from "@playwright/test";
 const ADMIN_EMAIL = process.env.E2E_EMAIL || "admin@hrms.local";
 const ADMIN_PASSWORD = process.env.E2E_PASSWORD || "Hrms@2026";
 
+function toOrgChartHead(head: {
+  employee_id: number;
+  display_position_label: string;
+  employee: {
+    id: number;
+    display_code: string;
+    full_name: string;
+    status: string;
+    current_department_name: string | null;
+    current_job_position_name: string | null;
+    current_job_title_name: string | null;
+    is_cross_department_assignment: boolean;
+  };
+}) {
+  const parts = head.employee.full_name.split(" ").filter(Boolean);
+  const avatarInitials =
+    parts.length > 1
+      ? `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase()
+      : head.employee.full_name.slice(0, 1).toUpperCase();
+
+  return {
+    employee_id: head.employee_id,
+    display_code: head.employee.display_code,
+    full_name: head.employee.full_name,
+    status: head.employee.status,
+    display_position_label: head.display_position_label,
+    current_department_name: head.employee.current_department_name,
+    current_job_position_name: head.employee.current_job_position_name,
+    current_job_title_name: head.employee.current_job_title_name,
+    is_cross_department_assignment: head.employee.is_cross_department_assignment,
+    avatar_preview_url: null,
+    avatar_initials: avatarInitials,
+  };
+}
+
+function toNullableOrgChartHead(
+  head:
+    | {
+        employee_id: number;
+        display_position_label: string;
+        employee: {
+          id: number;
+          display_code: string;
+          full_name: string;
+          status: string;
+          current_department_name: string | null;
+          current_job_position_name: string | null;
+          current_job_title_name: string | null;
+          is_cross_department_assignment: boolean;
+        };
+      }
+    | null,
+) {
+  return head ? toOrgChartHead(head) : null;
+}
+
 test("department list navigates to detail page and renders summary/direct employees", async ({
   page,
 }) => {
@@ -31,6 +87,112 @@ test("department list navigates to detail page and renders summary/direct employ
     },
   };
   let lastHeadPayload: Record<string, unknown> | null = null;
+  const detail901 = {
+    department: {
+      id: 901,
+      code: "KS",
+      name: "Phòng kiểm soát",
+      short_name: "KS",
+      display_prefix: "KS",
+      parent_id: null,
+      dept_type: "PHONG",
+      dept_type_label: "Phòng",
+      order_no: 1,
+      is_active: true,
+      created_at: "2026-01-01T00:00:00",
+      updated_at: null,
+    },
+    parent: null,
+    summary: {
+      direct_headcount: 3,
+      total_headcount: 5,
+      direct_child_count: 2,
+      job_position_count: 4,
+    },
+    org_chart: {
+      key: "dept-901",
+      type: "department",
+      department_id: 901,
+      department_code: "KS",
+      department_name: "Phòng kiểm soát",
+      dept_type: "PHONG",
+      dept_type_label: "Phòng",
+      direct_headcount: 3,
+      total_headcount: 5,
+      head: currentHead,
+      children: [
+        {
+          key: "dept-902",
+          type: "department",
+          department_id: 902,
+          department_code: "KSNB",
+          department_name: "Tổ kiểm soát nội bộ",
+          dept_type: "TO",
+          dept_type_label: "Tổ",
+          direct_headcount: 2,
+          total_headcount: 2,
+          head: null,
+          children: [],
+        },
+      ],
+    },
+    direct_employees: [
+      {
+        id: 1201,
+        display_code: "KS001",
+        full_name: "Nguyễn Văn Cường",
+        status: "official",
+        start_date: "2024-01-10",
+        job_title_name: "Trưởng phòng",
+        job_position_name: "Giám đốc khối kiểm soát",
+      },
+    ],
+  };
+  const detail902 = {
+    department: {
+      id: 902,
+      code: "KSNB",
+      name: "Tổ kiểm soát nội bộ",
+      short_name: "KSNB",
+      display_prefix: "KSNB",
+      parent_id: 901,
+      dept_type: "TO",
+      dept_type_label: "Tổ",
+      order_no: 2,
+      is_active: true,
+      created_at: "2026-01-01T00:00:00",
+      updated_at: null,
+    },
+    parent: {
+      id: 901,
+      code: "KS",
+      name: "Phòng kiểm soát",
+      parent_id: null,
+      dept_type: "PHONG",
+      dept_type_label: "Phòng",
+      is_active: true,
+    },
+    summary: {
+      direct_headcount: 2,
+      total_headcount: 2,
+      direct_child_count: 0,
+      job_position_count: 1,
+    },
+    org_chart: {
+      key: "dept-902",
+      type: "department",
+      department_id: 902,
+      department_code: "KSNB",
+      department_name: "Tổ kiểm soát nội bộ",
+      dept_type: "TO",
+      dept_type_label: "Tổ",
+      direct_headcount: 2,
+      total_headcount: 2,
+      head: null,
+      children: [],
+    },
+    direct_employees: [],
+  };
 
   await page.goto("/login");
   await page.getByLabel("Email").fill(ADMIN_EMAIL);
@@ -68,39 +230,20 @@ test("department list navigates to detail page and renders summary/direct employ
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        department: {
-          id: 901,
-          code: "KS",
-          name: "Phòng kiểm soát",
-          short_name: "KS",
-          display_prefix: "KS",
-          parent_id: null,
-          dept_type: "PHONG",
-          dept_type_label: "Phòng",
-          order_no: 1,
-          is_active: true,
-          created_at: "2026-01-01T00:00:00",
-          updated_at: null,
+        ...detail901,
+        org_chart: {
+          ...detail901.org_chart,
+          head: toNullableOrgChartHead(currentHead),
         },
-        parent: null,
-        summary: {
-          direct_headcount: 3,
-          total_headcount: 5,
-          direct_child_count: 2,
-          job_position_count: 4,
-        },
-        direct_employees: [
-          {
-            id: 1201,
-            display_code: "KS001",
-            full_name: "Nguyễn Văn Cường",
-            status: "official",
-            start_date: "2024-01-10",
-            job_title_name: "Trưởng phòng",
-            job_position_name: "Giám đốc khối kiểm soát",
-          },
-        ],
       }),
+    });
+  });
+
+  await page.route("**/api/v1/departments/902/detail", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(detail902),
     });
   });
 
@@ -155,6 +298,14 @@ test("department list navigates to detail page and renders summary/direct employ
     await route.fallback();
   });
 
+  await page.route("**/api/v1/departments/902/head", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: "null",
+    });
+  });
+
   await page.route("**/api/v1/employees/lookup**", async (route) => {
     await route.fulfill({
       status: 200,
@@ -193,13 +344,21 @@ test("department list navigates to detail page and renders summary/direct employ
   await expect(summaryCards.nth(3)).toContainText("4");
 
   const headCard = page.locator(".dept-head-card");
+  const orgChartCard = page.locator(".dept-org-card");
+  const directEmployeesCard = page.locator(".dept-employees-card");
   await expect(page.getByRole("cell", { name: "KS001" })).toBeVisible();
-  await expect(page.getByRole("table").getByRole("button", { name: "Nguyễn Văn Cường" })).toBeVisible();
+  await expect(directEmployeesCard.getByRole("button", { name: "Nguyễn Văn Cường" })).toBeVisible();
   await expect(page.getByRole("cell", { name: "Giám đốc khối kiểm soát" })).toBeVisible();
-  await expect(page.getByRole("table").getByText("Chính thức")).toBeVisible();
+  await expect(directEmployeesCard.getByText("Chính thức")).toBeVisible();
   await expect(headCard.getByRole("heading", { name: "Người đứng đầu hiện tại" })).toBeVisible();
   await expect(headCard.getByRole("button", { name: "Nguyễn Văn Cường" })).toBeVisible();
   await expect(headCard.getByText("Trưởng phòng kiểm soát")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Sơ đồ đơn vị" })).toBeVisible();
+  await expect(orgChartCard.getByRole("button", { name: "Phòng kiểm soát" })).toBeVisible();
+  await expect(orgChartCard.getByRole("button", { name: "Tổ kiểm soát nội bộ" })).toBeVisible();
+  await expect(orgChartCard.getByText("Chưa gán người phụ trách")).toBeVisible();
+  await expect(orgChartCard.getByText("Trực tiếp: 3")).toBeVisible();
+  await expect(orgChartCard.getByText("Toàn cây: 5")).toBeVisible();
 
   await headCard.getByRole("button", { name: "Thay đổi" }).click();
   await page.getByPlaceholder("Tìm theo mã nhân viên, họ tên hoặc mã số nhân viên").fill("Lan");
@@ -215,7 +374,13 @@ test("department list navigates to detail page and renders summary/direct employ
   await page.getByRole("alertdialog", { name: "Gỡ người đứng đầu hiện hành" }).getByRole("button", { name: "Gỡ" }).click();
   await expect(headCard.getByText("Đơn vị này chưa được gán người đứng đầu.")).toBeVisible();
 
-  expect(detailRequestCount).toBe(1);
+  await orgChartCard.getByRole("button", { name: "Tổ kiểm soát nội bộ" }).click();
+  await page.waitForURL(/\/org\/departments\/902$/);
+  await expect(page.getByRole("heading", { name: "Tổ kiểm soát nội bộ" })).toBeVisible();
+  await expect(page.getByText("KSNB · Tổ")).toBeVisible();
+  await expect(page.getByText("Thuộc Phòng kiểm soát")).toBeVisible();
+
+  expect(detailRequestCount).toBe(3);
   expect(lastHeadPayload).toEqual({
     employee_id: 1302,
     head_role_label: "Phụ trách kiểm soát",

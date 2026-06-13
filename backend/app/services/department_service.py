@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import HTTPException, status
@@ -8,14 +8,17 @@ from sqlalchemy import and_, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.cache import cache_delete_pattern, cache_get, cache_set
+from app.core.security import create_signed_token
+from app.models.employee_attachment import EmployeeAttachment
 from app.models.employee import Employee
 from app.models.employee_job import EmployeeJobRecord
-from app.models.org import Department, OrgChangeLog
-from app.models.org import JobPosition, JobTitle
+from app.models.org import Department, DepartmentHead, JobPosition, JobTitle, OrgChangeLog
 from app.schemas.department import (
     DepartmentBrief,
     DepartmentCreate,
     DepartmentDetailRead,
+    DepartmentOrgChartHeadRead,
+    DepartmentOrgChartNodeRead,
     DepartmentDetailSummary,
     DepartmentDirectEmployeeItem,
     DepartmentRead,
@@ -26,6 +29,7 @@ from app.services import employee_code_service
 
 _CACHE_TTL = 3600          # 1 giờ
 _CACHE_KEY  = "cache:departments:{suffix}"
+_PREVIEW_TOKEN_TTL_SECONDS = 300
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
@@ -105,6 +109,30 @@ async def _invalidate_cache() -> None:
     await cache_delete_pattern("cache:departments:*")
 
 
+def _build_attachment_preview_url(*, employee_id: int, attachment_id: int) -> str:
+    token = create_signed_token(
+        "employee-file-preview",
+        token_type="preview",
+        expires=timedelta(seconds=_PREVIEW_TOKEN_TTL_SECONDS),
+        extra_claims={
+            "scope": "employee-file-preview",
+            "employee_id": employee_id,
+            "resource_id": attachment_id,
+            "resource_kind": "attachment",
+        },
+    )
+    return f"/api/v1/employees/{employee_id}/attachments/{attachment_id}/preview?token={token}"
+
+
+def _avatar_initials(full_name: str) -> str:
+    parts = [part for part in full_name.strip().split() if part]
+    if not parts:
+        return "?"
+    if len(parts) == 1:
+        return parts[0][:1].upper()
+    return f"{parts[0][:1]}{parts[-1][:1]}".upper()
+
+
 # ── Public API ─────────────────────────────────────────────────────────────────
 
 async def get_by_id(session: AsyncSession, dept_id: int) -> Department:
@@ -115,6 +143,175 @@ async def get_by_id(session: AsyncSession, dept_id: int) -> Department:
     if not dept:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Không tìm thấy phòng/ban")
     return dept
+
+
+async def _build_org_chart(
+    session: AsyncSession,
+    *,
+    root_id: int,
+    subtree_ids: set[int],
+) -> DepartmentOrgChartNodeRead:
+    departments = list(
+        (
+            await session.execute(
+                select(Department)
+                .where(
+                    Department.id.in_(subtree_ids),
+                    Department.deleted_at.is_(None),
+                )
+                .order_by(Department.order_no.asc(), Department.id.asc())
+            )
+        ).scalars().all()
+    )
+    department_map = {department.id: department for department in departments}
+    children_map: dict[int | None, list[Department]] = {}
+    for department in departments:
+        children_map.setdefault(department.parent_id, []).append(department)
+
+    direct_headcount_rows = (
+        await session.execute(
+            select(
+                EmployeeJobRecord.department_id,
+                func.count(Employee.id.distinct()),
+            )
+            .select_from(EmployeeJobRecord)
+            .join(
+                Employee,
+                and_(
+                    Employee.id == EmployeeJobRecord.employee_id,
+                    Employee.is_active == True,  # noqa: E712
+                    Employee.status != "resigned",
+                ),
+            )
+            .where(
+                EmployeeJobRecord.department_id.in_(subtree_ids),
+                EmployeeJobRecord.is_current == True,  # noqa: E712
+            )
+            .group_by(EmployeeJobRecord.department_id)
+        )
+    ).all()
+    direct_headcounts = {department_id: int(count or 0) for department_id, count in direct_headcount_rows}
+
+    avatar_latest = (
+        select(
+            EmployeeAttachment.employee_id.label("employee_id"),
+            func.max(EmployeeAttachment.uploaded_at).label("max_uploaded_at"),
+        )
+        .where(EmployeeAttachment.document_type == "avatar")
+        .group_by(EmployeeAttachment.employee_id)
+        .subquery()
+    )
+    avatar_attachment = EmployeeAttachment.__table__.alias("avatar_attachment")
+
+    head_rows = (
+        await session.execute(
+            select(
+                DepartmentHead.department_id.label("department_id"),
+                DepartmentHead.employee_id.label("employee_id"),
+                DepartmentHead.head_role_label.label("head_role_label"),
+                Employee.full_name.label("full_name"),
+                Employee.status.label("status"),
+                Department.id.label("current_department_id"),
+                Department.name.label("current_department_name"),
+                JobPosition.name.label("current_job_position_name"),
+                JobTitle.name.label("current_job_title_name"),
+                avatar_attachment.c.id.label("avatar_attachment_id"),
+            )
+            .select_from(DepartmentHead)
+            .join(Employee, Employee.id == DepartmentHead.employee_id)
+            .outerjoin(
+                EmployeeJobRecord,
+                and_(
+                    EmployeeJobRecord.employee_id == Employee.id,
+                    EmployeeJobRecord.is_current == True,  # noqa: E712
+                ),
+            )
+            .outerjoin(Department, Department.id == EmployeeJobRecord.department_id)
+            .outerjoin(JobPosition, JobPosition.id == EmployeeJobRecord.job_position_id)
+            .outerjoin(JobTitle, JobTitle.id == EmployeeJobRecord.job_title_id)
+            .outerjoin(avatar_latest, avatar_latest.c.employee_id == Employee.id)
+            .outerjoin(
+                avatar_attachment,
+                and_(
+                    avatar_attachment.c.employee_id == Employee.id,
+                    avatar_attachment.c.document_type == "avatar",
+                    avatar_attachment.c.uploaded_at == avatar_latest.c.max_uploaded_at,
+                ),
+            )
+            .where(
+                DepartmentHead.department_id.in_(subtree_ids),
+                DepartmentHead.is_current == True,  # noqa: E712
+            )
+        )
+    ).all()
+
+    head_employee_ids = [row.employee_id for row in head_rows]
+    display_codes: dict[int, str] = {}
+    if head_employee_ids:
+        head_employees = list(
+            (
+                await session.execute(
+                    select(Employee).where(Employee.id.in_(head_employee_ids))
+                )
+            ).scalars().all()
+        )
+        display_codes = await employee_code_service.batch_build_employee_display_codes(session, head_employees)
+
+    head_map: dict[int, DepartmentOrgChartHeadRead] = {}
+    for row in head_rows:
+        display_position_label = (
+            (row.head_role_label or "").strip()
+            or row.current_job_position_name
+            or row.current_job_title_name
+            or "Người phụ trách"
+        )
+        avatar_preview_url = None
+        if row.avatar_attachment_id is not None:
+            avatar_preview_url = _build_attachment_preview_url(
+                employee_id=row.employee_id,
+                attachment_id=row.avatar_attachment_id,
+            )
+        head_map[row.department_id] = DepartmentOrgChartHeadRead(
+            employee_id=row.employee_id,
+            display_code=display_codes.get(row.employee_id, str(row.employee_id)),
+            full_name=row.full_name,
+            status=row.status,
+            display_position_label=display_position_label,
+            current_department_name=row.current_department_name,
+            current_job_position_name=row.current_job_position_name,
+            current_job_title_name=row.current_job_title_name,
+            is_cross_department_assignment=(
+                row.current_department_id is not None and row.current_department_id != row.department_id
+            ),
+            avatar_preview_url=avatar_preview_url,
+            avatar_initials=_avatar_initials(row.full_name),
+        )
+
+    total_headcounts: dict[int, int] = {}
+
+    def build_node(department: Department) -> DepartmentOrgChartNodeRead:
+        child_nodes = [build_node(child) for child in children_map.get(department.id, [])]
+        total_headcount = direct_headcounts.get(department.id, 0) + sum(
+            child.total_headcount for child in child_nodes
+        )
+        total_headcounts[department.id] = total_headcount
+        return DepartmentOrgChartNodeRead(
+            key=f"dept-{department.id}",
+            department_id=department.id,
+            department_code=department.code,
+            department_name=department.name,
+            dept_type=department.dept_type,
+            dept_type_label=DepartmentRead.model_validate(department).dept_type_label,
+            direct_headcount=direct_headcounts.get(department.id, 0),
+            total_headcount=total_headcount,
+            head=head_map.get(department.id),
+            children=child_nodes,
+        )
+
+    root_department = department_map.get(root_id)
+    if root_department is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Không tìm thấy phòng/ban")
+    return build_node(root_department)
 
 
 async def get_detail(session: AsyncSession, dept_id: int) -> DepartmentDetailRead:
@@ -133,6 +330,7 @@ async def get_detail(session: AsyncSession, dept_id: int) -> DepartmentDetailRea
             parent = DepartmentBrief.model_validate(parent_dept)
 
     subtree_ids = await _get_subtree_ids(session, dept_id)
+    org_chart = await _build_org_chart(session, root_id=dept_id, subtree_ids=subtree_ids)
 
     direct_child_count = (
         await session.execute(
@@ -246,6 +444,7 @@ async def get_detail(session: AsyncSession, dept_id: int) -> DepartmentDetailRea
             direct_child_count=int(direct_child_count or 0),
             job_position_count=int(job_position_count or 0),
         ),
+        org_chart=org_chart,
         direct_employees=direct_employees,
     )
 
