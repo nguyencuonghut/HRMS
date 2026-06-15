@@ -1,5 +1,18 @@
 import api from './api'
 
+async function downloadBlob(url: string, fallbackFilename: string, params?: Record<string, unknown>) {
+  const res = await api.get(url, { responseType: 'blob', params })
+  const href = URL.createObjectURL(res.data)
+  const a = document.createElement('a')
+  a.href = href
+
+  const disposition = String(res.headers['content-disposition'] || '')
+  const match = disposition.match(/filename="?([^"]+)"?/)
+  a.download = match?.[1] || fallbackFilename
+  a.click()
+  URL.revokeObjectURL(href)
+}
+
 export interface InsuranceContributionComponentRead {
   code: string
   name_vi: string
@@ -600,6 +613,9 @@ export default {
     ).toString()
     return `/api/v1/reports/insurance/export?${qs}`
   },
+
+  exportAnalyticsXlsx: (params: { year: number; month?: number | null; department_id?: number | null }) =>
+    downloadBlob('/reports/insurance/export', 'bao_cao_bao_hiem.xlsx', params),
 }
 
 // ── Report types (6.4) ────────────────────────────────────────────────────────

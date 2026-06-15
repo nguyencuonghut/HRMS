@@ -368,6 +368,7 @@
       </div>
     </div>
   </div>
+  <Toast />
 </template>
 
 <script setup lang="ts">
@@ -377,7 +378,9 @@ import Select from 'primevue/select'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import Skeleton from 'primevue/skeleton'
+import Toast from 'primevue/toast'
 import vTooltip from 'primevue/tooltip'
+import { useToast } from 'primevue/usetoast'
 
 import insuranceService, {
   type InsuranceDashboardKPI,
@@ -387,6 +390,8 @@ import insuranceService, {
   type InsuranceNonParticipantsResponse,
 } from '@/services/insuranceService'
 import departmentService, { type DepartmentRead } from '@/services/departmentService'
+
+const toast = useToast()
 
 // ── Configuration Options ────────────────────────────────────────────────────
 const now = new Date()
@@ -540,16 +545,19 @@ function resetFilters() {
 async function exportExcel() {
   exporting.value = true
   try {
-    const url = insuranceService.exportAnalyticsUrl({
+    await insuranceService.exportAnalyticsXlsx({
       year: filters.year,
       month: filters.month,
       department_id: filters.department_id,
     })
-    const a = document.createElement('a')
-    a.href = url
-    a.click()
   } catch (e) {
     console.error('Lỗi xuất báo cáo bảo hiểm excel', e)
+    toast.add({
+      severity: 'error',
+      summary: 'Xuất Excel thất bại',
+      detail: 'Không thể xuất báo cáo bảo hiểm',
+      life: 3000,
+    })
   } finally {
     exporting.value = false
   }
@@ -698,11 +706,11 @@ html.dark-mode .error-banner {
   gap: 0.5rem;
   box-shadow: var(--l-shadow, 0 4px 6px -1px rgb(0 0 0 / 0.05));
 }
-.kpi-card.border-blue { border-left: 4px solid var(--p-blue-500); }
-.kpi-card.border-teal { border-left: 4px solid var(--p-teal-500); }
-.kpi-card.border-green { border-left: 4px solid var(--p-green-500); }
-.kpi-card.border-orange { border-left: 4px solid var(--p-orange-500); }
-.kpi-card.border-red { border-left: 4px solid var(--p-red-500); }
+.kpi-card.border-blue { border-color: color-mix(in srgb, var(--p-blue-500) 28%, var(--p-content-border-color)); }
+.kpi-card.border-teal { border-color: color-mix(in srgb, var(--p-teal-500) 28%, var(--p-content-border-color)); }
+.kpi-card.border-green { border-color: color-mix(in srgb, var(--p-green-500) 28%, var(--p-content-border-color)); }
+.kpi-card.border-orange { border-color: color-mix(in srgb, var(--p-orange-500) 28%, var(--p-content-border-color)); }
+.kpi-card.border-red { border-color: color-mix(in srgb, var(--p-red-500) 28%, var(--p-content-border-color)); }
 
 .kpi-card-header {
   display: flex;
