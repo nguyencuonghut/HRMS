@@ -62,6 +62,14 @@
         >{{ w }}</Message>
       </div>
 
+      <Message
+        v-if="!props.approvalTriggersWorkflow"
+        severity="info"
+        :closable="false"
+      >
+        Lượt phê duyệt này chỉ dùng để hoàn thiện hồ sơ thử việc lịch sử. Hệ thống sẽ không tự đổi trạng thái nhân sự hoặc sinh hợp đồng.
+      </Message>
+
       <!-- Form phê duyệt -->
       <div class="ob-form">
         <div class="ob-form-field">
@@ -142,6 +150,7 @@ import probationService, {
 const props = defineProps<{
   evalId: number
   employeeId: number
+  approvalTriggersWorkflow: boolean
 }>()
 
 const emit = defineEmits<{

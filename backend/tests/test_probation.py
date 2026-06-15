@@ -52,8 +52,8 @@ def _create_probation_employee(
     client: TestClient,
     h: dict,
     *,
-    probation_start: str = "2098-01-15",
-    probation_end: str = "2098-03-15",
+    probation_start: str | None = "2098-01-15",
+    probation_end: str | None = "2098-03-15",
     status: str = "probation",
     job_title_id: int = 0,  # 0 = use position's own job_title_id
 ) -> dict:
@@ -67,7 +67,7 @@ def _create_probation_employee(
         pos = _get_position(client, h)
         actual_title_id = pos.get("job_title_id") or 1
 
-    r = client.post(BASE_EMP, json={
+    payload = {
         "full_name": f"Test Prob {_RUN_SUFFIX} #{_emp_counter}",
         "last_name": "Test",
         "first_name": f"Prob{_emp_counter}",
@@ -79,14 +79,18 @@ def _create_probation_employee(
         "id_issued_by": "CA",
         "personal_email": f"prob_{_RUN_SUFFIX}_{_emp_counter:04d}@test.local",
         "status": status,
-        "start_date": probation_start,
+        "start_date": probation_start or "2098-01-15",
         "initial_department_id": pos["department_id"],
         "initial_job_position_id": pos["id"],
         "initial_job_title_id": actual_title_id,
-        "initial_probation_start_date": probation_start,
-        "initial_probation_end_date": probation_end,
-        "initial_job_effective_from": probation_start,
-    }, headers=h)
+        "initial_job_effective_from": probation_start or "2098-01-15",
+    }
+    if probation_start is not None:
+        payload["initial_probation_start_date"] = probation_start
+    if probation_end is not None:
+        payload["initial_probation_end_date"] = probation_end
+
+    r = client.post(BASE_EMP, json=payload, headers=h)
     assert r.status_code in (200, 201), f"Tạo nhân viên thất bại: {r.text}"
     return r.json()
 
@@ -153,6 +157,45 @@ class TestProbationLegalCheck:
         assert "legal_check" in data
         assert "status" in data
         assert data["status"] == "probation"
+        assert data["probation_mode"] == "active"
+        assert data["can_edit_evaluation"] is True
+        assert data["can_generate_contract"] is True
+        assert data["approval_triggers_workflow"] is True
+
+    def test_probation_detail_marks_historical_mode_for_official_employee_with_probation_data(self, client: TestClient):
+        h = _admin(client)
+        emp = _create_probation_employee(client, h, status="official")
+        emp_id = emp["id"]
+
+        r = client.get(f"{BASE_EMP}/{emp_id}/probation", headers=h)
+        assert r.status_code == 200, r.text
+        data = r.json()
+
+        assert data["status"] == "official"
+        assert data["probation_mode"] == "historical"
+        assert data["can_edit_evaluation"] is True
+        assert data["can_generate_contract"] is False
+        assert data["approval_triggers_workflow"] is False
+
+    def test_legal_check_downgrades_over_limit_historical_probation_to_warning(self, client: TestClient):
+        h = _admin(client)
+        emp = _create_probation_employee(
+            client,
+            h,
+            status="official",
+            probation_start="2022-01-01",
+            probation_end="2022-07-21",
+        )
+        emp_id = emp["id"]
+
+        r = client.get(f"{BASE_EMP}/{emp_id}/probation", headers=h)
+        assert r.status_code == 200, r.text
+        data = r.json()
+
+        assert data["probation_mode"] == "historical"
+        assert data["legal_check"]["is_valid"] is True
+        assert data["legal_check"]["violations"] == []
+        assert any("Dữ liệu thử việc lịch sử" in message for message in data["legal_check"]["warnings"])
 
     def test_legal_check_404_for_unknown_employee(self, client: TestClient):
         """Nhân viên không tồn tại → 200 với probation_days=0 (không raise error)."""
@@ -189,6 +232,14 @@ class TestProbationContract:
         r = client.post(f"{BASE_EMP}/{emp_id}/probation/contract/generate", headers=h)
         # Chấp nhận 201 (nếu template tồn tại) hoặc 404
         assert r.status_code in (201, 404), r.text
+
+    def test_generate_contract_historical_probation_returns_422(self, client: TestClient):
+        h = _admin(client)
+        emp = _create_probation_employee(client, h, status="official")
+        emp_id = emp["id"]
+
+        r = client.post(f"{BASE_EMP}/{emp_id}/probation/contract/generate", headers=h)
+        assert r.status_code == 422, r.text
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -274,8 +325,8 @@ class TestProbationEvaluation:
         r2 = client.post(f"{BASE_EMP}/{emp_id}/probation/evaluate", json={**payload, "manager_comment": "Lần 2"}, headers=h)
         assert r2.status_code == 422, r2.text
 
-    def test_cannot_create_evaluation_for_non_probation_employee(self, client: TestClient):
-        """Tạo phiếu đánh giá cho nhân viên không đang thử việc → 422."""
+    def test_can_create_evaluation_for_historical_probation_employee(self, client: TestClient):
+        """Nhân viên đã official nhưng còn dữ liệu thử việc lịch sử vẫn tạo được phiếu đánh giá."""
         h = _admin(client)
         emp = _create_probation_employee(client, h, status="official")
         emp_id = emp["id"]
@@ -284,8 +335,24 @@ class TestProbationEvaluation:
         r = client.post(f"{BASE_EMP}/{emp_id}/probation/evaluate", json={
             "evaluation_date": "2098-03-10",
             "evaluator_id": me["id"],
+            "manager_comment": "Backfill hồ sơ thử việc cũ",
+        }, headers=h)
+        assert r.status_code == 201, r.text
+        assert r.json()["status"] == "draft"
+
+    def test_cannot_create_evaluation_when_employee_has_no_probation_data(self, client: TestClient):
+        """Nhân viên không có dữ liệu thử việc trên job record hiện tại vẫn bị chặn."""
+        h = _admin(client)
+        emp = _create_probation_employee(client, h, status="official", probation_start=None, probation_end=None)
+        emp_id = emp["id"]
+        me = client.get("/api/v1/auth/me", headers=h).json()
+
+        r = client.post(f"{BASE_EMP}/{emp_id}/probation/evaluate", json={
+            "evaluation_date": "2098-03-10",
+            "evaluator_id": me["id"],
         }, headers=h)
         assert r.status_code == 422, r.text
+        assert "không có dữ liệu thử việc" in r.text.lower()
 
     def test_submit_requires_at_least_two_scores_or_comment(self, client: TestClient):
         """Nộp phiếu không có đủ điểm số và không có comment → 422."""
@@ -404,6 +471,30 @@ class TestProbationApprove:
         # Kiểm tra probation detail có official_date
         detail = client.get(f"{BASE_EMP}/{emp_id}/probation", headers=h).json()
         assert detail.get("official_date") is not None
+
+    def test_approve_historical_probation_keeps_employee_status_official(self, client: TestClient):
+        """Nhân viên historical probation được approve phiếu nhưng không chạy workflow đổi trạng thái."""
+        h = _admin(client)
+        emp, _ = self._create_submitted_eval(client, h, status="official")
+        emp_id = emp["id"]
+
+        r = client.post(
+            f"{BASE_EMP}/{emp_id}/probation/approve",
+            json={"result": "passed"},
+            headers=h,
+        )
+        assert r.status_code == 200, r.text
+        assert r.json()["status"] == "approved"
+
+        emp_detail = client.get(f"{BASE_EMP}/{emp_id}", headers=h).json()
+        assert emp_detail["status"] == "official"
+
+        detail = client.get(f"{BASE_EMP}/{emp_id}/probation", headers=h).json()
+        assert detail["probation_mode"] == "historical"
+        assert detail.get("official_date") is None
+
+        contracts = client.get(f"{BASE_EMP}/{emp_id}/probation/contract", headers=h).json()
+        assert contracts == []
 
     def test_approve_failed_sets_employee_status_to_resigned(self, client: TestClient):
         """Phê duyệt 'failed' → employee.status chuyển sang 'resigned'."""

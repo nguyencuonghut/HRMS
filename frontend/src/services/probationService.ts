@@ -45,6 +45,10 @@ export interface ProbationDetailRead {
   job_title_name: string | null
   job_title_level: number | null
   status: string
+  probation_mode: 'active' | 'historical' | 'none'
+  can_edit_evaluation: boolean
+  can_generate_contract: boolean
+  approval_triggers_workflow: boolean
   probation_start_date: string | null
   probation_end_date: string | null
   official_date: string | null

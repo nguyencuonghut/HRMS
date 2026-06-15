@@ -89,7 +89,12 @@ async def generate_probation_contract(
     current_user: User = require_permission("employees:manage"),
     session: AsyncSession = Depends(get_session),
 ):
-    contract = await svc.generate_probation_contract(session, employee_id, current_user.id)
+    try:
+        contract = await svc.generate_probation_contract(session, employee_id, current_user.id)
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
     if not contract:
         raise HTTPException(
             status_code=404,

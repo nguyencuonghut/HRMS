@@ -40,6 +40,30 @@ def _today() -> date:
     return datetime.now(timezone.utc).date()
 
 
+def _job_record_has_probation_data(job_record: EmployeeJobRecord | None) -> bool:
+    if not job_record:
+        return False
+    return any(
+        value is not None
+        for value in (
+            job_record.probation_start_date,
+            job_record.probation_end_date,
+            job_record.official_date,
+        )
+    )
+
+
+def _resolve_probation_mode(
+    employee_status: str,
+    job_record: EmployeeJobRecord | None,
+) -> str:
+    if employee_status == "probation":
+        return "active"
+    if _job_record_has_probation_data(job_record):
+        return "historical"
+    return "none"
+
+
 # ── Helper: build read schema ─────────────────────────────────────────────────
 
 async def _build_eval_read(session: AsyncSession, ev: ProbationEvaluation) -> ProbationEvaluationRead:
@@ -95,6 +119,7 @@ async def validate_probation_legal(
     """Kiểm tra tính hợp lệ pháp lý của thời gian thử việc."""
     violations: List[str] = []
     warnings: List[str] = []
+    employee = await session.get(Employee, employee_id)
 
     # Lấy job record
     if job_record_id:
@@ -138,10 +163,20 @@ async def validate_probation_legal(
 
         # Kiểm tra vi phạm: thời gian thử việc vượt giới hạn pháp lý
         if probation_days > probation_limit:
-            violations.append(
+            probation_mode = _resolve_probation_mode(
+                employee.status if employee else "none",
+                job_record,
+            )
+            message = (
                 f"Thời gian thử việc {probation_days} ngày vượt quá giới hạn pháp lý "
                 f"{probation_limit} ngày cho nhóm '{job_level_group}'"
             )
+            if probation_mode == "historical":
+                warnings.append(
+                    f"Dữ liệu thử việc lịch sử: {message}. Hệ thống chỉ cảnh báo để đối soát hồ sơ."
+                )
+            else:
+                violations.append(message)
 
         # Kiểm tra lương thử việc (WARNING)
         from app.models.recruitment import HiringDecision
@@ -214,6 +249,11 @@ async def get_probation_detail(
             today = _today()
             days_remaining = (job_record.probation_end_date - today).days
 
+    probation_mode = _resolve_probation_mode(emp.status, job_record)
+    can_edit_evaluation = probation_mode in {"active", "historical"}
+    can_generate_contract = probation_mode == "active"
+    approval_triggers_workflow = probation_mode == "active"
+
     # Legal check
     legal_check = await validate_probation_legal(session, employee_id)
 
@@ -280,6 +320,10 @@ async def get_probation_detail(
         job_title_name=job_title_name,
         job_title_level=job_title_level,
         status=emp.status,
+        probation_mode=probation_mode,
+        can_edit_evaluation=can_edit_evaluation,
+        can_generate_contract=can_generate_contract,
+        approval_triggers_workflow=approval_triggers_workflow,
         probation_start_date=job_record.probation_start_date if job_record else None,
         probation_end_date=job_record.probation_end_date if job_record else None,
         official_date=job_record.official_date if job_record else None,
@@ -301,6 +345,21 @@ async def generate_probation_contract(
     from app.models.catalog import ContractCategory, ContractTemplate
     from app.models.employee_contract import EmployeeContract
 
+    emp = await session.get(Employee, employee_id)
+    if not emp:
+        raise LookupError(f"Không tìm thấy nhân viên #{employee_id}")
+
+    job_record = (
+        await session.execute(
+            select(EmployeeJobRecord).where(
+                EmployeeJobRecord.employee_id == employee_id,
+                EmployeeJobRecord.is_current == True,  # noqa: E712
+            )
+        )
+    ).scalar_one_or_none()
+    if _resolve_probation_mode(emp.status, job_record) != "active":
+        raise ValueError("Chỉ có thể tạo hợp đồng thử việc cho nhân viên đang ở probation mode active")
+
     # Lấy template probation_agreement mới nhất còn active
     template = (
         await session.execute(
@@ -320,16 +379,6 @@ async def generate_probation_contract(
             employee_id,
         )
         return None
-
-    # Lấy job_record để lấy ngày tháng
-    job_record = (
-        await session.execute(
-            select(EmployeeJobRecord).where(
-                EmployeeJobRecord.employee_id == employee_id,
-                EmployeeJobRecord.is_current == True,  # noqa: E712
-            )
-        )
-    ).scalar_one_or_none()
 
     today = _today()
     effective_from = job_record.probation_start_date if job_record and job_record.probation_start_date else today
@@ -410,14 +459,10 @@ async def create_evaluation(
     created_by_id: int,
 ) -> ProbationEvaluationRead:
     """Tạo phiếu đánh giá thử việc mới."""
-    # 1. Kiểm tra nhân viên tồn tại và đang thử việc
+    # 1. Kiểm tra nhân viên tồn tại và có dữ liệu thử việc khả dụng
     emp = await session.get(Employee, employee_id)
     if not emp:
         raise LookupError(f"Không tìm thấy nhân viên #{employee_id}")
-    if emp.status != "probation":
-        raise ValueError(
-            f"Nhân viên không đang trong thời gian thử việc (status='{emp.status}')"
-        )
 
     # 2. Lấy job_record hiện tại
     job_record = (
@@ -430,6 +475,12 @@ async def create_evaluation(
     ).scalar_one_or_none()
     if not job_record:
         raise LookupError("Không tìm thấy bản ghi công việc hiện tại")
+
+    probation_mode = _resolve_probation_mode(emp.status, job_record)
+    if probation_mode == "none":
+        raise ValueError(
+            "Nhân viên không có dữ liệu thử việc trên bản ghi công việc hiện tại"
+        )
 
     # 3. Kiểm tra unique (employee_id, job_record_id)
     existing = (
@@ -594,12 +645,29 @@ async def approve_evaluation(
     await session.flush()
 
     # Kích hoạt workflow
-    if data.result == "passed":
-        await _execute_passed_workflow(session, ev, user_id)
-    elif data.result == "failed":
-        await _execute_failed_workflow(session, ev, user_id)
-    elif data.result == "extended":
-        await _execute_extended_workflow(session, ev, user_id)
+    emp = await session.get(Employee, ev.employee_id)
+    job_record = await session.get(EmployeeJobRecord, ev.job_record_id)
+    probation_mode = _resolve_probation_mode(emp.status, job_record) if emp else "none"
+
+    if probation_mode == "active":
+        if data.result == "passed":
+            await _execute_passed_workflow(session, ev, user_id)
+        elif data.result == "failed":
+            await _execute_failed_workflow(session, ev, user_id)
+        elif data.result == "extended":
+            await _execute_extended_workflow(session, ev, user_id)
+    else:
+        session.add(
+            AuditLog(
+                user_id=user_id,
+                action="probation_evaluation_approved_historical",
+                entity_type="employee",
+                entity_id=ev.employee_id,
+                entity_name=emp.full_name if emp else None,
+                old_data={"status": emp.status if emp else None, "probation_mode": probation_mode},
+                new_data={"evaluation_status": "approved", "result": data.result},
+            )
+        )
 
     await session.refresh(ev)
     return await _build_eval_read(session, ev)

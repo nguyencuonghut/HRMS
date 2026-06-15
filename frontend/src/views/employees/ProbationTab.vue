@@ -16,6 +16,25 @@
       <div class="ob-card">
         <div class="probation-section-title">Thông tin thử việc</div>
 
+        <Message
+          v-if="detail.probation_mode === 'historical'"
+          class="probation-mode-message"
+          severity="info"
+          :closable="false"
+        >
+          Đây là dữ liệu thử việc lịch sử của nhân viên đã không còn ở trạng thái thử việc.
+          Bạn vẫn có thể nhập và phê duyệt phiếu đánh giá để hoàn thiện hồ sơ, nhưng hệ thống sẽ không tự đổi trạng thái nhân sự hoặc sinh hợp đồng thử việc.
+        </Message>
+
+        <Message
+          v-else-if="detail.probation_mode === 'none'"
+          class="probation-mode-message"
+          severity="secondary"
+          :closable="false"
+        >
+          Nhân viên chưa có dữ liệu thử việc trên bản ghi công việc hiện tại.
+        </Message>
+
         <div class="probation-info-grid">
           <div class="probation-info-item">
             <span class="probation-info-label">Ngày bắt đầu</span>
@@ -61,7 +80,7 @@
         </div>
 
         <!-- Contract button -->
-        <div class="probation-contract-row">
+        <div v-if="detail.can_generate_contract" class="probation-contract-row">
           <Button
             v-if="detail.contracts.length === 0"
             label="Tạo hợp đồng thử việc"
@@ -169,7 +188,7 @@
         </template>
 
         <!-- Draft or No evaluation — show form -->
-        <template v-else>
+        <template v-else-if="detail.can_edit_evaluation">
           <div class="ob-form">
             <!-- Ngày đánh giá -->
             <div class="ob-form-field">
@@ -323,6 +342,12 @@
             </div>
           </div>
         </template>
+
+        <template v-else>
+          <Message severity="secondary" :closable="false">
+            Không thể nhập phiếu đánh giá vì nhân viên không có dữ liệu thử việc khả dụng.
+          </Message>
+        </template>
       </div>
     </template>
 
@@ -331,6 +356,7 @@
       v-if="showApproveDialog && detail?.evaluation"
       :eval-id="detail.evaluation.id"
       :employee-id="props.employeeId"
+      :approval-triggers-workflow="detail.approval_triggers_workflow"
       @close="showApproveDialog = false"
       @approved="onApproved"
     />
@@ -520,22 +546,26 @@ function validateEval(): boolean {
   return Object.keys(evalErrors.value).length === 0
 }
 
+function buildEvalPayload() {
+  return {
+    evaluation_date: toIso(evalForm.value.evaluation_date_obj)!,
+    evaluator_id: evalForm.value.evaluator_id!,
+    attitude_score: evalForm.value.attitude_score,
+    competence_score: evalForm.value.competence_score,
+    culture_score: evalForm.value.culture_score,
+    kpi_score: evalForm.value.kpi_score,
+    result: evalForm.value.result,
+    extension_days: evalForm.value.result === 'extended' ? evalForm.value.extension_days : null,
+    manager_comment: evalForm.value.manager_comment || null,
+  }
+}
+
 // ── Actions ───────────────────────────────────────────────────────────────────
 async function saveDraft() {
   if (!validateEval()) return
   savingDraft.value = true
   try {
-    const payload = {
-      evaluation_date: toIso(evalForm.value.evaluation_date_obj)!,
-      evaluator_id: evalForm.value.evaluator_id!,
-      attitude_score: evalForm.value.attitude_score,
-      competence_score: evalForm.value.competence_score,
-      culture_score: evalForm.value.culture_score,
-      kpi_score: evalForm.value.kpi_score,
-      result: evalForm.value.result,
-      extension_days: evalForm.value.result === 'extended' ? evalForm.value.extension_days : null,
-      manager_comment: evalForm.value.manager_comment || null,
-    }
+    const payload = buildEvalPayload()
     if (detail.value?.evaluation) {
       await probationService.updateEvaluation(props.employeeId, detail.value.evaluation.id, payload)
     } else {
@@ -568,8 +598,14 @@ async function submitToHr() {
     toast.add({ severity: 'warn', summary: 'Lưu ý', detail: 'Vui lòng lưu nháp trước khi nộp', life: 3000 })
     return
   }
+  if (!validateEval()) return
   submittingEval.value = true
   try {
+    await probationService.updateEvaluation(
+      props.employeeId,
+      detail.value.evaluation.id,
+      buildEvalPayload(),
+    )
     await probationService.submitEvaluation(props.employeeId)
     toast.add({ severity: 'success', summary: 'Đã nộp', detail: 'Phiếu đã được nộp lên HR', life: 3000 })
     await loadDetail()
@@ -606,3 +642,17 @@ onMounted(async () => {
   await Promise.all([loadDetail(), loadUsers()])
 })
 </script>
+
+<style scoped>
+.probation-mode-message {
+  margin-bottom: 1rem;
+}
+
+.probation-mode-message :deep(.p-message-content) {
+  align-items: flex-start;
+}
+
+.probation-mode-message :deep(.p-message-text) {
+  line-height: 1.45;
+}
+</style>

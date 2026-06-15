@@ -92,6 +92,10 @@ class ProbationDetailRead(BaseModel):
     job_title_name: Optional[str] = None
     job_title_level: Optional[int] = None
     status: str
+    probation_mode: str = "none"
+    can_edit_evaluation: bool = False
+    can_generate_contract: bool = False
+    approval_triggers_workflow: bool = False
     probation_start_date: Optional[date] = None
     probation_end_date: Optional[date] = None
     official_date: Optional[date] = None
