@@ -102,7 +102,12 @@ def generate_template() -> bytes:
         ["Phòng ban", "", "Mã hoặc tên phòng ban (tìm kiếm tương đối)", "HC"],
         ["Chức danh", "", "Tên chức danh (tìm kiếm tương đối)", "Chuyên viên nhân sự"],
         ["Vị trí công việc", "", "Tên vị trí công việc, nên đi cùng phòng ban", "Nhân viên nhân sự tổng hợp"],
-        ["Hệ mã nhân viên", "", "Hệ mã để xác định employee code; bắt buộc nếu nhập mã nhân viên cũ", "SYS1 / SYS2 / SYS3"],
+        [
+            "Hệ mã nhân viên",
+            "",
+            "Hệ mã để xác định employee code; bắt buộc nếu nhập mã nhân viên cũ",
+            "SYS1 = Hệ 1 (mặc định toàn công ty); SYS2 = Hệ 2 (công nhân bốc xếp / ra cám / tạp vụ); SYS3 = Hệ 3 (công nhân / bảo vệ thuộc Phòng trại)",
+        ],
         ["Số thứ tự mã NV", "", "Seq cũ nếu cần giữ nguyên mã nhân viên hiện hữu", "1024"],
         ["Mã NV hiện hữu", "", "Dùng để đối chiếu. Hệ thống sẽ báo lỗi nếu mã tính ra không khớp", "HC1024"],
         ["Ngày bắt đầu thử việc", "", "Định dạng dd/mm/yyyy", "01/01/2026"],

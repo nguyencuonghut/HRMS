@@ -13,7 +13,7 @@ from app.core.encryption import hash_sensitive
 from app.models.catalog import Ethnicity, Nationality, Religion
 from app.models.employee import Employee
 from app.models.employee_code import EmployeeCodeSequence
-from app.services.employee_import_service import IMPORT_COLUMNS, process_import
+from app.services.employee_import_service import IMPORT_COLUMNS, generate_template, process_import
 
 
 TEST_ID_NUMBER = "IMPORTNATVN001"
@@ -130,6 +130,24 @@ async def test_employee_import_defaults_nationality_to_vn():
             await _cleanup_employee(session)
     finally:
         await engine.dispose()
+
+
+def test_employee_import_template_explains_employee_code_sequences():
+    workbook = openpyxl.load_workbook(io.BytesIO(generate_template()))
+    guide = workbook["Hướng dẫn"]
+
+    sequence_row = None
+    for row_no in range(2, guide.max_row + 1):
+        if guide.cell(row_no, 1).value == "Hệ mã nhân viên":
+            sequence_row = row_no
+            break
+
+    assert sequence_row is not None
+    assert guide.cell(sequence_row, 4).value == (
+        "SYS1 = Hệ 1 (mặc định toàn công ty); "
+        "SYS2 = Hệ 2 (công nhân bốc xếp / ra cám / tạp vụ); "
+        "SYS3 = Hệ 3 (công nhân / bảo vệ thuộc Phòng trại)"
+    )
 
 
 @pytest.mark.asyncio
