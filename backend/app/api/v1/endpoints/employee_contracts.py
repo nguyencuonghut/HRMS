@@ -1,16 +1,19 @@
 """Endpoints hợp đồng lao động per-employee (4.1)."""
 
 import io
+from datetime import timedelta
 from pathlib import Path
 from urllib.parse import quote as _urlquote
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from fastapi.responses import StreamingResponse
+from jose import JWTError
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import require_permission
 from app.core.database import get_session
+from app.core.security import create_signed_token, decode_token
 from app.core.storage import delete_attachment, get_object_stream, save_contract_file
 from app.models.auth import User
 from app.schemas.employee_contract import (
@@ -30,9 +33,46 @@ _DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.doc
 class GenerateContractBody(BaseModel):
     template_id: int
 
+
+class PreviewLinkRead(BaseModel):
+    url: str
+    expires_in_seconds: int
+
+
 router = APIRouter()
 
 _TAG = "Hợp đồng nhân viên"
+_PREVIEW_TOKEN_TTL_SECONDS = 300
+
+
+def _build_preview_token(*, employee_id: int, contract_id: int) -> str:
+    return create_signed_token(
+        "employee-contract-preview",
+        token_type="preview",
+        expires=timedelta(seconds=_PREVIEW_TOKEN_TTL_SECONDS),
+        extra_claims={
+            "scope": "employee-contract-preview",
+            "employee_id": employee_id,
+            "contract_id": contract_id,
+        },
+    )
+
+
+def _validate_preview_token(token: str, *, employee_id: int, contract_id: int) -> None:
+    exc = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Link preview không hợp lệ hoặc đã hết hạn",
+    )
+    try:
+        payload = decode_token(token)
+    except JWTError as e:
+        raise exc from e
+    if payload.get("type") != "preview" or payload.get("scope") != "employee-contract-preview":
+        raise exc
+    if payload.get("employee_id") != employee_id:
+        raise exc
+    if payload.get("contract_id") != contract_id:
+        raise exc
 
 
 @router.get("/{employee_id}/contracts", response_model=list[ContractRead], tags=[_TAG])
@@ -187,6 +227,55 @@ async def download_contract_file(
         get_object_stream(c.file_path),
         media_type=c.mime_type or "application/octet-stream",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get(
+    "/{employee_id}/contracts/{contract_id}/preview-url",
+    response_model=PreviewLinkRead,
+    tags=[_TAG],
+)
+async def get_contract_preview_url(
+    employee_id: int,
+    contract_id: int,
+    _: User = require_permission("contracts:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    from app.services.employee_contract_service import _get_contract_or_404
+
+    c = await _get_contract_or_404(session, employee_id, contract_id)
+    if not c.file_path:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Hợp đồng chưa có file đính kèm")
+
+    token = _build_preview_token(employee_id=employee_id, contract_id=contract_id)
+    return PreviewLinkRead(
+        url=f"/api/v1/employees/{employee_id}/contracts/{contract_id}/preview?token={token}",
+        expires_in_seconds=_PREVIEW_TOKEN_TTL_SECONDS,
+    )
+
+
+@router.get(
+    "/{employee_id}/contracts/{contract_id}/preview",
+    tags=[_TAG],
+)
+async def preview_contract_file(
+    employee_id: int,
+    contract_id: int,
+    token: str = Query(..., min_length=1),
+    session: AsyncSession = Depends(get_session),
+):
+    from app.services.employee_contract_service import _get_contract_or_404
+
+    _validate_preview_token(token, employee_id=employee_id, contract_id=contract_id)
+    c = await _get_contract_or_404(session, employee_id, contract_id)
+    if not c.file_path:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Hợp đồng chưa có file đính kèm")
+
+    filename = (c.file_name or "hop_dong.pdf").encode("utf-8").decode("latin-1", errors="replace")
+    return StreamingResponse(
+        get_object_stream(c.file_path),
+        media_type=c.mime_type or "application/octet-stream",
+        headers={"Content-Disposition": f'inline; filename="{filename}"'},
     )
 
 

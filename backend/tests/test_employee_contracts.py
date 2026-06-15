@@ -4,6 +4,7 @@ import asyncio
 import io
 from datetime import date, timedelta
 from decimal import Decimal
+from urllib.parse import parse_qs, urlparse
 
 import pytest
 from fastapi.testclient import TestClient
@@ -846,6 +847,61 @@ def test_download_contract_file_no_file_404(client: TestClient):
 
     resp = client.get(f"{BASE_EMP}/{emp_id}/contracts/{cid}/download", headers=headers)
     assert resp.status_code == 404
+
+
+def test_contract_preview_url_returns_inline_stream_with_original_filename(client: TestClient):
+    headers = _admin(client)
+    emp_id = _create_employee(client, headers, "C16P")
+    cid = client.post(
+        f"{BASE_EMP}/{emp_id}/contracts",
+        json=_contract_payload("C16P"),
+        headers=headers,
+    ).json()["id"]
+
+    upload = client.post(
+        f"{BASE_EMP}/{emp_id}/contracts/{cid}/upload",
+        files={"file": ("hop_dong_scan_goc.pdf", io.BytesIO(b"%PDF-1.4 preview"), "application/pdf")},
+        headers=headers,
+    )
+    assert upload.status_code == 200
+
+    preview_url_res = client.get(f"{BASE_EMP}/{emp_id}/contracts/{cid}/preview-url", headers=headers)
+    assert preview_url_res.status_code == 200
+    payload = preview_url_res.json()
+    assert payload["expires_in_seconds"] == 300
+    assert f"/api/v1/employees/{emp_id}/contracts/{cid}/preview?token=" in payload["url"]
+
+    preview_res = client.get(payload["url"])
+    assert preview_res.status_code == 200
+    assert preview_res.headers["content-type"].startswith("application/pdf")
+    assert 'inline; filename="hop_dong_scan_goc.pdf"' == preview_res.headers["content-disposition"]
+
+
+def test_contract_preview_rejects_invalid_token(client: TestClient):
+    headers = _admin(client)
+    emp_id = _create_employee(client, headers, "C16T")
+    cid = client.post(
+        f"{BASE_EMP}/{emp_id}/contracts",
+        json=_contract_payload("C16T"),
+        headers=headers,
+    ).json()["id"]
+
+    upload = client.post(
+        f"{BASE_EMP}/{emp_id}/contracts/{cid}/upload",
+        files={"file": ("hop_dong_scan_goc.pdf", io.BytesIO(b"%PDF-1.4 preview"), "application/pdf")},
+        headers=headers,
+    )
+    assert upload.status_code == 200
+
+    preview_url_res = client.get(f"{BASE_EMP}/{emp_id}/contracts/{cid}/preview-url", headers=headers)
+    assert preview_url_res.status_code == 200
+    tokenized_url = preview_url_res.json()["url"]
+    parsed = urlparse(tokenized_url)
+    token = parse_qs(parsed.query)["token"][0]
+    invalid_url = tokenized_url.replace(token, f"{token}tampered")
+
+    preview_res = client.get(invalid_url)
+    assert preview_res.status_code == 401
 
 
 # ── Tests: Permissions ─────────────────────────────────────────────────────────

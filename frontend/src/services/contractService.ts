@@ -1,4 +1,5 @@
 import api from './api'
+import { isPreviewableFile } from '@/utils/filePreview'
 
 export type InsuranceSalaryMode = 'computed_by_position_group' | 'fixed_manual'
 
@@ -97,6 +98,11 @@ export interface ContractListPage {
   page_size: number
 }
 
+interface PreviewLinkRead {
+  url: string
+  expires_in_seconds: number
+}
+
 export const DOCUMENT_KIND_LABELS: Record<string, string> = {
   labor_contract: 'Hợp đồng lao động',
   contract_appendix: 'Phụ lục hợp đồng',
@@ -140,6 +146,18 @@ async function downloadFile(employeeId: number, contractId: number, fileName: st
   URL.revokeObjectURL(url)
 }
 
+function openPreviewUrl(url: string) {
+  const previewWindow = window.open(url, '_blank')
+  if (!previewWindow) {
+    throw new Error('Trình duyệt đã chặn popup preview')
+  }
+  try {
+    previewWindow.opener = null
+  } catch {
+    // Some browsers restrict overriding opener; preview still works without it.
+  }
+}
+
 export default {
   listContracts: (employeeId: number) =>
     api.get<ContractRead[]>(`/employees/${employeeId}/contracts`),
@@ -165,6 +183,14 @@ export default {
   },
 
   downloadFile,
+
+  previewFile: async (employeeId: number, contractId: number, mimeType?: string | null, fileName?: string | null) => {
+    if (!isPreviewableFile(mimeType, fileName)) {
+      throw new Error('File này không hỗ trợ xem online')
+    }
+    const res = await api.get<PreviewLinkRead>(`/employees/${employeeId}/contracts/${contractId}/preview-url`)
+    openPreviewUrl(res.data.url)
+  },
 
   deleteFile: (employeeId: number, contractId: number) =>
     api.delete<ContractRead>(`/employees/${employeeId}/contracts/${contractId}/file`),

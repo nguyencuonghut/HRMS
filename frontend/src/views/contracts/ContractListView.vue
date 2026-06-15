@@ -146,7 +146,23 @@
 
         <Column header="File" style="width:60px;" class="center-text">
           <template #body="{ data }">
-            <i v-if="data.has_file" class="pi pi-paperclip" v-tooltip.top="data.file_name" />
+            <Button
+              v-if="data.has_file && canPreviewContractFile(data)"
+              icon="pi pi-paperclip"
+              text
+              rounded
+              size="small"
+              class="contract-file-button"
+              :loading="previewingContractId === data.id"
+              :aria-label="`Mở file ${data.file_name ?? 'hợp đồng'}`"
+              v-tooltip.top="data.file_name ?? 'Mở file hợp đồng'"
+              @click="previewContractFile(data)"
+            />
+            <i
+              v-else-if="data.has_file"
+              class="pi pi-paperclip"
+              v-tooltip.top="data.file_name ?? 'Có file đính kèm'"
+            />
           </template>
         </Column>
 
@@ -190,6 +206,7 @@ import InputIcon from 'primevue/inputicon'
 import InputText from 'primevue/inputtext'
 import Select from 'primevue/select'
 import Tag from 'primevue/tag'
+import { useToast } from 'primevue/usetoast'
 
 import contractService, {
   type ContractRead,
@@ -198,14 +215,17 @@ import contractService, {
   EXPIRING_OPTIONS,
   statusSeverity,
 } from '@/services/contractService'
+import { isPreviewableFile } from '@/utils/filePreview'
 
 const router   = useRouter()
 const route    = useRoute()
+const toast    = useToast()
 const loading  = ref(false)
 const items    = ref<ContractRead[]>([])
 const total    = ref(0)
 const page     = ref(1)
 const pageSize = ref(25)
+const previewingContractId = ref<number | null>(null)
 
 const filters = ref({
   keyword:        '',
@@ -228,6 +248,32 @@ function formatDate(iso: string | null): string {
   if (!iso) return '—'
   const [y, m, d] = iso.split('-')
   return `${d}/${m}/${y}`
+}
+
+function canPreviewContractFile(contract: ContractRead): boolean {
+  return contract.has_file && isPreviewableFile(contract.mime_type, contract.file_name)
+}
+
+async function previewContractFile(contract: ContractRead) {
+  previewingContractId.value = contract.id
+  try {
+    await contractService.previewFile(
+      contract.employee_id,
+      contract.id,
+      contract.mime_type,
+      contract.file_name,
+    )
+  } catch (err: any) {
+    const detail = err?.response?.data?.detail
+    toast.add({
+      severity: 'error',
+      summary: 'Lỗi',
+      detail: detail ?? err?.message ?? 'Không xem được file hợp đồng',
+      life: 4000,
+    })
+  } finally {
+    previewingContractId.value = null
+  }
 }
 
 async function load() {
