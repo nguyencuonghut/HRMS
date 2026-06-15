@@ -51,7 +51,12 @@
 
     <!-- Form / Detail -->
     <template v-else>
-      <Tabs v-model:value="activeTab">
+      <Tabs
+        v-model:value="activeTab"
+        class="employee-detail-tabs"
+        scrollable
+        :showNavigators="true"
+      >
         <TabList>
           <Tab value="basic">Thông tin cơ bản</Tab>
           <Tab value="docs">Giấy tờ nhận dạng</Tab>

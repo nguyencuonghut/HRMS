@@ -921,6 +921,45 @@ $topbar-height: 4rem;
 
 .header-actions { display: flex; gap: 0.5rem; }
 
+.employee-detail-tabs {
+  min-width: 0;
+
+  .p-tablist {
+    gap: 0.5rem;
+    border-bottom: 1px solid var(--l-border);
+  }
+
+  .p-tablist-viewport {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--l-text-muted) 35%, transparent) transparent;
+  }
+
+  .p-tablist-tab-list {
+    min-width: max-content;
+  }
+
+  .p-tablist-nav-button {
+    width: 2.5rem;
+    min-width: 2.5rem;
+    height: 2.5rem;
+    border: 1px solid var(--l-border);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--l-surface) 92%, transparent);
+    color: var(--l-text-muted);
+    box-shadow: var(--l-shadow);
+    transition: background .2s, color .2s, border-color .2s;
+
+    &:hover {
+      background: color-mix(in srgb, var(--l-surface) 82%, transparent);
+      color: var(--l-text);
+    }
+  }
+
+  .p-tab {
+    white-space: nowrap;
+  }
+}
+
 .address-section {
   margin-bottom: 2rem;
   h4 { margin: 0 0 1rem; font-size: 1rem; font-weight: 600; }
@@ -1346,5 +1385,21 @@ html.dark-mode {
   .p-datatable-wrapper {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
+  }
+
+  .employee-detail-tabs {
+    .p-tab {
+      padding-inline: 0.75rem;
+    }
+
+    .p-tablist {
+      gap: 0.25rem;
+    }
+
+    .p-tablist-nav-button {
+      width: 2.25rem;
+      min-width: 2.25rem;
+      height: 2.25rem;
+    }
   }
 }
