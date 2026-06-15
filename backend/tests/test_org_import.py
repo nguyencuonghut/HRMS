@@ -191,8 +191,8 @@ def test_job_position_import_requires_existing_dependencies_and_upserts(client: 
     assert _upload(client, headers, f"{IMPORT_BASE}/job-titles", title_xlsx).status_code == 200
 
     pos_xlsx = _make_xlsx(
-        ["Mã vị trí", "Tên vị trí", "Mã phòng ban", "Mã chức danh", "Bậc mặc định", "Phụ cấp BHXH", "Phụ cấp ngoài BHXH", "Kích hoạt", "Mô tả", "Yêu cầu"],
-        [[POS_CODE, "Nhân viên kinh doanh import", DEPT_ROOT, JT_CODE, 2, 150000, 80000, 1, "Chăm sóc khách hàng", "Giao tiếp tốt"]],
+        ["Mã vị trí", "Tên vị trí", "Mã phòng ban", "Mã chức danh", "Bậc mặc định", "Phụ cấp BHXH", "Phụ cấp ngoài BHXH", "Nhóm thử việc pháp lý", "Kích hoạt", "Mô tả", "Yêu cầu"],
+        [[POS_CODE, "Nhân viên kinh doanh import", DEPT_ROOT, JT_CODE, 2, 150000, 80000, "college_plus", 1, "Chăm sóc khách hàng", "Giao tiếp tốt"]],
     )
     created = _upload(client, headers, f"{IMPORT_BASE}/job-positions", pos_xlsx)
     assert created.status_code == 200, created.text
@@ -203,10 +203,12 @@ def test_job_position_import_requires_existing_dependencies_and_upserts(client: 
     assert position["job_title_name"] == "Nhân viên kinh doanh import"
     assert position["bhxh_allowance"] == 150000
     assert position["non_bhxh_allowance"] == 80000
+    assert position["probation_legal_group"] == "college_plus"
+    assert position["probation_days_limit"] == 60
 
     pos_update_xlsx = _make_xlsx(
-        ["Mã vị trí", "Tên vị trí", "Mã phòng ban", "Mã chức danh", "Bậc mặc định", "Phụ cấp BHXH", "Phụ cấp ngoài BHXH", "Kích hoạt", "Mô tả", "Yêu cầu"],
-        [[POS_CODE, "Nhân viên kinh doanh import cập nhật", DEPT_ROOT, JT_CODE, 3, 200000, 90000, 0, "Mô tả mới", "Yêu cầu mới"]],
+        ["Mã vị trí", "Tên vị trí", "Mã phòng ban", "Mã chức danh", "Bậc mặc định", "Phụ cấp BHXH", "Phụ cấp ngoài BHXH", "Nhóm thử việc pháp lý", "Kích hoạt", "Mô tả", "Yêu cầu"],
+        [[POS_CODE, "Nhân viên kinh doanh import cập nhật", DEPT_ROOT, JT_CODE, 3, 200000, 90000, "intermediate_technical_clerical", 0, "Mô tả mới", "Yêu cầu mới"]],
     )
     updated = _upload(client, headers, f"{IMPORT_BASE}/job-positions", pos_update_xlsx)
     assert updated.status_code == 200, updated.text
@@ -214,4 +216,6 @@ def test_job_position_import_requires_existing_dependencies_and_upserts(client: 
     assert position_after["name"] == "Nhân viên kinh doanh import cập nhật"
     assert position_after["bhxh_allowance"] == 200000
     assert position_after["non_bhxh_allowance"] == 90000
+    assert position_after["probation_legal_group"] == "intermediate_technical_clerical"
+    assert position_after["probation_days_limit"] == 30
     assert position_after["is_active"] is False

@@ -31,6 +31,13 @@
         class="toolbar-filter-sm"
         @change="loadData"
       />
+      <Select
+        v-model="filterProbationConfigured"
+        :options="probationConfiguredOptions"
+        option-label="label"
+        option-value="value"
+        class="toolbar-filter"
+      />
       <IconField class="toolbar-search">
         <InputIcon class="pi pi-search" />
         <InputText v-model="searchQuery" placeholder="Tìm theo mã, tên..." class="w-full" />
@@ -47,6 +54,23 @@
 
     <!-- DataTable -->
     <div class="card">
+      <div v-if="unconfiguredCount > 0" class="config-alert">
+        <div class="config-alert__content">
+          <i class="pi pi-exclamation-triangle" />
+          <span>
+            Còn <strong>{{ unconfiguredCount }}</strong> vị trí chưa cấu hình
+            <strong>nhóm thử việc pháp lý</strong>.
+          </span>
+        </div>
+        <Button
+          v-if="filterProbationConfigured !== false"
+          label="Chỉ xem chưa cấu hình"
+          size="small"
+          severity="warn"
+          outlined
+          @click="filterProbationConfigured = false"
+        />
+      </div>
       <DataTable
         :value="filteredList"
         :loading="loading"
@@ -75,6 +99,20 @@
         <Column field="department_name" header="Phòng/Ban"    sortable style="min-width: 150px" />
         <Column field="job_title_name"  header="Chức danh"    sortable style="width: 140px">
           <template #body="{ data }">{{ data.job_title_name ?? '—' }}</template>
+        </Column>
+        <Column field="probation_legal_group_label" header="Nhóm thử việc pháp lý" sortable style="min-width: 220px">
+          <template #body="{ data }">
+            <Tag
+              v-if="data.probation_legal_group_label"
+              :value="`${data.probation_legal_group_label} (${data.probation_days_limit} ngày)`"
+              severity="contrast"
+            />
+            <Tag
+              v-else
+              value="Chưa cấu hình"
+              severity="warn"
+            />
+          </template>
         </Column>
         <Column field="bhxh_allowance"  header="PC BHXH"      sortable style="width: 120px">
           <template #body="{ data }">
@@ -169,6 +207,22 @@
           <Textarea v-model="form.requirements" rows="3" class="w-full" placeholder="Kinh nghiệm, bằng cấp..." auto-resize />
         </div>
 
+        <div class="field">
+          <label>Nhóm thử việc pháp lý</label>
+          <Select
+            v-model="form.probation_legal_group"
+            :options="probationLegalGroupOptions"
+            option-label="label"
+            option-value="value"
+            placeholder="— Chưa cấu hình —"
+            show-clear
+            class="w-full"
+          />
+          <small class="help-msg">
+            Dùng để đối chiếu giới hạn thử việc theo Điều 25 Bộ luật Lao động 2019.
+          </small>
+        </div>
+
         <!-- Trạng thái (edit only) -->
         <div v-if="editingItem" class="field field-switch">
           <label>Trạng thái</label>
@@ -230,6 +284,10 @@
               <div class="detail-row"><span class="detail-label">Bậc mặc định</span><span>{{ detailItem.default_grade }}</span></div>
               <div class="detail-row"><span class="detail-label">PC tính BHXH</span><span>{{ formatVND(detailItem.bhxh_allowance) }}</span></div>
               <div class="detail-row"><span class="detail-label">PC không BHXH</span><span>{{ formatVND(detailItem.non_bhxh_allowance) }}</span></div>
+              <div class="detail-row">
+                <span class="detail-label">Nhóm thử việc pháp lý</span>
+                <span>{{ detailItem.probation_legal_group_label ? `${detailItem.probation_legal_group_label} (${detailItem.probation_days_limit} ngày)` : '—' }}</span>
+              </div>
               <div v-if="detailItem.description" class="detail-row detail-row--full">
                 <span class="detail-label">Mô tả</span>
                 <span class="detail-text">{{ detailItem.description }}</span>
@@ -255,7 +313,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useToast } from 'primevue/usetoast'
 import { useConfirm } from 'primevue/useconfirm'
 import Button from 'primevue/button'
@@ -278,7 +336,11 @@ import ToggleSwitch from 'primevue/toggleswitch'
 
 import FileAttachmentList from '@/components/FileAttachmentList.vue'
 import employeeCodeRuleService, { type EmployeeCodeSequenceRead } from '@/services/employeeCodeRuleService'
-import jobPositionService, { type JobPositionListItem, type JobPositionRead } from '@/services/jobPositionService'
+import jobPositionService, {
+  type JobPositionListItem,
+  type JobPositionRead,
+  type ProbationLegalGroupOption,
+} from '@/services/jobPositionService'
 import departmentService, { type DepartmentRead } from '@/services/departmentService'
 import jobTitleService, { type JobTitleRead } from '@/services/jobTitleService'
 
@@ -292,6 +354,7 @@ interface FormState {
   non_bhxh_allowance: number
   description:        string
   requirements:       string
+  probation_legal_group: string | null
   is_active:          boolean
   employee_code_sequence_id: number | null
   employee_code_rule_note: string
@@ -307,8 +370,10 @@ const list         = ref<JobPositionListItem[]>([])
 const flatDepts    = ref<DepartmentRead[]>([])
 const jobTitles    = ref<JobTitleRead[]>([])
 const sequences    = ref<EmployeeCodeSequenceRead[]>([])
+const probationLegalGroups = ref<ProbationLegalGroupOption[]>([])
 const filterDeptId = ref<number | null>(null)
 const filterActive = ref<boolean | null>(null)
+const filterProbationConfigured = ref<boolean | null>(null)
 const searchQuery  = ref('')
 const pageRows     = ref(10)
 const first        = ref(0)
@@ -323,7 +388,7 @@ const detailItem    = ref<JobPositionRead | null>(null)
 const form = ref<FormState>({
   code: '', name: '', department_id: null, job_title_id: null,
   default_grade: 1, bhxh_allowance: 0, non_bhxh_allowance: 0,
-  description: '', requirements: '', is_active: true,
+  description: '', requirements: '', probation_legal_group: null, is_active: true,
   employee_code_sequence_id: null, employee_code_rule_note: '',
 })
 const errors = ref<Partial<Record<keyof FormState, string>>>({})
@@ -334,6 +399,12 @@ const activeFilterOptions = [
   { label: 'Tất cả trạng thái', value: null },
   { label: 'Đang hoạt động',    value: true },
   { label: 'Đã khóa',           value: false },
+]
+
+const probationConfiguredOptions = [
+  { label: 'Tất cả nhóm thử việc', value: null },
+  { label: 'Đã cấu hình', value: true },
+  { label: 'Chưa cấu hình', value: false },
 ]
 
 // ── Computed ───────────────────────────────────────────────────────────────────
@@ -353,13 +424,31 @@ const sequenceOptions = computed(() =>
   }))
 )
 
+const probationLegalGroupOptions = computed(() =>
+  probationLegalGroups.value.map(item => ({
+    label: `${item.label} (${item.probation_days_limit} ngày)`,
+    value: item.code,
+  }))
+)
+
 const filteredList = computed(() => {
   const q = searchQuery.value.trim().toLowerCase()
-  if (!q) return list.value
-  return list.value.filter(
-    i => i.name.toLowerCase().includes(q) || i.code.toLowerCase().includes(q)
-  )
+  return list.value.filter((item) => {
+    if (filterProbationConfigured.value === true && !item.probation_legal_group) return false
+    if (filterProbationConfigured.value === false && item.probation_legal_group) return false
+    if (!q) return true
+    return (
+      item.name.toLowerCase().includes(q) ||
+      item.code.toLowerCase().includes(q) ||
+      item.department_name.toLowerCase().includes(q) ||
+      (item.job_title_name ?? '').toLowerCase().includes(q)
+    )
+  })
 })
+
+const unconfiguredCount = computed(() =>
+  list.value.filter((item) => !item.probation_legal_group).length
+)
 
 const paginatorInfo = computed(() => {
   const total = filteredList.value.length
@@ -393,7 +482,7 @@ function handlePage(e: { first: number; rows: number }) {
 async function loadData() {
   loading.value = true
   try {
-    const [posRes, deptRes, jtRes, seqRes] = await Promise.all([
+    const [posRes, deptRes, jtRes, seqRes, probationGroupRes] = await Promise.all([
       jobPositionService.getList({
         department_id: filterDeptId.value ?? undefined,
         is_active:     filterActive.value ?? undefined,
@@ -401,11 +490,13 @@ async function loadData() {
       departmentService.getList(),
       jobTitleService.getList(true),
       employeeCodeRuleService.getSequences(),
+      jobPositionService.getProbationLegalGroups(),
     ])
     list.value      = posRes.data
     flatDepts.value = deptRes.data
     jobTitles.value = jtRes.data
     sequences.value = seqRes.data
+    probationLegalGroups.value = probationGroupRes.data
   } catch (e) {
     toast.add({ severity: 'error', summary: 'Lỗi', detail: apiError(e), life: 4000 })
   } finally {
@@ -420,7 +511,7 @@ function openCreate() {
   form.value = {
     code: '', name: '', department_id: null, job_title_id: null,
     default_grade: 1, bhxh_allowance: 0, non_bhxh_allowance: 0,
-    description: '', requirements: '', is_active: true,
+    description: '', requirements: '', probation_legal_group: null, is_active: true,
     employee_code_sequence_id: null, employee_code_rule_note: '',
   }
   errors.value = {}
@@ -439,6 +530,7 @@ async function openEdit(item: JobPositionListItem) {
     non_bhxh_allowance: item.non_bhxh_allowance,
     description:        '',
     requirements:       '',
+    probation_legal_group: item.probation_legal_group,
     is_active:          item.is_active,
     employee_code_sequence_id: null,
     employee_code_rule_note: '',
@@ -452,6 +544,7 @@ async function openEdit(item: JobPositionListItem) {
     form.value.default_grade  = detailRes.data.default_grade
     form.value.description    = detailRes.data.description ?? ''
     form.value.requirements   = detailRes.data.requirements ?? ''
+    form.value.probation_legal_group = detailRes.data.probation_legal_group
     form.value.employee_code_sequence_id = ruleRes.data?.employee_code_sequence_id ?? null
     form.value.employee_code_rule_note = ruleRes.data?.note ?? ''
   } catch (e) {
@@ -492,6 +585,7 @@ async function submitForm() {
         non_bhxh_allowance: form.value.non_bhxh_allowance,
         description:        form.value.description.trim() || null,
         requirements:       form.value.requirements.trim() || null,
+        probation_legal_group: form.value.probation_legal_group,
         is_active:          form.value.is_active,
       })
       if (form.value.employee_code_sequence_id) {
@@ -518,6 +612,7 @@ async function submitForm() {
         non_bhxh_allowance: form.value.non_bhxh_allowance,
         description:        form.value.description.trim() || null,
         requirements:       form.value.requirements.trim() || null,
+        probation_legal_group: form.value.probation_legal_group,
       })
       toast.add({ severity: 'success', summary: 'Thành công', detail: 'Đã tạo vị trí mới', life: 3000 })
     }
@@ -551,10 +646,47 @@ function confirmDelete(item: JobPositionListItem) {
 }
 
 onMounted(loadData)
+
+watch([searchQuery, filterProbationConfigured], () => {
+  first.value = 0
+})
 </script>
 
 <style scoped>
 .pos-form { display: flex; flex-direction: column; gap: 0.1rem; }
+.pos-form .field-row-3 {
+  align-items: start;
+}
+.pos-form .field-row-3 > .field {
+  min-width: 0;
+}
+.pos-form .field-row-3 :deep(.p-inputnumber),
+.pos-form .field-row-3 :deep(.p-inputtext) {
+  width: 100%;
+}
+.pos-form .field-row-3 :deep(.p-inputnumber-input) {
+  width: 100%;
+}
+.config-alert {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  padding: 0.875rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--p-orange-400) 40%, transparent);
+  border-radius: 0.875rem;
+  background: color-mix(in srgb, var(--p-orange-500) 10%, var(--p-surface-0));
+}
+.config-alert__content {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: var(--p-text-color);
+}
+.config-alert__content i {
+  color: var(--p-orange-400);
+}
 .fieldset-block {
   margin-top: 0.5rem;
   padding-top: 0.75rem;
@@ -575,4 +707,11 @@ onMounted(loadData)
 .detail-row--full { grid-template-columns: 1fr; }
 .detail-label { font-weight: 600; font-size: 0.875rem; color: var(--p-text-muted-color); }
 .detail-text  { white-space: pre-wrap; font-size: 0.875rem; }
+
+@media (max-width: 768px) {
+  .config-alert {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
 </style>

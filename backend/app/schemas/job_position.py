@@ -5,6 +5,12 @@ from typing import Optional
 
 from pydantic import BaseModel, Field, field_validator
 
+from app.services.probation_rules import (
+    get_probation_legal_group_label,
+    get_probation_limit,
+    normalize_probation_legal_group,
+)
+
 
 class JobPositionCreate(BaseModel):
     code:               str           = Field(..., max_length=20,  description="Mã vị trí (tự động viết hoa)")
@@ -16,6 +22,10 @@ class JobPositionCreate(BaseModel):
     non_bhxh_allowance: int           = Field(0, ge=0, description="Phụ cấp không tính BHXH (VND)")
     description:        Optional[str] = Field(None, description="Mô tả công việc")
     requirements:       Optional[str] = Field(None, description="Yêu cầu tuyển dụng")
+    probation_legal_group: Optional[str] = Field(
+        None,
+        description="Nhóm pháp lý thử việc theo Điều 25 BLLĐ 2019",
+    )
 
     @field_validator("code")
     @classmethod
@@ -27,6 +37,11 @@ class JobPositionCreate(BaseModel):
     def _strip_name(cls, v: str) -> str:
         return v.strip()
 
+    @field_validator("probation_legal_group")
+    @classmethod
+    def _normalize_probation_legal_group(cls, v: Optional[str]) -> Optional[str]:
+        return normalize_probation_legal_group(v)
+
 
 class JobPositionUpdate(BaseModel):
     name:               Optional[str]  = Field(None, max_length=200)
@@ -37,12 +52,21 @@ class JobPositionUpdate(BaseModel):
     non_bhxh_allowance: Optional[int]  = Field(None, ge=0)
     description:        Optional[str]  = None
     requirements:       Optional[str]  = None
+    probation_legal_group: Optional[str] = Field(
+        None,
+        description="Nhóm pháp lý thử việc theo Điều 25 BLLĐ 2019",
+    )
     is_active:          Optional[bool] = None
 
     @field_validator("name")
     @classmethod
     def _strip_name(cls, v: Optional[str]) -> Optional[str]:
         return v.strip() if v else v
+
+    @field_validator("probation_legal_group")
+    @classmethod
+    def _normalize_probation_legal_group(cls, v: Optional[str]) -> Optional[str]:
+        return normalize_probation_legal_group(v)
 
 
 class JobPositionRead(BaseModel):
@@ -57,6 +81,9 @@ class JobPositionRead(BaseModel):
     non_bhxh_allowance: int
     description:        Optional[str]
     requirements:       Optional[str]
+    probation_legal_group: Optional[str]
+    probation_legal_group_label: Optional[str] = None
+    probation_days_limit: Optional[int] = None
     is_active:          bool
     created_at:         datetime
     updated_at:         Optional[datetime]
@@ -75,9 +102,25 @@ class JobPositionListItem(BaseModel):
     job_title_name:     Optional[str]
     bhxh_allowance:     int
     non_bhxh_allowance: int
+    probation_legal_group: Optional[str]
+    probation_legal_group_label: Optional[str] = None
+    probation_days_limit: Optional[int] = None
     is_active:          bool
     created_at:         datetime
     updated_at:         Optional[datetime]
+
+
+class ProbationLegalGroupOption(BaseModel):
+    code: str
+    label: str
+    probation_days_limit: int
+
+
+def enrich_probation_legal_group_fields(data: dict) -> dict:
+    group = data.get("probation_legal_group")
+    data["probation_legal_group_label"] = get_probation_legal_group_label(group)
+    data["probation_days_limit"] = get_probation_limit(group)
+    return data
 
 
 class AttachmentRead(BaseModel):

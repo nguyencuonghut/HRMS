@@ -21,32 +21,11 @@ from app.schemas.recruitment import (
     OfferStatusLabels,
     OfferUpdate,
 )
-
-# Giới hạn thử việc theo cấp chức danh (ngày) — Điều 24 BLLĐ 2019
-PROBATION_LIMITS: dict[str, int] = {
-    "director":   180,  # Tổng giám đốc / Giám đốc (level 1)
-    "manager":    60,   # Chức danh cần trình độ CĐ+ (level 2–3)
-    "specialist": 30,   # TC/CNKT/nhân viên chuyên môn (level 4–5)
-    "worker":     6,    # Các trường hợp còn lại (level 6+)
-}
-
-_LEVEL_TO_GROUP = {
-    1: "director",
-    2: "manager",
-    3: "manager",
-    4: "specialist",
-    5: "specialist",
-}
+from app.services.probation_rules import get_probation_legal_group_label, get_probation_limit
 
 
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
-
-
-def _probation_limit_for_level(level: Optional[int]) -> int:
-    group = _LEVEL_TO_GROUP.get(level or 99, "worker")
-    return PROBATION_LIMITS[group]
-
 
 def _check_probation_salary(probation_salary: Decimal, official_salary: Decimal) -> bool:
     """Returns True nếu lương thử việc thấp hơn 85% lương chính thức (vi phạm)."""
@@ -68,15 +47,10 @@ async def _build_offer_read(session: AsyncSession, offer: Offer) -> OfferRead:
     dept = await session.get(Department, offer.department_id) if offer.department_id else None
     creator = await session.get(User, offer.created_by_id)
 
-    # Lấy job_title_level từ jp để tính giới hạn thử việc
-    job_title_level: Optional[int] = None
-    if jp and jp.job_title_id:
-        from app.models.org import JobTitle
-        jt = await session.get(JobTitle, jp.job_title_id)
-        if jt:
-            job_title_level = getattr(jt, "level", None)
-
-    probation_days_limit = _probation_limit_for_level(job_title_level)
+    probation_legal_group_code = jp.probation_legal_group if jp else None
+    probation_legal_group_label = get_probation_legal_group_label(probation_legal_group_code)
+    probation_days_limit = get_probation_limit(probation_legal_group_code)
+    probation_limit_configured = probation_days_limit is not None
 
     return OfferRead(
         id=offer.id,
@@ -93,8 +67,11 @@ async def _build_offer_read(session: AsyncSession, offer: Offer) -> OfferRead:
         official_salary=offer.official_salary,
         probation_days=offer.probation_days,
         probation_days_limit=probation_days_limit,
+        probation_limit_configured=probation_limit_configured,
+        probation_legal_group_code=probation_legal_group_code,
+        probation_legal_group_label=probation_legal_group_label,
         probation_salary_warning=_check_probation_salary(offer.probation_salary, offer.official_salary),
-        probation_days_warning=offer.probation_days > probation_days_limit,
+        probation_days_warning=probation_days_limit is not None and offer.probation_days > probation_days_limit,
         benefits_note=offer.benefits_note,
         offer_file_path=offer.offer_file_path,
         offer_file_name=offer.offer_file_name,

@@ -14,8 +14,11 @@ from app.schemas.job_position import (
     JobPositionListItem,
     JobPositionRead,
     JobPositionUpdate,
+    ProbationLegalGroupOption,
+    enrich_probation_legal_group_fields,
 )
 from app.services import employee_code_rule_service, job_position_service
+from app.services.probation_rules import PROBATION_LEGAL_GROUP_LABELS, PROBATION_LEGAL_LIMITS
 
 router = APIRouter()
 
@@ -35,12 +38,29 @@ async def list_job_positions(
     )
 
 
+@router.get(
+    "/probation-legal-groups/options",
+    response_model=list[ProbationLegalGroupOption],
+    summary="Danh sách nhóm pháp lý thử việc",
+)
+async def list_probation_legal_group_options():
+    return [
+        ProbationLegalGroupOption(
+            code=code,
+            label=PROBATION_LEGAL_GROUP_LABELS[code],
+            probation_days_limit=PROBATION_LEGAL_LIMITS[code],
+        )
+        for code in PROBATION_LEGAL_LIMITS
+    ]
+
+
 @router.get("/{pos_id}", response_model=JobPositionRead, summary="Chi tiết vị trí công việc")
 async def get_job_position(
     pos_id: int,
     session: AsyncSession = Depends(get_session),
 ):
-    return await job_position_service.get_by_id(session, pos_id)
+    pos = await job_position_service.get_by_id(session, pos_id)
+    return JobPositionRead.model_validate(enrich_probation_legal_group_fields(pos.model_dump()))
 
 
 @router.post("", response_model=JobPositionRead, status_code=status.HTTP_201_CREATED, summary="Tạo vị trí mới")
@@ -48,7 +68,8 @@ async def create_job_position(
     body: JobPositionCreate,
     session: AsyncSession = Depends(get_session),
 ):
-    return await job_position_service.create(session, body)
+    pos = await job_position_service.create(session, body)
+    return JobPositionRead.model_validate(enrich_probation_legal_group_fields(pos.model_dump()))
 
 
 @router.put("/{pos_id}", response_model=JobPositionRead, summary="Cập nhật vị trí công việc")
@@ -57,7 +78,8 @@ async def update_job_position(
     body: JobPositionUpdate,
     session: AsyncSession = Depends(get_session),
 ):
-    return await job_position_service.update(session, pos_id, body)
+    pos = await job_position_service.update(session, pos_id, body)
+    return JobPositionRead.model_validate(enrich_probation_legal_group_fields(pos.model_dump()))
 
 
 @router.delete("/{pos_id}", summary="Xóa vị trí công việc")

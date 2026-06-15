@@ -15,6 +15,7 @@ from app.schemas.job_position import (
     JobPositionListItem,
     JobPositionRead,
     JobPositionUpdate,
+    enrich_probation_legal_group_fields,
 )
 
 
@@ -30,6 +31,7 @@ def _to_dict(pos: JobPosition) -> dict:
         "default_grade":      pos.default_grade,
         "bhxh_allowance":     int(pos.bhxh_allowance),
         "non_bhxh_allowance": int(pos.non_bhxh_allowance),
+        "probation_legal_group": pos.probation_legal_group,
         "is_active":          pos.is_active,
     }
 
@@ -128,18 +130,21 @@ async def get_list(
 
     return [
         JobPositionListItem(
-            id=pos.id,
-            code=pos.code,
-            name=pos.name,
-            department_id=pos.department_id,
-            department_name=dept_name,
-            job_title_id=pos.job_title_id,
-            job_title_name=jt_name,
-            bhxh_allowance=int(pos.bhxh_allowance),
-            non_bhxh_allowance=int(pos.non_bhxh_allowance),
-            is_active=pos.is_active,
-            created_at=pos.created_at,
-            updated_at=pos.updated_at,
+            **enrich_probation_legal_group_fields({
+                "id": pos.id,
+                "code": pos.code,
+                "name": pos.name,
+                "department_id": pos.department_id,
+                "department_name": dept_name,
+                "job_title_id": pos.job_title_id,
+                "job_title_name": jt_name,
+                "bhxh_allowance": int(pos.bhxh_allowance),
+                "non_bhxh_allowance": int(pos.non_bhxh_allowance),
+                "probation_legal_group": pos.probation_legal_group,
+                "is_active": pos.is_active,
+                "created_at": pos.created_at,
+                "updated_at": pos.updated_at,
+            }),
         )
         for pos, dept_name, jt_name in rows
     ]
@@ -170,6 +175,7 @@ async def create(
         non_bhxh_allowance=data.non_bhxh_allowance,
         description=data.description,
         requirements=data.requirements,
+        probation_legal_group=data.probation_legal_group,
     )
     session.add(pos)
     await session.flush()
@@ -214,6 +220,7 @@ async def update(
     if "non_bhxh_allowance" in provided and data.non_bhxh_allowance is not None: pos.non_bhxh_allowance = data.non_bhxh_allowance
     if "description"        in provided: pos.description  = data.description
     if "requirements"       in provided: pos.requirements = data.requirements
+    if "probation_legal_group" in provided: pos.probation_legal_group = data.probation_legal_group
     if "is_active"          in provided and data.is_active is not None: pos.is_active = data.is_active
 
     pos.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)

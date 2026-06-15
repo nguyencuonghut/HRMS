@@ -48,6 +48,30 @@ def _find_position_for_title(client: TestClient, h: dict, job_title_id: int) -> 
     return next((p for p in positions if p.get("department_id")), positions[0])
 
 
+def _create_position_for_probation_group(
+    client: TestClient,
+    h: dict,
+    *,
+    probation_legal_group: str | None,
+    suffix: str,
+    job_title_id: int | None,
+) -> dict:
+    seed = _get_position(client, h)
+    resp = client.post(
+        "/api/v1/job-positions",
+        json={
+            "code": f"TESTPRB{suffix}",
+            "name": f"Vị trí thử việc {suffix}",
+            "department_id": seed["department_id"],
+            "job_title_id": job_title_id if job_title_id is not None else seed.get("job_title_id"),
+            "probation_legal_group": probation_legal_group,
+        },
+        headers=h,
+    )
+    assert resp.status_code == 201, resp.text
+    return resp.json()
+
+
 def _create_probation_employee(
     client: TestClient,
     h: dict,
@@ -56,6 +80,7 @@ def _create_probation_employee(
     probation_end: str | None = "2098-03-15",
     status: str = "probation",
     job_title_id: int = 0,  # 0 = use position's own job_title_id
+    probation_legal_group: str | None = "other",
 ) -> dict:
     global _emp_counter
     _emp_counter += 1
@@ -66,6 +91,14 @@ def _create_probation_employee(
     else:
         pos = _get_position(client, h)
         actual_title_id = pos.get("job_title_id") or 1
+
+    pos = _create_position_for_probation_group(
+        client,
+        h,
+        probation_legal_group=probation_legal_group,
+        suffix=f"{_RUN_SUFFIX}{_emp_counter:04d}",
+        job_title_id=actual_title_id,
+    )
 
     payload = {
         "full_name": f"Test Prob {_RUN_SUFFIX} #{_emp_counter}",
@@ -121,7 +154,9 @@ class TestProbationLegalCheck:
         assert isinstance(data["violations"], list)
         assert isinstance(data["warnings"], list)
         assert isinstance(data["probation_days"], int)
-        assert data["probation_limit"] > 0
+        assert data["probation_limit"] == 6
+        assert data["probation_limit_configured"] is True
+        assert data["probation_legal_group_code"] == "other"
 
     def test_legal_check_detects_probation_days_exceeding_limit(self, client: TestClient):
         """Nhân viên có thời gian thử việc vượt giới hạn → violations không rỗng."""
@@ -196,6 +231,20 @@ class TestProbationLegalCheck:
         assert data["legal_check"]["is_valid"] is True
         assert data["legal_check"]["violations"] == []
         assert any("Dữ liệu thử việc lịch sử" in message for message in data["legal_check"]["warnings"])
+
+    def test_legal_check_warns_when_position_has_no_probation_legal_group(self, client: TestClient):
+        h = _admin(client)
+        emp = _create_probation_employee(client, h, probation_legal_group=None)
+        emp_id = emp["id"]
+
+        r = client.get(f"{BASE_EMP}/{emp_id}/probation/legal-check", headers=h)
+        assert r.status_code == 200, r.text
+        data = r.json()
+
+        assert data["probation_limit_configured"] is False
+        assert data["probation_limit"] is None
+        assert data["violations"] == []
+        assert any("chưa cấu hình nhóm thử việc pháp lý" in message for message in data["warnings"])
 
     def test_legal_check_404_for_unknown_employee(self, client: TestClient):
         """Nhân viên không tồn tại → 200 với probation_days=0 (không raise error)."""

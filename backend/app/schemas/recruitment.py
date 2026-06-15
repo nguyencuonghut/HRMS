@@ -1105,7 +1105,10 @@ class OfferRead(BaseModel):
     probation_salary: Decimal
     official_salary: Decimal
     probation_days: int
-    probation_days_limit: int
+    probation_days_limit: Optional[int]
+    probation_limit_configured: bool
+    probation_legal_group_code: Optional[str]
+    probation_legal_group_label: Optional[str]
     probation_salary_warning: bool
     probation_days_warning: bool
     benefits_note: Optional[str]

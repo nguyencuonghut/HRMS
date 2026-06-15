@@ -13,7 +13,7 @@ from sqlmodel import select
 from app.models.auth import AuditLog, User
 from app.models.employee import Employee
 from app.models.employee_job import EmployeeJobRecord
-from app.models.org import Department, JobTitle
+from app.models.org import Department, JobPosition, JobTitle
 from app.models.probation import ProbationEvaluation
 from app.schemas.probation import (
     ProbationApproveRequest,
@@ -23,10 +23,10 @@ from app.schemas.probation import (
     ProbationEvaluationUpdate,
     ProbationLegalCheck,
 )
-from app.services.offer_service import (
-    PROBATION_LIMITS,
-    _LEVEL_TO_GROUP,
-    _probation_limit_for_level,
+from app.services.probation_rules import (
+    PROBATION_LEGAL_GROUP_LABELS,
+    get_probation_legal_group_label,
+    get_probation_limit,
 )
 
 logger = logging.getLogger(__name__)
@@ -142,9 +142,10 @@ async def validate_probation_legal(
         ).scalar_one_or_none()
 
     probation_days = 0
-    probation_limit = 30
-    job_level: Optional[int] = None
-    job_level_group = "worker"
+    probation_limit: Optional[int] = None
+    probation_limit_configured = False
+    probation_legal_group_code: Optional[str] = None
+    probation_legal_group_label: Optional[str] = None
 
     if job_record:
         # Tính số ngày thử việc
@@ -152,24 +153,30 @@ async def validate_probation_legal(
             delta = job_record.probation_end_date - job_record.probation_start_date
             probation_days = delta.days
 
-        # Lấy job_title.level để tính giới hạn
-        if job_record.job_title_id:
-            jt = await session.get(JobTitle, job_record.job_title_id)
-            if jt:
-                job_level = getattr(jt, "level", None)
+        job_position = await session.get(JobPosition, job_record.job_position_id) if job_record.job_position_id else None
+        probation_legal_group_code = job_position.probation_legal_group if job_position else None
+        probation_legal_group_label = get_probation_legal_group_label(probation_legal_group_code)
+        probation_limit = get_probation_limit(probation_legal_group_code)
+        probation_limit_configured = probation_limit is not None
 
-        job_level_group = _LEVEL_TO_GROUP.get(job_level or 99, "worker")
-        probation_limit = _probation_limit_for_level(job_level)
-
-        # Kiểm tra vi phạm: thời gian thử việc vượt giới hạn pháp lý
-        if probation_days > probation_limit:
+        if probation_limit is None:
+            position_name = job_position.name if job_position else f"Vị trí #{job_record.job_position_id}"
+            valid_groups = ", ".join(
+                f"{PROBATION_LEGAL_GROUP_LABELS[code]} ({get_probation_limit(code)} ngày)"
+                for code in PROBATION_LEGAL_GROUP_LABELS
+            )
+            warnings.append(
+                f"Vị trí '{position_name}' chưa cấu hình nhóm thử việc pháp lý theo Điều 25 Bộ luật Lao động 2019. "
+                f"Cần cấu hình một trong các nhóm: {valid_groups}."
+            )
+        elif probation_days > probation_limit:
             probation_mode = _resolve_probation_mode(
                 employee.status if employee else "none",
                 job_record,
             )
             message = (
                 f"Thời gian thử việc {probation_days} ngày vượt quá giới hạn pháp lý "
-                f"{probation_limit} ngày cho nhóm '{job_level_group}'"
+                f"{probation_limit} ngày cho nhóm '{probation_legal_group_label}'"
             )
             if probation_mode == "historical":
                 warnings.append(
@@ -201,8 +208,9 @@ async def validate_probation_legal(
         warnings=warnings,
         probation_days=probation_days,
         probation_limit=probation_limit,
-        job_level=job_level,
-        job_level_group=job_level_group,
+        probation_limit_configured=probation_limit_configured,
+        probation_legal_group_code=probation_legal_group_code,
+        probation_legal_group_label=probation_legal_group_label,
     )
 
 
@@ -230,6 +238,7 @@ async def get_probation_detail(
     ).scalar_one_or_none()
 
     department_name: Optional[str] = None
+    job_position_name: Optional[str] = None
     job_title_name: Optional[str] = None
     job_title_level: Optional[int] = None
     days_remaining: Optional[int] = None
@@ -238,6 +247,10 @@ async def get_probation_detail(
         if job_record.department_id:
             dept = await session.get(Department, job_record.department_id)
             department_name = dept.name if dept else None
+
+        if job_record.job_position_id:
+            pos = await session.get(JobPosition, job_record.job_position_id)
+            job_position_name = pos.name if pos else None
 
         if job_record.job_title_id:
             jt = await session.get(JobTitle, job_record.job_title_id)
@@ -317,6 +330,7 @@ async def get_probation_detail(
         employee_name=emp.full_name,
         employee_code=employee_code,
         department_name=department_name,
+        job_position_name=job_position_name,
         job_title_name=job_title_name,
         job_title_level=job_title_level,
         status=emp.status,
@@ -783,9 +797,10 @@ async def _execute_extended_workflow(
     # Validate: tổng ngày thử việc không vượt giới hạn pháp lý
     if job_record.probation_start_date:
         total_days = (new_end - job_record.probation_start_date).days
-        jt = await session.get(JobTitle, job_record.job_title_id) if job_record.job_title_id else None
-        level = getattr(jt, "level", None) if jt else None
-        limit = _probation_limit_for_level(level)
+        pos = await session.get(JobPosition, job_record.job_position_id) if job_record.job_position_id else None
+        limit = get_probation_limit(pos.probation_legal_group if pos else None)
+        if limit is None:
+            raise ValueError("Vị trí công việc chưa cấu hình nhóm thử việc pháp lý, không thể gia hạn thử việc")
         if total_days > limit:
             raise ValueError(
                 f"Sau gia hạn, tổng thời gian thử việc ({total_days} ngày) "

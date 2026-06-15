@@ -86,7 +86,14 @@
           />
           <small v-if="probationDaysWarning" class="rc-error">
             <i class="pi pi-exclamation-triangle" />
-            Vượt giới hạn thử việc quy định (tối đa {{ probationDaysLimit }} ngày)
+            Vượt giới hạn thử việc theo Điều 25 BLLĐ 2019 (tối đa {{ probationDaysLimit }} ngày)
+          </small>
+          <small v-else-if="probationLimitConfigured && probationDaysLimit !== null" class="rc-muted">
+            Nhóm pháp lý: {{ probationLegalGroupLabel }} · tối đa {{ probationDaysLimit }} ngày
+          </small>
+          <small v-else-if="form.job_position_id" class="rc-error">
+            <i class="pi pi-info-circle" />
+            Vị trí này chưa cấu hình nhóm thử việc pháp lý. Hệ thống chưa thể đối chiếu giới hạn theo Điều 25 Bộ luật Lao động 2019.
           </small>
         </div>
         <div class="rc-field">
@@ -125,7 +132,7 @@ import { useToast } from 'primevue/usetoast'
 
 import { offerService, type OfferRead } from '@/services/recruitmentService'
 import departmentService from '@/services/departmentService'
-import jobPositionService from '@/services/jobPositionService'
+import jobPositionService, { type JobPositionListItem } from '@/services/jobPositionService'
 import { toLocalIso } from '@/utils/format'
 
 const props = defineProps<{
@@ -150,7 +157,7 @@ const editing = computed(() => !!props.offer)
 const hasJrContext = computed(() => !!props.jrJobPositionId && !!props.jrDeptId)
 
 const departmentOptions = ref<{ label: string; value: number }[]>([])
-const jobPositionOptions = ref<{ label: string; value: number }[]>([])
+const jobPositionOptions = ref<(JobPositionListItem & { label: string; value: number })[]>([])
 
 const form = ref({
   job_position_id: null as number | null,
@@ -171,8 +178,32 @@ const probationSalaryWarning = computed(() => {
   return prob < off * 0.85
 })
 
-const probationDaysLimit = computed(() => props.offer?.probation_days_limit ?? 60)
-const probationDaysWarning = computed(() => (form.value.probation_days ?? 0) > probationDaysLimit.value)
+const selectedPosition = computed(() =>
+  jobPositionOptions.value.find((item) => item.value === form.value.job_position_id) ?? null,
+)
+
+const probationDaysLimit = computed(() =>
+  props.offer?.probation_days_limit
+  ?? selectedPosition.value?.probation_days_limit
+  ?? null,
+)
+
+const probationLimitConfigured = computed(() =>
+  props.offer?.probation_limit_configured
+  ?? (selectedPosition.value?.probation_days_limit != null),
+)
+
+const probationLegalGroupLabel = computed(() =>
+  props.offer?.probation_legal_group_label
+  ?? selectedPosition.value?.probation_legal_group_label
+  ?? null,
+)
+
+const probationDaysWarning = computed(() =>
+  probationLimitConfigured.value
+  && probationDaysLimit.value !== null
+  && (form.value.probation_days ?? 0) > probationDaysLimit.value,
+)
 
 function resetForm() {
   const o = props.offer
@@ -238,7 +269,7 @@ onMounted(async () => {
       jobPositionService.getList({ is_active: true }),
     ])
     departmentOptions.value = deptsRes.data.map((d: any) => ({ label: d.name, value: d.id }))
-    jobPositionOptions.value = positionsRes.data.map((p: any) => ({ label: p.name, value: p.id }))
+    jobPositionOptions.value = positionsRes.data.map((p: JobPositionListItem) => ({ ...p, label: p.name, value: p.id }))
   }
 })
 </script>

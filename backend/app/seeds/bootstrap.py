@@ -343,42 +343,51 @@ async def seed_departments(session: AsyncSession) -> int:
 
 
 async def seed_job_positions(session: AsyncSession) -> int:
+    # Bootstrap defaults for legal probation grouping.
+    # These values are operational presets for the small baseline position set and
+    # should be reviewed against real job requirements of each tenant/company.
     positions = [
         {
             "code": "CT_HDQT",
             "name": "Chủ tịch HĐQT",
             "dept_code": "LD",
             "title_code": "CTHD",
+            "probation_legal_group": "enterprise_manager",
         },
         {
             "code": "NV_IT",
             "name": "Nhân viên IT",
             "dept_code": "IT",
             "title_code": "NV",
+            "probation_legal_group": "college_plus",
         },
         {
             "code": "NV_KSNB",
             "name": "Nhân viên kiểm soát nội bộ",
             "dept_code": "KSNB",
             "title_code": "NV",
+            "probation_legal_group": "college_plus",
         },
         {
             "code": "CV_IT",
             "name": "Chuyên viên IT",
             "dept_code": "IT",
             "title_code": "NVKT",
+            "probation_legal_group": "college_plus",
         },
         {
             "code": "TN_KSNB",
             "name": "Trưởng nhóm kiểm soát nội bộ",
             "dept_code": "KSNB",
             "title_code": "TBP",
+            "probation_legal_group": "college_plus",
         },
         {
             "code": "TP_KSNB",
             "name": "Trưởng phòng kiểm soát nội bộ",
             "dept_code": "KS",
             "title_code": "TP",
+            "probation_legal_group": "college_plus",
         },
     ]
 
@@ -415,6 +424,7 @@ async def seed_job_positions(session: AsyncSession) -> int:
                     SET name = :name,
                         department_id = :department_id,
                         job_title_id = :job_title_id,
+                        probation_legal_group = :probation_legal_group,
                         is_active = true,
                         updated_at = CURRENT_TIMESTAMP
                     WHERE id = :id
@@ -424,6 +434,7 @@ async def seed_job_positions(session: AsyncSession) -> int:
                     "name": pos["name"],
                     "department_id": dept_id,
                     "job_title_id": title_id,
+                    "probation_legal_group": pos["probation_legal_group"],
                 }
             )
         else:
@@ -431,16 +442,18 @@ async def seed_job_positions(session: AsyncSession) -> int:
                 text("""
                     INSERT INTO job_positions
                         (code, name, department_id, job_title_id, default_grade,
-                         bhxh_allowance, non_bhxh_allowance, is_active, created_at)
+                         bhxh_allowance, non_bhxh_allowance, probation_legal_group,
+                         is_active, created_at)
                     VALUES
                         (:code, :name, :department_id, :job_title_id, 1,
-                         0, 0, true, CURRENT_TIMESTAMP)
+                         0, 0, :probation_legal_group, true, CURRENT_TIMESTAMP)
                 """),
                 {
                     "code": pos["code"],
                     "name": pos["name"],
                     "department_id": dept_id,
                     "job_title_id": title_id,
+                    "probation_legal_group": pos["probation_legal_group"],
                 }
             )
         inserted += r.rowcount

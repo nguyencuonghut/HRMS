@@ -43,6 +43,33 @@ def _get_pos_dept(client: TestClient, h: dict) -> tuple[int, int]:
     return row["id"], row["department_id"]
 
 
+def _create_position_with_probation_group(
+    client: TestClient,
+    h: dict,
+    *,
+    probation_legal_group: str | None,
+    suffix: str,
+) -> tuple[int, int]:
+    existing_rows = client.get("/api/v1/job-positions", headers=h, params={"page_size": 50}).json()
+    positions = existing_rows if isinstance(existing_rows, list) else existing_rows.get("items", existing_rows)
+    assert positions, "Cần ít nhất 1 vị trí seed để suy ra department"
+    seed_pos = positions[0]
+    res = client.post(
+        "/api/v1/job-positions",
+        json={
+            "code": f"TESTOFF{suffix[:8].upper()}",
+            "name": f"Vị trí Offer {suffix}",
+            "department_id": seed_pos["department_id"],
+            "job_title_id": seed_pos.get("job_title_id"),
+            "probation_legal_group": probation_legal_group,
+        },
+        headers=h,
+    )
+    assert res.status_code == 201, res.text
+    data = res.json()
+    return data["id"], data["department_id"]
+
+
 def _get_dept_id(client: TestClient, h: dict) -> int:
     return _get_pos_dept(client, h)[1]
 
@@ -258,11 +285,17 @@ class TestOfferCRUD:
 class TestOfferProbationValidation:
     def _setup(self, client: TestClient, h: dict):
         suffix = uuid.uuid4().hex[:8]
-        pos_id = _get_pos_id(client, h)
-        dept_id = _get_dept_id(client, h)
+        pos_id, dept_id = _create_position_with_probation_group(
+            client,
+            h,
+            probation_legal_group="college_plus",
+            suffix=suffix,
+        )
         jr = _create_approved_jr(client, h, pos_id, dept_id)
         cand = _create_candidate(client, h, suffix)
         app = _apply(client, h, cand["id"], jr["id"])
+        app["_test_pos_id"] = pos_id
+        app["_test_dept_id"] = dept_id
         return app
 
     def test_probation_salary_warning_below_85_percent(self, client: TestClient) -> None:
@@ -271,6 +304,8 @@ class TestOfferProbationValidation:
         # 8_000_000 / 10_000_000 = 80% → warning
         offer = _create_offer(
             client, h, app["id"],
+            pos_id=app["_test_pos_id"],
+            dept_id=app["_test_dept_id"],
             probation_salary=8000000,
             official_salary=10000000,
         )
@@ -282,6 +317,8 @@ class TestOfferProbationValidation:
         # 8_500_000 / 10_000_000 = 85% → no warning
         offer = _create_offer(
             client, h, app["id"],
+            pos_id=app["_test_pos_id"],
+            dept_id=app["_test_dept_id"],
             probation_salary=8500000,
             official_salary=10000000,
         )
@@ -290,21 +327,46 @@ class TestOfferProbationValidation:
     def test_probation_days_warning_over_limit(self, client: TestClient) -> None:
         h = _admin(client)
         app = self._setup(client, h)
-        # 61 ngày > giới hạn 60 (manager) hoặc 30 (specialist/worker) → warning
+        # 61 ngày > giới hạn 60 của nhóm college_plus → warning
         offer = _create_offer(
             client, h, app["id"],
+            pos_id=app["_test_pos_id"],
+            dept_id=app["_test_dept_id"],
             probation_days=61,
         )
-        # Warning phụ thuộc vào job_title level; nếu pos không có title → worker=6 ngày
-        # Nên 61 > 6 → True
         assert offer["probation_days_warning"] is True
 
     def test_probation_days_limit_computed(self, client: TestClient) -> None:
         h = _admin(client)
         app = self._setup(client, h)
-        offer = _create_offer(client, h, app["id"])
-        # probation_days_limit phải là số dương hợp lệ
-        assert offer["probation_days_limit"] in (180, 60, 30, 6)
+        offer = _create_offer(
+            client,
+            h,
+            app["id"],
+            pos_id=app["_test_pos_id"],
+            dept_id=app["_test_dept_id"],
+        )
+        assert offer["probation_limit_configured"] is True
+        assert offer["probation_legal_group_code"] == "college_plus"
+        assert offer["probation_days_limit"] == 60
+
+    def test_probation_days_limit_unconfigured_when_position_has_no_legal_group(self, client: TestClient) -> None:
+        h = _admin(client)
+        suffix = uuid.uuid4().hex[:8]
+        pos_id, dept_id = _create_position_with_probation_group(
+            client,
+            h,
+            probation_legal_group=None,
+            suffix=suffix,
+        )
+        jr = _create_approved_jr(client, h, pos_id, dept_id)
+        cand = _create_candidate(client, h, suffix)
+        app = _apply(client, h, cand["id"], jr["id"])
+
+        offer = _create_offer(client, h, app["id"], pos_id=pos_id, dept_id=dept_id)
+        assert offer["probation_limit_configured"] is False
+        assert offer["probation_days_limit"] is None
+        assert offer["probation_days_warning"] is False
 
 
 # ── TestOfferWorkflow ──────────────────────────────────────────────────────────

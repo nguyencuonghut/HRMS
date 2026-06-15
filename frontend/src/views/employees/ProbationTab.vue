@@ -51,9 +51,9 @@
           <div class="probation-info-item">
             <span class="probation-info-label">Còn lại</span>
             <Tag
-              v-if="detail.days_remaining !== null"
-              :value="`${detail.days_remaining} ngày`"
-              :severity="daysRemainingSeverity(detail.days_remaining)"
+              v-if="probationRemainingTag"
+              :value="probationRemainingTag.value"
+              :severity="probationRemainingTag.severity"
             />
             <span v-else class="ob-muted">—</span>
           </div>
@@ -424,6 +424,29 @@ const computedOverallScore = computed(() => {
   if (scores.length === 0) return null
   const avg = scores.reduce((a, b) => a + b, 0) / scores.length
   return Math.round(avg * 10) / 10
+})
+
+const probationRemainingTag = computed<{
+  value: string
+  severity: 'danger' | 'warn' | 'success' | 'secondary'
+} | null>(() => {
+  if (!detail.value) return null
+
+  if (detail.value.probation_mode === 'historical') {
+    if (detail.value.official_date) {
+      return { value: 'Đã chính thức', severity: 'secondary' }
+    }
+    if (detail.value.probation_end_date) {
+      return { value: 'Đã kết thúc', severity: 'secondary' }
+    }
+    return null
+  }
+
+  if (detail.value.days_remaining === null) return null
+  return {
+    value: `${detail.value.days_remaining} ngày`,
+    severity: daysRemainingSeverity(detail.value.days_remaining),
+  }
 })
 
 // ── Helpers ────────────────────────────────────────────────────────────────────

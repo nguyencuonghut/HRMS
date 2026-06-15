@@ -45,7 +45,13 @@
                 {{ data.probation_days }} ngày
               </span>
               <div v-if="data.probation_days_warning" class="rc-warning-note">
-                <i class="pi pi-exclamation-triangle" /> Vượt giới hạn {{ data.probation_days_limit }} ngày (Điều 24 BLLĐ 2019)
+                <i class="pi pi-exclamation-triangle" /> Vượt giới hạn {{ data.probation_days_limit }} ngày (Điều 25 BLLĐ 2019)
+              </div>
+              <div v-else-if="data.probation_limit_configured && data.probation_days_limit !== null" class="rc-muted">
+                {{ data.probation_legal_group_label }} · tối đa {{ data.probation_days_limit }} ngày
+              </div>
+              <div v-else class="rc-warning-note">
+                <i class="pi pi-info-circle" /> Chưa cấu hình nhóm thử việc pháp lý cho vị trí
               </div>
             </div>
           </template>

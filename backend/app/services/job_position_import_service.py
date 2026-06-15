@@ -14,6 +14,11 @@ from app.schemas.employee_import import ImportResult, ImportRowError
 from app.schemas.job_position import JobPositionCreate, JobPositionUpdate
 from app.services.import_excel_helper import extract_header_and_non_blank_rows
 from app.services import job_position_service
+from app.services.probation_rules import (
+    PROBATION_LEGAL_GROUP_LABELS,
+    PROBATION_LEGAL_LIMITS,
+    normalize_probation_legal_group,
+)
 
 IMPORT_MAX_ROWS = 1000
 COLUMNS = [
@@ -24,6 +29,7 @@ COLUMNS = [
     "Bậc mặc định",
     "Phụ cấp BHXH",
     "Phụ cấp ngoài BHXH",
+    "Nhóm thử việc pháp lý",
     "Kích hoạt",
     "Mô tả",
     "Yêu cầu",
@@ -46,10 +52,10 @@ def generate_template() -> bytes:
         cell.fill = header_fill if col_name in REQUIRED_COLUMNS else opt_fill
         cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
 
-    sample = ["KD_NV_01", "Nhân viên kinh doanh miền Bắc", "KD", "NVKD", "1", "500000", "300000", "1", "Chăm sóc đại lý", "Kỹ năng bán hàng"]
+    sample = ["KD_NV_01", "Nhân viên kinh doanh miền Bắc", "KD", "NVKD", "1", "500000", "300000", "college_plus", "1", "Chăm sóc đại lý", "Kỹ năng bán hàng"]
     for col_idx, val in enumerate(sample, start=1):
         ws.cell(row=2, column=col_idx, value=val)
-    widths = [18, 30, 16, 16, 14, 16, 18, 12, 28, 28]
+    widths = [18, 30, 16, 16, 14, 16, 18, 24, 12, 28, 28]
     for i, width in enumerate(widths, start=1):
         ws.column_dimensions[ws.cell(row=1, column=i).column_letter].width = width
 
@@ -63,6 +69,7 @@ def generate_template() -> bytes:
         ["Bậc mặc định", "", "Số nguyên >= 1", "1"],
         ["Phụ cấp BHXH", "", "Số tiền VND >= 0", "500000"],
         ["Phụ cấp ngoài BHXH", "", "Số tiền VND >= 0", "300000"],
+        ["Nhóm thử việc pháp lý", "", "enterprise_manager | college_plus | intermediate_technical_clerical | other", "college_plus"],
         ["Kích hoạt", "", "1/true/yes = hoạt động; 0/false/no = khóa", "1"],
         ["Mô tả", "", "Mô tả công việc", "Chăm sóc đại lý"],
         ["Yêu cầu", "", "Yêu cầu tuyển dụng", "Kỹ năng bán hàng"],
@@ -165,9 +172,26 @@ async def process_import(session: AsyncSession, file_bytes: bytes) -> ImportResu
         default_grade = _parse_int(_cell(row_vals, "Bậc mặc định", col_map), excel_row, "Bậc mặc định", row_errors, minimum=1, default=1)
         bhxh_allowance = _parse_int(_cell(row_vals, "Phụ cấp BHXH", col_map), excel_row, "Phụ cấp BHXH", row_errors, minimum=0, default=0)
         non_bhxh_allowance = _parse_int(_cell(row_vals, "Phụ cấp ngoài BHXH", col_map), excel_row, "Phụ cấp ngoài BHXH", row_errors, minimum=0, default=0)
+        probation_legal_group_raw = _cell(row_vals, "Nhóm thử việc pháp lý", col_map)
         is_active = _parse_bool(_cell(row_vals, "Kích hoạt", col_map), excel_row, "Kích hoạt", row_errors)
         description = _cell(row_vals, "Mô tả", col_map) or None
         requirements = _cell(row_vals, "Yêu cầu", col_map) or None
+        probation_legal_group = None
+        if probation_legal_group_raw:
+            try:
+                probation_legal_group = normalize_probation_legal_group(probation_legal_group_raw)
+            except ValueError:
+                valid_groups = ", ".join(
+                    f"{code} ({PROBATION_LEGAL_GROUP_LABELS[code]} - {PROBATION_LEGAL_LIMITS[code]} ngày)"
+                    for code in PROBATION_LEGAL_LIMITS
+                )
+                row_errors.append(
+                    ImportRowError(
+                        row=excel_row,
+                        column="Nhóm thử việc pháp lý",
+                        message=f"Giá trị không hợp lệ: '{probation_legal_group_raw}'. Chọn một trong: {valid_groups}",
+                    )
+                )
 
         if not code:
             row_errors.append(ImportRowError(row=excel_row, column="Mã vị trí", message="Trường bắt buộc không được để trống"))
@@ -206,6 +230,7 @@ async def process_import(session: AsyncSession, file_bytes: bytes) -> ImportResu
                         default_grade=default_grade,
                         bhxh_allowance=bhxh_allowance,
                         non_bhxh_allowance=non_bhxh_allowance,
+                        probation_legal_group=probation_legal_group,
                         is_active=is_active,
                         description=description,
                         requirements=requirements,
@@ -222,6 +247,7 @@ async def process_import(session: AsyncSession, file_bytes: bytes) -> ImportResu
                         default_grade=default_grade or 1,
                         bhxh_allowance=bhxh_allowance or 0,
                         non_bhxh_allowance=non_bhxh_allowance or 0,
+                        probation_legal_group=probation_legal_group,
                         description=description,
                         requirements=requirements,
                     ),

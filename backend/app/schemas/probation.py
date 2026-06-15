@@ -15,9 +15,10 @@ class ProbationLegalCheck(BaseModel):
     violations: List[str]
     warnings: List[str]
     probation_days: int
-    probation_limit: int
-    job_level: Optional[int]
-    job_level_group: str
+    probation_limit: Optional[int]
+    probation_limit_configured: bool
+    probation_legal_group_code: Optional[str]
+    probation_legal_group_label: Optional[str]
 
 
 # ── Evaluation schemas ────────────────────────────────────────────────────────
@@ -89,6 +90,7 @@ class ProbationDetailRead(BaseModel):
     employee_name: str
     employee_code: Optional[str] = None
     department_name: Optional[str] = None
+    job_position_name: Optional[str] = None
     job_title_name: Optional[str] = None
     job_title_level: Optional[int] = None
     status: str

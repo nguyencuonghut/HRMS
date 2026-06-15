@@ -10,6 +10,9 @@ export interface JobPositionListItem {
   job_title_name:     string | null
   bhxh_allowance:     number
   non_bhxh_allowance: number
+  probation_legal_group: string | null
+  probation_legal_group_label: string | null
+  probation_days_limit: number | null
   is_active:          boolean
   created_at:         string
   updated_at:         string | null
@@ -26,6 +29,9 @@ export interface JobPositionRead {
   non_bhxh_allowance: number
   description:        string | null
   requirements:       string | null
+  probation_legal_group: string | null
+  probation_legal_group_label: string | null
+  probation_days_limit: number | null
   is_active:          boolean
   created_at:         string
   updated_at:         string | null
@@ -41,6 +47,7 @@ export interface JobPositionCreate {
   non_bhxh_allowance?: number
   description?:       string | null
   requirements?:      string | null
+  probation_legal_group?: string | null
 }
 
 export interface JobPositionUpdate {
@@ -52,7 +59,14 @@ export interface JobPositionUpdate {
   non_bhxh_allowance?: number
   description?:        string | null
   requirements?:       string | null
+  probation_legal_group?: string | null
   is_active?:          boolean
+}
+
+export interface ProbationLegalGroupOption {
+  code: string
+  label: string
+  probation_days_limit: number
 }
 
 const BASE = '/job-positions'
@@ -62,6 +76,8 @@ export default {
     api.get<JobPositionListItem[]>(BASE, { params }),
   getById: (id: number) =>
     api.get<JobPositionRead>(`${BASE}/${id}`),
+  getProbationLegalGroups: () =>
+    api.get<ProbationLegalGroupOption[]>(`${BASE}/probation-legal-groups/options`),
   create:  (data: JobPositionCreate) =>
     api.post<JobPositionRead>(BASE, data),
   update:  (id: number, data: JobPositionUpdate) =>

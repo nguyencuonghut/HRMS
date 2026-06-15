@@ -7,9 +7,10 @@ export interface ProbationLegalCheck {
   violations: string[]
   warnings: string[]
   probation_days: number
-  probation_limit: number
-  job_level: number | null
-  job_level_group: string
+  probation_limit: number | null
+  probation_limit_configured: boolean
+  probation_legal_group_code: string | null
+  probation_legal_group_label: string | null
 }
 
 export interface ProbationEvaluationRead {
@@ -42,6 +43,7 @@ export interface ProbationDetailRead {
   employee_name: string
   employee_code: string
   department_name: string | null
+  job_position_name: string | null
   job_title_name: string | null
   job_title_level: number | null
   status: string

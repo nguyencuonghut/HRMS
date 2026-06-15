@@ -88,6 +88,9 @@ class JobPosition(SoftDeleteMixin, SQLModel, table=True):
         default=None,
         sa_column=Column(sa.Text(), nullable=True),
     )
+    # Nhóm pháp lý thử việc theo Điều 25 BLLĐ 2019.
+    # enterprise_manager | college_plus | intermediate_technical_clerical | other
+    probation_legal_group: Optional[str] = Field(default=None, max_length=50, index=True)
     is_active: bool = Field(default=True)
     created_at: datetime = Field(default_factory=_utcnow)
     updated_at: Optional[datetime] = Field(default=None)

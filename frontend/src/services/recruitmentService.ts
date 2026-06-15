@@ -1160,7 +1160,10 @@ export interface OfferRead {
   probation_salary: string;
   official_salary: string;
   probation_days: number;
-  probation_days_limit: number;
+  probation_days_limit: number | null;
+  probation_limit_configured: boolean;
+  probation_legal_group_code: string | null;
+  probation_legal_group_label: string | null;
   probation_salary_warning: boolean;
   probation_days_warning: boolean;
   benefits_note: string | null;
