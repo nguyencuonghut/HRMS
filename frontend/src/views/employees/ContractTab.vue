@@ -238,7 +238,7 @@
     </template>
   </Dialog>
 
-  <ConfirmDialog />
+  <ConfirmDialog group="employee-contracts" />
 </template>
 
 <script setup lang="ts">
@@ -355,6 +355,7 @@ function openGenerate(c: ContractRead) {
 // ── Terminate ─────────────────────────────────────────────────────
 function confirmTerminate(c: ContractRead) {
   confirm.require({
+    group: 'employee-contracts',
     message: `Hủy hợp đồng "${c.contract_number}"? Thao tác này không thể hoàn tác.`,
     header: 'Xác nhận hủy hợp đồng',
     icon: 'pi pi-exclamation-triangle',
@@ -424,6 +425,7 @@ async function doDownload(c: ContractRead) {
 // ── Delete file ────────────────────────────────────────────────────
 function confirmDeleteFile(c: ContractRead) {
   confirm.require({
+    group: 'employee-contracts',
     message: `Xóa file "${c.file_name}" khỏi hợp đồng?`,
     header: 'Xác nhận xóa file',
     icon: 'pi pi-trash',
