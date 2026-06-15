@@ -68,9 +68,28 @@ html, body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+#app {
+  font-family: 'Be Vietnam Pro', sans-serif;
+}
+
+/* Native interactive controls do not reliably inherit body font across browsers.
+   PrimeVue Tabs render each tab as a BUTTON, so force the app font here. */
+button,
+input,
+optgroup,
+select,
+textarea {
+  font: inherit;
+  font-family: inherit;
+}
+
 // Override PrimeVue font
 :root {
   --p-font-family: 'Be Vietnam Pro', sans-serif;
+}
+
+.p-component {
+  font-family: var(--p-font-family);
 }
 
 /* Keep all default primary buttons on the same text/icon color as the theme
