@@ -6,8 +6,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from typing import Optional
 
 from fastapi import HTTPException, status
-from sqlalchemy import String, and_, func, or_, select
-from sqlalchemy import cast as sa_cast
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.auth import AuditLog, User
@@ -47,6 +46,7 @@ from app.services.insurance_change_service import (
     _load_ethnicity_bhxh_code,
     _load_nationality_code,
 )
+from app.utils.employee_code_sql import sql_padded_employee_seq_expr
 
 
 def _has_discrepancy(
@@ -115,10 +115,9 @@ async def list_salary_employees(
     if search:
         kw_norm = f"%{normalize_text(search.strip())}%"
         kw_raw = f"%{search.strip()}%"
-        generated_code = EmployeeCodeSequence.code + func.lpad(
-            sa_cast(Employee.employee_seq, String),
-            EmployeeCodeSequence.min_digits,
-            "0",
+        generated_code = EmployeeCodeSequence.code + sql_padded_employee_seq_expr(
+            Employee.employee_seq,
+            min_digits=EmployeeCodeSequence.min_digits,
         )
         stmt = stmt.where(
             or_(
@@ -575,10 +574,9 @@ async def list_adjustments(
     if search:
         kw_norm = f"%{normalize_text(search.strip())}%"
         kw_raw = f"%{search.strip()}%"
-        generated_code = EmployeeCodeSequence.code + func.lpad(
-            sa_cast(Employee.employee_seq, String),
-            EmployeeCodeSequence.min_digits,
-            "0",
+        generated_code = EmployeeCodeSequence.code + sql_padded_employee_seq_expr(
+            Employee.employee_seq,
+            min_digits=EmployeeCodeSequence.min_digits,
         )
         stmt = stmt.where(
             or_(

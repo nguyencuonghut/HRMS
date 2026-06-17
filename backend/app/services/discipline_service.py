@@ -9,8 +9,7 @@ from typing import Optional
 
 from dateutil.relativedelta import relativedelta
 from fastapi import HTTPException, UploadFile, status
-from sqlalchemy import String, func, or_, select
-from sqlalchemy import cast as sa_cast
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import storage
@@ -29,6 +28,7 @@ from app.schemas.discipline import (
     DisciplineUpdate,
 )
 from app.services import employee_code_service
+from app.utils.employee_code_sql import sql_padded_employee_seq_expr
 
 logger = logging.getLogger(__name__)
 
@@ -151,10 +151,9 @@ async def list_disciplines(
             func.nullif(func.btrim(Department.display_prefix), ""),
             Department.code,
         )
-        generated_code = dept_prefix + func.lpad(
-            sa_cast(Employee.employee_seq, String),
-            4,
-            "0",
+        generated_code = dept_prefix + sql_padded_employee_seq_expr(
+            Employee.employee_seq,
+            min_digits=4,
         )
         stmt = stmt.where(
             or_(

@@ -6,8 +6,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import HTTPException, UploadFile, status
-from sqlalchemy import String, func, or_, select
-from sqlalchemy import cast as sa_cast
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import storage
@@ -27,6 +26,7 @@ from app.schemas.reward import (
     RewardUpdate,
 )
 from app.services import employee_code_service
+from app.utils.employee_code_sql import sql_padded_employee_seq_expr
 
 logger = logging.getLogger(__name__)
 
@@ -204,10 +204,9 @@ async def list_rewards(
         from app.services.administrative_import_service import normalize_text
         kw = f"%{search.strip()}%"
         norm_kw = f"%{normalize_text(search.strip())}%"
-        generated_code = EmployeeCodeSequence.code + func.lpad(
-            sa_cast(Employee.employee_seq, String),
-            EmployeeCodeSequence.min_digits,
-            "0",
+        generated_code = EmployeeCodeSequence.code + sql_padded_employee_seq_expr(
+            Employee.employee_seq,
+            min_digits=EmployeeCodeSequence.min_digits,
         )
         stmt = stmt.where(
             or_(
