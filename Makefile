@@ -3,7 +3,7 @@
 # Dùng: make <target>
 
 .PHONY: help \
-        migrate migrate-down migrate-history migrate-status migrate-new \
+        migrate migrate-down migrate-refresh migrate-history migrate-status migrate-new \
         seed seed-required seed-bootstrap seed-bootstrap-admin seed-local-users seed-sample \
         db-reset db-shell \
         logs logs-be logs-fe shell-be restart-be
@@ -17,6 +17,7 @@ help:
 	@echo "  Database / Migration:"
 	@echo "    make migrate           Áp dụng tất cả migration còn pending"
 	@echo "    make migrate-down      Rollback 1 migration gần nhất"
+	@echo "    make migrate-refresh   Rollback toàn bộ rồi migrate lại từ đầu"
 	@echo "    make migrate-status    Xem migration hiện tại đang ở đâu"
 	@echo "    make migrate-history   Xem toàn bộ lịch sử migration"
 	@echo "    make migrate-new m=tên Tạo file migration mới (VD: make migrate-new m=add_users)"
@@ -49,6 +50,10 @@ migrate:
 
 migrate-down:
 	docker compose exec backend alembic downgrade -1
+
+migrate-refresh:
+	docker compose exec backend alembic downgrade base
+	docker compose exec backend alembic upgrade head
 
 migrate-status:
 	docker compose exec backend alembic current
@@ -112,7 +117,6 @@ restart-be:
 db-reset:
 	@echo "⚠  Xóa toàn bộ schema và tạo lại. Nhấn Ctrl+C trong 5 giây để hủy..."
 	@sleep 5
-	docker compose exec backend alembic downgrade base
-	docker compose exec backend alembic upgrade head
+	$(MAKE) migrate-refresh
 	docker compose exec backend python -m app.seeds --sample
 	@echo "✓ db-reset hoàn thành."
