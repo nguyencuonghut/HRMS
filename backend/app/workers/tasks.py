@@ -37,9 +37,11 @@ def _make_engine_and_session():
 @celery_app.task(name="app.workers.tasks.expire_overdue_contracts", **_BEAT_TASK_OPTS)
 def expire_overdue_contracts() -> int:
     """
-    Cập nhật status = 'expired' cho tất cả hợp đồng đã quá ngày effective_to.
+    Đồng bộ status hợp đồng theo effective_to:
+    - quá hạn => expired
+    - chưa quá hạn / vô thời hạn => active
     Chạy hàng ngày lúc 00:05. Idempotent — an toàn khi chạy nhiều lần.
-    Trả về số bản ghi đã cập nhật.
+    Trả về tổng số bản ghi đã cập nhật.
     """
     return asyncio.run(_expire_overdue_contracts_async())
 
@@ -48,7 +50,7 @@ async def _expire_overdue_contracts_async() -> int:
     engine, SessionLocal = _make_engine_and_session()
     try:
         async with SessionLocal() as session:
-            result = await session.execute(
+            expired_result = await session.execute(
                 update(EmployeeContract)
                 .where(
                     EmployeeContract.effective_to.isnot(None),
@@ -58,11 +60,30 @@ async def _expire_overdue_contracts_async() -> int:
                 .values(status="expired")
                 .execution_options(synchronize_session=False)
             )
+            reactivated_result = await session.execute(
+                update(EmployeeContract)
+                .where(
+                    EmployeeContract.status == "expired",
+                    (
+                        EmployeeContract.effective_to.is_(None)
+                    ) | (
+                        EmployeeContract.effective_to >= date.today()
+                    ),
+                )
+                .values(status="active")
+                .execution_options(synchronize_session=False)
+            )
             await session.commit()
-            count = result.rowcount
-            if count:
-                logger.info("contracts_expired", count=count)
-            return count
+            expired_count = expired_result.rowcount or 0
+            reactivated_count = reactivated_result.rowcount or 0
+            total = expired_count + reactivated_count
+            if total:
+                logger.info(
+                    "contracts_status_reconciled",
+                    expired_count=expired_count,
+                    reactivated_count=reactivated_count,
+                )
+            return total
     finally:
         await engine.dispose()
 

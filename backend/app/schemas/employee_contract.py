@@ -7,6 +7,7 @@ from decimal import Decimal
 from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, model_validator
+from app.utils.contract_status import effective_contract_status
 
 ALLOWED_STATUSES = {"active", "expired", "terminated", "draft"}
 ALLOWED_INSURANCE_SALARY_MODES = {"computed_by_position_group", "fixed_manual"}
@@ -15,9 +16,10 @@ MAX_FILE_SIZE = 20 * 1024 * 1024  # 20 MB
 
 
 def _status_display(status: str, effective_to: Optional[date]) -> str:
-    if status == "terminated":
+    effective_status = _effective_status(status, effective_to)
+    if effective_status == "terminated":
         return "Đã hủy"
-    if status == "draft":
+    if effective_status == "draft":
         return "Chưa hiệu lực"
     today = date.today()
     if effective_to is None:
@@ -31,9 +33,13 @@ def _status_display(status: str, effective_to: Optional[date]) -> str:
 
 
 def _days_until(status: str, effective_to: Optional[date]) -> Optional[int]:
-    if status == "terminated" or effective_to is None:
+    if _effective_status(status, effective_to) == "terminated" or effective_to is None:
         return None
     return (effective_to - date.today()).days
+
+
+def _effective_status(status: str, effective_to: Optional[date]) -> str:
+    return effective_contract_status(status, effective_to)
 
 
 class ContractCreate(BaseModel):

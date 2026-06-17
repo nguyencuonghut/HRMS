@@ -127,16 +127,16 @@ async def _get_contract_status(contract_id: int) -> str:
 
 @pytest.mark.asyncio
 async def test_expire_overdue_task_marks_status(client: TestClient):
-    """HĐ quá hạn (effective_to < today) status=active → bị đổi thành expired."""
+    """HĐ quá hạn (effective_to < today) được lưu ngay là expired; task vẫn idempotent."""
     headers = _login(client)
     emp_id = _create_employee(client, headers, "EXP01")
     past = (date.today() - timedelta(days=5)).isoformat()
     c = _create_contract(client, headers, emp_id, "EXP01", past, past)
 
-    assert await _get_contract_status(c["id"]) == "active"
+    assert await _get_contract_status(c["id"]) == "expired"
 
     count = await _expire_overdue_contracts_async()
-    assert count >= 1
+    assert count >= 0
     assert await _get_contract_status(c["id"]) == "expired"
 
 
@@ -198,14 +198,14 @@ async def test_expire_overdue_task_skips_future_contracts(client: TestClient):
 
 @pytest.mark.asyncio
 async def test_expire_overdue_task_idempotent(client: TestClient):
-    """Chạy task nhiều lần liên tiếp — chạy lần 2 count = 0 (không bị mark lại)."""
+    """Chạy task nhiều lần liên tiếp trên HĐ đã lưu đúng trạng thái — luôn idempotent."""
     headers = _login(client)
     emp_id = _create_employee(client, headers, "EXP06")
     past = (date.today() - timedelta(days=1)).isoformat()
     _create_contract(client, headers, emp_id, "EXP06", past, past)
 
     first_run = await _expire_overdue_contracts_async()
-    assert first_run >= 1
+    assert first_run == 0
 
     second_run = await _expire_overdue_contracts_async()
     assert second_run == 0

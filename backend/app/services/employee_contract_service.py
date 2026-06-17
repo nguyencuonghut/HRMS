@@ -33,9 +33,11 @@ from app.schemas.employee_contract import (
     ContractRead,
     ContractUpdate,
     _days_until,
+    _effective_status,
     _status_display,
 )
 from app.services import employee_code_service
+from app.utils.contract_status import contract_effective_status_expr, effective_contract_status
 
 
 def _utcnow() -> datetime:
@@ -91,7 +93,7 @@ def _to_read(
         resolved_insurance_salary_grade_no=resolved_grade_no,
         bhxh_seniority_start_date=c.bhxh_seniority_start_date,
         insurance_salary_fixed_amount=c.insurance_salary_fixed_amount,
-        status=c.status,
+        status=_effective_status(c.status, c.effective_to),
         status_display=_status_display(c.status, c.effective_to),
         days_until_expiry=_days_until(c.status, c.effective_to),
         has_file=bool(c.file_path),
@@ -559,11 +561,16 @@ async def _get_latest_active_contract_for_basis(
     session: AsyncSession,
     employee_id: int,
 ) -> EmployeeContract | None:
+    today = date.today()
     row = await session.execute(
         select(EmployeeContract)
         .where(
             EmployeeContract.employee_id == employee_id,
-            EmployeeContract.status == "active",
+            contract_effective_status_expr(
+                status_col=EmployeeContract.status,
+                effective_to_col=EmployeeContract.effective_to,
+                today=today,
+            ) == "active",
             EmployeeContract.insurance_salary.is_not(None),
         )
         .order_by(
@@ -746,7 +753,7 @@ async def create_contract(
         bhxh_seniority_start_date=resolved_salary.bhxh_seniority_start_date,
         insurance_salary_fixed_amount=resolved_salary.insurance_salary_fixed_amount,
         notes=payload.notes,
-        status="active",
+        status=effective_contract_status("active", payload.effective_to),
         created_by=created_by,
         created_at=_utcnow(),
     )
@@ -883,6 +890,9 @@ async def update_contract(
     c.insurance_salary_grade_no = resolved_salary.insurance_salary_grade_no
     c.bhxh_seniority_start_date = resolved_salary.bhxh_seniority_start_date
     c.insurance_salary_fixed_amount = resolved_salary.insurance_salary_fixed_amount
+    if c.status != "terminated":
+        base_status = "draft" if c.status == "draft" else "active"
+        c.status = effective_contract_status(base_status, c.effective_to)
 
     c.updated_at = _utcnow()
     session.add(c)
@@ -978,6 +988,13 @@ async def list_contracts_global(
 ) -> ContractListPage:
     from datetime import date, timedelta
 
+    today = date.today()
+    effective_status_expr = contract_effective_status_expr(
+        status_col=EmployeeContract.status,
+        effective_to_col=EmployeeContract.effective_to,
+        today=today,
+    )
+
     q = (
         select(EmployeeContract, ContractCategory, Employee)
         .join(ContractCategory, ContractCategory.id == EmployeeContract.contract_category_id)
@@ -995,11 +1012,10 @@ async def list_contracts_global(
     if document_kind:
         q = q.where(EmployeeContract.document_kind == document_kind)
     if status:
-        q = q.where(EmployeeContract.status == status)
+        q = q.where(effective_status_expr == status)
     if category_id:
         q = q.where(EmployeeContract.contract_category_id == category_id)
     if expiring_within is not None:
-        today = date.today()
         deadline = today + timedelta(days=expiring_within)
         q = q.where(
             EmployeeContract.effective_to.isnot(None),

@@ -129,6 +129,7 @@ export const EXPIRING_OPTIONS = [
 
 export function statusSeverity(status: string): 'success' | 'warn' | 'danger' | 'secondary' {
   if (status === 'active') return 'success'
+  if (status === 'expired') return 'danger'
   if (status === 'draft') return 'warn'
   if (status === 'terminated') return 'danger'
   return 'secondary'

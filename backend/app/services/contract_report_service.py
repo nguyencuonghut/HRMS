@@ -27,6 +27,7 @@ from app.schemas.contract_report import (
     ContractHistoryItem,
 )
 from app.services import employee_code_service
+from app.utils.contract_status import contract_effective_status_expr, effective_contract_status
 
 
 async def get_summary(
@@ -41,13 +42,18 @@ async def get_summary(
     d60 = today + timedelta(days=60)
     d61 = today + timedelta(days=61)
     d90 = today + timedelta(days=90)
+    effective_status_expr = contract_effective_status_expr(
+        status_col=EmployeeContract.status,
+        effective_to_col=EmployeeContract.effective_to,
+        today=today,
+    )
 
     # Biểu thức điều kiện đếm theo từng bucket
-    cond_active = sa.case((EmployeeContract.status == "active", 1), else_=None)
+    cond_active = sa.case((effective_status_expr == "active", 1), else_=None)
     cond_0_30 = sa.case(
         (
             and_(
-                EmployeeContract.status == "active",
+                effective_status_expr == "active",
                 EmployeeContract.effective_to.isnot(None),
                 EmployeeContract.effective_to >= today,
                 EmployeeContract.effective_to <= d30,
@@ -59,7 +65,7 @@ async def get_summary(
     cond_31_60 = sa.case(
         (
             and_(
-                EmployeeContract.status == "active",
+                effective_status_expr == "active",
                 EmployeeContract.effective_to.isnot(None),
                 EmployeeContract.effective_to >= d31,
                 EmployeeContract.effective_to <= d60,
@@ -71,7 +77,7 @@ async def get_summary(
     cond_61_90 = sa.case(
         (
             and_(
-                EmployeeContract.status == "active",
+                effective_status_expr == "active",
                 EmployeeContract.effective_to.isnot(None),
                 EmployeeContract.effective_to >= d61,
                 EmployeeContract.effective_to <= d90,
@@ -83,7 +89,7 @@ async def get_summary(
     cond_expired = sa.case(
         (
             and_(
-                EmployeeContract.status.in_(["active", "expired"]),
+                effective_status_expr == "expired",
                 EmployeeContract.effective_to.isnot(None),
                 EmployeeContract.effective_to < today,
             ),
@@ -206,6 +212,11 @@ async def get_expiring(
     """Lấy danh sách hợp đồng gốc sắp hết hạn, hỗ trợ phân trang và tìm kiếm."""
     today = date.today()
     limit_date = today + timedelta(days=days_ahead)
+    effective_status_expr = contract_effective_status_expr(
+        status_col=EmployeeContract.status,
+        effective_to_col=EmployeeContract.effective_to,
+        today=today,
+    )
 
     stmt = (
         select(
@@ -230,7 +241,7 @@ async def get_expiring(
             EmployeeContract.document_kind == "labor_contract",
             EmployeeContract.parent_contract_id.is_(None),
             Employee.is_active == True,
-            EmployeeContract.status == "active",
+            effective_status_expr == "active",
             EmployeeContract.effective_to.isnot(None),
             EmployeeContract.effective_to >= today,
             EmployeeContract.effective_to <= limit_date,
@@ -322,6 +333,13 @@ async def get_by_type(
     year: Optional[int] = None,
 ) -> ContractByTypeOut:
     """Thống kê cơ cấu loại hợp đồng lao động gốc."""
+    today = date.today()
+    effective_status_expr = contract_effective_status_expr(
+        status_col=EmployeeContract.status,
+        effective_to_col=EmployeeContract.effective_to,
+        today=today,
+    )
+
     # 1. Tính tổng số hợp đồng để tính tỷ lệ phần trăm (%)
     total_stmt = (
         select(func.count(EmployeeContract.id))
@@ -355,9 +373,9 @@ async def get_by_type(
             ContractCategory.business_group.label("business_group"),
             ContractCategory.legal_contract_type.label("legal_contract_type"),
             func.count(EmployeeContract.id).label("total"),
-            func.count(sa.case((EmployeeContract.status == "active", 1), else_=None)).label("active"),
-            func.count(sa.case((EmployeeContract.status == "expired", 1), else_=None)).label("expired"),
-            func.count(sa.case((EmployeeContract.status == "terminated", 1), else_=None)).label("terminated"),
+            func.count(sa.case((effective_status_expr == "active", 1), else_=None)).label("active"),
+            func.count(sa.case((effective_status_expr == "expired", 1), else_=None)).label("expired"),
+            func.count(sa.case((effective_status_expr == "terminated", 1), else_=None)).label("terminated"),
         )
         .select_from(ContractCategory)
         .join(EmployeeContract, EmployeeContract.contract_category_id == ContractCategory.id)
@@ -427,6 +445,11 @@ async def get_expiry_forecast(
     today = date.today()
     start_date = today.replace(day=1)
     end_date = start_date + relativedelta(months=months_ahead)
+    effective_status_expr = contract_effective_status_expr(
+        status_col=EmployeeContract.status,
+        effective_to_col=EmployeeContract.effective_to,
+        today=today,
+    )
 
     stmt = (
         select(
@@ -435,7 +458,7 @@ async def get_expiry_forecast(
         )
         .join(Employee, Employee.id == EmployeeContract.employee_id)
         .where(
-            EmployeeContract.status == "active",
+            effective_status_expr == "active",
             EmployeeContract.document_kind == "labor_contract",
             EmployeeContract.parent_contract_id.is_(None),
             EmployeeContract.effective_to.isnot(None),
@@ -520,7 +543,7 @@ async def get_history(
                 effective_from=ec.effective_from,
                 effective_to=ec.effective_to,
                 signed_date=ec.signed_date,
-                status=ec.status,
+                status=effective_contract_status(ec.status, ec.effective_to),
                 insurance_salary=ec.insurance_salary,
                 file_name=ec.file_name,
             )

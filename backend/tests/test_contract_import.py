@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import date, timedelta
 from io import BytesIO
 
 import openpyxl
@@ -194,7 +195,8 @@ async def _get_contract_state(contract_number: str) -> dict | None:
                        insurance_salary_grade_no,
                        bhxh_seniority_start_date,
                        insurance_salary,
-                       insurance_salary_fixed_amount
+                       insurance_salary_fixed_amount,
+                       status
                 FROM employee_contracts
                 WHERE contract_number = :num
                 """
@@ -211,6 +213,7 @@ async def _get_contract_state(contract_number: str) -> dict | None:
             "seniority_start_date": data[3],
             "insurance_salary": data[4],
             "fixed_amount": data[5],
+            "status": data[6],
         }
 
 
@@ -266,6 +269,23 @@ def test_import_success(client: TestClient):
     assert body["success"] == 2
     assert body["failed"] == 0
     assert body["errors"] == []
+
+
+def test_import_past_contract_persists_expired_status(client: TestClient):
+    h = _login(client)
+    code = _test_employee_display_code(client, h, id_number="TESTIMPSEQPAST1", employee_seq=9210)
+    past_start = (date.today() - timedelta(days=45)).strftime("%d/%m/%Y")
+    past_end = (date.today() - timedelta(days=5)).strftime("%d/%m/%Y")
+    rows = [
+        [code, f"{_PREFIX}-PAST-001", "labor_contract", _CAT_DEFINITE, past_start, past_start, past_end, "5000000"],
+    ]
+    r = _upload(client, h, _make_xlsx(rows))
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["success"] == 1
+    state = asyncio.run(_get_contract_state(f"{_PREFIX}-PAST-001"))
+    assert state is not None
+    assert state["status"] == "expired"
 
 
 def test_import_no_expiry_is_valid(client: TestClient):

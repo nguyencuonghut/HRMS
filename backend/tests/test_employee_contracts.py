@@ -271,6 +271,15 @@ async def _set_profile_manual_fixed(employee_id: int, amount: Decimal, joined_da
         await s.commit()
 
 
+async def _get_contract_db_status(contract_id: int) -> str | None:
+    async with _make_session()() as s:
+        row = await s.execute(
+            text("SELECT status FROM employee_contracts WHERE id = :cid"),
+            {"cid": contract_id},
+        )
+        return row.scalar_one_or_none()
+
+
 # ── Tests: CRUD ────────────────────────────────────────────────────────────────
 
 def test_create_contract_success(client: TestClient):
@@ -287,6 +296,29 @@ def test_create_contract_success(client: TestClient):
     assert data["appendices"] == []
     assert data["insurance_salary_mode"] == "fixed_manual"
     assert data["insurance_salary_fixed_amount"] == "10000000.00"
+
+
+def test_create_contract_past_effective_to_persists_expired_status(client: TestClient):
+    headers = _admin(client)
+    emp_id = _create_employee(client, headers, "C01EXP")
+    past_start = (date.today() - timedelta(days=40)).isoformat()
+    past_end = (date.today() - timedelta(days=10)).isoformat()
+
+    resp = client.post(
+        f"{BASE_EMP}/{emp_id}/contracts",
+        json=_contract_payload(
+            "C01EXP",
+            category_id=CAT_LABOR_DEFINITE,
+            signed_date=past_start,
+            effective_from=past_start,
+            effective_to=past_end,
+        ),
+        headers=headers,
+    )
+    assert resp.status_code == 201, resp.text
+    data = resp.json()
+    assert data["status"] == "expired"
+    assert asyncio.run(_get_contract_db_status(data["id"])) == "expired"
 
 
 def test_create_contract_computed_by_position_group(client: TestClient):
@@ -709,6 +741,31 @@ def test_update_contract_success(client: TestClient):
     assert Decimal(resp.json()["insurance_salary"]) == Decimal("15000000")
 
 
+def test_update_contract_to_past_effective_to_persists_expired_status(client: TestClient):
+    headers = _admin(client)
+    emp_id = _create_employee(client, headers, "C08EXP")
+    past_start = (date.today() - timedelta(days=10)).isoformat()
+    cid = client.post(
+        f"{BASE_EMP}/{emp_id}/contracts",
+        json=_contract_payload(
+            "C08EXP",
+            signed_date=past_start,
+            effective_from=past_start,
+        ),
+        headers=headers,
+    ).json()["id"]
+    past_end = (date.today() - timedelta(days=1)).isoformat()
+
+    resp = client.put(
+        f"{BASE_EMP}/{emp_id}/contracts/{cid}",
+        json={"effective_to": past_end},
+        headers=headers,
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["status"] == "expired"
+    assert asyncio.run(_get_contract_db_status(cid)) == "expired"
+
+
 def test_update_contract_switches_to_computed_mode(client: TestClient):
     headers = _admin(client)
     emp_id = _create_employee(client, headers, "C08B")
@@ -973,6 +1030,62 @@ def test_global_list_filter_expiring_within(client: TestClient):
     assert resp_30.json()["total"] >= 1
     # HĐ hết hạn trong 10 ngày → không xuất hiện trong filter 5 ngày
     assert resp_30.json()["total"] > resp_5.json()["total"]
+
+
+def test_list_contracts_runtime_status_marks_overdue_active_as_expired(client: TestClient):
+    headers = _admin(client)
+    emp_id = _create_employee(client, headers, "C20A")
+    past_start = (date.today() - timedelta(days=40)).isoformat()
+    past_end = (date.today() - timedelta(days=10)).isoformat()
+    resp_create = client.post(
+        f"{BASE_EMP}/{emp_id}/contracts",
+        json=_contract_payload(
+            "C20A",
+            category_id=CAT_LABOR_DEFINITE,
+            signed_date=past_start,
+            effective_from=past_start,
+            effective_to=past_end,
+        ),
+        headers=headers,
+    )
+    assert resp_create.status_code == 201, resp_create.text
+
+    resp = client.get(f"{BASE_EMP}/{emp_id}/contracts", headers=headers)
+    assert resp.status_code == 200, resp.text
+    item = resp.json()[0]
+    assert item["status"] == "expired"
+    assert item["status_display"].startswith("Hết hạn")
+    assert item["days_until_expiry"] < 0
+
+
+def test_global_list_filter_status_expired_uses_runtime_effective_status(client: TestClient):
+    headers = _admin(client)
+    emp_id = _create_employee(client, headers, "C20B")
+    past_start = (date.today() - timedelta(days=50)).isoformat()
+    past_end = (date.today() - timedelta(days=15)).isoformat()
+    contract_number = f"{_PREFIX}-HĐ-C20B"
+    resp_create = client.post(
+        f"{BASE_EMP}/{emp_id}/contracts",
+        json=_contract_payload(
+            "C20B",
+            category_id=CAT_LABOR_DEFINITE,
+            signed_date=past_start,
+            effective_from=past_start,
+            effective_to=past_end,
+        ),
+        headers=headers,
+    )
+    assert resp_create.status_code == 201, resp_create.text
+
+    resp_expired = client.get(BASE_CON, params={"status": "expired"}, headers=headers)
+    assert resp_expired.status_code == 200, resp_expired.text
+    expired_numbers = {item["contract_number"] for item in resp_expired.json()["items"]}
+    assert contract_number in expired_numbers
+
+    resp_active = client.get(BASE_CON, params={"status": "active"}, headers=headers)
+    assert resp_active.status_code == 200, resp_active.text
+    active_numbers = {item["contract_number"] for item in resp_active.json()["items"]}
+    assert contract_number not in active_numbers
 
 
 def test_global_list_viewer_200(client: TestClient):

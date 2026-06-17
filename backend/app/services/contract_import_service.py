@@ -24,6 +24,7 @@ from app.schemas.employee_import import ImportResult, ImportRowError
 from app.services import employee_contract_service
 from app.services.import_excel_helper import extract_header_and_non_blank_rows
 from app.services.import_employee_lookup_service import EmployeeImportLookup
+from app.utils.contract_status import effective_contract_status
 
 IMPORT_MAX_ROWS = 1000
 VALID_INSURANCE_SALARY_MODES = {"computed_by_position_group", "fixed_manual"}
@@ -396,7 +397,7 @@ async def process_import(session: AsyncSession, file_bytes: bytes) -> ImportResu
                     effective_from=effective_from,
                     effective_to=effective_to,
                     insurance_salary=None,
-                    status="active",
+                    status=effective_contract_status("active", effective_to),
                 )
                 session.add(contract)
                 await session.flush()

@@ -18,6 +18,7 @@ from app.models.employee_contract import EmployeeContract
 from app.models.catalog import ContractCategory
 from app.models.org import Department
 from app.services import employee_code_service
+from app.utils.contract_status import contract_effective_status_expr, effective_contract_status
 
 
 async def export_contracts_xlsx(
@@ -29,6 +30,11 @@ async def export_contracts_xlsx(
 ) -> io.BytesIO:
     """Xuất danh sách hợp đồng gốc ra file Excel có định dạng màu sắc cảnh báo."""
     today = date.today()
+    effective_status_expr = contract_effective_status_expr(
+        status_col=EmployeeContract.status,
+        effective_to_col=EmployeeContract.effective_to,
+        today=today,
+    )
 
     # Base query: chỉ lấy HĐ gốc của nhân viên active
     stmt = (
@@ -60,16 +66,16 @@ async def export_contracts_xlsx(
 
     # Lọc theo trạng thái
     if status == "active":
-        stmt = stmt.where(EmployeeContract.status == "active")
+        stmt = stmt.where(effective_status_expr == "active")
     elif status == "expired":
-        stmt = stmt.where(EmployeeContract.status == "expired")
+        stmt = stmt.where(effective_status_expr == "expired")
     # "all" không lọc status
 
     # Lọc theo số ngày sắp hết hạn (nếu có)
     if days_ahead is not None:
         limit_date = today + timedelta(days=days_ahead)
         stmt = stmt.where(
-            EmployeeContract.status == "active",
+            effective_status_expr == "active",
             EmployeeContract.effective_to.isnot(None),
             EmployeeContract.effective_to >= today,
             EmployeeContract.effective_to <= limit_date,
@@ -128,10 +134,11 @@ async def export_contracts_xlsx(
         # Tính số ngày còn lại và xác định style màu nếu là active và có ngày kết thúc
         days_rem = None
         fill_to_apply = None
+        effective_status = effective_contract_status(ec.status, ec.effective_to)
 
         if ec.effective_to is not None:
             days_rem = (ec.effective_to - today).days
-            if ec.status == "active":
+            if effective_status == "active":
                 if days_rem <= 7:
                     fill_to_apply = critical_fill
                 elif days_rem <= 30:
@@ -145,7 +152,7 @@ async def export_contracts_xlsx(
             "expired": "Hết hiệu lực",
             "terminated": "Đã chấm dứt",
             "draft": "Nháp"
-        }.get(ec.status, ec.status)
+        }.get(effective_status, effective_status)
 
         row_data = [
             stt,

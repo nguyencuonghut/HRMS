@@ -95,11 +95,11 @@ async def _create_test_contract(
                 INSERT INTO employee_contracts (
                     employee_id, contract_category_id, document_kind,
                     contract_number, signed_date, effective_from, effective_to,
-                    insurance_salary, status
+                    insurance_salary, insurance_salary_mode, insurance_salary_fixed_amount, status
                 ) VALUES (
                     :eid, :cid, 'labor_contract',
                     :cnum, :sdate, :eff_from, :eff_to,
-                    12000000.00, :status
+                    12000000.00, 'fixed_manual', 12000000.00, :status
                 )
                 """
             ),
@@ -158,7 +158,7 @@ def test_contract_summary(client: TestClient):
     assert resp2.status_code == 200
     data_after = resp2.json()
 
-    assert data_after["total_active"] == data_before["total_active"] + 2
+    assert data_after["total_active"] == data_before["total_active"] + 1
     assert data_after["expiring_0_30"] == data_before["expiring_0_30"] + 1
     assert data_after["already_expired"] == data_before["already_expired"] + 1
 
