@@ -96,7 +96,12 @@ def generate_template() -> bytes:
         ["Ngày hiệu lực", "✅", "Ngày bắt đầu có hiệu lực (dd/mm/yyyy)", "01/01/2026"],
         ["Ngày hết hạn", "", "Để trống = vô thời hạn (dd/mm/yyyy)", "31/12/2026"],
         ["Mode lương BHXH", "", "Mode tính lương BHXH", "fixed_manual / computed_by_position_group"],
-        ["Mã nhóm vị trí BHXH", "", "Bắt buộc khi mode = computed_by_position_group", "OFFICE_STAFF / EXEC_COMPANY"],
+        [
+            "Mã nhóm vị trí BHXH",
+            "",
+            "Bắt buộc khi mode = computed_by_position_group",
+            "OFFICE_STAFF = Nhóm nhân viên văn phòng / EXEC_COMPANY = Nhóm lãnh đạo điều hành cấp công ty",
+        ],
         ["Bậc hệ số BHXH", "", "Bậc gốc 1..7, bắt buộc khi mode = computed_by_position_group", "1"],
         ["Ngày bắt đầu tính thâm niên BHXH", "", "Nếu để trống, hệ thống tự lấy theo employee.start_date", "01/01/2023"],
         ["Mức lương BHXH", "", "Bắt buộc khi mode = fixed_manual; để trống khi mode = computed_by_position_group", "5000000"],
