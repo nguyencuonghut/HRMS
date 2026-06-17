@@ -28,6 +28,7 @@ from app.schemas.hr_report import (
     TenureGroupDetail,
     TenureReportResponse,
 )
+from app.services import employee_code_service
 
 TENURE_GROUPS: list[tuple[str, str, int, Optional[int]]] = [
     ("lt_1", "< 1 năm", 0, 1),
@@ -260,10 +261,13 @@ async def get_employee_list(
         filtered_stmt.offset((page - 1) * page_size).limit(page_size)
     )).all()
 
+    employees = [employee for employee, *_ in page_rows]
+    employee_codes = await employee_code_service.batch_build_employee_display_codes(session, employees)
+
     items: list[EmployeeListItem] = [
         EmployeeListItem(
             id=employee.id,
-            employee_code=str(employee.employee_seq),
+            employee_code=employee_codes.get(employee.id, str(employee.employee_seq)),
             full_name=employee.full_name,
             gender=employee.gender,
             date_of_birth=employee.date_of_birth,

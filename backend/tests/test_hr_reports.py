@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from app.core.config import settings
 from app.core.encryption import encrypt, hash_sensitive
 from app.models.employee import Employee
-from app.services import hr_report_service
+from app.services import employee_code_service, hr_report_service
 
 BASE = "/api/v1/reports/hr"
 _ADMIN_EMAIL = "admin@hrms.local"
@@ -223,11 +223,12 @@ async def _seed_hr_report_data() -> dict[str, int]:
                 INSERT INTO employee_contracts (
                     employee_id, parent_contract_id, contract_category_id, document_kind,
                     contract_number, signed_date, effective_from, effective_to,
-                    insurance_salary, status, created_at, updated_at
+                    insurance_salary, insurance_salary_mode, insurance_salary_fixed_amount,
+                    status, created_at, updated_at
                 ) VALUES (
                     :employee_id, NULL, :contract_category_id, :document_kind,
                     :contract_number, :signed_date, :effective_from, NULL,
-                    NULL, 'active', NOW(), NOW()
+                    NULL, 'fixed_manual', NULL, 'active', NOW(), NOW()
                 )
             """), {
                 "employee_id": employee_id,
@@ -303,6 +304,32 @@ def test_get_employee_list_filters():
     assert [item.full_name for item in report.items] == [f"{_PREFIX} Bravo", f"{_PREFIX} India"]
     assert all(item.department_id == refs["dept_sales"] for item in report.items)
     assert all(item.gender == "female" for item in report.items)
+
+
+def test_get_employee_list_returns_display_code_not_raw_sequence():
+    asyncio.run(_seed_hr_report_data())
+    engine = _engine()
+    Session = async_sessionmaker(engine, expire_on_commit=False)
+
+    async def run():
+        async with Session() as s:
+            report = await hr_report_service.get_employee_list(
+                s,
+                page=1,
+                page_size=20,
+            )
+            alpha = next(item for item in report.items if item.full_name == f"{_PREFIX} Alpha")
+            employee = (
+                await s.execute(select(Employee).where(Employee.id == alpha.id))
+            ).scalar_one()
+            expected_code = await employee_code_service.build_employee_display_code(s, employee)
+            return alpha.employee_code, expected_code, str(employee.employee_seq)
+
+    actual_code, expected_code, raw_seq = asyncio.run(run())
+    asyncio.run(engine.dispose())
+
+    assert actual_code == expected_code
+    assert actual_code != raw_seq
 
 
 def test_get_movement_report_groups_monthly_changes():
@@ -395,6 +422,28 @@ def test_employee_list_endpoint_returns_filtered_page(client: TestClient):
     data = resp.json()
     assert data["total"] == 2
     assert [item["full_name"] for item in data["items"]] == [f"{_PREFIX} Bravo", f"{_PREFIX} India"]
+
+
+def test_employee_list_endpoint_returns_display_code(client: TestClient):
+    asyncio.run(_seed_hr_report_data())
+    headers = _admin_headers(client)
+
+    resp = client.get(
+        f"{BASE}/employee-list",
+        headers=headers,
+        params={"page": 1, "page_size": 20},
+    )
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    alpha = next(item for item in data["items"] if item["full_name"] == f"{_PREFIX} Alpha")
+    employees_payload = client.get("/api/v1/employees", headers=headers, params={"page_size": 100})
+    assert employees_payload.status_code == 200, employees_payload.text
+    expected_code = next(
+        row["display_code"]
+        for row in employees_payload.json()["items"]
+        if row["full_name"] == f"{_PREFIX} Alpha"
+    )
+    assert alpha["employee_code"] == expected_code
 
 
 def test_movement_endpoint_returns_monthly_rows(client: TestClient):

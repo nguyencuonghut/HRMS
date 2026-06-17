@@ -32,6 +32,14 @@ test.describe("Báo cáo nhân sự", () => {
     const tableRows = employeePanel.locator("tbody tr");
     expect(await tableRows.count()).toBeGreaterThan(0);
 
+    const employeeListResponse = await page.request.get("/api/v1/reports/hr/employee-list?page=1&page_size=10");
+    expect(employeeListResponse.ok()).toBeTruthy();
+    const employeeListPayload = await employeeListResponse.json() as {
+      items: Array<{ employee_code: string; full_name: string }>
+    };
+    expect(employeeListPayload.items.length).toBeGreaterThan(0);
+    await expect(tableRows.first().getByRole("cell").first()).toHaveText(employeeListPayload.items[0].employee_code);
+
     await page.getByRole("tab", { name: "Biến động nhân sự" }).click();
     await page.waitForLoadState("networkidle");
 
