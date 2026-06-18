@@ -25,7 +25,7 @@ async def get_dashboard(
     year: int = Query(..., ge=2000, le=2100),
     month: Optional[int] = Query(None, ge=1, le=12),
     department_id: Optional[int] = Query(None),
-    _current_user: User = require_permission("insurance:read"),
+    _current_user: User = require_permission("insurance:view"),
     session: AsyncSession = Depends(get_session),
 ) -> InsuranceDashboardKPI:
     return await insurance_analytics_service.get_dashboard(
@@ -40,7 +40,7 @@ async def get_dashboard(
 async def get_monthly_changes(
     year: int = Query(..., ge=2000, le=2100),
     department_id: Optional[int] = Query(None),
-    _current_user: User = require_permission("insurance:read"),
+    _current_user: User = require_permission("insurance:view"),
     session: AsyncSession = Depends(get_session),
 ) -> InsuranceMonthlyChangesResponse:
     return await insurance_analytics_service.get_monthly_changes(
@@ -54,7 +54,7 @@ async def get_monthly_changes(
 async def get_payroll_fund(
     year: int = Query(..., ge=2000, le=2100),
     department_id: Optional[int] = Query(None),
-    _current_user: User = require_permission("insurance:read"),
+    _current_user: User = require_permission("insurance:view"),
     session: AsyncSession = Depends(get_session),
 ) -> InsurancePayrollFundResponse:
     return await insurance_analytics_service.get_payroll_fund(
@@ -69,7 +69,7 @@ async def get_non_participants(
     department_id: Optional[int] = Query(None),
     page: int = Query(1, ge=1),
     page_size: int = Query(10, ge=1, le=100),
-    _current_user: User = require_permission("insurance:read"),
+    _current_user: User = require_permission("insurance:view"),
     session: AsyncSession = Depends(get_session),
 ) -> InsuranceNonParticipantsResponse:
     return await insurance_analytics_service.get_non_participants(
@@ -84,7 +84,7 @@ async def get_non_participants(
 async def get_department_breakdown(
     year: int = Query(..., ge=2000, le=2100),
     month: Optional[int] = Query(None, ge=1, le=12),
-    _current_user: User = require_permission("insurance:read"),
+    _current_user: User = require_permission("insurance:view"),
     session: AsyncSession = Depends(get_session),
 ) -> InsuranceDepartmentBreakdownResponse:
     return await insurance_analytics_service.get_department_breakdown(
@@ -98,7 +98,7 @@ async def get_department_breakdown(
 async def get_employee_history(
     employee_id: int = Query(...),
     year: Optional[int] = Query(None, ge=2000, le=2100),
-    _current_user: User = require_permission("insurance:read"),
+    _current_user: User = require_permission("insurance:view"),
     session: AsyncSession = Depends(get_session),
 ) -> InsuranceEmployeeHistoryResponse:
     return await insurance_analytics_service.get_employee_history(
@@ -113,7 +113,7 @@ async def export_analytics(
     year: int = Query(..., ge=2000, le=2100),
     month: Optional[int] = Query(None, ge=1, le=12),
     department_id: Optional[int] = Query(None),
-    _current_user: User = require_permission("insurance:read"),
+    _current_user: User = require_permission("insurance:view"),
     session: AsyncSession = Depends(get_session),
 ) -> StreamingResponse:
     buf = await insurance_analytics_service.export_analytics_xlsx(

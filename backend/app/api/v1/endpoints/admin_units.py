@@ -85,7 +85,7 @@ async def create_admin_unit(
 async def import_admin_units(
     body: AdministrativeImportRequest,
     request: Request,
-    current_user: User = require_permission("catalog:import"),
+    current_user: User = require_permission("catalog:edit"),
     session: AsyncSession = Depends(get_session),
 ):
     payload = body.model_copy(

@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.v1.deps import require_permission
+from app.api.v1.deps import require_department_scope, require_permission
 from app.core.database import get_session
 from app.models.auth import User
 from app.schemas.probation_report import (
@@ -33,11 +33,15 @@ _XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 async def get_active(
     department_id: Optional[int] = Query(None, description="Lọc theo phòng ban"),
     keyword: Optional[str] = Query(None, description="Tìm theo tên hoặc mã nhân viên"),
-    current_user: User = require_permission("employees:read"),
+    current_user: User = require_permission("employees:view"),
+    allowed_department_ids: set[int] | None = require_department_scope("employees:view"),
     session: AsyncSession = Depends(get_session),
 ) -> ActiveProbationReport:
     return await probation_report_service.get_active_probation(
-        session, department_id=department_id, keyword=keyword
+        session,
+        department_id=department_id,
+        keyword=keyword,
+        allowed_department_ids=allowed_department_ids,
     )
 
 
@@ -53,7 +57,8 @@ async def get_history(
     keyword: Optional[str] = Query(None, description="Tìm theo tên hoặc mã nhân viên"),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
-    current_user: User = require_permission("employees:read"),
+    current_user: User = require_permission("employees:view"),
+    allowed_department_ids: set[int] | None = require_department_scope("employees:view"),
     session: AsyncSession = Depends(get_session),
 ) -> ProbationHistoryReport:
     if start_date is not None and end_date is not None and start_date > end_date:
@@ -67,6 +72,7 @@ async def get_history(
         end_date=end_date,
         department_id=department_id,
         keyword=keyword,
+        allowed_department_ids=allowed_department_ids,
         page=page,
         page_size=page_size,
     )
@@ -81,7 +87,8 @@ async def get_checklist_completion(
     start_date: date = Query(..., description="Từ ngày (start_date của nhân viên)"),
     end_date: date = Query(..., description="Đến ngày"),
     department_id: Optional[int] = Query(None),
-    current_user: User = require_permission("employees:read"),
+    current_user: User = require_permission("employees:view"),
+    allowed_department_ids: set[int] | None = require_department_scope("employees:view"),
     session: AsyncSession = Depends(get_session),
 ) -> ChecklistCompletionReport:
     if start_date > end_date:
@@ -94,6 +101,7 @@ async def get_checklist_completion(
         start_date=start_date,
         end_date=end_date,
         department_id=department_id,
+        allowed_department_ids=allowed_department_ids,
     )
 
 
@@ -106,7 +114,8 @@ async def get_pass_rate(
     start_date: date = Query(...),
     end_date: date = Query(...),
     department_id: Optional[int] = Query(None),
-    current_user: User = require_permission("employees:read"),
+    current_user: User = require_permission("employees:view"),
+    allowed_department_ids: set[int] | None = require_department_scope("employees:view"),
     session: AsyncSession = Depends(get_session),
 ) -> ProbationPassRateReport:
     if start_date > end_date:
@@ -119,6 +128,7 @@ async def get_pass_rate(
         start_date=start_date,
         end_date=end_date,
         department_id=department_id,
+        allowed_department_ids=allowed_department_ids,
     )
 
 
@@ -130,7 +140,8 @@ async def get_pass_rate(
 async def get_failure_reasons(
     start_date: date = Query(...),
     end_date: date = Query(...),
-    current_user: User = require_permission("employees:read"),
+    current_user: User = require_permission("employees:view"),
+    allowed_department_ids: set[int] | None = require_department_scope("employees:view"),
     session: AsyncSession = Depends(get_session),
 ) -> FailureReasonReport:
     if start_date > end_date:
@@ -139,7 +150,10 @@ async def get_failure_reasons(
             detail="start_date phải ≤ end_date",
         )
     return await probation_report_service.get_failure_reasons(
-        session, start_date=start_date, end_date=end_date
+        session,
+        start_date=start_date,
+        end_date=end_date,
+        allowed_department_ids=allowed_department_ids,
     )
 
 
@@ -152,7 +166,8 @@ async def export(
     start_date: date = Query(...),
     end_date: date = Query(...),
     department_id: Optional[int] = Query(None),
-    current_user: User = require_permission("employees:read"),
+    current_user: User = require_permission("employees:view"),
+    allowed_department_ids: set[int] | None = require_department_scope("employees:view"),
     session: AsyncSession = Depends(get_session),
 ) -> StreamingResponse:
     if start_date > end_date:
@@ -166,6 +181,7 @@ async def export(
             start_date=start_date,
             end_date=end_date,
             department_id=department_id,
+            allowed_department_ids=allowed_department_ids,
         )
     except ValueError as exc:
         raise HTTPException(

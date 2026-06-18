@@ -5,7 +5,7 @@ import io
 from datetime import date
 from typing import Optional
 
-from sqlalchemy import select
+from sqlalchemy import false, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.employee import Employee
@@ -42,6 +42,7 @@ async def get_active_probation(
     *,
     department_id: Optional[int] = None,
     keyword: Optional[str] = None,
+    allowed_department_ids: set[int] | None = None,
 ) -> ActiveProbationReport:
     stmt = (
         select(
@@ -53,10 +54,10 @@ async def get_active_probation(
             OnboardingChecklist.completion_pct.label("oc_pct"),
             ProbationEvaluation.result.label("eval_result"),
         )
-        .where(Employee.status == "probation", Employee.is_active == True)
+        .where(Employee.status == "probation", Employee.is_active)
         .join(
             EmployeeJobRecord,
-            (EmployeeJobRecord.employee_id == Employee.id) & (EmployeeJobRecord.is_current == True),
+            (EmployeeJobRecord.employee_id == Employee.id) & EmployeeJobRecord.is_current,
         )
         .outerjoin(Department, Department.id == EmployeeJobRecord.department_id)
         .outerjoin(OnboardingChecklist, OnboardingChecklist.employee_id == Employee.id)
@@ -69,6 +70,12 @@ async def get_active_probation(
 
     if department_id is not None:
         stmt = stmt.where(EmployeeJobRecord.department_id == department_id)
+    elif allowed_department_ids is not None:
+        stmt = stmt.where(
+            EmployeeJobRecord.department_id.in_(allowed_department_ids)
+            if allowed_department_ids
+            else false()
+        )
 
     rows = (await session.execute(stmt)).all()
 
@@ -137,6 +144,7 @@ async def get_probation_history(
     end_date: Optional[date] = None,
     department_id: Optional[int] = None,
     keyword: Optional[str] = None,
+    allowed_department_ids: set[int] | None = None,
     page: int = 1,
     page_size: int = 20,
 ) -> ProbationHistoryReport:
@@ -177,6 +185,12 @@ async def get_probation_history(
 
     if department_id is not None:
         stmt = stmt.where(EmployeeJobRecord.department_id == department_id)
+    elif allowed_department_ids is not None:
+        stmt = stmt.where(
+            EmployeeJobRecord.department_id.in_(allowed_department_ids)
+            if allowed_department_ids
+            else false()
+        )
 
     rows = (await session.execute(stmt)).all()
 
@@ -247,6 +261,7 @@ async def get_checklist_completion(
     start_date: date,
     end_date: date,
     department_id: Optional[int] = None,
+    allowed_department_ids: set[int] | None = None,
 ) -> ChecklistCompletionReport:
     raw_stmt = (
         select(
@@ -258,7 +273,7 @@ async def get_checklist_completion(
         .join(Employee, OnboardingChecklist.employee_id == Employee.id)
         .join(
             EmployeeJobRecord,
-            (EmployeeJobRecord.employee_id == Employee.id) & (EmployeeJobRecord.is_current == True),
+            (EmployeeJobRecord.employee_id == Employee.id) & EmployeeJobRecord.is_current,
         )
         .join(Department, Department.id == EmployeeJobRecord.department_id)
         .where(
@@ -268,6 +283,12 @@ async def get_checklist_completion(
     )
     if department_id is not None:
         raw_stmt = raw_stmt.where(EmployeeJobRecord.department_id == department_id)
+    elif allowed_department_ids is not None:
+        raw_stmt = raw_stmt.where(
+            EmployeeJobRecord.department_id.in_(allowed_department_ids)
+            if allowed_department_ids
+            else false()
+        )
 
     raw_rows = (await session.execute(raw_stmt)).all()
 
@@ -314,6 +335,7 @@ async def get_pass_rate(
     start_date: date,
     end_date: date,
     department_id: Optional[int] = None,
+    allowed_department_ids: set[int] | None = None,
 ) -> ProbationPassRateReport:
     base_stmt = (
         select(
@@ -331,6 +353,12 @@ async def get_pass_rate(
     )
     if department_id is not None:
         base_stmt = base_stmt.where(EmployeeJobRecord.department_id == department_id)
+    elif allowed_department_ids is not None:
+        base_stmt = base_stmt.where(
+            EmployeeJobRecord.department_id.in_(allowed_department_ids)
+            if allowed_department_ids
+            else false()
+        )
 
     eval_rows = (await session.execute(base_stmt)).all()
 
@@ -438,6 +466,7 @@ async def get_failure_reasons(
     *,
     start_date: date,
     end_date: date,
+    allowed_department_ids: set[int] | None = None,
 ) -> FailureReasonReport:
     stmt = (
         select(
@@ -453,6 +482,15 @@ async def get_failure_reasons(
             ProbationEvaluation.evaluation_date <= end_date,
         )
     )
+    if allowed_department_ids is not None:
+        stmt = stmt.join(
+            EmployeeJobRecord,
+            ProbationEvaluation.job_record_id == EmployeeJobRecord.id,
+        ).where(
+            EmployeeJobRecord.department_id.in_(allowed_department_ids)
+            if allowed_department_ids
+            else false()
+        )
     rows = (await session.execute(stmt)).all()
 
     total_failed = len(rows)
@@ -491,6 +529,7 @@ async def export_excel(
     start_date: date,
     end_date: date,
     department_id: Optional[int] = None,
+    allowed_department_ids: set[int] | None = None,
 ) -> io.BytesIO:
     if (end_date - start_date).days > 366:
         raise ValueError("Phạm vi tối đa 1 năm")
@@ -500,14 +539,31 @@ async def export_excel(
     from openpyxl.utils import get_column_letter
 
     # Fetch all data
-    active_report = await get_active_probation(session, department_id=department_id)
+    active_report = await get_active_probation(
+        session,
+        department_id=department_id,
+        allowed_department_ids=allowed_department_ids,
+    )
     checklist_report = await get_checklist_completion(
-        session, start_date=start_date, end_date=end_date, department_id=department_id
+        session,
+        start_date=start_date,
+        end_date=end_date,
+        department_id=department_id,
+        allowed_department_ids=allowed_department_ids,
     )
     pass_rate_report = await get_pass_rate(
-        session, start_date=start_date, end_date=end_date, department_id=department_id
+        session,
+        start_date=start_date,
+        end_date=end_date,
+        department_id=department_id,
+        allowed_department_ids=allowed_department_ids,
     )
-    failure_report = await get_failure_reasons(session, start_date=start_date, end_date=end_date)
+    failure_report = await get_failure_reasons(
+        session,
+        start_date=start_date,
+        end_date=end_date,
+        allowed_department_ids=allowed_department_ids,
+    )
 
     wb = Workbook()
 

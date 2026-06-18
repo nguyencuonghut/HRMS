@@ -4,10 +4,10 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 from decimal import Decimal
-from typing import List, Optional
+from typing import List, Optional, Sequence
 
 from fastapi import HTTPException, status
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, false, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.auth import User
@@ -16,6 +16,7 @@ from app.models.employee_job import EmployeeJobRecord
 from app.models.org import Department
 from app.models.performance import EmployeeKpiMonthly
 from app.schemas.performance import (
+    KpiImportResult,
     KpiMonthlyCreate,
     KpiMonthlyListPage,
     KpiMonthlyRead,
@@ -83,6 +84,7 @@ async def get_kpi_list(
     month: Optional[int] = None,
     department_id: Optional[int] = None,
     search: Optional[str] = None,
+    allowed_department_ids: Optional[Sequence[int]] = None,
     page: int = 1,
     page_size: int = 20,
 ) -> KpiMonthlyListPage:
@@ -105,6 +107,11 @@ async def get_kpi_list(
         stmt = stmt.where(EmployeeKpiMonthly.month == month)
     if department_id is not None:
         stmt = stmt.where(EmployeeJobRecord.department_id == department_id)
+    if allowed_department_ids is not None:
+        if not allowed_department_ids:
+            stmt = stmt.where(false())
+        else:
+            stmt = stmt.where(EmployeeJobRecord.department_id.in_(allowed_department_ids))
 
     if search:
         from app.services.administrative_import_service import normalize_text
@@ -215,25 +222,16 @@ async def import_kpi_excel(
     session: AsyncSession,
     file_bytes: bytes,
     created_by_id: int,
-) -> "KpiImportResult":
+) -> KpiImportResult:
     from io import BytesIO
 
     import openpyxl
     from sqlalchemy.dialects.postgresql import insert as pg_insert
 
-    from app.schemas.performance import KpiImportResult
-
-    # Build employee_code → id map (one query)
-    from app.models.employee import Employee
-    emp_rows = (await session.execute(select(Employee.id, Employee.employee_seq, Employee.employee_code_sequence_id))).all()
-
     # Build code map using the same display-code logic: need prefix from dept
     # Simpler: build a raw-code map using employee_seq padded approach won't work
     # since codes come from sequences. Use employee_code_service for each code.
     # For perf on import, pre-build code→id using a generated column query.
-    from sqlalchemy import String, cast, func, text
-    from app.models.employee_job import EmployeeJobRecord
-    from app.models.org import Department
     from app.services import employee_code_service
 
     # Query all active employees with their codes in one pass

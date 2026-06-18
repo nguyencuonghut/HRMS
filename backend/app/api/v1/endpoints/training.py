@@ -91,7 +91,7 @@ async def list_courses(
 async def create_course(
     body: CourseCreate,
     request: Request,
-    current_user: User = require_permission("training:manage_courses"),
+    current_user: User = require_permission("training:create"),
     session: AsyncSession = Depends(get_session),
 ):
     course = await training_course_service.create_course(session, body)
@@ -128,7 +128,7 @@ async def update_course(
     course_id: int,
     body: CourseUpdate,
     request: Request,
-    current_user: User = require_permission("training:manage_courses"),
+    current_user: User = require_permission("training:edit"),
     session: AsyncSession = Depends(get_session),
 ):
     course = await training_course_service.update_course(session, course_id, body)
@@ -150,7 +150,7 @@ async def update_course(
 async def delete_course(
     course_id: int,
     request: Request,
-    current_user: User = require_permission("training:manage_courses"),
+    current_user: User = require_permission("training:delete"),
     session: AsyncSession = Depends(get_session),
 ):
     result = await training_course_service.delete_course(session, course_id)
@@ -197,7 +197,7 @@ async def list_plans(
 async def create_plan(
     body: PlanCreate,
     request: Request,
-    current_user: User = require_permission("training:manage_plans"),
+    current_user: User = require_permission("training:create"),
     session: AsyncSession = Depends(get_session),
 ):
     plan = await training_plan_service.create_plan(session, body, current_user.id)
@@ -233,7 +233,7 @@ async def update_plan(
     plan_id: int,
     body: PlanUpdate,
     request: Request,
-    current_user: User = require_permission("training:manage_plans"),
+    current_user: User = require_permission("training:edit"),
     session: AsyncSession = Depends(get_session),
 ):
     plan = await training_plan_service.update_plan(session, plan_id, body)
@@ -254,7 +254,7 @@ async def update_plan(
 async def delete_plan(
     plan_id: int,
     request: Request,
-    current_user: User = require_permission("training:manage_plans"),
+    current_user: User = require_permission("training:delete"),
     session: AsyncSession = Depends(get_session),
 ):
     await training_plan_service.delete_plan(session, plan_id)
@@ -274,7 +274,7 @@ async def delete_plan(
 async def approve_plan(
     plan_id: int,
     request: Request,
-    current_user: User = require_permission("training:manage_plans"),
+    current_user: User = require_permission("training:edit"),
     session: AsyncSession = Depends(get_session),
 ):
     plan = await training_plan_service.approve_plan(session, plan_id)
@@ -295,7 +295,7 @@ async def approve_plan(
 async def cancel_plan(
     plan_id: int,
     request: Request,
-    current_user: User = require_permission("training:manage_plans"),
+    current_user: User = require_permission("training:edit"),
     session: AsyncSession = Depends(get_session),
 ):
     plan = await training_plan_service.cancel_plan(session, plan_id)
@@ -335,7 +335,7 @@ async def add_course_to_plan(
     plan_id: int,
     body: PlanCourseCreate,
     request: Request,
-    current_user: User = require_permission("training:manage_plans"),
+    current_user: User = require_permission("training:edit"),
     session: AsyncSession = Depends(get_session),
 ):
     pc = await training_plan_service.add_course_to_plan(session, plan_id, body)
@@ -365,7 +365,7 @@ async def update_plan_course(
     course_id: int,
     body: PlanCourseUpdate,
     request: Request,
-    current_user: User = require_permission("training:manage_plans"),
+    current_user: User = require_permission("training:edit"),
     session: AsyncSession = Depends(get_session),
 ):
     await training_plan_service.update_plan_course(session, plan_id, course_id, body)
@@ -392,7 +392,7 @@ async def remove_course_from_plan(
     plan_id: int,
     course_id: int,
     request: Request,
-    current_user: User = require_permission("training:manage_plans"),
+    current_user: User = require_permission("training:edit"),
     session: AsyncSession = Depends(get_session),
 ):
     await training_plan_service.remove_course_from_plan(session, plan_id, course_id)
@@ -448,7 +448,7 @@ async def list_records(
 )
 async def create_record(
     body: TrainingRecordCreate,
-    current_user: User = require_permission("training:manage_records"),
+    current_user: User = require_permission("training:create"),
     session: AsyncSession = Depends(get_session),
 ):
     read = await training_record_service.create_record(session, body, current_user.id)
@@ -479,7 +479,7 @@ async def get_record(
 async def update_record(
     record_id: int,
     body: TrainingRecordUpdate,
-    _: User = require_permission("training:manage_records"),
+    _: User = require_permission("training:edit"),
     session: AsyncSession = Depends(get_session),
 ):
     read = await training_record_service.update_record(session, record_id, body)
@@ -495,7 +495,7 @@ async def update_record(
 )
 async def delete_record(
     record_id: int,
-    _: User = require_permission("training:manage_records"),
+    _: User = require_permission("training:delete"),
     session: AsyncSession = Depends(get_session),
 ):
     await training_record_service.delete_record(session, record_id)
@@ -511,7 +511,7 @@ async def delete_record(
 async def bulk_assign(
     plan_id: int,
     body: BulkAssignRequest,
-    current_user: User = require_permission("training:manage_records"),
+    current_user: User = require_permission("training:create"),
     session: AsyncSession = Depends(get_session),
 ):
     if body.plan_id != plan_id:
@@ -645,7 +645,7 @@ async def list_certificates(
 async def create_certificate(
     body: str = Form(..., description="JSON string của CertificateCreate"),
     file: Optional[UploadFile] = File(None),
-    current_user: User = require_permission("training:manage_certificates"),
+    current_user: User = require_permission("training:create"),
     session: AsyncSession = Depends(get_session),
 ):
     try:
@@ -681,7 +681,7 @@ async def update_certificate(
     cert_id: int,
     body: str = Form(..., description="JSON string của CertificateUpdate"),
     file: Optional[UploadFile] = File(None),
-    _: User = require_permission("training:manage_certificates"),
+    _: User = require_permission("training:edit"),
     session: AsyncSession = Depends(get_session),
 ):
     try:
@@ -701,7 +701,7 @@ async def update_certificate(
 )
 async def delete_certificate(
     cert_id: int,
-    _: User = require_permission("training:manage_certificates"),
+    _: User = require_permission("training:delete"),
     session: AsyncSession = Depends(get_session),
 ):
     await certificate_service.delete_certificate(session, cert_id)
@@ -715,7 +715,7 @@ async def delete_certificate(
 )
 async def download_certificate(
     cert_id: int,
-    _: User = require_permission("training:manage_certificates"),
+    _: User = require_permission("training:view"),
     session: AsyncSession = Depends(get_session),
 ):
     file_path, file_name, mime_type = await certificate_service.download_certificate_file(session, cert_id)

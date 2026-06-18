@@ -8,6 +8,8 @@ BASE = "/api/v1/reports/probation"
 
 _ADMIN_EMAIL    = "admin@hrms.local"
 _ADMIN_PASSWORD = "Hrms@2026"
+_HR_OFFICER_EMAIL = "hrofficer@hrms.local"
+_HR_OFFICER_PASSWORD = "Hrms@2026"
 
 # Date range that captures existing seed data
 _START = "2026-01-01"
@@ -18,6 +20,14 @@ def _login(client: TestClient) -> dict:
     token = client.post(
         "/api/v1/auth/login",
         json={"email": _ADMIN_EMAIL, "password": _ADMIN_PASSWORD},
+    ).json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}
+
+
+def _login_as(client: TestClient, email: str, password: str) -> dict:
+    token = client.post(
+        "/api/v1/auth/login",
+        json={"email": email, "password": password},
     ).json()["access_token"]
     return {"Authorization": f"Bearer {token}"}
 
@@ -173,3 +183,9 @@ def test_export_range_over_1_year_returns_400(client: TestClient):
 def test_unauthenticated_rejected(client: TestClient):
     r = client.get(f"{BASE}/active")
     assert r.status_code == 401, r.text
+
+
+def test_hr_officer_can_access_probation_reports(client: TestClient):
+    headers = _login_as(client, _HR_OFFICER_EMAIL, _HR_OFFICER_PASSWORD)
+    r = client.get(f"{BASE}/active", headers=headers)
+    assert r.status_code == 200, r.text

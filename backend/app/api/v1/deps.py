@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_session
 from app.core.security import decode_token
 from app.models.auth import User
-from app.services import auth_service
+from app.services import access_scope_service, auth_service
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
@@ -69,6 +69,54 @@ def require_permission(*perms: str):
                 detail="Không có quyền thực hiện thao tác này",
             )
         return user
+    return Depends(_dependency)
+
+
+def require_department_scope(*perms: str):
+    async def _dependency(
+        user: User = require_permission(*perms),
+        session: AsyncSession = Depends(get_session),
+    ) -> set[int] | None:
+        return await access_scope_service.get_allowed_department_ids(
+            session,
+            user,
+            permission_codes=perms,
+        )
+
+    return Depends(_dependency)
+
+
+def require_department_access(*perms: str):
+    async def _dependency(
+        dept_id: int,
+        user: User = require_permission(*perms),
+        session: AsyncSession = Depends(get_session),
+    ) -> User:
+        await access_scope_service.ensure_department_access(
+            session,
+            user,
+            permission_codes=perms,
+            department_id=dept_id,
+        )
+        return user
+
+    return Depends(_dependency)
+
+
+def require_employee_access(*perms: str):
+    async def _dependency(
+        employee_id: int,
+        user: User = require_permission(*perms),
+        session: AsyncSession = Depends(get_session),
+    ) -> User:
+        await access_scope_service.ensure_employee_access(
+            session,
+            user,
+            permission_codes=perms,
+            employee_id=employee_id,
+        )
+        return user
+
     return Depends(_dependency)
 
 

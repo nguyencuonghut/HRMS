@@ -22,7 +22,7 @@ router = APIRouter()
 @router.get("/summary", response_model=ContractSummaryOut)
 async def get_summary(
     department_id: Optional[int] = Query(None),
-    _current_user: User = require_permission("employees:read"),
+    _current_user: User = require_permission("contracts:view"),
     session: AsyncSession = Depends(get_session),
 ) -> ContractSummaryOut:
     """Lấy dữ liệu chỉ số KPI tổng hợp cho hợp đồng lao động."""
@@ -39,7 +39,7 @@ async def get_expiring(
     keyword: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
-    _current_user: User = require_permission("employees:read"),
+    _current_user: User = require_permission("contracts:view"),
     session: AsyncSession = Depends(get_session),
 ) -> ContractExpiringPage:
     """Lấy danh sách các hợp đồng lao động sắp hết hạn (có phân trang và tìm kiếm)."""
@@ -57,7 +57,7 @@ async def get_expiring(
 async def get_by_type(
     department_id: Optional[int] = Query(None),
     year: Optional[int] = Query(None, ge=2000, le=2100),
-    _current_user: User = require_permission("employees:read"),
+    _current_user: User = require_permission("contracts:view"),
     session: AsyncSession = Depends(get_session),
 ) -> ContractByTypeOut:
     """Lấy thống kê cơ cấu loại hợp đồng lao động."""
@@ -71,7 +71,7 @@ async def get_by_type(
 @router.get("/expiry-forecast", response_model=ContractForecastOut)
 async def get_expiry_forecast(
     months_ahead: int = Query(12, ge=1, le=24),
-    _current_user: User = require_permission("employees:read"),
+    _current_user: User = require_permission("contracts:view"),
     session: AsyncSession = Depends(get_session),
 ) -> ContractForecastOut:
     """Dự báo số lượng hợp đồng hết hạn trong 12 hoặc 24 tháng tới."""
@@ -84,7 +84,7 @@ async def get_expiry_forecast(
 @router.get("/history", response_model=ContractHistoryOut)
 async def get_history(
     employee_id: int = Query(...),
-    _current_user: User = require_permission("employees:read"),
+    _current_user: User = require_permission("contracts:view"),
     session: AsyncSession = Depends(get_session),
 ) -> ContractHistoryOut:
     """Tra cứu lịch sử toàn bộ các hợp đồng và phụ lục của nhân viên."""
@@ -99,7 +99,7 @@ async def export_contracts(
     department_id: Optional[int] = Query(None),
     status: str = Query("active", pattern="^(active|expired|all)$"),
     days_ahead: Optional[int] = Query(None, ge=1, le=365),
-    _current_user: User = require_permission("employees:read"),
+    _current_user: User = require_permission("contracts:view"),
     session: AsyncSession = Depends(get_session),
 ) -> StreamingResponse:
     """Xuất danh sách hợp đồng ra file Excel có định dạng màu sắc cảnh báo theo urgency."""

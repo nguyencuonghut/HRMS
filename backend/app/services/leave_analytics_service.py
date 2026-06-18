@@ -3,10 +3,10 @@ from __future__ import annotations
 
 import io
 from datetime import date, timedelta
-from typing import Optional
+from typing import Optional, Sequence
 
 import sqlalchemy as sa
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, false, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.catalog import LeaveType
@@ -48,6 +48,7 @@ async def get_analytics_summary(
     year: int,
     department_id: Optional[int] = None,
     leave_type_id: Optional[int] = None,
+    allowed_department_ids: Optional[Sequence[int]] = None,
 ) -> LeaveAnalyticsSummary:
     today = date.today()
 
@@ -72,6 +73,22 @@ async def get_analytics_summary(
             )
             .where(EmployeeJobRecord.department_id == department_id)
         )
+    if allowed_department_ids is not None:
+        if not allowed_department_ids:
+            ytd_stmt = ytd_stmt.where(false())
+        else:
+            ytd_stmt = (
+                ytd_stmt
+                .join(Employee, Employee.id == LeaveRecord.employee_id)
+                .join(
+                    EmployeeJobRecord,
+                    and_(
+                        EmployeeJobRecord.employee_id == Employee.id,
+                        EmployeeJobRecord.is_current == True,  # noqa: E712
+                    ),
+                )
+                .where(EmployeeJobRecord.department_id.in_(allowed_department_ids))
+            )
     if leave_type_id is not None:
         ytd_stmt = ytd_stmt.where(LeaveRecord.leave_type_id == leave_type_id)
 
@@ -97,6 +114,22 @@ async def get_analytics_summary(
             )
             .where(EmployeeJobRecord.department_id == department_id)
         )
+    if allowed_department_ids is not None:
+        if not allowed_department_ids:
+            usage_stmt = usage_stmt.where(false())
+        else:
+            usage_stmt = (
+                usage_stmt
+                .join(Employee, Employee.id == LeaveEntitlement.employee_id)
+                .join(
+                    EmployeeJobRecord,
+                    and_(
+                        EmployeeJobRecord.employee_id == Employee.id,
+                        EmployeeJobRecord.is_current == True,  # noqa: E712
+                    ),
+                )
+                .where(EmployeeJobRecord.department_id.in_(allowed_department_ids))
+            )
     usage_row = (await session.execute(usage_stmt)).one()
     used_total = _to_float(usage_row.used)
     alloc_total = _to_float(usage_row.allocated)
@@ -125,6 +158,22 @@ async def get_analytics_summary(
             )
             .where(EmployeeJobRecord.department_id == department_id)
         )
+    if allowed_department_ids is not None:
+        if not allowed_department_ids:
+            not_taken_stmt = not_taken_stmt.where(false())
+        else:
+            not_taken_stmt = (
+                not_taken_stmt
+                .join(Employee, Employee.id == LeaveEntitlement.employee_id)
+                .join(
+                    EmployeeJobRecord,
+                    and_(
+                        EmployeeJobRecord.employee_id == Employee.id,
+                        EmployeeJobRecord.is_current == True,  # noqa: E712
+                    ),
+                )
+                .where(EmployeeJobRecord.department_id.in_(allowed_department_ids))
+            )
     employees_not_taken: int = (await session.execute(not_taken_stmt)).scalar() or 0
 
     # ── KPI 4: Ngày tồn sắp hết hạn (30 ngày tới) ────────────────────────────
@@ -173,6 +222,22 @@ async def get_analytics_summary(
             )
             .where(EmployeeJobRecord.department_id == department_id)
         )
+    if allowed_department_ids is not None:
+        if not allowed_department_ids:
+            trend_base = trend_base.where(false())
+        else:
+            trend_base = (
+                trend_base
+                .join(Employee, Employee.id == LeaveRecord.employee_id)
+                .join(
+                    EmployeeJobRecord,
+                    and_(
+                        EmployeeJobRecord.employee_id == Employee.id,
+                        EmployeeJobRecord.is_current == True,  # noqa: E712
+                    ),
+                )
+                .where(EmployeeJobRecord.department_id.in_(allowed_department_ids))
+            )
     if leave_type_id is not None:
         trend_base = trend_base.where(LeaveRecord.leave_type_id == leave_type_id)
 
@@ -204,6 +269,7 @@ async def get_by_type(
     *,
     year: int,
     department_id: Optional[int] = None,
+    allowed_department_ids: Optional[Sequence[int]] = None,
 ) -> LeaveByTypeReport:
     stmt = (
         select(
@@ -235,6 +301,22 @@ async def get_by_type(
             )
             .where(EmployeeJobRecord.department_id == department_id)
         )
+    if allowed_department_ids is not None:
+        if not allowed_department_ids:
+            stmt = stmt.where(false())
+        else:
+            stmt = (
+                stmt
+                .join(Employee, Employee.id == LeaveRecord.employee_id)
+                .join(
+                    EmployeeJobRecord,
+                    and_(
+                        EmployeeJobRecord.employee_id == Employee.id,
+                        EmployeeJobRecord.is_current == True,  # noqa: E712
+                    ),
+                )
+                .where(EmployeeJobRecord.department_id.in_(allowed_department_ids))
+            )
 
     rows = (await session.execute(stmt)).all()
     grand_total = sum(_to_float(r.total_days) for r in rows)
@@ -263,6 +345,7 @@ async def get_monthly_heatmap(
     session: AsyncSession,
     *,
     year: int,
+    allowed_department_ids: Optional[Sequence[int]] = None,
 ) -> MonthlyHeatmapReport:
     stmt = (
         select(
@@ -287,6 +370,11 @@ async def get_monthly_heatmap(
         .group_by(Department.id, Department.name, sa.text("3"))
         .order_by(Department.name.nulls_last(), sa.text("3"))
     )
+    if allowed_department_ids is not None:
+        if not allowed_department_ids:
+            stmt = stmt.where(false())
+        else:
+            stmt = stmt.where(EmployeeJobRecord.department_id.in_(allowed_department_ids))
     rows = (await session.execute(stmt)).all()
 
     # Pivot thành dict[dept_id][month]
@@ -326,6 +414,7 @@ async def get_top_employees(
     year: int,
     department_id: Optional[int] = None,
     leave_type_id: Optional[int] = None,
+    allowed_department_ids: Optional[Sequence[int]] = None,
     limit: int = 10,
 ) -> TopEmployeesReport:
     stmt = (
@@ -364,6 +453,11 @@ async def get_top_employees(
     )
     if department_id is not None:
         stmt = stmt.where(EmployeeJobRecord.department_id == department_id)
+    if allowed_department_ids is not None:
+        if not allowed_department_ids:
+            stmt = stmt.where(false())
+        else:
+            stmt = stmt.where(EmployeeJobRecord.department_id.in_(allowed_department_ids))
     if leave_type_id is not None:
         stmt = stmt.where(LeaveRecord.leave_type_id == leave_type_id)
 
@@ -397,6 +491,7 @@ async def get_expiring_balance(
     *,
     year: int,
     department_id: Optional[int] = None,
+    allowed_department_ids: Optional[Sequence[int]] = None,
     expire_days: int = 30,
 ) -> ExpiringBalanceReport:
     today = date.today()
@@ -430,6 +525,11 @@ async def get_expiring_balance(
     )
     if department_id is not None:
         stmt = stmt.where(EmployeeJobRecord.department_id == department_id)
+    if allowed_department_ids is not None:
+        if not allowed_department_ids:
+            stmt = stmt.where(false())
+        else:
+            stmt = stmt.where(EmployeeJobRecord.department_id.in_(allowed_department_ids))
 
     rows = (await session.execute(stmt)).all()
 
@@ -469,6 +569,7 @@ async def get_department_comparison(
     session: AsyncSession,
     *,
     year: int,
+    allowed_department_ids: Optional[Sequence[int]] = None,
 ) -> DeptComparisonReport:
     # Lấy tổng ngày nghỉ và số NV theo phòng ban
     taken_stmt = (
@@ -493,6 +594,11 @@ async def get_department_comparison(
         )
         .group_by(Department.id, Department.name)
     )
+    if allowed_department_ids is not None:
+        if not allowed_department_ids:
+            taken_stmt = taken_stmt.where(false())
+        else:
+            taken_stmt = taken_stmt.where(EmployeeJobRecord.department_id.in_(allowed_department_ids))
 
     # Lấy tổng phép được cấp theo phòng ban
     alloc_stmt = (
@@ -512,6 +618,11 @@ async def get_department_comparison(
         .where(LeaveEntitlement.year == year)
         .group_by(EmployeeJobRecord.department_id)
     )
+    if allowed_department_ids is not None:
+        if not allowed_department_ids:
+            alloc_stmt = alloc_stmt.where(false())
+        else:
+            alloc_stmt = alloc_stmt.where(EmployeeJobRecord.department_id.in_(allowed_department_ids))
 
     taken_rows = (await session.execute(taken_stmt)).all()
     alloc_rows = (await session.execute(alloc_stmt)).all()

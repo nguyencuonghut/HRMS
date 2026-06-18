@@ -6,7 +6,7 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.v1.deps import get_current_user, require_permission
+from app.api.v1.deps import require_department_scope, require_employee_access, require_permission
 from app.core.database import get_session
 from app.models.auth import User
 from app.schemas.employee_contract import ContractRead
@@ -19,6 +19,7 @@ from app.schemas.probation import (
     ProbationLegalCheck,
 )
 import app.services.probation_service as svc
+from app.services import access_scope_service
 
 _TAG = "Quản lý thử việc"
 
@@ -35,7 +36,7 @@ router = APIRouter()
 )
 async def legal_check(
     employee_id: int,
-    _: User = require_permission("employees:read"),
+    _: User = require_employee_access("employees:view"),
     session: AsyncSession = Depends(get_session),
 ):
     try:
@@ -52,7 +53,7 @@ async def legal_check(
 )
 async def get_probation_detail(
     employee_id: int,
-    _: User = require_permission("employees:read"),
+    _: User = require_employee_access("employees:view"),
     session: AsyncSession = Depends(get_session),
 ):
     try:
@@ -71,7 +72,7 @@ async def get_probation_detail(
 )
 async def get_probation_contracts(
     employee_id: int,
-    _: User = require_permission("employees:read"),
+    _: User = require_employee_access("employees:view"),
     session: AsyncSession = Depends(get_session),
 ):
     return await svc.get_probation_contracts(session, employee_id)
@@ -86,9 +87,16 @@ async def get_probation_contracts(
 )
 async def generate_probation_contract(
     employee_id: int,
-    current_user: User = require_permission("employees:manage"),
+    current_user: User = require_permission("employees:edit"),
+    _: set[int] | None = require_department_scope("employees:edit"),
     session: AsyncSession = Depends(get_session),
 ):
+    await access_scope_service.ensure_employee_access(
+        session,
+        current_user,
+        permission_codes=("employees:edit", "employees:view"),
+        employee_id=employee_id,
+    )
     try:
         contract = await svc.generate_probation_contract(session, employee_id, current_user.id)
     except LookupError as e:
@@ -143,9 +151,16 @@ async def generate_probation_contract(
 async def create_evaluation(
     employee_id: int,
     data: ProbationEvaluationCreate,
-    current_user: User = require_permission("employees:manage"),
+    current_user: User = require_permission("employees:edit"),
+    _: set[int] | None = require_department_scope("employees:edit"),
     session: AsyncSession = Depends(get_session),
 ):
+    await access_scope_service.ensure_employee_access(
+        session,
+        current_user,
+        permission_codes=("employees:edit", "employees:view"),
+        employee_id=employee_id,
+    )
     try:
         result = await svc.create_evaluation(session, employee_id, data, current_user.id)
         await session.commit()
@@ -166,9 +181,16 @@ async def update_evaluation(
     employee_id: int,
     eval_id: int,
     data: ProbationEvaluationUpdate,
-    _: User = require_permission("employees:manage"),
+    current_user: User = require_permission("employees:edit"),
+    _: set[int] | None = require_department_scope("employees:edit"),
     session: AsyncSession = Depends(get_session),
 ):
+    await access_scope_service.ensure_employee_access(
+        session,
+        current_user,
+        permission_codes=("employees:edit", "employees:view"),
+        employee_id=employee_id,
+    )
     try:
         result = await svc.update_evaluation(session, eval_id, data)
         await session.commit()
@@ -187,9 +209,16 @@ async def update_evaluation(
 )
 async def submit_evaluation(
     employee_id: int,
-    current_user: User = require_permission("employees:manage"),
+    current_user: User = require_permission("employees:edit"),
+    _: set[int] | None = require_department_scope("employees:edit"),
     session: AsyncSession = Depends(get_session),
 ):
+    await access_scope_service.ensure_employee_access(
+        session,
+        current_user,
+        permission_codes=("employees:edit", "employees:view"),
+        employee_id=employee_id,
+    )
     # Find evaluation for this employee
     from sqlmodel import select
     from app.models.probation import ProbationEvaluation
@@ -233,9 +262,16 @@ async def submit_evaluation(
 )
 async def recall_evaluation(
     employee_id: int,
-    _: User = require_permission("employees:manage"),
+    current_user: User = require_permission("employees:edit"),
+    _: set[int] | None = require_department_scope("employees:edit"),
     session: AsyncSession = Depends(get_session),
 ):
+    await access_scope_service.ensure_employee_access(
+        session,
+        current_user,
+        permission_codes=("employees:edit", "employees:view"),
+        employee_id=employee_id,
+    )
     from sqlmodel import select
     from app.models.probation import ProbationEvaluation
     from app.models.employee_job import EmployeeJobRecord
@@ -281,9 +317,16 @@ async def recall_evaluation(
 async def approve_evaluation(
     employee_id: int,
     data: ProbationApproveRequest,
-    current_user: User = require_permission("employees:manage"),
+    current_user: User = require_permission("employees:edit"),
+    _: set[int] | None = require_department_scope("employees:edit"),
     session: AsyncSession = Depends(get_session),
 ):
+    await access_scope_service.ensure_employee_access(
+        session,
+        current_user,
+        permission_codes=("employees:edit", "employees:view"),
+        employee_id=employee_id,
+    )
     # Find submitted evaluation for this employee
     from sqlmodel import select
     from app.models.probation import ProbationEvaluation

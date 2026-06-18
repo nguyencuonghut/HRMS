@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Optional, Sequence
 
 from fastapi import HTTPException, status
 from sqlalchemy import and_, func, select, text
@@ -135,14 +135,33 @@ def _avatar_initials(full_name: str) -> str:
 
 # ── Public API ─────────────────────────────────────────────────────────────────
 
-async def get_by_id(session: AsyncSession, dept_id: int) -> Department:
+async def get_by_id(
+    session: AsyncSession,
+    dept_id: int,
+    *,
+    allowed_department_ids: Optional[Sequence[int]] = None,
+) -> Department:
     result = await session.execute(
-        select(Department).where(Department.id == dept_id, Department.deleted_at.is_(None))
+        _apply_department_scope(
+            select(Department).where(Department.id == dept_id, Department.deleted_at.is_(None)),
+            allowed_department_ids,
+        )
     )
     dept = result.scalar_one_or_none()
     if not dept:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Không tìm thấy phòng/ban")
     return dept
+
+
+def _apply_department_scope(
+    stmt,
+    allowed_department_ids: Optional[Sequence[int]],
+):
+    if allowed_department_ids is None:
+        return stmt
+    if not allowed_department_ids:
+        return stmt.where(text("1 = 0"))
+    return stmt.where(Department.id.in_(allowed_department_ids))
 
 
 async def _build_org_chart(
@@ -319,8 +338,13 @@ async def _build_org_chart(
     return build_node(root_department)
 
 
-async def get_detail(session: AsyncSession, dept_id: int) -> DepartmentDetailRead:
-    dept = await get_by_id(session, dept_id)
+async def get_detail(
+    session: AsyncSession,
+    dept_id: int,
+    *,
+    allowed_department_ids: Optional[Sequence[int]] = None,
+) -> DepartmentDetailRead:
+    dept = await get_by_id(session, dept_id, allowed_department_ids=allowed_department_ids)
 
     parent = None
     if dept.parent_id is not None:
@@ -470,7 +494,19 @@ async def get_detail(session: AsyncSession, dept_id: int) -> DepartmentDetailRea
 async def get_list(
     session: AsyncSession,
     is_active: Optional[bool] = None,
+    allowed_department_ids: Optional[Sequence[int]] = None,
 ) -> list[Department]:
+    if allowed_department_ids is not None:
+        q = _apply_department_scope(
+            select(Department).where(Department.deleted_at.is_(None)),
+            allowed_department_ids,
+        )
+        if is_active is not None:
+            q = q.where(Department.is_active == is_active)
+        q = q.order_by(Department.order_no, Department.name)
+        result = await session.execute(q)
+        return list(result.scalars().all())
+
     cache_key = _CACHE_KEY.format(suffix=f"list:{is_active}")
     cached = await cache_get(cache_key)
     if cached is not None:
@@ -490,8 +526,9 @@ async def get_list(
 async def get_tree(
     session: AsyncSession,
     is_active: Optional[bool] = None,
+    allowed_department_ids: Optional[Sequence[int]] = None,
 ) -> list[DepartmentTreeNode]:
-    rows = await get_list(session, is_active)
+    rows = await get_list(session, is_active, allowed_department_ids=allowed_department_ids)
 
     # Build map id → node
     nodes: dict[int, DepartmentTreeNode] = {

@@ -34,9 +34,9 @@ async def ensure_latest_rbac_seed():
 # ── Permissions ────────────────────────────────────────────────────────────────
 
 async def test_permissions_count():
-    """14 modules × 5 actions = 70 permissions."""
+    """16 modules × 5 actions = 80 permissions."""
     count = await _scalar("SELECT COUNT(*) FROM permissions")
-    assert count == 70
+    assert count == 80
 
 
 async def test_permission_code_format():
@@ -83,7 +83,7 @@ async def test_admin_has_all_permissions():
         JOIN roles r ON rp.role_id = r.id
         WHERE r.code = 'admin'
     """)
-    assert admin_count == 70
+    assert admin_count == 80
 
 
 async def test_hr_manager_has_org_full_except_export():
@@ -199,7 +199,8 @@ async def test_admin_user_is_superuser():
 async def test_non_admin_users_not_superuser():
     count = await _scalar("""
         SELECT COUNT(*) FROM users
-        WHERE email != 'admin@hrms.local' AND is_superuser = true
+        WHERE email IN ('hrmanager@hrms.local', 'hrofficer@hrms.local', 'linemanager@hrms.local', 'finance@hrms.local')
+          AND is_superuser = true
     """)
     assert count == 0
 

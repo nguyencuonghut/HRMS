@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import require_permission
 from app.core.database import get_session
-from app.core.storage import delete_attachment, get_object_stream
+from app.core.storage import get_object_stream
 from app.models.auth import User
 from app.schemas.reward import (
     RewardCreate,
@@ -39,7 +39,7 @@ _TAG_CAT = "Danh mục khen thưởng"
             summary="Danh sách loại khen thưởng")
 async def list_reward_types(
     include_inactive: bool = Query(False),
-    _: User = require_permission("rewards:read"),
+    _: User = require_permission("rewards:view"),
     session: AsyncSession = Depends(get_session),
 ):
     return await reward_service.list_reward_types(session, include_inactive=include_inactive)
@@ -50,7 +50,7 @@ async def list_reward_types(
 async def create_reward_type(
     body: RewardTypeCreate,
     request: Request,
-    current_user: User = require_permission("rewards:manage_catalog"),
+    current_user: User = require_permission("rewards:create"),
     session: AsyncSession = Depends(get_session),
 ):
     result = await reward_service.create_reward_type(session, body)
@@ -68,7 +68,7 @@ async def update_reward_type(
     type_id: int,
     body: RewardTypeUpdate,
     request: Request,
-    current_user: User = require_permission("rewards:manage_catalog"),
+    current_user: User = require_permission("rewards:edit"),
     session: AsyncSession = Depends(get_session),
 ):
     result = await reward_service.update_reward_type(session, type_id, body)
@@ -85,7 +85,7 @@ async def update_reward_type(
 async def delete_reward_type(
     type_id: int,
     request: Request,
-    current_user: User = require_permission("rewards:manage_catalog"),
+    current_user: User = require_permission("rewards:delete"),
     session: AsyncSession = Depends(get_session),
 ):
     await reward_service.delete_reward_type(session, type_id)
@@ -110,7 +110,7 @@ async def list_rewards(
     search:         Optional[str]  = Query(None),
     page:           int            = Query(1, ge=1),
     page_size:      int            = Query(20, ge=1, le=200),
-    _: User = require_permission("rewards:read"),
+    _: User = require_permission("rewards:view"),
     session: AsyncSession = Depends(get_session),
 ):
     return await reward_service.list_rewards(
@@ -139,7 +139,7 @@ async def get_report_summary(
     reward_page_size: int = Query(20, ge=1, le=200),
     discipline_page: int = Query(1, ge=1),
     discipline_page_size: int = Query(20, ge=1, le=200),
-    _: User = require_permission("rewards:read"),
+    _: User = require_permission("rewards:view"),
     session: AsyncSession = Depends(get_session),
 ):
     return await reward_report_service.get_reward_discipline_report(
@@ -159,7 +159,7 @@ async def export_report_excel(
     from_date: _date = Query(...),
     to_date: _date = Query(...),
     department_id: Optional[int] = Query(None),
-    _: User = require_permission("rewards:read"),
+    _: User = require_permission("rewards:view"),
     session: AsyncSession = Depends(get_session),
 ):
     content = await reward_export_service.export_reward_discipline_excel(
@@ -180,7 +180,7 @@ async def export_report_excel(
             summary="Chi tiết quyết định khen thưởng")
 async def get_reward(
     reward_id: int,
-    _: User = require_permission("rewards:read"),
+    _: User = require_permission("rewards:view"),
     session: AsyncSession = Depends(get_session),
 ):
     return await reward_service.get_reward(session, reward_id)
@@ -255,7 +255,7 @@ async def delete_reward(
 @router.get("/{reward_id}/download", tags=[_TAG], summary="Tải file đính kèm")
 async def download_reward_file(
     reward_id: int,
-    _: User = require_permission("rewards:read"),
+    _: User = require_permission("rewards:view"),
     session: AsyncSession = Depends(get_session),
 ):
     from app.services.reward_service import _get_reward_or_404
@@ -283,7 +283,7 @@ employee_history_router = APIRouter()
 )
 async def get_employee_rewards(
     employee_id: int,
-    _: User = require_permission("rewards:read"),
+    _: User = require_permission("rewards:view"),
     session: AsyncSession = Depends(get_session),
 ):
     return await reward_service.get_employee_reward_history(session, employee_id)

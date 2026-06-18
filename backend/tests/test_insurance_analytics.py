@@ -15,6 +15,10 @@ from app.core.config import settings
 BASE = "/api/v1/reports/insurance"
 _ADMIN_EMAIL = "admin@hrms.local"
 _ADMIN_PASSWORD = "Hrms@2026"
+_FINANCE_EMAIL = "finance@hrms.local"
+_FINANCE_PASSWORD = "Hrms@2026"
+_HR_OFFICER_EMAIL = "hrofficer@hrms.local"
+_HR_OFFICER_PASSWORD = "Hrms@2026"
 
 _TEST_YEAR = 2098
 _TEST_MONTH = 5
@@ -24,6 +28,14 @@ def _login(client: TestClient) -> dict:
     token = client.post(
         "/api/v1/auth/login",
         json={"email": _ADMIN_EMAIL, "password": _ADMIN_PASSWORD},
+    ).json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}
+
+
+def _login_as(client: TestClient, email: str, password: str) -> dict:
+    token = client.post(
+        "/api/v1/auth/login",
+        json={"email": email, "password": password},
     ).json()["access_token"]
     return {"Authorization": f"Bearer {token}"}
 
@@ -150,6 +162,26 @@ def test_insurance_dashboard_supports_full_year_mode(client: TestClient):
     assert data["increased_count"] == 1
     assert data["decreased_count"] == 1
     assert data["net_change"] == 0
+
+
+def test_finance_can_access_insurance_dashboard(client: TestClient):
+    headers = _login_as(client, _FINANCE_EMAIL, _FINANCE_PASSWORD)
+    resp = client.get(
+        f"{BASE}/dashboard",
+        params={"year": _TEST_YEAR, "month": _TEST_MONTH},
+        headers=headers,
+    )
+    assert resp.status_code == 200, resp.text
+
+
+def test_hr_officer_can_access_insurance_dashboard(client: TestClient):
+    headers = _login_as(client, _HR_OFFICER_EMAIL, _HR_OFFICER_PASSWORD)
+    resp = client.get(
+        f"{BASE}/dashboard",
+        params={"year": _TEST_YEAR, "month": _TEST_MONTH},
+        headers=headers,
+    )
+    assert resp.status_code == 200, resp.text
 
 
 def test_insurance_monthly_changes(client: TestClient):

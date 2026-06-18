@@ -4,10 +4,10 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 from decimal import Decimal
-from typing import List, Optional
+from typing import List, Optional, Sequence
 
 from fastapi import HTTPException, status
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, false, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.auth import User
@@ -18,7 +18,6 @@ from app.models.org import Department
 from app.models.performance import EmployeeKpiMonthly, EmployeeYearlyReview
 from app.schemas.performance import (
     MonthlyScore,
-    RatingValue,
     YearlyKpiSummary,
     YearlyReviewCreate,
     YearlyReviewListPage,
@@ -219,6 +218,7 @@ async def get_yearly_reviews(
     department_id: Optional[int] = None,
     rating: Optional[str] = None,
     search: Optional[str] = None,
+    allowed_department_ids: Optional[Sequence[int]] = None,
     page: int = 1,
     page_size: int = 20,
 ) -> YearlyReviewListPage:
@@ -241,6 +241,11 @@ async def get_yearly_reviews(
         stmt = stmt.where(EmployeeJobRecord.department_id == department_id)
     if rating is not None:
         stmt = stmt.where(EmployeeYearlyReview.rating == rating)
+    if allowed_department_ids is not None:
+        if not allowed_department_ids:
+            stmt = stmt.where(false())
+        else:
+            stmt = stmt.where(EmployeeJobRecord.department_id.in_(allowed_department_ids))
 
     if search:
         from app.services.administrative_import_service import normalize_text

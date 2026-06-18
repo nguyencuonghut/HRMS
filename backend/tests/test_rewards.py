@@ -23,6 +23,8 @@ from app.core.config import settings
 BASE = "/api/v1/rewards"
 _ADMIN_EMAIL = "admin@hrms.local"
 _ADMIN_PASSWORD = "Hrms@2026"
+_HR_OFFICER_EMAIL = "hrofficer@hrms.local"
+_HR_OFFICER_PASSWORD = "Hrms@2026"
 _TEST_DATE = "2098-06-15"
 _TEST_CODE_PREFIX = "TST_REWARD"
 _RUN_ID = uuid.uuid4().hex[:8]  # unique per test session để tránh 409 từ runs trước
@@ -37,6 +39,14 @@ def _admin(client: TestClient) -> dict:
     token = client.post(
         "/api/v1/auth/login",
         json={"email": _ADMIN_EMAIL, "password": _ADMIN_PASSWORD},
+    ).json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}
+
+
+def _login_as(client: TestClient, email: str, password: str) -> dict:
+    token = client.post(
+        "/api/v1/auth/login",
+        json={"email": email, "password": password},
     ).json()["access_token"]
     return {"Authorization": f"Bearer {token}"}
 
@@ -151,6 +161,43 @@ class TestRewardTypeCatalog:
 
         r = client.delete(f"{BASE}/types/{type_id}", headers=h)
         assert r.status_code == 409
+
+    def test_hr_officer_can_create_type(self, client: TestClient):
+        h = _login_as(client, _HR_OFFICER_EMAIL, _HR_OFFICER_PASSWORD)
+        code = f"{_TEST_CODE_PREFIX}_{_RUN_ID}_HR_CREATE"
+        r = client.post(
+            f"{BASE}/types",
+            json={"code": code, "name": "Loại HR tạo", "is_monetary": False},
+            headers=h,
+        )
+        assert r.status_code == 201, r.text
+
+    def test_hr_officer_can_update_type(self, client: TestClient):
+        admin_headers = _admin(client)
+        created = client.post(
+            f"{BASE}/types",
+            json={"code": f"{_TEST_CODE_PREFIX}_{_RUN_ID}_HR_EDIT", "name": "Loại HR sửa"},
+            headers=admin_headers,
+        ).json()
+        h = _login_as(client, _HR_OFFICER_EMAIL, _HR_OFFICER_PASSWORD)
+        r = client.put(
+            f"{BASE}/types/{created['id']}",
+            json={"name": "Loại HR đã sửa"},
+            headers=h,
+        )
+        assert r.status_code == 200, r.text
+        assert r.json()["name"] == "Loại HR đã sửa"
+
+    def test_hr_officer_cannot_delete_type(self, client: TestClient):
+        admin_headers = _admin(client)
+        created = client.post(
+            f"{BASE}/types",
+            json={"code": f"{_TEST_CODE_PREFIX}_{_RUN_ID}_HR_DEL", "name": "Loại HR không được xoá"},
+            headers=admin_headers,
+        ).json()
+        h = _login_as(client, _HR_OFFICER_EMAIL, _HR_OFFICER_PASSWORD)
+        r = client.delete(f"{BASE}/types/{created['id']}", headers=h)
+        assert r.status_code == 403, r.text
 
 
 # ── TestCreateReward ───────────────────────────────────────────────────────────

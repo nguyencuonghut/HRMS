@@ -10,7 +10,7 @@ from jose import JWTError
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.v1.deps import require_permission
+from app.api.v1.deps import require_employee_access, require_permission, require_department_scope
 from app.core.database import get_session
 from app.core.security import create_signed_token, decode_token
 from app.models.auth import User
@@ -52,6 +52,7 @@ from app.schemas.employee_attachment import (
     MAX_FILE_SIZE,
     VALID_DOCUMENT_TYPES,
 )
+from app.services import document_checklist_service
 from app.services import (
     auth_service,
     employee_attachment_service,
@@ -61,7 +62,9 @@ from app.services import (
     employee_relative_service,
     employee_service,
 )
+from app.services.document_checklist_service import ChecklistItemRead, ChecklistItemUpdate
 from app.core.storage import delete_attachment, get_object_stream, save_employee_attachment
+from app.core.storage import get_object_stream as _get_obj_stream
 
 router = APIRouter()
 
@@ -147,10 +150,16 @@ def _build_list_item_data(emp, display_code: str) -> dict:
 async def lookup_employees(
     keyword: Optional[str] = Query(None),
     limit: int = Query(20, ge=1, le=500),
-    _: User = require_permission("employees:view"),
+    current_user: User = require_permission("employees:view"),
+    allowed_department_ids: set[int] | None = require_department_scope("employees:view"),
     session: AsyncSession = Depends(get_session),
 ):
-    items = await employee_service.lookup_employees(session, keyword=keyword, limit=limit)
+    items = await employee_service.lookup_employees(
+        session,
+        keyword=keyword,
+        allowed_department_ids=allowed_department_ids,
+        limit=limit,
+    )
     display_codes = await employee_code_service.batch_build_employee_display_codes(session, items)
     contexts = await employee_service.get_employee_lookup_context_map(
         session,
@@ -183,7 +192,8 @@ async def list_employees(
     is_active: Optional[bool] = Query(None),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
-    _: User = require_permission("employees:view"),
+    current_user: User = require_permission("employees:view"),
+    allowed_department_ids: set[int] | None = require_department_scope("employees:view"),
     session: AsyncSession = Depends(get_session),
 ):
     result = await employee_service.list_employees_page(
@@ -191,6 +201,7 @@ async def list_employees(
         keyword=keyword,
         status=status,
         is_active=is_active,
+        allowed_department_ids=allowed_department_ids,
         page=page,
         page_size=page_size,
     )
@@ -237,7 +248,7 @@ async def create_employee(
 @router.get("/{employee_id}", response_model=EmployeeRead, summary="Chi tiết nhân viên")
 async def get_employee(
     employee_id: int,
-    _: User = require_permission("employees:view"),
+    _: User = require_employee_access("employees:view"),
     session: AsyncSession = Depends(get_session),
 ):
     emp = await employee_service.get_employee_by_id(session, employee_id)
@@ -254,7 +265,7 @@ async def get_employee(
 async def update_employee(
     employee_id: int,
     payload: EmployeeUpdate,
-    current_user: User = require_permission("employees:edit"),
+    current_user: User = require_employee_access("employees:edit"),
     session: AsyncSession = Depends(get_session),
 ):
     emp_before = await employee_service.get_employee_by_id(session, employee_id)
@@ -282,7 +293,7 @@ async def update_employee(
 @router.delete("/{employee_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Vô hiệu hóa nhân viên")
 async def deactivate_employee(
     employee_id: int,
-    current_user: User = require_permission("employees:delete"),
+    current_user: User = require_employee_access("employees:delete"),
     session: AsyncSession = Depends(get_session),
 ):
     emp = await employee_service.soft_delete_employee(session, employee_id)
@@ -302,7 +313,7 @@ async def deactivate_employee(
 )
 async def get_addresses(
     employee_id: int,
-    _: User = require_permission("employees:view"),
+    _: User = require_employee_access("employees:view"),
     session: AsyncSession = Depends(get_session),
 ):
     addresses = await employee_service.get_employee_addresses(session, employee_id)
@@ -317,7 +328,7 @@ async def get_addresses(
 async def upsert_address(
     employee_id: int,
     payload: EmployeeAddressWrite,
-    current_user: User = require_permission("employees:edit"),
+    current_user: User = require_employee_access("employees:edit"),
     session: AsyncSession = Depends(get_session),
 ):
     addr = await employee_service.upsert_employee_address(session, employee_id, payload)
@@ -340,7 +351,7 @@ async def upsert_address(
 )
 async def get_bank_accounts(
     employee_id: int,
-    _: User = require_permission("employees:view"),
+    _: User = require_employee_access("employees:view"),
     session: AsyncSession = Depends(get_session),
 ):
     return await employee_service.get_employee_bank_accounts(session, employee_id)
@@ -355,7 +366,7 @@ async def get_bank_accounts(
 async def add_bank_account(
     employee_id: int,
     payload: EmployeeBankAccountWrite,
-    current_user: User = require_permission("employees:edit"),
+    current_user: User = require_employee_access("employees:edit"),
     session: AsyncSession = Depends(get_session),
 ):
     acc = await employee_service.create_bank_account(session, employee_id, payload)
@@ -378,7 +389,7 @@ async def update_bank_account(
     employee_id: int,
     account_id: int,
     payload: EmployeeBankAccountWrite,
-    current_user: User = require_permission("employees:edit"),
+    current_user: User = require_employee_access("employees:edit"),
     session: AsyncSession = Depends(get_session),
 ):
     acc = await employee_service.update_bank_account(session, employee_id, account_id, payload)
@@ -400,7 +411,7 @@ async def update_bank_account(
 async def delete_bank_account(
     employee_id: int,
     account_id: int,
-    current_user: User = require_permission("employees:edit"),
+    current_user: User = require_employee_access("employees:edit"),
     session: AsyncSession = Depends(get_session),
 ):
     await employee_service.delete_bank_account(session, employee_id, account_id)
@@ -421,7 +432,7 @@ async def delete_bank_account(
 )
 async def get_job_records(
     employee_id: int,
-    _: User = require_permission("employees:view"),
+    _: User = require_employee_access("employees:view"),
     session: AsyncSession = Depends(get_session),
 ):
     await employee_service._get_or_404(session, employee_id)
@@ -438,7 +449,7 @@ async def get_job_records(
 async def create_job_record(
     employee_id: int,
     payload: JobRecordCreate,
-    current_user: User = require_permission("employees:edit"),
+    current_user: User = require_employee_access("employees:edit"),
     session: AsyncSession = Depends(get_session),
 ):
     await employee_service._get_or_404(session, employee_id)
@@ -460,7 +471,7 @@ async def create_job_record(
 async def update_current_job_record(
     employee_id: int,
     payload: JobRecordUpdate,
-    current_user: User = require_permission("employees:edit"),
+    current_user: User = require_employee_access("employees:edit"),
     session: AsyncSession = Depends(get_session),
 ):
     await employee_service._get_or_404(session, employee_id)
@@ -483,7 +494,7 @@ async def update_current_job_record(
 async def transfer_job_record(
     employee_id: int,
     payload: JobRecordTransfer,
-    current_user: User = require_permission("employees:edit"),
+    current_user: User = require_employee_access("employees:edit"),
     session: AsyncSession = Depends(get_session),
 ):
     await employee_service._get_or_404(session, employee_id)
@@ -506,7 +517,7 @@ async def transfer_job_record(
 )
 async def get_relatives(
     employee_id: int,
-    _: User = require_permission("employees:view"),
+    _: User = require_employee_access("employees:view"),
     session: AsyncSession = Depends(get_session),
 ):
     await employee_service._get_or_404(session, employee_id)
@@ -522,7 +533,7 @@ async def get_relatives(
 async def create_relative(
     employee_id: int,
     payload: RelativeCreate,
-    current_user: User = require_permission("employees:edit"),
+    current_user: User = require_employee_access("employees:edit"),
     session: AsyncSession = Depends(get_session),
 ):
     await employee_service._get_or_404(session, employee_id)
@@ -546,7 +557,7 @@ async def update_relative(
     employee_id: int,
     relative_id: int,
     payload: RelativeUpdate,
-    current_user: User = require_permission("employees:edit"),
+    current_user: User = require_employee_access("employees:edit"),
     session: AsyncSession = Depends(get_session),
 ):
     await employee_service._get_or_404(session, employee_id)
@@ -569,7 +580,7 @@ async def update_relative(
 async def delete_relative(
     employee_id: int,
     relative_id: int,
-    current_user: User = require_permission("employees:edit"),
+    current_user: User = require_employee_access("employees:edit"),
     session: AsyncSession = Depends(get_session),
 ):
     await employee_service._get_or_404(session, employee_id)
@@ -591,7 +602,7 @@ async def delete_relative(
 )
 async def list_education_histories(
     employee_id: int,
-    _: User = require_permission("employees:view"),
+    _: User = require_employee_access("employees:view"),
     session: AsyncSession = Depends(get_session),
 ):
     await employee_service._get_or_404(session, employee_id)
@@ -607,7 +618,7 @@ async def list_education_histories(
 async def create_education_history(
     employee_id: int,
     payload: EducationHistoryCreate,
-    current_user: User = require_permission("employees:edit"),
+    current_user: User = require_employee_access("employees:edit"),
     session: AsyncSession = Depends(get_session),
 ):
     await employee_service._get_or_404(session, employee_id)
@@ -630,7 +641,7 @@ async def update_education_history(
     employee_id: int,
     edu_id: int,
     payload: EducationHistoryUpdate,
-    current_user: User = require_permission("employees:edit"),
+    current_user: User = require_employee_access("employees:edit"),
     session: AsyncSession = Depends(get_session),
 ):
     await employee_service._get_or_404(session, employee_id)
@@ -652,7 +663,7 @@ async def update_education_history(
 async def delete_education_history(
     employee_id: int,
     edu_id: int,
-    current_user: User = require_permission("employees:edit"),
+    current_user: User = require_employee_access("employees:edit"),
     session: AsyncSession = Depends(get_session),
 ):
     await employee_service._get_or_404(session, employee_id)
@@ -674,7 +685,7 @@ async def delete_education_history(
 )
 async def list_work_experiences(
     employee_id: int,
-    _: User = require_permission("employees:view"),
+    _: User = require_employee_access("employees:view"),
     session: AsyncSession = Depends(get_session),
 ):
     await employee_service._get_or_404(session, employee_id)
@@ -690,7 +701,7 @@ async def list_work_experiences(
 async def create_work_experience(
     employee_id: int,
     payload: WorkExperienceCreate,
-    current_user: User = require_permission("employees:edit"),
+    current_user: User = require_employee_access("employees:edit"),
     session: AsyncSession = Depends(get_session),
 ):
     await employee_service._get_or_404(session, employee_id)
@@ -715,7 +726,7 @@ async def update_work_experience(
     employee_id: int,
     exp_id: int,
     payload: WorkExperienceUpdate,
-    current_user: User = require_permission("employees:edit"),
+    current_user: User = require_employee_access("employees:edit"),
     session: AsyncSession = Depends(get_session),
 ):
     await employee_service._get_or_404(session, employee_id)
@@ -738,7 +749,7 @@ async def update_work_experience(
 async def delete_work_experience(
     employee_id: int,
     exp_id: int,
-    current_user: User = require_permission("employees:edit"),
+    current_user: User = require_employee_access("employees:edit"),
     session: AsyncSession = Depends(get_session),
 ):
     await employee_service._get_or_404(session, employee_id)
@@ -760,7 +771,7 @@ async def delete_work_experience(
 )
 async def list_employee_skills(
     employee_id: int,
-    _: User = require_permission("employees:view"),
+    _: User = require_employee_access("employees:view"),
     session: AsyncSession = Depends(get_session),
 ):
     await employee_service._get_or_404(session, employee_id)
@@ -776,7 +787,7 @@ async def list_employee_skills(
 async def create_employee_skill(
     employee_id: int,
     payload: EmployeeSkillCreate,
-    current_user: User = require_permission("employees:edit"),
+    current_user: User = require_employee_access("employees:edit"),
     session: AsyncSession = Depends(get_session),
 ):
     await employee_service._get_or_404(session, employee_id)
@@ -799,7 +810,7 @@ async def update_employee_skill(
     employee_id: int,
     skill_record_id: int,
     payload: EmployeeSkillUpdate,
-    current_user: User = require_permission("employees:edit"),
+    current_user: User = require_employee_access("employees:edit"),
     session: AsyncSession = Depends(get_session),
 ):
     await employee_service._get_or_404(session, employee_id)
@@ -821,7 +832,7 @@ async def update_employee_skill(
 async def delete_employee_skill(
     employee_id: int,
     skill_record_id: int,
-    current_user: User = require_permission("employees:edit"),
+    current_user: User = require_employee_access("employees:edit"),
     session: AsyncSession = Depends(get_session),
 ):
     await employee_service._get_or_404(session, employee_id)
@@ -843,7 +854,7 @@ async def delete_employee_skill(
 )
 async def list_employee_certificates(
     employee_id: int,
-    _: User = require_permission("employees:view"),
+    _: User = require_employee_access("employees:view"),
     session: AsyncSession = Depends(get_session),
 ):
     await employee_service._get_or_404(session, employee_id)
@@ -859,7 +870,7 @@ async def list_employee_certificates(
 async def create_employee_certificate(
     employee_id: int,
     payload: EmployeeCertificateCreate,
-    current_user: User = require_permission("employees:edit"),
+    current_user: User = require_employee_access("employees:edit"),
     session: AsyncSession = Depends(get_session),
 ):
     await employee_service._get_or_404(session, employee_id)
@@ -882,7 +893,7 @@ async def update_employee_certificate(
     employee_id: int,
     cert_id: int,
     payload: EmployeeCertificateUpdate,
-    current_user: User = require_permission("employees:edit"),
+    current_user: User = require_employee_access("employees:edit"),
     session: AsyncSession = Depends(get_session),
 ):
     await employee_service._get_or_404(session, employee_id)
@@ -904,7 +915,7 @@ async def update_employee_certificate(
 async def delete_employee_certificate(
     employee_id: int,
     cert_id: int,
-    current_user: User = require_permission("employees:edit"),
+    current_user: User = require_employee_access("employees:edit"),
     session: AsyncSession = Depends(get_session),
 ):
     await employee_service._get_or_404(session, employee_id)
@@ -926,7 +937,7 @@ async def delete_employee_certificate(
 )
 async def list_employee_languages(
     employee_id: int,
-    _: User = require_permission("employees:view"),
+    _: User = require_employee_access("employees:view"),
     session: AsyncSession = Depends(get_session),
 ):
     await employee_service._get_or_404(session, employee_id)
@@ -942,7 +953,7 @@ async def list_employee_languages(
 async def create_employee_language(
     employee_id: int,
     payload: EmployeeLanguageCreate,
-    current_user: User = require_permission("employees:edit"),
+    current_user: User = require_employee_access("employees:edit"),
     session: AsyncSession = Depends(get_session),
 ):
     await employee_service._get_or_404(session, employee_id)
@@ -967,7 +978,7 @@ async def update_employee_language(
     employee_id: int,
     lang_id: int,
     payload: EmployeeLanguageUpdate,
-    current_user: User = require_permission("employees:edit"),
+    current_user: User = require_employee_access("employees:edit"),
     session: AsyncSession = Depends(get_session),
 ):
     await employee_service._get_or_404(session, employee_id)
@@ -990,7 +1001,7 @@ async def update_employee_language(
 async def delete_employee_language(
     employee_id: int,
     lang_id: int,
-    current_user: User = require_permission("employees:edit"),
+    current_user: User = require_employee_access("employees:edit"),
     session: AsyncSession = Depends(get_session),
 ):
     await employee_service._get_or_404(session, employee_id)
@@ -1013,7 +1024,7 @@ async def delete_employee_language(
 async def list_attachments(
     employee_id: int,
     document_type: Optional[str] = Query(None, description="Lọc theo loại tài liệu"),
-    _: User = require_permission("employees:view"),
+    _: User = require_employee_access("employees:view"),
     session: AsyncSession = Depends(get_session),
 ):
     await employee_service._get_or_404(session, employee_id)
@@ -1031,7 +1042,7 @@ async def upload_attachment(
     file: UploadFile = File(...),
     document_type: str = Form(...),
     description: Optional[str] = Form(None),
-    current_user: User = require_permission("employees:edit"),
+    current_user: User = require_employee_access("employees:edit"),
     session: AsyncSession = Depends(get_session),
 ):
     await employee_service._get_or_404(session, employee_id)
@@ -1068,7 +1079,7 @@ async def upload_attachment(
 async def download_attachment(
     employee_id: int,
     att_id: int,
-    _: User = require_permission("employees:view"),
+    _: User = require_employee_access("employees:view"),
     session: AsyncSession = Depends(get_session),
 ):
     att = await employee_attachment_service.get_attachment_or_404(session, employee_id, att_id)
@@ -1088,7 +1099,7 @@ async def download_attachment(
 async def get_attachment_preview_url(
     employee_id: int,
     att_id: int,
-    _: User = require_permission("employees:view"),
+    _: User = require_employee_access("employees:view"),
     session: AsyncSession = Depends(get_session),
 ):
     await employee_attachment_service.get_attachment_or_404(session, employee_id, att_id)
@@ -1136,7 +1147,7 @@ async def preview_attachment(
 async def delete_attachment_endpoint(
     employee_id: int,
     att_id: int,
-    current_user: User = require_permission("employees:edit"),
+    current_user: User = require_employee_access("employees:edit"),
     session: AsyncSession = Depends(get_session),
 ):
     att = await employee_attachment_service.get_attachment_or_404(session, employee_id, att_id)
@@ -1151,12 +1162,8 @@ async def delete_attachment_endpoint(
 
 
 # ── Document Checklist (13.6) ─────────────────────────────────────────────────
-from app.services import document_checklist_service
-from app.services.document_checklist_service import ChecklistItemRead, ChecklistItemUpdate
-from app.core.storage import get_object_stream as _get_obj_stream
-
 _DOC_PERM_VIEW = "recruitment:view"
-_DOC_PERM_MANAGE = "recruitment:manage"
+_DOC_PERM_MANAGE = "recruitment:edit"
 
 @router.get(
     "/{employee_id}/document-checklist",

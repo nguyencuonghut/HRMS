@@ -1,15 +1,13 @@
 from __future__ import annotations
 
 import io
-import structlog
-
-logger = structlog.get_logger(__name__)
 import uuid
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Optional
 
+import structlog
 from fastapi import HTTPException, status
 from openpyxl import load_workbook
 from reportlab.lib import colors
@@ -45,6 +43,8 @@ from app.services import (
     recruitment_report_service,
 )
 from app.utils.excel_style import ExcelStyler
+
+logger = structlog.get_logger(__name__)
 
 ASYNC_THRESHOLD_ROWS = 1_000
 EXPORT_DIR = Path("/tmp/hrms_exports")
@@ -445,16 +445,16 @@ async def _export_probation(session: AsyncSession, filters: dict[str, Any]) -> i
 
 
 REPORT_HANDLERS: dict[str, ReportHandler] = {
-    "dashboard": ReportHandler(("employees:view", "employees:read"), _estimate_dashboard_rows, _export_dashboard_xlsx),
-    "hr-employee-list": ReportHandler(("employees:read",), _estimate_hr_employee_list, _export_hr_employee_list),
-    "hr-movement": ReportHandler(("employees:read",), _estimate_hr_movement, _export_hr_movement),
-    "hr-tenure": ReportHandler(("employees:read",), _estimate_hr_tenure, _export_hr_tenure),
-    "hr-org-structure": ReportHandler(("employees:read",), _estimate_hr_org_structure, _export_hr_org_structure),
-    "leaves": ReportHandler(("leaves:read",), _estimate_leaves, _export_leaves),
+    "dashboard": ReportHandler(("employees:view",), _estimate_dashboard_rows, _export_dashboard_xlsx),
+    "hr-employee-list": ReportHandler(("employees:view",), _estimate_hr_employee_list, _export_hr_employee_list),
+    "hr-movement": ReportHandler(("employees:view",), _estimate_hr_movement, _export_hr_movement),
+    "hr-tenure": ReportHandler(("employees:view",), _estimate_hr_tenure, _export_hr_tenure),
+    "hr-org-structure": ReportHandler(("employees:view",), _estimate_hr_org_structure, _export_hr_org_structure),
+    "leaves": ReportHandler(("leaves:view",), _estimate_leaves, _export_leaves),
     "insurance": ReportHandler(("insurance:view",), _estimate_insurance, _export_insurance),
-    "contracts": ReportHandler(("employees:read",), _estimate_contracts, _export_contracts),
+    "contracts": ReportHandler(("contracts:view",), _estimate_contracts, _export_contracts),
     "recruitment": ReportHandler(("recruitment:view",), _estimate_recruitment, _export_recruitment),
-    "probation": ReportHandler(("employees:read",), _estimate_probation, _export_probation),
+    "probation": ReportHandler(("employees:view",), _estimate_probation, _export_probation),
 }
 
 

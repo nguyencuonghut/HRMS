@@ -104,7 +104,7 @@ async def update_discipline(
     request: Request,
     body: str = Form(...),
     file: Optional[UploadFile] = File(None),
-    current_user: User = require_permission("disciplines:create"),
+    current_user: User = require_permission("disciplines:edit"),
     session: AsyncSession = Depends(get_session),
 ):
     try:

@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, Sequence
 
 from fastapi import HTTPException, status
-from sqlalchemy import func, or_, select
+from sqlalchemy import false, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.encryption import hash_sensitive
@@ -139,6 +139,7 @@ async def list_employees_page(
     keyword: Optional[str] = None,
     status: Optional[str] = None,
     is_active: Optional[bool] = None,
+    allowed_department_ids: Optional[Sequence[int]] = None,
     page: int = 1,
     page_size: int = 20,
 ) -> dict:
@@ -158,6 +159,16 @@ async def list_employees_page(
         )
 
     q = select(Employee)
+    if allowed_department_ids is not None:
+        q = q.join(
+            EmployeeJobRecord,
+            (EmployeeJobRecord.employee_id == Employee.id)
+            & (EmployeeJobRecord.is_current == True),  # noqa: E712
+        )
+        if not allowed_department_ids:
+            filters.append(false())
+        else:
+            filters.append(EmployeeJobRecord.department_id.in_(allowed_department_ids))
     if filters:
         q = q.where(*filters)
 
@@ -176,9 +187,20 @@ async def lookup_employees(
     session: AsyncSession,
     *,
     keyword: Optional[str] = None,
+    allowed_department_ids: Optional[Sequence[int]] = None,
     limit: int = 20,
 ) -> list[Employee]:
-    filters = [Employee.is_active == True]
+    filters = [Employee.is_active]
+    q = select(Employee)
+    if allowed_department_ids is not None:
+        q = q.join(
+            EmployeeJobRecord,
+            (EmployeeJobRecord.employee_id == Employee.id)
+            & (EmployeeJobRecord.is_current == True),  # noqa: E712
+        )
+        if not allowed_department_ids:
+            return []
+        filters.append(EmployeeJobRecord.department_id.in_(allowed_department_ids))
     if keyword:
         kw = keyword.strip()
         norm = normalize_text(kw)
@@ -198,7 +220,7 @@ async def lookup_employees(
                 *id_conditions,
             )
         )
-    q = select(Employee).where(*filters).order_by(Employee.employee_seq).limit(limit)
+    q = q.where(*filters).order_by(Employee.employee_seq).limit(limit)
     return list((await session.execute(q)).scalars().all())
 
 
@@ -587,7 +609,6 @@ async def build_employee_read_data(
     """Trả về dict chứa tất cả data cần để build EmployeeRead."""
     addresses = await get_employee_addresses(session, emp.id)
     bank_accounts = await get_employee_bank_accounts(session, emp.id)
-    prefix = await employee_job_service.get_display_code_prefix(session, emp.id)
     current_record = await employee_job_service.get_current_job_record(session, emp.id)
     current_job = await employee_job_service.build_job_record_read(session, current_record) if current_record else None
     relatives = await employee_relative_service.get_relatives(session, emp.id)

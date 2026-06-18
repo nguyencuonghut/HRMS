@@ -57,9 +57,22 @@ def _border_range(ws, min_row, max_row, min_col, max_col) -> None:
             cell.border = _THIN_BORDER
 
 
-async def export_performance_excel(session: AsyncSession, year: int) -> bytes:
-    dist   = await get_rating_distribution(session, year)
-    dept_stats = await get_department_kpi_stats(session, year)
+async def export_performance_excel(
+    session: AsyncSession,
+    year: int,
+    *,
+    allowed_department_ids: list[int] | None = None,
+) -> bytes:
+    dist = await get_rating_distribution(
+        session,
+        year,
+        allowed_department_ids=allowed_department_ids,
+    )
+    dept_stats = await get_department_kpi_stats(
+        session,
+        year,
+        allowed_department_ids=allowed_department_ids,
+    )
 
     wb = Workbook()
 

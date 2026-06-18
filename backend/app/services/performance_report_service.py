@@ -2,9 +2,9 @@
 from __future__ import annotations
 
 from decimal import Decimal, ROUND_HALF_UP
-from typing import List, Optional
+from typing import List, Optional, Sequence
 
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, false, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.employee import Employee
@@ -30,14 +30,25 @@ def _round1(v: float) -> float:
 async def get_rating_distribution(
     session: AsyncSession,
     year: int,
+    *,
+    allowed_department_ids: Optional[Sequence[int]] = None,
 ) -> RatingDistributionReport:
-    rows = (
-        await session.execute(
-            select(EmployeeYearlyReview.rating, func.count().label("cnt"))
-            .where(EmployeeYearlyReview.year == year)
-            .group_by(EmployeeYearlyReview.rating)
+    dist_stmt = select(EmployeeYearlyReview.rating, func.count().label("cnt")).where(
+        EmployeeYearlyReview.year == year
+    )
+    if allowed_department_ids is not None:
+        dist_stmt = dist_stmt.join(Employee, Employee.id == EmployeeYearlyReview.employee_id).join(
+            EmployeeJobRecord,
+            and_(
+                EmployeeJobRecord.employee_id == Employee.id,
+                EmployeeJobRecord.is_current == True,  # noqa: E712
+            ),
         )
-    ).all()
+        if not allowed_department_ids:
+            dist_stmt = dist_stmt.where(false())
+        else:
+            dist_stmt = dist_stmt.where(EmployeeJobRecord.department_id.in_(allowed_department_ids))
+    rows = (await session.execute(dist_stmt.group_by(EmployeeYearlyReview.rating))).all()
 
     counts: dict[str, int] = {r: 0 for r in _ALL_RATINGS}
     for rating, cnt in rows:
@@ -46,11 +57,20 @@ async def get_rating_distribution(
 
     total_reviewed = sum(counts.values())
 
-    total_emp_row = (
-        await session.execute(
-            select(func.count()).where(Employee.is_active == True)  # noqa: E712
+    total_emp_stmt = select(func.count()).select_from(Employee).where(Employee.is_active == True)  # noqa: E712
+    if allowed_department_ids is not None:
+        total_emp_stmt = total_emp_stmt.join(
+            EmployeeJobRecord,
+            and_(
+                EmployeeJobRecord.employee_id == Employee.id,
+                EmployeeJobRecord.is_current == True,  # noqa: E712
+            ),
         )
-    ).scalar_one()
+        if not allowed_department_ids:
+            total_emp_stmt = total_emp_stmt.where(false())
+        else:
+            total_emp_stmt = total_emp_stmt.where(EmployeeJobRecord.department_id.in_(allowed_department_ids))
+    total_emp_row = (await session.execute(total_emp_stmt)).scalar_one()
     total_employees = total_emp_row or 0
 
     coverage_rate = _round1(total_reviewed / total_employees * 100) if total_employees > 0 else 0.0
@@ -80,6 +100,8 @@ async def get_department_kpi_stats(
     year: int,
     month: Optional[int] = None,
     department_id: Optional[int] = None,
+    *,
+    allowed_department_ids: Optional[Sequence[int]] = None,
 ) -> List[DepartmentKpiStat]:
     stmt = (
         select(
@@ -107,6 +129,11 @@ async def get_department_kpi_stats(
         stmt = stmt.where(EmployeeKpiMonthly.month == month)
     if department_id is not None:
         stmt = stmt.where(EmployeeJobRecord.department_id == department_id)
+    if allowed_department_ids is not None:
+        if not allowed_department_ids:
+            stmt = stmt.where(false())
+        else:
+            stmt = stmt.where(EmployeeJobRecord.department_id.in_(allowed_department_ids))
 
     stmt = stmt.group_by(EmployeeJobRecord.department_id, Department.name)
     stmt = stmt.order_by(func.avg(EmployeeKpiMonthly.score).desc().nullslast())
@@ -131,6 +158,8 @@ async def get_monthly_trend(
     session: AsyncSession,
     year: int,
     department_id: Optional[int] = None,
+    *,
+    allowed_department_ids: Optional[Sequence[int]] = None,
 ) -> MonthlyKpiTrend:
     dept_name: Optional[str] = None
     if department_id is not None:
@@ -156,6 +185,11 @@ async def get_monthly_trend(
 
     if department_id is not None:
         stmt = stmt.where(EmployeeJobRecord.department_id == department_id)
+    if allowed_department_ids is not None:
+        if not allowed_department_ids:
+            stmt = stmt.where(false())
+        else:
+            stmt = stmt.where(EmployeeJobRecord.department_id.in_(allowed_department_ids))
 
     stmt = stmt.group_by(EmployeeKpiMonthly.month).order_by(EmployeeKpiMonthly.month)
     rows = (await session.execute(stmt)).all()

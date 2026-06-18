@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import io
 from datetime import date
-from typing import Optional
+from typing import Optional, Sequence
 
 from fastapi import HTTPException, status
-from sqlalchemy import func, select
+from sqlalchemy import false, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.catalog import LeaveType
@@ -44,6 +44,7 @@ async def get_employee_summary(
     department_id: Optional[int] = None,
     leave_type_id: Optional[int] = None,
     keyword: Optional[str] = None,
+    allowed_department_ids: Optional[Sequence[int]] = None,
     page: int = 1,
     page_size: int = 50,
 ) -> EmployeeSummaryReport:
@@ -71,7 +72,7 @@ async def get_employee_summary(
         .join(LeaveType, LeaveEntitlement.leave_type_id == LeaveType.id)
         .outerjoin(
             EmployeeJobRecord,
-            (EmployeeJobRecord.employee_id == Employee.id) & (EmployeeJobRecord.is_current == True),
+            (EmployeeJobRecord.employee_id == Employee.id) & EmployeeJobRecord.is_current,
         )
         .outerjoin(Department, Department.id == EmployeeJobRecord.department_id)
         .outerjoin(record_count_sq, record_count_sq.c.entitlement_id == LeaveEntitlement.id)
@@ -83,6 +84,11 @@ async def get_employee_summary(
         filters.append(LeaveEntitlement.employee_id == employee_id)
     if department_id is not None:
         filters.append(EmployeeJobRecord.department_id == department_id)
+    if allowed_department_ids is not None:
+        if not allowed_department_ids:
+            filters.append(false())
+        else:
+            filters.append(EmployeeJobRecord.department_id.in_(allowed_department_ids))
     if leave_type_id is not None:
         filters.append(LeaveEntitlement.leave_type_id == leave_type_id)
     if keyword:
@@ -140,6 +146,7 @@ async def get_department_summary(
     month_to: Optional[int] = None,
     department_id: Optional[int] = None,
     leave_type_id: Optional[int] = None,
+    allowed_department_ids: Optional[Sequence[int]] = None,
 ) -> DepartmentSummaryReport:
     if month_from and month_to and month_from > month_to:
         raise HTTPException(
@@ -160,7 +167,7 @@ async def get_department_summary(
         .join(Employee, LeaveRecord.employee_id == Employee.id)
         .outerjoin(
             EmployeeJobRecord,
-            (EmployeeJobRecord.employee_id == Employee.id) & (EmployeeJobRecord.is_current == True),
+            (EmployeeJobRecord.employee_id == Employee.id) & EmployeeJobRecord.is_current,
         )
         .outerjoin(Department, Department.id == EmployeeJobRecord.department_id)
         .join(LeaveType, LeaveRecord.leave_type_id == LeaveType.id)
@@ -179,6 +186,11 @@ async def get_department_summary(
         filters.append(func.extract("month", LeaveRecord.start_date) <= month_to)
     if department_id is not None:
         filters.append(EmployeeJobRecord.department_id == department_id)
+    if allowed_department_ids is not None:
+        if not allowed_department_ids:
+            filters.append(false())
+        else:
+            filters.append(EmployeeJobRecord.department_id.in_(allowed_department_ids))
     if leave_type_id is not None:
         filters.append(LeaveRecord.leave_type_id == leave_type_id)
 
@@ -217,6 +229,7 @@ async def get_year_end(
     *,
     year: int,
     department_id: Optional[int] = None,
+    allowed_department_ids: Optional[Sequence[int]] = None,
     page: int = 1,
     page_size: int = 50,
 ) -> YearEndReport:
@@ -231,17 +244,22 @@ async def get_year_end(
         .join(LeaveType, LeaveEntitlement.leave_type_id == LeaveType.id)
         .outerjoin(
             EmployeeJobRecord,
-            (EmployeeJobRecord.employee_id == Employee.id) & (EmployeeJobRecord.is_current == True),
+            (EmployeeJobRecord.employee_id == Employee.id) & EmployeeJobRecord.is_current,
         )
         .outerjoin(Department, Department.id == EmployeeJobRecord.department_id)
         .where(
             LeaveEntitlement.year == year,
-            LeaveType.carryover_allowed == True,
+            LeaveType.carryover_allowed,
         )
     )
 
     if department_id is not None:
         stmt = stmt.where(EmployeeJobRecord.department_id == department_id)
+    if allowed_department_ids is not None:
+        if not allowed_department_ids:
+            stmt = stmt.where(false())
+        else:
+            stmt = stmt.where(EmployeeJobRecord.department_id.in_(allowed_department_ids))
 
     count_stmt = select(func.count()).select_from(stmt.subquery())
     total = (await session.execute(count_stmt)).scalar_one()

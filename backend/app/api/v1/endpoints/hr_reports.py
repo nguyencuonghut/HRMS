@@ -50,7 +50,7 @@ async def get_employee_list(
     start_date_to: Optional[date] = Query(None),
     tenure_min: Optional[int] = Query(None, ge=0),
     tenure_max: Optional[int] = Query(None, ge=0),
-    _: User = require_permission("employees:view", "employees:read"),
+    _: User = require_permission("employees:view"),
     session: AsyncSession = Depends(get_session),
 ) -> EmployeeListResponse:
     return await hr_report_service.get_employee_list(
@@ -74,7 +74,7 @@ async def get_movement_report(
     end_date: date = Query(...),
     group_by: GroupBy = Query(GroupBy.month),
     department_id: Optional[int] = Query(None),
-    _: User = require_permission("employees:view", "employees:read"),
+    _: User = require_permission("employees:view"),
     session: AsyncSession = Depends(get_session),
 ) -> MovementReportResponse:
     if start_date > end_date:
@@ -94,7 +94,7 @@ async def get_movement_report(
 @router.get("/tenure", response_model=TenureReportResponse, summary="Báo cáo thâm niên")
 async def get_tenure_report(
     department_id: Optional[int] = Query(None),
-    _: User = require_permission("employees:view", "employees:read"),
+    _: User = require_permission("employees:view"),
     session: AsyncSession = Depends(get_session),
 ) -> TenureReportResponse:
     return await hr_report_service.get_tenure_report(session, department_id=department_id)
@@ -103,7 +103,7 @@ async def get_tenure_report(
 @router.get("/org-structure", response_model=OrgStructureResponse, summary="Cơ cấu tổ chức")
 async def get_org_structure(
     department_id: Optional[int] = Query(None),
-    _: User = require_permission("employees:view", "employees:read"),
+    _: User = require_permission("employees:view"),
     session: AsyncSession = Depends(get_session),
 ) -> OrgStructureResponse:
     return await hr_report_service.get_org_structure(session, department_id=department_id)
@@ -125,7 +125,7 @@ async def export_hr_report(
     movement_start_date: Optional[date] = Query(None, alias="start_date"),
     movement_end_date: Optional[date] = Query(None, alias="end_date"),
     group_by: GroupBy = Query(GroupBy.month),
-    _: User = require_permission("employees:view", "employees:read"),
+    _: User = require_permission("employees:view"),
     session: AsyncSession = Depends(get_session),
 ) -> StreamingResponse:
     if type == ExportType.employee_list:

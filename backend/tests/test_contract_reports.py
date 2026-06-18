@@ -15,12 +15,24 @@ from app.core.config import settings
 BASE = "/api/v1/reports/contracts"
 _ADMIN_EMAIL = "admin@hrms.local"
 _ADMIN_PASSWORD = "Hrms@2026"
+_HR_OFFICER_EMAIL = "hrofficer@hrms.local"
+_HR_OFFICER_PASSWORD = "Hrms@2026"
+_LINE_MANAGER_EMAIL = "linemanager@hrms.local"
+_LINE_MANAGER_PASSWORD = "Hrms@2026"
 
 
 def _login(client: TestClient) -> dict:
     token = client.post(
         "/api/v1/auth/login",
         json={"email": _ADMIN_EMAIL, "password": _ADMIN_PASSWORD},
+    ).json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}
+
+
+def _login_as(client: TestClient, email: str, password: str) -> dict:
+    token = client.post(
+        "/api/v1/auth/login",
+        json={"email": email, "password": password},
     ).json()["access_token"]
     return {"Authorization": f"Bearer {token}"}
 
@@ -270,3 +282,15 @@ def test_contract_export(client: TestClient):
     wb = openpyxl.load_workbook(io.BytesIO(resp.content))
     assert len(wb.sheetnames) == 1
     assert wb.sheetnames[0] == "Hợp đồng"
+
+
+def test_hr_officer_can_access_contract_reports(client: TestClient):
+    headers = _login_as(client, _HR_OFFICER_EMAIL, _HR_OFFICER_PASSWORD)
+    resp = client.get(f"{BASE}/summary", headers=headers)
+    assert resp.status_code == 200, resp.text
+
+
+def test_line_manager_cannot_access_contract_reports(client: TestClient):
+    headers = _login_as(client, _LINE_MANAGER_EMAIL, _LINE_MANAGER_PASSWORD)
+    resp = client.get(f"{BASE}/summary", headers=headers)
+    assert resp.status_code == 403, resp.text

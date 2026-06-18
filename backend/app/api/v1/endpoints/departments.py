@@ -3,7 +3,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.v1.deps import require_permission
+from app.api.v1.deps import require_department_access, require_department_scope, require_permission
 from app.core.database import get_session
 from app.models.auth import User
 from app.schemas.department import (
@@ -24,22 +24,35 @@ router = APIRouter()
 @router.get("", response_model=list[DepartmentRead], summary="Danh sách phòng/ban (phẳng)")
 async def list_departments(
     is_active: Optional[bool] = Query(None, description="Lọc theo trạng thái; bỏ trống = lấy tất cả"),
+    _: User = require_permission("org:view"),
+    allowed_department_ids: set[int] | None = require_department_scope("org:view"),
     session: AsyncSession = Depends(get_session),
 ):
-    return await department_service.get_list(session, is_active=is_active)
+    return await department_service.get_list(
+        session,
+        is_active=is_active,
+        allowed_department_ids=allowed_department_ids,
+    )
 
 
 @router.get("/tree", response_model=list[DepartmentTreeNode], summary="Cây phân cấp phòng/ban")
 async def get_department_tree(
     is_active: Optional[bool] = Query(None, description="Lọc theo trạng thái; bỏ trống = lấy tất cả"),
+    _: User = require_permission("org:view"),
+    allowed_department_ids: set[int] | None = require_department_scope("org:view"),
     session: AsyncSession = Depends(get_session),
 ):
-    return await department_service.get_tree(session, is_active=is_active)
+    return await department_service.get_tree(
+        session,
+        is_active=is_active,
+        allowed_department_ids=allowed_department_ids,
+    )
 
 
 @router.post("", response_model=DepartmentRead, status_code=status.HTTP_201_CREATED, summary="Tạo phòng/ban mới")
 async def create_department(
     body: DepartmentCreate,
+    _: User = require_permission("org:edit"),
     session: AsyncSession = Depends(get_session),
 ):
     return await department_service.create(session, body)
@@ -48,23 +61,35 @@ async def create_department(
 @router.get("/{dept_id}", response_model=DepartmentRead, summary="Chi tiết phòng/ban")
 async def get_department(
     dept_id: int,
+    _: User = require_department_access("org:view"),
+    allowed_department_ids: set[int] | None = require_department_scope("org:view"),
     session: AsyncSession = Depends(get_session),
 ):
-    return await department_service.get_by_id(session, dept_id)
+    return await department_service.get_by_id(
+        session,
+        dept_id,
+        allowed_department_ids=allowed_department_ids,
+    )
 
 
 @router.get("/{dept_id}/detail", response_model=DepartmentDetailRead, summary="Chi tiết phòng/ban cho trang detail")
 async def get_department_detail(
     dept_id: int,
+    _: User = require_department_access("org:view"),
+    allowed_department_ids: set[int] | None = require_department_scope("org:view"),
     session: AsyncSession = Depends(get_session),
 ):
-    return await department_service.get_detail(session, dept_id)
+    return await department_service.get_detail(
+        session,
+        dept_id,
+        allowed_department_ids=allowed_department_ids,
+    )
 
 
 @router.get("/{dept_id}/head", response_model=DepartmentHeadRead | None, summary="Người đứng đầu hiện hành của đơn vị")
 async def get_department_head(
     dept_id: int,
-    _: User = require_permission("org:view"),
+    _: User = require_department_access("org:view"),
     session: AsyncSession = Depends(get_session),
 ):
     return await department_head_service.get_current_head(session, dept_id)
@@ -75,7 +100,7 @@ async def upsert_department_head(
     dept_id: int,
     body: DepartmentHeadUpsert,
     request: Request,
-    current_user: User = require_permission("org:edit"),
+    current_user: User = require_department_access("org:edit"),
     session: AsyncSession = Depends(get_session),
 ):
     result, action, old_data, new_data = await department_head_service.upsert_head(
@@ -101,7 +126,7 @@ async def upsert_department_head(
 async def delete_department_head(
     dept_id: int,
     request: Request,
-    current_user: User = require_permission("org:edit"),
+    current_user: User = require_department_access("org:edit"),
     session: AsyncSession = Depends(get_session),
 ):
     old_data, new_data = await department_head_service.delete_current_head(session, dept_id, current_user.id)
@@ -125,6 +150,7 @@ async def delete_department_head(
 async def update_department(
     dept_id: int,
     body: DepartmentUpdate,
+    _: User = require_department_access("org:edit"),
     session: AsyncSession = Depends(get_session),
 ):
     return await department_service.update(session, dept_id, body)
@@ -133,6 +159,7 @@ async def update_department(
 @router.delete("/{dept_id}", summary="Xóa phòng/ban")
 async def delete_department(
     dept_id: int,
+    _: User = require_department_access("org:edit"),
     session: AsyncSession = Depends(get_session),
 ):
     return await department_service.delete(session, dept_id)

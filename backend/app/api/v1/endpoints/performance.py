@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, File, Query, UploadFile, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.v1.deps import require_permission
+from app.api.v1.deps import require_department_scope, require_employee_access, require_permission
 from app.core.database import get_session
 from app.core.storage import validate_upload
 from app.models.auth import User
@@ -30,7 +30,7 @@ from app.schemas.performance import (
 )
 from app.schemas.reward import RewardRead
 from app.schemas.training import TrainingRecordRead
-from app.services import kpi_service, link_service, performance_report_service, yearly_review_service
+from app.services import access_scope_service, kpi_service, link_service, performance_report_service, yearly_review_service
 from app.services.performance_export_service import export_performance_excel
 
 router = APIRouter()
@@ -54,15 +54,24 @@ async def list_kpi(
     search:        Optional[str] = Query(None),
     page:          int           = Query(1, ge=1),
     page_size:     int           = Query(20, ge=1, le=200),
-    _: User = require_permission("performance:view"),
+    current_user: User = require_permission("performance:view"),
+    allowed_department_ids: set[int] | None = require_department_scope(*access_scope_service.PERFORMANCE_SCOPE_PERMISSIONS),
     session: AsyncSession = Depends(get_session),
 ):
+    if department_id is not None:
+        await access_scope_service.ensure_department_access(
+            session,
+            current_user,
+            permission_codes=access_scope_service.PERFORMANCE_SCOPE_PERMISSIONS,
+            department_id=department_id,
+        )
     return await kpi_service.get_kpi_list(
         session,
         year=year,
         month=month,
         department_id=department_id,
         search=search,
+        allowed_department_ids=allowed_department_ids,
         page=page,
         page_size=page_size,
     )
@@ -77,9 +86,16 @@ async def list_kpi(
 )
 async def create_kpi(
     body: KpiMonthlyCreate,
-    current_user: User = require_permission("performance:manage_kpi"),
+    current_user: User = require_permission("performance:create"),
+    _: set[int] | None = require_department_scope(*access_scope_service.PERFORMANCE_SCOPE_PERMISSIONS),
     session: AsyncSession = Depends(get_session),
 ):
+    await access_scope_service.ensure_employee_access(
+        session,
+        current_user,
+        permission_codes=access_scope_service.PERFORMANCE_SCOPE_PERMISSIONS,
+        employee_id=body.employee_id,
+    )
     result = await kpi_service.create_kpi(session, body, current_user.id)
     await session.commit()
     return result
@@ -93,7 +109,7 @@ async def create_kpi(
 )
 async def import_kpi(
     file: UploadFile = File(...),
-    current_user: User = require_permission("performance:manage_kpi"),
+    current_user: User = require_permission("performance:create", "performance:edit"),
     session: AsyncSession = Depends(get_session),
 ):
     content = await validate_upload(file, check_type=False)
@@ -126,9 +142,11 @@ async def download_kpi_template(
 )
 async def get_kpi(
     kpi_id: int,
-    _: User = require_permission("performance:view"),
+    current_user: User = require_permission("performance:view"),
+    _: set[int] | None = require_department_scope(*access_scope_service.PERFORMANCE_SCOPE_PERMISSIONS),
     session: AsyncSession = Depends(get_session),
 ):
+    await access_scope_service.ensure_kpi_access(session, current_user, kpi_id=kpi_id)
     return await kpi_service.get_kpi(session, kpi_id)
 
 
@@ -141,9 +159,11 @@ async def get_kpi(
 async def update_kpi(
     kpi_id: int,
     body: KpiMonthlyUpdate,
-    _: User = require_permission("performance:manage_kpi"),
+    current_user: User = require_permission("performance:edit"),
+    _: set[int] | None = require_department_scope(*access_scope_service.PERFORMANCE_SCOPE_PERMISSIONS),
     session: AsyncSession = Depends(get_session),
 ):
+    await access_scope_service.ensure_kpi_access(session, current_user, kpi_id=kpi_id)
     result = await kpi_service.update_kpi(session, kpi_id, body)
     await session.commit()
     return result
@@ -157,9 +177,11 @@ async def update_kpi(
 )
 async def delete_kpi(
     kpi_id: int,
-    _: User = require_permission("performance:manage_kpi"),
+    current_user: User = require_permission("performance:delete"),
+    _: set[int] | None = require_department_scope(*access_scope_service.PERFORMANCE_SCOPE_PERMISSIONS),
     session: AsyncSession = Depends(get_session),
 ):
+    await access_scope_service.ensure_kpi_access(session, current_user, kpi_id=kpi_id)
     await kpi_service.delete_kpi(session, kpi_id)
     await session.commit()
 
@@ -175,7 +197,7 @@ async def delete_kpi(
 async def get_yearly_summary(
     employee_id: int,
     year: int = Query(..., ge=2000, le=2100),
-    _: User = require_permission("performance:view"),
+    _: User = require_employee_access("performance:view"),
     session: AsyncSession = Depends(get_session),
 ):
     return await yearly_review_service.get_yearly_kpi_summary(session, employee_id, year)
@@ -194,15 +216,24 @@ async def list_yearly_reviews(
     search:        Optional[str] = Query(None),
     page:          int           = Query(1, ge=1),
     page_size:     int           = Query(20, ge=1, le=200),
-    _: User = require_permission("performance:view"),
+    current_user: User = require_permission("performance:view"),
+    allowed_department_ids: set[int] | None = require_department_scope(*access_scope_service.PERFORMANCE_SCOPE_PERMISSIONS),
     session: AsyncSession = Depends(get_session),
 ):
+    if department_id is not None:
+        await access_scope_service.ensure_department_access(
+            session,
+            current_user,
+            permission_codes=access_scope_service.PERFORMANCE_SCOPE_PERMISSIONS,
+            department_id=department_id,
+        )
     return await yearly_review_service.get_yearly_reviews(
         session,
         year=year,
         department_id=department_id,
         rating=rating,
         search=search,
+        allowed_department_ids=allowed_department_ids,
         page=page,
         page_size=page_size,
     )
@@ -217,9 +248,16 @@ async def list_yearly_reviews(
 )
 async def create_yearly_review(
     body: YearlyReviewCreate,
-    current_user: User = require_permission("performance:manage_kpi"),
+    current_user: User = require_permission("performance:create"),
+    _: set[int] | None = require_department_scope(*access_scope_service.PERFORMANCE_SCOPE_PERMISSIONS),
     session: AsyncSession = Depends(get_session),
 ):
+    await access_scope_service.ensure_employee_access(
+        session,
+        current_user,
+        permission_codes=access_scope_service.PERFORMANCE_SCOPE_PERMISSIONS,
+        employee_id=body.employee_id,
+    )
     result = await yearly_review_service.create_review(session, body, current_user.id)
     await session.commit()
     return result
@@ -233,9 +271,15 @@ async def create_yearly_review(
 )
 async def get_yearly_review(
     review_id: int,
-    _: User = require_permission("performance:view"),
+    current_user: User = require_permission("performance:view"),
+    _: set[int] | None = require_department_scope(*access_scope_service.PERFORMANCE_SCOPE_PERMISSIONS),
     session: AsyncSession = Depends(get_session),
 ):
+    await access_scope_service.ensure_yearly_review_access(
+        session,
+        current_user,
+        review_id=review_id,
+    )
     return await yearly_review_service.get_yearly_review(session, review_id)
 
 
@@ -248,9 +292,15 @@ async def get_yearly_review(
 async def update_yearly_review(
     review_id: int,
     body: YearlyReviewUpdate,
-    _: User = require_permission("performance:manage_kpi"),
+    current_user: User = require_permission("performance:edit"),
+    _: set[int] | None = require_department_scope(*access_scope_service.PERFORMANCE_SCOPE_PERMISSIONS),
     session: AsyncSession = Depends(get_session),
 ):
+    await access_scope_service.ensure_yearly_review_access(
+        session,
+        current_user,
+        review_id=review_id,
+    )
     result = await yearly_review_service.update_review(session, review_id, body)
     await session.commit()
     return result
@@ -264,9 +314,15 @@ async def update_yearly_review(
 )
 async def delete_yearly_review(
     review_id: int,
-    _: User = require_permission("performance:manage_kpi"),
+    current_user: User = require_permission("performance:delete"),
+    _: set[int] | None = require_department_scope(*access_scope_service.PERFORMANCE_SCOPE_PERMISSIONS),
     session: AsyncSession = Depends(get_session),
 ):
+    await access_scope_service.ensure_yearly_review_access(
+        session,
+        current_user,
+        review_id=review_id,
+    )
     await yearly_review_service.delete_review(session, review_id)
     await session.commit()
 
@@ -283,9 +339,15 @@ async def delete_yearly_review(
 async def create_reward_from_review(
     review_id: int,
     body: RewardFromReviewRequest,
-    current_user: User = require_permission("performance:manage_kpi"),
+    current_user: User = require_permission("performance:edit"),
+    _: set[int] | None = require_department_scope(*access_scope_service.PERFORMANCE_SCOPE_PERMISSIONS),
     session: AsyncSession = Depends(get_session),
 ):
+    await access_scope_service.ensure_yearly_review_access(
+        session,
+        current_user,
+        review_id=review_id,
+    )
     result = await link_service.create_reward_from_review(session, review_id, body, current_user.id)
     await session.commit()
     return result
@@ -301,9 +363,15 @@ async def create_reward_from_review(
 async def create_training_from_review(
     review_id: int,
     body: TrainingFromReviewRequest,
-    current_user: User = require_permission("performance:manage_kpi"),
+    current_user: User = require_permission("performance:edit"),
+    _: set[int] | None = require_department_scope(*access_scope_service.PERFORMANCE_SCOPE_PERMISSIONS),
     session: AsyncSession = Depends(get_session),
 ):
+    await access_scope_service.ensure_yearly_review_access(
+        session,
+        current_user,
+        review_id=review_id,
+    )
     result = await link_service.create_training_from_review(session, review_id, body, current_user.id)
     await session.commit()
     return result
@@ -320,7 +388,7 @@ async def create_training_from_review(
 async def get_employee_kpi_history(
     employee_id: int,
     year: Optional[int] = Query(None),
-    _: User = require_permission("performance:view"),
+    _: User = require_employee_access("performance:view"),
     session: AsyncSession = Depends(get_session),
 ):
     return await link_service.get_employee_kpi_history(session, employee_id, year)
@@ -334,7 +402,7 @@ async def get_employee_kpi_history(
 )
 async def get_employee_review_history(
     employee_id: int,
-    _: User = require_permission("performance:view"),
+    _: User = require_employee_access("performance:view"),
     session: AsyncSession = Depends(get_session),
 ):
     return await link_service.get_employee_review_history(session, employee_id)
@@ -351,9 +419,14 @@ async def get_employee_review_history(
 async def get_rating_distribution(
     year: int = Query(..., ge=2000, le=2100),
     _: User = require_permission("performance:view"),
+    allowed_department_ids: set[int] | None = require_department_scope(*access_scope_service.PERFORMANCE_SCOPE_PERMISSIONS),
     session: AsyncSession = Depends(get_session),
 ):
-    return await performance_report_service.get_rating_distribution(session, year)
+    return await performance_report_service.get_rating_distribution(
+        session,
+        year,
+        allowed_department_ids=allowed_department_ids,
+    )
 
 
 @router.get(
@@ -366,11 +439,23 @@ async def get_department_kpi(
     year:          int           = Query(..., ge=2000, le=2100),
     month:         Optional[int] = Query(None, ge=1, le=12),
     department_id: Optional[int] = Query(None),
-    _: User = require_permission("performance:view"),
+    current_user: User = require_permission("performance:view"),
+    allowed_department_ids: set[int] | None = require_department_scope(*access_scope_service.PERFORMANCE_SCOPE_PERMISSIONS),
     session: AsyncSession = Depends(get_session),
 ):
+    if department_id is not None:
+        await access_scope_service.ensure_department_access(
+            session,
+            current_user,
+            permission_codes=access_scope_service.PERFORMANCE_SCOPE_PERMISSIONS,
+            department_id=department_id,
+        )
     return await performance_report_service.get_department_kpi_stats(
-        session, year, month=month, department_id=department_id
+        session,
+        year,
+        month=month,
+        department_id=department_id,
+        allowed_department_ids=allowed_department_ids,
     )
 
 
@@ -383,11 +468,22 @@ async def get_department_kpi(
 async def get_monthly_trend(
     year:          int           = Query(..., ge=2000, le=2100),
     department_id: Optional[int] = Query(None),
-    _: User = require_permission("performance:view"),
+    current_user: User = require_permission("performance:view"),
+    allowed_department_ids: set[int] | None = require_department_scope(*access_scope_service.PERFORMANCE_SCOPE_PERMISSIONS),
     session: AsyncSession = Depends(get_session),
 ):
+    if department_id is not None:
+        await access_scope_service.ensure_department_access(
+            session,
+            current_user,
+            permission_codes=access_scope_service.PERFORMANCE_SCOPE_PERMISSIONS,
+            department_id=department_id,
+        )
     return await performance_report_service.get_monthly_trend(
-        session, year, department_id=department_id
+        session,
+        year,
+        department_id=department_id,
+        allowed_department_ids=allowed_department_ids,
     )
 
 
@@ -399,9 +495,14 @@ async def get_monthly_trend(
 async def export_report(
     year: int = Query(..., ge=2000, le=2100),
     _: User = require_permission("performance:view"),
+    allowed_department_ids: set[int] | None = require_department_scope(*access_scope_service.PERFORMANCE_SCOPE_PERMISSIONS),
     session: AsyncSession = Depends(get_session),
 ):
-    content = await export_performance_excel(session, year)
+    content = await export_performance_excel(
+        session,
+        year,
+        allowed_department_ids=sorted(allowed_department_ids) if allowed_department_ids is not None else None,
+    )
     return StreamingResponse(
         iter([content]),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

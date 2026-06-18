@@ -3,7 +3,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.v1.deps import require_permission
+from app.api.v1.deps import require_department_scope, require_permission
 from app.core.database import get_session
 from app.models.auth import User
 from app.schemas.leave_record import (
@@ -13,7 +13,7 @@ from app.schemas.leave_record import (
     LeaveRecordRead,
     LeaveRecordUpdate,
 )
-from app.services import auth_service, leave_record_service
+from app.services import access_scope_service, auth_service, leave_record_service
 from datetime import date
 
 router = APIRouter()
@@ -37,9 +37,17 @@ async def list_records(
     keyword:       Optional[str]  = Query(None),
     page:          int            = Query(1, ge=1),
     page_size:     int            = Query(20, ge=1, le=100),
-    current_user: User = require_permission("leaves:read"),
+    current_user: User = require_permission("leaves:view"),
+    allowed_department_ids: set[int] | None = require_department_scope(*access_scope_service.LEAVE_SCOPE_PERMISSIONS),
     session: AsyncSession = Depends(get_session),
 ):
+    if employee_id is not None:
+        await access_scope_service.ensure_employee_access(
+            session,
+            current_user,
+            permission_codes=access_scope_service.LEAVE_SCOPE_PERMISSIONS,
+            employee_id=employee_id,
+        )
     result = await leave_record_service.list_records(
         session,
         employee_id=employee_id,
@@ -49,6 +57,7 @@ async def list_records(
         date_from=date_from,
         date_to=date_to,
         keyword=keyword,
+        allowed_department_ids=allowed_department_ids,
         page=page,
         page_size=page_size,
     )
@@ -58,9 +67,15 @@ async def list_records(
 @router.get("/{record_id}", response_model=LeaveRecordRead, summary="Chi tiết ghi nhận nghỉ phép")
 async def get_record(
     record_id: int,
-    current_user: User = require_permission("leaves:read"),
+    current_user: User = require_permission("leaves:view"),
+    _: set[int] | None = require_department_scope(*access_scope_service.LEAVE_SCOPE_PERMISSIONS),
     session: AsyncSession = Depends(get_session),
 ):
+    await access_scope_service.ensure_leave_record_access(
+        session,
+        current_user,
+        record_id=record_id,
+    )
     return await leave_record_service.get_record(session, record_id)
 
 
@@ -68,9 +83,16 @@ async def get_record(
 async def create_record(
     body: LeaveRecordCreate,
     request: Request,
-    current_user: User = require_permission("leaves:create"),
+    current_user: User = require_permission("leaves:edit"),
+    _: set[int] | None = require_department_scope(*access_scope_service.LEAVE_SCOPE_PERMISSIONS),
     session: AsyncSession = Depends(get_session),
 ):
+    await access_scope_service.ensure_employee_access(
+        session,
+        current_user,
+        permission_codes=access_scope_service.LEAVE_SCOPE_PERMISSIONS,
+        employee_id=body.employee_id,
+    )
     result = await leave_record_service.create_record(session, body, current_user.id)
     await session.commit()
     ip, ua = _meta(request)
@@ -89,9 +111,15 @@ async def update_record(
     record_id: int,
     body: LeaveRecordUpdate,
     request: Request,
-    current_user: User = require_permission("leaves:create"),
+    current_user: User = require_permission("leaves:edit"),
+    _: set[int] | None = require_department_scope(*access_scope_service.LEAVE_SCOPE_PERMISSIONS),
     session: AsyncSession = Depends(get_session),
 ):
+    await access_scope_service.ensure_leave_record_access(
+        session,
+        current_user,
+        record_id=record_id,
+    )
     result = await leave_record_service.update_record(session, record_id, body)
     await session.commit()
     ip, ua = _meta(request)
@@ -111,8 +139,14 @@ async def cancel_record(
     body: CancelRequest,
     request: Request,
     current_user: User = require_permission("leaves:create"),
+    _: set[int] | None = require_department_scope(*access_scope_service.LEAVE_SCOPE_PERMISSIONS),
     session: AsyncSession = Depends(get_session),
 ):
+    await access_scope_service.ensure_leave_record_access(
+        session,
+        current_user,
+        record_id=record_id,
+    )
     result = await leave_record_service.cancel_record(session, record_id, body)
     await session.commit()
     ip, ua = _meta(request)
@@ -131,8 +165,14 @@ async def delete_record(
     record_id: int,
     request: Request,
     current_user: User = require_permission("leaves:delete"),
+    _: set[int] | None = require_department_scope(*access_scope_service.LEAVE_SCOPE_PERMISSIONS),
     session: AsyncSession = Depends(get_session),
 ):
+    await access_scope_service.ensure_leave_record_access(
+        session,
+        current_user,
+        record_id=record_id,
+    )
     await leave_record_service.delete_record(session, record_id)
     await session.commit()
     ip, ua = _meta(request)

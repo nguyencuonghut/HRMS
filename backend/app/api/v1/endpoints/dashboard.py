@@ -25,7 +25,7 @@ async def get_dashboard_summary(
     year: Optional[int] = Query(None, ge=2000, le=2100),
     month: Optional[int] = Query(None, ge=1, le=12),
     department_id: Optional[int] = Query(None),
-    _: User = require_permission("employees:view", "employees:read"),
+    _: User = require_permission("employees:view"),
     session: AsyncSession = Depends(get_session),
 ):
     return await dashboard_service.get_summary(
@@ -39,7 +39,7 @@ async def get_dashboard_summary(
 @router.get("/headcount-by-dept", response_model=list[HeadcountByDeptItem], summary="Headcount theo phòng ban")
 async def get_dashboard_headcount_by_dept(
     department_id: Optional[int] = Query(None),
-    _: User = require_permission("employees:view", "employees:read"),
+    _: User = require_permission("employees:view"),
     session: AsyncSession = Depends(get_session),
 ):
     return await dashboard_service.get_headcount_by_dept(session, department_id=department_id)
@@ -49,7 +49,7 @@ async def get_dashboard_headcount_by_dept(
 async def get_dashboard_monthly_trend(
     year: Optional[int] = Query(None, ge=2000, le=2100),
     department_id: Optional[int] = Query(None),
-    _: User = require_permission("employees:view", "employees:read"),
+    _: User = require_permission("employees:view"),
     session: AsyncSession = Depends(get_session),
 ):
     return await dashboard_service.get_monthly_trend(
@@ -62,7 +62,7 @@ async def get_dashboard_monthly_trend(
 @router.get("/structure", response_model=StructureReport, summary="Cơ cấu nhân sự cho dashboard")
 async def get_dashboard_structure(
     department_id: Optional[int] = Query(None),
-    _: User = require_permission("employees:view", "employees:read"),
+    _: User = require_permission("employees:view"),
     session: AsyncSession = Depends(get_session),
 ):
     return await dashboard_service.get_structure(session, department_id=department_id)

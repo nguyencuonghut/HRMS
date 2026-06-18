@@ -41,7 +41,7 @@ def test_list_permissions_admin_200(client: TestClient):
     resp = client.get(PERM_BASE, headers=_admin(client))
     assert resp.status_code == 200
     perms = resp.json()
-    assert len(perms) == 70  # 14 modules × 5 actions
+    assert len(perms) == 80  # 16 modules × 5 actions
     assert all("code" in p and "module" in p and "action" in p for p in perms)
 
 
@@ -90,7 +90,7 @@ def test_list_roles_officer_403(client: TestClient):
 def test_list_roles_has_permission_count(client: TestClient):
     roles = client.get(BASE, headers=_admin(client)).json()
     admin_role = next(r for r in roles if r["code"] == "admin")
-    assert admin_role["permission_count"] == 70  # 14 modules × 5 actions
+    assert admin_role["permission_count"] == 80  # 16 modules × 5 actions
 
 
 def test_list_roles_system_flag(client: TestClient):
@@ -148,7 +148,7 @@ def test_get_role_includes_permissions(client: TestClient):
     roles = client.get(BASE, headers=_admin(client)).json()
     admin_role = next(r for r in roles if r["code"] == "admin")
     body = client.get(f"{BASE}/{admin_role['id']}", headers=_admin(client)).json()
-    assert len(body["permissions"]) == 70  # 14 modules × 5 actions
+    assert len(body["permissions"]) == 80  # 16 modules × 5 actions
 
 
 # ── PUT /roles/{id} ────────────────────────────────────────────────────────────

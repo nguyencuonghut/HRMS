@@ -2,14 +2,15 @@ from __future__ import annotations
 
 from datetime import date, datetime, timezone
 from decimal import Decimal
-from typing import Optional
+from typing import Optional, Sequence
 
 from fastapi import HTTPException, status
-from sqlalchemy import func, select
+from sqlalchemy import and_, false, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.catalog import LeaveType
 from app.models.employee import Employee
+from app.models.employee_job import EmployeeJobRecord
 from app.models.leave_entitlement import LeaveEntitlement
 from app.models.leave_record import LeaveRecord
 from app.schemas.leave_record import (
@@ -20,7 +21,6 @@ from app.schemas.leave_record import (
     compute_total_days,
 )
 from app.services import employee_code_service
-from app.schemas.leave_entitlement import LeaveEntitlementRead
 
 
 def _utcnow() -> datetime:
@@ -122,6 +122,7 @@ async def list_records(
     date_from: Optional[date] = None,
     date_to: Optional[date] = None,
     keyword: Optional[str] = None,
+    allowed_department_ids: Optional[Sequence[int]] = None,
     page: int = 1,
     page_size: int = 20,
 ) -> dict:
@@ -129,7 +130,20 @@ async def list_records(
         select(LeaveRecord)
         .join(Employee, LeaveRecord.employee_id == Employee.id)
     )
+    if allowed_department_ids is not None:
+        base = base.join(
+            EmployeeJobRecord,
+            and_(
+                EmployeeJobRecord.employee_id == Employee.id,
+                EmployeeJobRecord.is_current == True,  # noqa: E712
+            ),
+        )
     filters = []
+    if allowed_department_ids is not None:
+        if not allowed_department_ids:
+            filters.append(false())
+        else:
+            filters.append(EmployeeJobRecord.department_id.in_(allowed_department_ids))
     if employee_id is not None:
         filters.append(LeaveRecord.employee_id == employee_id)
     if leave_type_id is not None:
@@ -148,12 +162,16 @@ async def list_records(
     if filters:
         base = base.where(*filters)
 
-    count_stmt = select(func.count()).select_from(
-        select(LeaveRecord.id)
-        .join(Employee, LeaveRecord.employee_id == Employee.id)
-        .where(*filters)
-        .subquery()
-    )
+    count_base = select(LeaveRecord.id).join(Employee, LeaveRecord.employee_id == Employee.id)
+    if allowed_department_ids is not None:
+        count_base = count_base.join(
+            EmployeeJobRecord,
+            and_(
+                EmployeeJobRecord.employee_id == Employee.id,
+                EmployeeJobRecord.is_current == True,  # noqa: E712
+            ),
+        )
+    count_stmt = select(func.count()).select_from(count_base.where(*filters).subquery())
     total = (await session.execute(count_stmt)).scalar_one()
 
     stmt = (
