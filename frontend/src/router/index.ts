@@ -324,13 +324,13 @@ const router = createRouter({
           path: "reports/insurance",
           name: "insurance-analytics",
           component: () => import("@/views/reports/InsuranceAnalyticsView.vue"),
-          meta: { title: "Phân tích bảo hiểm", permission: "insurance:read" },
+          meta: { title: "Phân tích bảo hiểm", permission: "insurance:view" },
         },
         {
           path: "reports/contracts",
           name: "contract-reports",
           component: () => import("@/views/reports/ContractReportView.vue"),
-          meta: { title: "Báo cáo hợp đồng", permission: "employees:read" },
+          meta: { title: "Báo cáo hợp đồng", permission: "employees:view" },
         },
         {
           path: "reports/recruitment",
