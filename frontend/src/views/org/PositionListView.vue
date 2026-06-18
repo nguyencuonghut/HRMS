@@ -6,7 +6,7 @@
         <h2>Vị trí công việc</h2>
         <span class="subtitle">Quản lý vị trí công việc theo phòng/ban</span>
       </div>
-      <Button label="Thêm mới" icon="pi pi-plus" @click="openCreate" />
+      <Button v-if="canEditOrg" label="Thêm mới" icon="pi pi-plus" @click="openCreate" />
     </div>
 
     <!-- Toolbar -->
@@ -128,8 +128,8 @@
           <template #body="{ data }">
             <div class="action-cell">
               <Button icon="pi pi-eye"    severity="secondary" text rounded size="small" v-tooltip.top="'Chi tiết'" @click="openDetail(data)" />
-              <Button icon="pi pi-pencil" severity="secondary" text rounded size="small" v-tooltip.top="'Chỉnh sửa'" @click="openEdit(data)" />
-              <Button icon="pi pi-trash"  severity="danger"    text rounded size="small" v-tooltip.top="'Xóa'"       @click="confirmDelete(data)" />
+              <Button v-if="canEditOrg" icon="pi pi-pencil" severity="secondary" text rounded size="small" v-tooltip.top="'Chỉnh sửa'" @click="openEdit(data)" />
+              <Button v-if="canEditOrg" icon="pi pi-trash"  severity="danger"    text rounded size="small" v-tooltip.top="'Xóa'"       @click="confirmDelete(data)" />
             </div>
           </template>
         </Column>
@@ -265,7 +265,7 @@
 
       <template #footer>
         <Button label="Hủy" severity="secondary" outlined :disabled="submitting" @click="dialogVisible = false" />
-        <Button :label="editingItem ? 'Lưu thay đổi' : 'Tạo mới'" icon="pi pi-check" :loading="submitting" @click="submitForm" />
+        <Button v-if="canEditOrg" :label="editingItem ? 'Lưu thay đổi' : 'Tạo mới'" icon="pi pi-check" :loading="submitting" @click="submitForm" />
       </template>
     </Dialog>
 
@@ -316,6 +316,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useToast } from 'primevue/usetoast'
 import { useConfirm } from 'primevue/useconfirm'
+import { usePermissionGate } from '@/composables/usePermissionGate'
 import Button from 'primevue/button'
 import Column from 'primevue/column'
 import DataTable from 'primevue/datatable'
@@ -364,6 +365,8 @@ interface FormState {
 
 const toast   = useToast()
 const confirm = useConfirm()
+const permissionGate = usePermissionGate()
+const canEditOrg = computed(() => permissionGate.hasPermission('org:edit'))
 
 const loading      = ref(false)
 const list         = ref<JobPositionListItem[]>([])

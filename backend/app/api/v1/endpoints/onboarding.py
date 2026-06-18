@@ -6,7 +6,9 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.v1.deps import require_permission
 from app.core.database import get_session
+from app.models.auth import User
 from app.schemas.onboarding import (
     OnboardingChecklistCreate,
     OnboardingChecklistPage,
@@ -32,6 +34,7 @@ router = APIRouter()
 async def list_tasks(
     is_active: Optional[bool] = Query(default=None),
     group: Optional[str] = Query(default=None),
+    _: User = require_permission("employees:view"),
     session: AsyncSession = Depends(get_session),
 ):
     return await svc.list_tasks(session, is_active=is_active, group=group)
@@ -45,6 +48,7 @@ async def list_tasks(
 )
 async def create_task(
     data: OnboardingTaskCreate,
+    _: User = require_permission("employees:edit"),
     session: AsyncSession = Depends(get_session),
 ):
     try:
@@ -59,6 +63,7 @@ async def create_task(
 async def update_task(
     task_id: int,
     data: OnboardingTaskUpdate,
+    _: User = require_permission("employees:edit"),
     session: AsyncSession = Depends(get_session),
 ):
     try:
@@ -78,6 +83,7 @@ async def update_task(
 )
 async def delete_task(
     task_id: int,
+    _: User = require_permission("employees:edit"),
     session: AsyncSession = Depends(get_session),
 ):
     try:
@@ -97,6 +103,7 @@ async def list_checklists(
     days_until_completion: Optional[int] = Query(default=None),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
+    _: User = require_permission("employees:view"),
     session: AsyncSession = Depends(get_session),
 ):
     return await svc.list_checklists(
@@ -117,6 +124,7 @@ async def list_checklists(
 )
 async def create_checklist(
     data: OnboardingChecklistCreate,
+    _: User = require_permission("employees:edit"),
     session: AsyncSession = Depends(get_session),
 ):
     try:
@@ -137,6 +145,7 @@ async def create_checklist(
 @router.get("/{checklist_id}", response_model=OnboardingChecklistRead, tags=[_TAG_CHECKLIST])
 async def get_checklist(
     checklist_id: int,
+    _: User = require_permission("employees:view"),
     session: AsyncSession = Depends(get_session),
 ):
     try:
@@ -152,6 +161,7 @@ async def get_checklist(
 )
 async def get_checklist_by_employee(
     employee_id: int,
+    _: User = require_permission("employees:view"),
     session: AsyncSession = Depends(get_session),
 ):
     try:
@@ -164,6 +174,7 @@ async def get_checklist_by_employee(
 async def update_checklist(
     checklist_id: int,
     data: OnboardingChecklistUpdate,
+    _: User = require_permission("employees:edit"),
     session: AsyncSession = Depends(get_session),
 ):
     try:
@@ -185,6 +196,7 @@ async def update_item(
     checklist_id: int,
     item_id: int,
     data: OnboardingChecklistItemUpdate,
+    _: User = require_permission("employees:edit"),
     session: AsyncSession = Depends(get_session),
 ):
     try:

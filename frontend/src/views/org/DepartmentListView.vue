@@ -6,7 +6,7 @@
         <h2>Phòng / Ban</h2>
         <span class="subtitle">Quản lý cơ cấu phòng ban</span>
       </div>
-      <Button label="Thêm mới" icon="pi pi-plus" @click="openCreate" />
+      <Button v-if="canEditOrg" label="Thêm mới" icon="pi pi-plus" @click="openCreate" />
     </div>
 
     <!-- Toolbar -->
@@ -104,6 +104,7 @@
           <template #body="{ node }">
             <div class="action-cell">
               <Button
+                v-if="canEditOrg"
                 icon="pi pi-pencil"
                 severity="secondary"
                 text
@@ -113,6 +114,7 @@
                 @click="openEdit(node.data)"
               />
               <Button
+                v-if="canEditOrg"
                 icon="pi pi-trash"
                 severity="danger"
                 text
@@ -290,6 +292,7 @@
           @click="dialogVisible = false"
         />
         <Button
+          v-if="canEditOrg"
           :label="editingDept ? 'Lưu thay đổi' : 'Tạo mới'"
           icon="pi pi-check"
           :loading="submitting"
@@ -306,6 +309,7 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
 import { useConfirm } from 'primevue/useconfirm'
+import { usePermissionGate } from '@/composables/usePermissionGate'
 import Button from 'primevue/button'
 import Column from 'primevue/column'
 import Dialog from 'primevue/dialog'
@@ -352,6 +356,8 @@ interface FormState {
 const toast   = useToast()
 const confirm = useConfirm()
 const router = useRouter()
+const permissionGate = usePermissionGate()
+const canEditOrg = computed(() => permissionGate.hasPermission('org:edit'))
 
 const loading      = ref(false)
 const treeData     = ref<PvTreeNode[]>([])

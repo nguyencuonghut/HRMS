@@ -55,6 +55,7 @@
         @click="reset"
       />
       <Button
+        v-if="canCreateTraining"
         label="Thêm khóa học"
         icon="pi pi-plus"
         class="ml-auto"
@@ -154,12 +155,14 @@
         <Column header="" style="width: 90px; text-align: right">
           <template #body="{ data }: { data: CourseRead }">
             <Button
+              v-if="canEditTraining"
               icon="pi pi-pencil"
               text rounded size="small" severity="secondary"
               v-tooltip.top="'Sửa'"
               @click="openEdit(data)"
             />
             <Button
+              v-if="canDeleteTraining"
               icon="pi pi-trash"
               text rounded size="small" severity="danger"
               v-tooltip.top="'Xóa'"
@@ -267,7 +270,12 @@
 
       <template #footer>
         <Button label="Hủy" severity="secondary" text :disabled="saving" @click="showDialog = false" />
-        <Button :label="editingId ? 'Lưu thay đổi' : 'Thêm'" :loading="saving" @click="submit" />
+        <Button
+          v-if="canMutateTraining"
+          :label="editingId ? 'Lưu thay đổi' : 'Thêm'"
+          :loading="saving"
+          @click="submit"
+        />
       </template>
     </Dialog>
 
@@ -276,7 +284,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import Button from 'primevue/button'
 import Checkbox from 'primevue/checkbox'
 import Column from 'primevue/column'
@@ -298,10 +306,16 @@ import trainingService, {
   type CourseRead,
   type CourseTypeValue,
 } from '@/services/trainingService'
+import { usePermissionGate } from '@/composables/usePermissionGate'
 
 const confirm = useConfirm()
 const toast   = useToast()
+const permissionGate = usePermissionGate()
 const courseTypeOptions = COURSE_TYPES.map((option) => ({ ...option }))
+const canCreateTraining = computed(() => permissionGate.hasPermission('training:create'))
+const canEditTraining = computed(() => permissionGate.hasPermission('training:edit'))
+const canDeleteTraining = computed(() => permissionGate.hasPermission('training:delete'))
+const canMutateTraining = computed(() => canCreateTraining.value || canEditTraining.value)
 
 // ── Options ───────────────────────────────────────────────────────────────────
 

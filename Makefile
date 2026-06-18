@@ -120,3 +120,10 @@ db-reset:
 	$(MAKE) migrate-refresh
 	docker compose exec backend python -m app.seeds --sample
 	@echo "✓ db-reset hoàn thành."
+
+test-docker:
+	@echo "=== Docker Socket on Host ==="
+	ls -la /var/run/docker.sock || true
+	@echo "=== Docker Service Status on Host ==="
+	systemctl status docker || true
+

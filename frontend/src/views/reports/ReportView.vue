@@ -9,7 +9,7 @@
 
     <div class="report-hub-grid">
       <RouterLink
-        v-for="item in reportCards"
+        v-for="item in visibleReportCards"
         :key="item.to"
         :to="item.to"
         class="report-hub-card"
@@ -28,12 +28,18 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from "vue";
+
+import { usePermissionGate } from "@/composables/usePermissionGate";
+
 type ReportCard = {
   to: string
   title: string
   description: string
   icon: string
 }
+
+const permissionGate = usePermissionGate();
 
 const reportCards: ReportCard[] = [
   {
@@ -109,6 +115,10 @@ const reportCards: ReportCard[] = [
     icon: 'pi-file-export',
   },
 ]
+
+const visibleReportCards = computed(() =>
+  reportCards.filter((item) => permissionGate.canAccessRoute(item.to)),
+)
 </script>
 
 <style>

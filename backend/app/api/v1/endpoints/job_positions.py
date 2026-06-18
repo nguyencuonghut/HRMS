@@ -4,8 +4,10 @@ from fastapi import APIRouter, Depends, Query, UploadFile, File, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.v1.deps import require_permission
 from app.core.database import get_session
 from app.core.storage import delete_attachment, get_object_stream, save_attachment
+from app.models.auth import User
 from app.models.org import JobPositionAttachment
 from app.schemas.employee_code_rule import EmployeeCodeSequenceRuleRead, EmployeeCodeSequenceRuleUpsert
 from app.schemas.job_position import (
@@ -28,6 +30,7 @@ async def list_job_positions(
     department_id: Optional[int]  = Query(None, description="Lọc theo phòng/ban"),
     is_active:     Optional[bool] = Query(None, description="Lọc theo trạng thái"),
     search:        Optional[str]  = Query(None, description="Tìm theo mã hoặc tên"),
+    _: User = require_permission("org:view", "insurance:view"),
     session: AsyncSession = Depends(get_session),
 ):
     return await job_position_service.get_list(
@@ -43,7 +46,9 @@ async def list_job_positions(
     response_model=list[ProbationLegalGroupOption],
     summary="Danh sách nhóm pháp lý thử việc",
 )
-async def list_probation_legal_group_options():
+async def list_probation_legal_group_options(
+    _: User = require_permission("org:view"),
+):
     return [
         ProbationLegalGroupOption(
             code=code,
@@ -57,6 +62,7 @@ async def list_probation_legal_group_options():
 @router.get("/{pos_id}", response_model=JobPositionRead, summary="Chi tiết vị trí công việc")
 async def get_job_position(
     pos_id: int,
+    _: User = require_permission("org:view"),
     session: AsyncSession = Depends(get_session),
 ):
     pos = await job_position_service.get_by_id(session, pos_id)
@@ -66,6 +72,7 @@ async def get_job_position(
 @router.post("", response_model=JobPositionRead, status_code=status.HTTP_201_CREATED, summary="Tạo vị trí mới")
 async def create_job_position(
     body: JobPositionCreate,
+    _: User = require_permission("org:edit"),
     session: AsyncSession = Depends(get_session),
 ):
     pos = await job_position_service.create(session, body)
@@ -76,6 +83,7 @@ async def create_job_position(
 async def update_job_position(
     pos_id: int,
     body: JobPositionUpdate,
+    _: User = require_permission("org:edit"),
     session: AsyncSession = Depends(get_session),
 ):
     pos = await job_position_service.update(session, pos_id, body)
@@ -85,6 +93,7 @@ async def update_job_position(
 @router.delete("/{pos_id}", summary="Xóa vị trí công việc")
 async def delete_job_position(
     pos_id: int,
+    _: User = require_permission("org:edit"),
     session: AsyncSession = Depends(get_session),
 ):
     return await job_position_service.delete(session, pos_id)
@@ -97,6 +106,7 @@ async def delete_job_position(
 )
 async def get_job_position_employee_code_rule(
     pos_id: int,
+    _: User = require_permission("org:view"),
     session: AsyncSession = Depends(get_session),
 ):
     return await employee_code_rule_service.get_job_position_rule(session, pos_id)
@@ -110,6 +120,7 @@ async def get_job_position_employee_code_rule(
 async def upsert_job_position_employee_code_rule(
     pos_id: int,
     body: EmployeeCodeSequenceRuleUpsert,
+    _: User = require_permission("org:edit"),
     session: AsyncSession = Depends(get_session),
 ):
     return await employee_code_rule_service.upsert_job_position_rule(session, pos_id, body)
@@ -121,6 +132,7 @@ async def upsert_job_position_employee_code_rule(
 )
 async def delete_job_position_employee_code_rule(
     pos_id: int,
+    _: User = require_permission("org:edit"),
     session: AsyncSession = Depends(get_session),
 ):
     return await employee_code_rule_service.delete_job_position_rule(session, pos_id)
@@ -147,6 +159,7 @@ def _att_to_read(att: JobPositionAttachment, pos_id: int) -> AttachmentRead:
 )
 async def list_attachments(
     pos_id: int,
+    _: User = require_permission("org:view"),
     session: AsyncSession = Depends(get_session),
 ):
     await job_position_service.get_by_id(session, pos_id)  # 404 nếu không tồn tại
@@ -163,6 +176,7 @@ async def list_attachments(
 async def upload_attachment(
     pos_id: int,
     file: UploadFile = File(...),
+    _: User = require_permission("org:edit"),
     session: AsyncSession = Depends(get_session),
 ):
     await job_position_service.get_by_id(session, pos_id)  # 404 nếu không tồn tại
@@ -186,6 +200,7 @@ async def upload_attachment(
 async def download_attachment(
     pos_id: int,
     att_id: int,
+    _: User = require_permission("org:view"),
     session: AsyncSession = Depends(get_session),
 ):
     att = await job_position_service.get_attachment_by_id(session, pos_id, att_id)
@@ -204,6 +219,7 @@ async def download_attachment(
 async def delete_attachment_endpoint(
     pos_id: int,
     att_id: int,
+    _: User = require_permission("org:edit"),
     session: AsyncSession = Depends(get_session),
 ):
     att = await job_position_service.get_attachment_by_id(session, pos_id, att_id)

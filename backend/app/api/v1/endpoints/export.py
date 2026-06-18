@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, Query, Response
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.v1.deps import get_current_active_user
+from app.api.v1.deps import require_permission
 from app.core.database import get_session
 from app.models.auth import User
 from app.schemas.export import (
@@ -27,7 +27,7 @@ router = APIRouter()
 @router.post("", response_model=ExportJobResponse)
 async def create_export_job(
     payload: ExportJobRequest,
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = require_permission("reports:export"),
     session: AsyncSession = Depends(get_session),
 ) -> ExportJobResponse:
     service = ExportService(session)
@@ -39,7 +39,7 @@ async def create_export_job(
 async def get_export_history(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = require_permission("reports:view"),
     session: AsyncSession = Depends(get_session),
 ) -> ExportHistoryResponse:
     return await ExportService(session).get_history(current_user, page=page, page_size=page_size)
@@ -48,7 +48,7 @@ async def get_export_history(
 @router.get("/{job_id}/status", response_model=ExportJobStatusResponse)
 async def get_export_status(
     job_id: uuid.UUID,
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = require_permission("reports:view"),
     session: AsyncSession = Depends(get_session),
 ) -> ExportJobStatusResponse:
     return await ExportService(session).get_status(job_id, current_user)
@@ -57,7 +57,7 @@ async def get_export_status(
 @router.get("/{job_id}/download")
 async def download_export(
     job_id: uuid.UUID,
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = require_permission("reports:export"),
     session: AsyncSession = Depends(get_session),
 ):
     job = await ExportService(session).get_download_job(job_id, current_user)
@@ -72,7 +72,7 @@ async def download_export(
 @router.delete("/{job_id}", status_code=204)
 async def delete_export_job(
     job_id: uuid.UUID,
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = require_permission("reports:export"),
     session: AsyncSession = Depends(get_session),
 ) -> Response:
     await ExportService(session).delete_job(job_id, current_user)
@@ -82,7 +82,7 @@ async def delete_export_job(
 @router.post("/templates", response_model=ReportTemplateResponse)
 async def create_report_template(
     payload: ReportTemplateCreate,
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = require_permission("reports:export"),
     session: AsyncSession = Depends(get_session),
 ) -> ReportTemplateResponse:
     return await ExportService(session).create_template(payload, current_user)
@@ -90,7 +90,7 @@ async def create_report_template(
 
 @router.get("/templates", response_model=list[ReportTemplateResponse])
 async def list_report_templates(
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = require_permission("reports:view"),
     session: AsyncSession = Depends(get_session),
 ) -> list[ReportTemplateResponse]:
     return await ExportService(session).list_templates(current_user)
@@ -100,7 +100,7 @@ async def list_report_templates(
 async def update_report_template(
     template_id: int,
     payload: ReportTemplateUpdate,
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = require_permission("reports:export"),
     session: AsyncSession = Depends(get_session),
 ) -> ReportTemplateResponse:
     return await ExportService(session).update_template(template_id, payload, current_user)
@@ -109,7 +109,7 @@ async def update_report_template(
 @router.delete("/templates/{template_id}", status_code=204)
 async def delete_report_template(
     template_id: int,
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = require_permission("reports:export"),
     session: AsyncSession = Depends(get_session),
 ) -> Response:
     await ExportService(session).delete_template(template_id, current_user)

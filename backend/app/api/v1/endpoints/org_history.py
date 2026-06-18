@@ -7,7 +7,9 @@ from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.v1.deps import require_permission
 from app.core.database import get_session
+from app.models.auth import User
 from app.models.org import OrgChangeLog
 from app.schemas.org_history import OrgHistoryRead
 
@@ -29,6 +31,7 @@ async def list_org_history(
     date_to:     Optional[date] = Query(None),
     page:        int            = Query(1, ge=1),
     page_size:   int            = Query(20, ge=1, le=100),
+    _: User = require_permission("org:view"),
     session: AsyncSession = Depends(get_session),
 ):
     base = select(OrgChangeLog)

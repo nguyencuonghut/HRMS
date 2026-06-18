@@ -16,7 +16,7 @@
         <Tab value="quick">Xuất nhanh</Tab>
         <Tab value="history">Lịch sử</Tab>
         <Tab value="templates">Mẫu</Tab>
-        <Tab value="bhxh">Biểu mẫu BHXH</Tab>
+        <Tab v-if="canViewInsuranceExports" value="bhxh">Biểu mẫu BHXH</Tab>
       </TabList>
 
       <TabPanels>
@@ -38,12 +38,14 @@
 
               <div class="export-main-actions">
                 <Button
+                  v-if="canExportReports"
                   label="Xuất báo cáo"
                   icon="pi pi-file-export"
                   :loading="submitting"
                   @click="submitExport"
                 />
                 <Button
+                  v-if="canExportReports"
                   label="Lưu thành mẫu"
                   icon="pi pi-bookmark"
                   severity="secondary"
@@ -51,7 +53,7 @@
                   @click="openSaveTemplateDialog"
                 />
                 <Button
-                  v-if="selectedTemplateId"
+                  v-if="canExportReports && selectedTemplateId"
                   label="Ghi đè mẫu đang dùng"
                   icon="pi pi-save"
                   severity="contrast"
@@ -92,7 +94,7 @@
                 </div>
                 <div class="export-current-actions">
                   <Button
-                    v-if="currentJob.status === 'done'"
+                    v-if="canExportReports && currentJob.status === 'done'"
                     label="Tải file"
                     icon="pi pi-download"
                     severity="success"
@@ -175,7 +177,7 @@
                 <template #body="{ data }">
                   <div class="export-row-actions">
                     <Button
-                      v-if="data.status === 'done'"
+                      v-if="canExportReports && data.status === 'done'"
                       icon="pi pi-download"
                       text
                       rounded
@@ -184,6 +186,7 @@
                       @click="downloadJob(data)"
                     />
                     <Button
+                      v-if="canExportReports"
                       icon="pi pi-trash"
                       text
                       rounded
@@ -248,6 +251,7 @@
                       @click="applyTemplate(data)"
                     />
                     <Button
+                      v-if="canExportReports"
                       icon="pi pi-pencil"
                       text
                       rounded
@@ -256,6 +260,7 @@
                       @click="openEditTemplateDialog(data)"
                     />
                     <Button
+                      v-if="canExportReports"
                       icon="pi pi-trash"
                       text
                       rounded
@@ -269,7 +274,7 @@
             </DataTable>
           </div>
         </TabPanel>
-        <TabPanel value="bhxh">
+        <TabPanel v-if="canViewInsuranceExports" value="bhxh">
           <div class="bhxh-panel">
             <!-- Filter row -->
             <div class="card bhxh-filter-card">
@@ -314,6 +319,7 @@
                 <div class="bhxh-form-desc">Danh sách lao động tham gia BHXH, BHYT, BHTN</div>
               </div>
               <Button
+                v-if="canViewInsuranceExports"
                 label="Xuất Excel"
                 icon="pi pi-file-excel"
                 severity="success"
@@ -330,6 +336,7 @@
                 <div class="bhxh-form-desc">Bảng tổng hợp mức đóng BHXH, BHYT, BHTN</div>
               </div>
               <Button
+                v-if="canViewInsuranceExports"
                 label="Xuất Excel"
                 icon="pi pi-file-excel"
                 severity="success"
@@ -374,7 +381,7 @@
       </div>
       <template #footer>
         <Button label="Hủy" text @click="saveTemplateVisible = false" />
-        <Button label="Lưu mẫu" :loading="templateSaving" @click="saveTemplate" />
+        <Button v-if="canExportReports" label="Lưu mẫu" :loading="templateSaving" @click="saveTemplate" />
       </template>
     </Dialog>
 
@@ -409,7 +416,7 @@
       </div>
       <template #footer>
         <Button label="Hủy" text @click="editTemplateVisible = false" />
-        <Button label="Cập nhật" :loading="templateSaving" @click="updateTemplateMeta" />
+        <Button v-if="canExportReports" label="Cập nhật" :loading="templateSaving" @click="updateTemplateMeta" />
       </template>
     </Dialog>
   </div>
@@ -444,9 +451,13 @@ import exportService, {
 } from '@/services/exportService'
 import bhxhExportService from '@/services/bhxhExportService'
 import ExportFilterPanel from './components/export/ExportFilterPanel.vue'
+import { usePermissionGate } from '@/composables/usePermissionGate'
 
 const toast = useToast()
 const { isPolling, start } = useExportPolling()
+const permissionGate = usePermissionGate()
+const canExportReports = computed(() => permissionGate.hasPermission('reports:export'))
+const canViewInsuranceExports = computed(() => permissionGate.hasPermission('insurance:view'))
 
 const activeTab = ref('quick')
 const departments = ref<DepartmentRead[]>([])

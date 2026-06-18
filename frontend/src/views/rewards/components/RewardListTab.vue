@@ -59,6 +59,7 @@
         @click="reset"
       />
       <Button
+        v-if="canCreateReward"
         label="Thêm quyết định"
         icon="pi pi-plus"
         class="ml-auto"
@@ -149,6 +150,7 @@
         <Column header="" style="width: 90px; text-align: right">
           <template #body="{ data }: { data: RewardRead }">
             <Button
+              v-if="canEditReward"
               icon="pi pi-pencil"
               text
               rounded
@@ -158,6 +160,7 @@
               @click="openEdit(data)"
             />
             <Button
+              v-if="canDeleteReward"
               icon="pi pi-trash"
               text
               rounded
@@ -289,6 +292,7 @@
               @change="onFileChange"
             />
             <Button
+              v-if="canMutateReward"
               icon="pi pi-upload"
               label="Chọn file"
               severity="secondary"
@@ -302,7 +306,7 @@
               {{ existingFileName }}
             </span>
             <Button
-              v-if="selectedFile || existingFileName"
+              v-if="canMutateReward && (selectedFile || existingFileName)"
               icon="pi pi-times"
               text
               rounded
@@ -322,7 +326,12 @@
 
       <template #footer>
         <Button label="Hủy" severity="secondary" text :disabled="saving" @click="showDialog = false" />
-        <Button :label="editingId ? 'Lưu thay đổi' : 'Thêm'" :loading="saving" @click="submit" />
+        <Button
+          v-if="canMutateReward"
+          :label="editingId ? 'Lưu thay đổi' : 'Thêm'"
+          :loading="saving"
+          @click="submit"
+        />
       </template>
     </Dialog>
 
@@ -353,9 +362,11 @@ import { useToast } from 'primevue/usetoast'
 import rewardService, { type RewardRead, type RewardCreate, type RewardTypeRead } from '@/services/rewardService'
 import departmentService, { type DepartmentRead } from '@/services/departmentService'
 import employeeService, { type EmployeeLookupItem } from '@/services/employeeService'
+import { usePermissionGate } from '@/composables/usePermissionGate'
 
 const confirm = useConfirm()
 const toast   = useToast()
+const permissionGate = usePermissionGate()
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
@@ -414,6 +425,10 @@ const selectedTypeIsMonetary = computed(() => {
   const t = rewardTypes.value.find(t => t.id === form.value.reward_type_id)
   return t?.is_monetary ?? false
 })
+const canCreateReward = computed(() => permissionGate.hasPermission('rewards:create'))
+const canEditReward = computed(() => permissionGate.hasPermission('rewards:edit'))
+const canDeleteReward = computed(() => permissionGate.hasPermission('rewards:delete'))
+const canMutateReward = computed(() => canCreateReward.value || canEditReward.value)
 
 // ── Load ──────────────────────────────────────────────────────────────────────
 

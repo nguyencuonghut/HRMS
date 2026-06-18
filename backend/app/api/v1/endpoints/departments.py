@@ -172,6 +172,7 @@ async def delete_department(
 )
 async def get_department_employee_code_rule(
     dept_id: int,
+    _: User = require_department_access("org:view"),
     session: AsyncSession = Depends(get_session),
 ):
     return await employee_code_rule_service.get_department_rule(session, dept_id)
@@ -185,6 +186,7 @@ async def get_department_employee_code_rule(
 async def upsert_department_employee_code_rule(
     dept_id: int,
     body: EmployeeCodeSequenceRuleUpsert,
+    _: User = require_department_access("org:edit"),
     session: AsyncSession = Depends(get_session),
 ):
     return await employee_code_rule_service.upsert_department_rule(session, dept_id, body)
@@ -196,6 +198,7 @@ async def upsert_department_employee_code_rule(
 )
 async def delete_department_employee_code_rule(
     dept_id: int,
+    _: User = require_department_access("org:edit"),
     session: AsyncSession = Depends(get_session),
 ):
     return await employee_code_rule_service.delete_department_rule(session, dept_id)

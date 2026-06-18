@@ -60,10 +60,18 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
-import { useAuthStore } from "@/stores/auth";
+import { usePermissionGate } from "@/composables/usePermissionGate";
 import reminderService from "@/services/reminderService";
 
 defineProps<{ collapsed: boolean }>();
+
+interface MenuChildItem {
+  to: string;
+  label: string;
+  icon?: string;
+  permission?: string;
+  anyPermissions?: string[];
+}
 
 interface MenuItem {
   to?: string;
@@ -72,11 +80,11 @@ interface MenuItem {
   section?: boolean;
   permission?: string;
   anyPermissions?: string[];
-  items?: { to: string; label: string; icon?: string }[];
+  items?: MenuChildItem[];
 }
 
-const auth = useAuthStore();
 const route = useRoute();
+const permissionGate = usePermissionGate();
 
 const openGroups = ref<Set<string>>(
   new Set(["Cơ cấu tổ chức", "Nhân sự", "Tuyển dụng", "Báo cáo", "Danh mục"]),
@@ -100,12 +108,22 @@ function toggleGroup(label: string) {
   }
 }
 
-function canAccess(item: Pick<MenuItem, "permission" | "anyPermissions">): boolean {
-  if (item.permission && !auth.hasPermission(item.permission)) {
+function canAccessChild(item: MenuChildItem): boolean {
+  if (!permissionGate.canAccess(item)) {
     return false;
   }
-  if (item.anyPermissions && !item.anyPermissions.some((permission) => auth.hasPermission(permission))) {
+  return permissionGate.canAccessRoute(item.to);
+}
+
+function canAccessItem(item: MenuItem): boolean {
+  if (!permissionGate.canAccess(item)) {
     return false;
+  }
+  if (item.to) {
+    return permissionGate.canAccessRoute(item.to);
+  }
+  if (item.items) {
+    return item.items.some((child) => canAccessChild(child));
   }
   return true;
 }
@@ -351,14 +369,29 @@ const filteredMenu = computed(() => {
       pendingSection = item;
       continue;
     }
-    if (!canAccess(item)) {
+
+    let candidate: MenuItem = item;
+    if (item.items) {
+      if (!permissionGate.canAccess(item)) {
+        continue;
+      }
+      const visibleChildren = item.items.filter((child) => canAccessChild(child));
+      if (visibleChildren.length === 0) {
+        continue;
+      }
+      candidate = {
+        ...item,
+        items: visibleChildren,
+      };
+    } else if (!canAccessItem(item)) {
       continue;
     }
+
     if (pendingSection) {
       result.push(pendingSection);
       pendingSection = null;
     }
-    result.push(item);
+    result.push(candidate);
   }
 
   return result;
