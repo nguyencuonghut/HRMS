@@ -25,6 +25,7 @@
 
       <div class="header-actions" v-if="!isNew">
         <Button
+          v-can:edit="'employees'"
           v-if="!editing"
           label="Chỉnh sửa"
           icon="pi pi-pencil"
@@ -32,7 +33,7 @@
         />
         <template v-else>
           <Button label="Hủy" severity="secondary" outlined :disabled="submitting" @click="cancelEdit" />
-          <Button label="Lưu" icon="pi pi-check" :loading="submitting" @click="save" />
+          <Button v-can:edit="'employees'" label="Lưu" icon="pi pi-check" :loading="submitting" @click="save" />
         </template>
       </div>
     </div>
@@ -62,16 +63,16 @@
           <Tab value="docs">Giấy tờ nhận dạng</Tab>
           <Tab value="contact">Liên lạc & Thuế</Tab>
           <Tab value="address">Địa chỉ</Tab>
-          <Tab value="bank" :disabled="isNew">Tài khoản ngân hàng</Tab>
-          <Tab value="job" :disabled="isNew">Công việc</Tab>
-          <Tab value="relatives" :disabled="isNew">Người thân</Tab>
-          <Tab value="education" :disabled="isNew">Học vấn & KN</Tab>
-          <Tab value="attachments" :disabled="isNew">Tệp đính kèm hồ sơ</Tab>
-          <Tab value="contracts" :disabled="isNew">Hợp đồng</Tab>
-          <Tab value="insurance" :disabled="isNew">Bảo hiểm</Tab>
-          <Tab value="kpi" :disabled="isNew">Đánh giá KPI</Tab>
-          <Tab value="legal" :disabled="isNew">Checklist hồ sơ pháp lý</Tab>
-          <Tab value="probation" :disabled="isNew">Thử việc</Tab>
+          <Tab v-if="showEmployeeSubTabs" value="bank" :disabled="isNew">Tài khoản ngân hàng</Tab>
+          <Tab v-if="showEmployeeSubTabs" value="job" :disabled="isNew">Công việc</Tab>
+          <Tab v-if="showEmployeeSubTabs" value="relatives" :disabled="isNew">Người thân</Tab>
+          <Tab v-if="showEmployeeSubTabs" value="education" :disabled="isNew">Học vấn & KN</Tab>
+          <Tab v-if="showEmployeeSubTabs" value="attachments" :disabled="isNew">Tệp đính kèm hồ sơ</Tab>
+          <Tab v-if="showContractsTab" value="contracts" :disabled="isNew">Hợp đồng</Tab>
+          <Tab v-if="showInsuranceTab" value="insurance" :disabled="isNew">Bảo hiểm</Tab>
+          <Tab v-if="showKpiTab" value="kpi" :disabled="isNew">Đánh giá KPI</Tab>
+          <Tab v-if="showLegalChecklistTab" value="legal" :disabled="isNew">Checklist hồ sơ pháp lý</Tab>
+          <Tab v-if="showProbationTab" value="probation" :disabled="isNew">Thử việc</Tab>
         </TabList>
 
         <TabPanels>
@@ -219,7 +220,7 @@
             </div>
 
             <div class="tab-actions" v-if="isNew">
-              <Button label="Tạo nhân viên" icon="pi pi-check" :loading="submitting" @click="save" />
+              <Button v-can:create="'employees'" label="Tạo nhân viên" icon="pi pi-check" :loading="submitting" @click="save" />
             </div>
           </TabPanel>
 
@@ -295,7 +296,7 @@
             </div>
 
             <div class="tab-actions" v-if="isNew">
-              <Button label="Tạo nhân viên" icon="pi pi-check" :loading="submitting" @click="save" />
+              <Button v-can:create="'employees'" label="Tạo nhân viên" icon="pi pi-check" :loading="submitting" @click="save" />
             </div>
           </TabPanel>
 
@@ -320,7 +321,7 @@
               </div>
             </div>
             <div class="tab-actions" v-if="isNew">
-              <Button label="Tạo nhân viên" icon="pi pi-check" :loading="submitting" @click="save" />
+              <Button v-can:create="'employees'" label="Tạo nhân viên" icon="pi pi-check" :loading="submitting" @click="save" />
             </div>
           </TabPanel>
 
@@ -355,11 +356,17 @@
           </TabPanel>
 
           <!-- ── TAB 5: Tài khoản ngân hàng ──────────────────────────────── -->
-          <TabPanel value="bank">
+          <TabPanel v-if="showEmployeeSubTabs" value="bank">
             <div class="bank-section">
               <div class="bank-header">
                 <h4>Tài khoản ngân hàng</h4>
-                <Button label="Thêm tài khoản" icon="pi pi-plus" size="small" @click="openBankDialog(null)" />
+                <Button
+                  v-can:edit="'employees'"
+                  label="Thêm tài khoản"
+                  icon="pi pi-plus"
+                  size="small"
+                  @click="openBankDialog(null)"
+                />
               </div>
 
               <div v-if="bankAccounts.length === 0" class="empty-state">
@@ -381,8 +388,26 @@
                     <Tag v-if="acc.is_primary" value="Nhận lương" severity="success" />
                   </div>
                   <div class="bank-actions">
-                    <Button icon="pi pi-pencil" severity="secondary" text rounded size="small" v-tooltip.top="'Sửa'" @click="openBankDialog(acc)" />
-                    <Button icon="pi pi-trash" severity="danger" text rounded size="small" v-tooltip.top="'Xóa'" @click="confirmDeleteBank(acc)" />
+                    <Button
+                      v-can:edit="'employees'"
+                      icon="pi pi-pencil"
+                      severity="secondary"
+                      text
+                      rounded
+                      size="small"
+                      v-tooltip.top="'Sửa'"
+                      @click="openBankDialog(acc)"
+                    />
+                    <Button
+                      v-can:edit="'employees'"
+                      icon="pi pi-trash"
+                      severity="danger"
+                      text
+                      rounded
+                      size="small"
+                      v-tooltip.top="'Xóa'"
+                      @click="confirmDeleteBank(acc)"
+                    />
                   </div>
                 </div>
               </div>
@@ -390,7 +415,7 @@
           </TabPanel>
 
           <!-- ── TAB: Công việc ──────────────────────────────────────────── -->
-          <TabPanel value="job">
+          <TabPanel v-if="showEmployeeSubTabs" value="job">
             <JobRecordTab
               v-if="!isNew && employeeId"
               :employee-id="employeeId"
@@ -400,7 +425,7 @@
           </TabPanel>
 
           <!-- ── TAB: Người thân ─────────────────────────────────────────── -->
-          <TabPanel value="relatives">
+          <TabPanel v-if="showEmployeeSubTabs" value="relatives">
             <RelativesTab
               v-if="!isNew && employeeId"
               :employee-id="employeeId"
@@ -409,7 +434,7 @@
           </TabPanel>
 
           <!-- ── TAB: Học vấn & Kinh nghiệm ───────────────────────────────── -->
-          <TabPanel value="education">
+          <TabPanel v-if="showEmployeeSubTabs" value="education">
             <EducationTab
               v-if="!isNew && employeeId"
               :employee-id="employeeId"
@@ -418,7 +443,7 @@
           </TabPanel>
 
           <!-- ── TAB: Tệp đính kèm hồ sơ ──────────────────────────────────── -->
-          <TabPanel value="attachments">
+          <TabPanel v-if="showEmployeeSubTabs" value="attachments">
             <AttachmentsTab
               v-if="!isNew && employeeId"
               :employee-id="employeeId"
@@ -426,7 +451,7 @@
           </TabPanel>
 
           <!-- ── TAB: Hợp đồng lao động ──────────────────────────────────── -->
-          <TabPanel value="contracts">
+          <TabPanel v-if="showContractsTab" value="contracts">
             <ContractTab
               v-if="!isNew && employeeId"
               :employee-id="employeeId"
@@ -435,7 +460,7 @@
           </TabPanel>
 
           <!-- ── TAB: Bảo hiểm ───────────────────────────────────────────── -->
-          <TabPanel value="insurance">
+          <TabPanel v-if="showInsuranceTab" value="insurance">
             <InsuranceTab
               v-if="!isNew && employeeId"
               :key="insuranceRefreshTick"
@@ -445,7 +470,7 @@
           </TabPanel>
 
           <!-- ── TAB: Đánh giá KPI ───────────────────────────────────────── -->
-          <TabPanel value="kpi">
+          <TabPanel v-if="showKpiTab" value="kpi">
             <KpiHistoryTab
               v-if="!isNew && employeeId"
               :employee-id="employeeId"
@@ -453,12 +478,12 @@
           </TabPanel>
 
           <!-- ── TAB: Checklist hồ sơ pháp lý (13.6) ────────────────────── -->
-          <TabPanel value="legal">
+          <TabPanel v-if="showLegalChecklistTab" value="legal">
             <DocumentChecklistTab v-if="!isNew && employeeId" :employee-id="employeeId" />
           </TabPanel>
 
           <!-- ── TAB: Thử việc (14.2) ────────────────────────────────────── -->
-          <TabPanel value="probation">
+          <TabPanel v-if="showProbationTab" value="probation">
             <ProbationTab v-if="!isNew && employeeId" :employee-id="employeeId" />
           </TabPanel>
         </TabPanels>
@@ -501,7 +526,13 @@
       </div>
       <template #footer>
         <Button label="Hủy" severity="secondary" outlined :disabled="bankSubmitting" @click="bankDialogVisible = false" />
-        <Button :label="editingBank ? 'Lưu thay đổi' : 'Thêm'" icon="pi pi-check" :loading="bankSubmitting" @click="submitBank" />
+        <Button
+          v-can:edit="'employees'"
+          :label="editingBank ? 'Lưu thay đổi' : 'Thêm'"
+          icon="pi pi-check"
+          :loading="bankSubmitting"
+          @click="submitBank"
+        />
       </template>
     </Dialog>
   </div>
@@ -542,6 +573,7 @@ import ProbationTab from './ProbationTab.vue'
 import departmentService, { type DepartmentRead } from '@/services/departmentService'
 import jobTitleService, { type JobTitleRead } from '@/services/jobTitleService'
 import jobPositionService, { type JobPositionListItem } from '@/services/jobPositionService'
+import { usePermissionGate } from '@/composables/usePermissionGate'
 
 import employeeService, {
   type EmployeeRead,
@@ -555,6 +587,7 @@ const route   = useRoute()
 const router  = useRouter()
 const toast   = useToast()
 const confirm = useConfirm()
+const permissionGate = usePermissionGate()
 
 // ── Route resolution ───────────────────────────────────────────────────────────
 const isNew       = computed(() => route.params.id === 'new')
@@ -586,6 +619,25 @@ const insuranceRefreshTick = ref(0)
 const errors     = ref<Record<string, string>>({})
 
 const viewOnly = computed(() => !isNew.value && !editing.value)
+const canEditEmployees = computed(() => permissionGate.canEdit('employees'))
+const showEmployeeSubTabs = computed(() => !isNew.value)
+const showContractsTab = computed(() => !isNew.value && permissionGate.canView('contracts'))
+const showInsuranceTab = computed(() => !isNew.value && permissionGate.canView('insurance'))
+const showKpiTab = computed(() => !isNew.value && permissionGate.canView('performance'))
+const showLegalChecklistTab = computed(() => !isNew.value && permissionGate.canView('recruitment'))
+const showProbationTab = computed(() => !isNew.value)
+const visibleTabValues = computed(() => {
+  const tabs = ['basic', 'docs', 'contact', 'address']
+  if (showEmployeeSubTabs.value) {
+    tabs.push('bank', 'job', 'relatives', 'education', 'attachments')
+  }
+  if (showContractsTab.value) tabs.push('contracts')
+  if (showInsuranceTab.value) tabs.push('insurance')
+  if (showKpiTab.value) tabs.push('kpi')
+  if (showLegalChecklistTab.value) tabs.push('legal')
+  if (showProbationTab.value) tabs.push('probation')
+  return tabs
+})
 
 // ── Form model ────────────────────────────────────────────────────────────────
 const form = ref({
@@ -862,6 +914,7 @@ const bankErrors        = ref<Record<string, string>>({})
 const bankForm          = ref({ bank_id: null as number | null, account_number: '', account_name: '', branch_name: '', is_primary: false })
 
 function openBankDialog(acc: EmployeeBankAccountRead | null) {
+  if (!canEditEmployees.value) return
   editingBank.value = acc
   bankErrors.value = {}
   if (acc) {
@@ -887,6 +940,7 @@ function validateBank(): boolean {
 }
 
 async function submitBank() {
+  if (!canEditEmployees.value) return
   if (!validateBank() || !employeeId.value) return
   bankSubmitting.value = true
   try {
@@ -915,6 +969,7 @@ async function submitBank() {
 }
 
 function confirmDeleteBank(acc: EmployeeBankAccountRead) {
+  if (!canEditEmployees.value) return
   confirm.require({
     message: `Xóa tài khoản "${acc.account_number}"?`,
     header: 'Xác nhận',
@@ -943,4 +998,14 @@ onMounted(async () => {
 watch(() => route.params.id, () => {
   if (!isNew.value) loadEmployee()
 })
+
+watch(
+  visibleTabValues,
+  (tabs) => {
+    if (!tabs.includes(activeTab.value)) {
+      activeTab.value = tabs[0] ?? 'basic'
+    }
+  },
+  { immediate: true },
+)
 </script>

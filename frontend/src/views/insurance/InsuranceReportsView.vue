@@ -7,7 +7,7 @@
         <span class="page-subtitle">Tổng hợp và duyệt biến động tăng/giảm theo kỳ</span>
       </div>
       <div class="insurance-header-actions">
-        <Button label="Tạo báo cáo mới" icon="pi pi-plus" @click="openCreateDialog" />
+        <Button v-can:create="'insurance'" label="Tạo báo cáo mới" icon="pi pi-plus" @click="openCreateDialog" />
       </div>
     </div>
 
@@ -90,6 +90,7 @@
           <template #body="{ data }">
             <div class="ins-row-actions">
               <Button
+                v-can:view="'insurance'"
                 label="Xem"
                 size="small"
                 text
@@ -97,6 +98,7 @@
                 @click="goToDetail(data.id)"
               />
               <Button
+                v-can:view="'insurance'"
                 v-if="data.status === 'approved'"
                 label="Xuất D02-TS"
                 size="small"
@@ -106,6 +108,7 @@
                 @click="exportReport(data)"
               />
               <Button
+                v-can:edit="'insurance'"
                 v-if="data.status === 'draft'"
                 icon="pi pi-trash"
                 size="small"
@@ -167,6 +170,7 @@
       <template #footer>
         <Button label="Hủy" text @click="showCreateDialog = false" />
         <Button
+          v-can:create="'insurance'"
           label="Tạo báo cáo"
           icon="pi pi-check"
           :loading="creating"

@@ -14,7 +14,7 @@
           :loading="exporting"
           @click="doExport"
         />
-        <Button label="Thêm mới" icon="pi pi-plus" @click="router.push('/employees/new')" />
+        <Button v-can:create="'employees'" label="Thêm mới" icon="pi pi-plus" @click="router.push('/employees/new')" />
       </div>
     </div>
 

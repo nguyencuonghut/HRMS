@@ -7,6 +7,7 @@
         <span class="section-title">Vị trí hiện tại</span>
         <div class="section-actions" v-if="!isNew">
           <Button
+            v-can:edit="'employees'"
             v-if="!currentJob"
             label="Gán phòng ban"
             icon="pi pi-plus"
@@ -15,6 +16,7 @@
           />
           <template v-else>
             <Button
+              v-can:edit="'employees'"
               label="Sửa thông tin"
               icon="pi pi-pencil"
               severity="secondary"
@@ -23,6 +25,7 @@
               @click="openEdit"
             />
             <Button
+              v-can:edit="'employees'"
               label="Chuyển công tác"
               icon="pi pi-arrow-right-arrow-left"
               size="small"
@@ -199,7 +202,7 @@
 
       <template #footer>
         <Button label="Hủy" severity="secondary" outlined :disabled="submitting" @click="formDialogVisible = false" />
-        <Button :label="isEditing ? 'Lưu thay đổi' : 'Gán phòng ban'" icon="pi pi-check" :loading="submitting" @click="submitForm" />
+        <Button v-can:edit="'employees'" :label="isEditing ? 'Lưu thay đổi' : 'Gán phòng ban'" icon="pi pi-check" :loading="submitting" @click="submitForm" />
       </template>
     </Dialog>
 
@@ -282,7 +285,7 @@
 
       <template #footer>
         <Button label="Hủy" severity="secondary" outlined :disabled="submitting" @click="transferDialogVisible = false" />
-        <Button label="Xác nhận chuyển" icon="pi pi-check" :loading="submitting" @click="submitTransfer" />
+        <Button v-can:edit="'employees'" label="Xác nhận chuyển" icon="pi pi-check" :loading="submitting" @click="submitTransfer" />
       </template>
     </Dialog>
   </div>

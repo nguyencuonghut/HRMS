@@ -11,6 +11,7 @@
         <i class="pi pi-folder-open" style="font-size:2rem; color:var(--l-text-muted); display:block; margin-bottom:0.75rem" />
         <p style="margin:0 0 1rem; color:var(--l-text-muted)">Chưa có danh mục giấy tờ. Khởi tạo danh mục mặc định hoặc thêm từng loại.</p>
         <Button
+          v-can:edit="'recruitment'"
           label="Khởi tạo danh mục mặc định"
           icon="pi pi-list-check"
           :loading="initializing"
@@ -33,6 +34,7 @@
           <div class="section-header" style="margin-bottom:0.5rem">
             <span />
             <Button
+              v-can:edit="'recruitment'"
               label="Thêm giấy tờ"
               icon="pi pi-plus"
               size="small"
@@ -82,6 +84,7 @@
             <template #body="{ data }">
               <div v-if="data.has_file" style="display:flex; gap:0.25rem; align-items:center;">
                 <Button
+                  v-can:view="'recruitment'"
                   v-if="canPreview(data)"
                   icon="pi pi-eye"
                   aria-label="Xem file"
@@ -93,6 +96,7 @@
                   @click="previewFile(data)"
                 />
                 <Button
+                  v-can:view="'recruitment'"
                   icon="pi pi-download"
                   rounded
                   text
@@ -111,6 +115,7 @@
             <template #body="{ data }">
               <div style="display:flex; gap:0.4rem; flex-wrap:wrap">
                 <Button
+                  v-can:edit="'recruitment'"
                   label="Cập nhật"
                   icon="pi pi-pencil"
                   size="small"
@@ -118,6 +123,7 @@
                   @click="openUpdate(data)"
                 />
                 <Button
+                  v-can:edit="'recruitment'"
                   label="Upload"
                   icon="pi pi-upload"
                   size="small"
@@ -127,6 +133,7 @@
                   @click="triggerFileInput(data)"
                 />
                 <Button
+                  v-can:edit="'recruitment'"
                   v-if="data.has_file"
                   label="Xóa file"
                   icon="pi pi-trash"
@@ -137,6 +144,7 @@
                   @click="deleteFile(data)"
                 />
                 <Button
+                  v-can:edit="'recruitment'"
                   v-if="data.status !== 'waived'"
                   label="Miễn"
                   icon="pi pi-ban"
@@ -200,7 +208,7 @@
     </div>
     <template #footer>
       <Button label="Hủy" text @click="updateVisible = false" />
-      <Button label="Lưu" icon="pi pi-check" :loading="saving" @click="submitUpdate" />
+      <Button v-can:edit="'recruitment'" label="Lưu" icon="pi pi-check" :loading="saving" @click="submitUpdate" />
     </template>
   </Dialog>
 
@@ -220,7 +228,7 @@
     </div>
     <template #footer>
       <Button label="Hủy" text @click="addItemVisible = false" />
-      <Button label="Thêm" icon="pi pi-plus" :loading="saving" :disabled="!addItemTypeId" @click="submitAddItem" />
+      <Button v-can:edit="'recruitment'" label="Thêm" icon="pi pi-plus" :loading="saving" :disabled="!addItemTypeId" @click="submitAddItem" />
     </template>
   </Dialog>
 
@@ -235,7 +243,7 @@
     </div>
     <template #footer>
       <Button label="Hủy" text @click="waiveVisible = false" />
-      <Button label="Xác nhận miễn" icon="pi pi-ban" severity="warn" :loading="saving" @click="submitWaive" />
+      <Button v-can:edit="'recruitment'" label="Xác nhận miễn" icon="pi pi-ban" severity="warn" :loading="saving" @click="submitWaive" />
     </template>
   </Dialog>
 </template>

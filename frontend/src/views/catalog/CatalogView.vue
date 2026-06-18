@@ -10,41 +10,48 @@
         </p>
         <div class="hero-actions">
           <Button
+            v-can:view="'insurance'"
             label="Mở cấu hình BHXH"
             icon="pi pi-sliders-h"
             @click="router.push('/catalog/insurance')"
           />
           <Button
+            v-can:view="'catalog'"
             label="Mở danh mục hành chính"
             icon="pi pi-map"
             severity="secondary"
             @click="router.push('/catalog/administrative-units')"
           />
           <Button
+            v-can:view="'catalog'"
             label="Mở danh mục học vấn"
             icon="pi pi-graduation-cap"
             severity="secondary"
             @click="router.push('/catalog/education')"
           />
           <Button
+            v-can:view="'catalog'"
             label="Mở danh mục nghiệp vụ khác"
             icon="pi pi-briefcase"
             severity="secondary"
             @click="router.push('/catalog/other-business')"
           />
           <Button
+            v-can:view="'recruitment'"
             label="Mở danh mục tuyển dụng"
             icon="pi pi-sitemap"
             severity="secondary"
             @click="router.push('/catalog/recruitment')"
           />
           <Button
+            v-can:view="'insurance'"
             label="Mở danh mục bệnh viện KCB"
             icon="pi pi-heart"
             severity="secondary"
             @click="router.push('/catalog/bhyt-clinics')"
           />
           <Button
+            v-can:view="'catalog'"
             label="Xem lịch sử import"
             icon="pi pi-history"
             severity="secondary"
@@ -118,7 +125,7 @@
         </div>
 
         <div class="module-list">
-          <RouterLink to="/catalog/administrative-units" class="module-card primary">
+          <RouterLink v-can:view="'catalog'" to="/catalog/administrative-units" class="module-card primary">
             <div class="module-meta">
               <div class="module-icon">
                 <i class="pi pi-map" />
@@ -130,14 +137,14 @@
             </div>
             <div class="module-tail">
               <div class="module-stat">
-                <span>Đơn vị active</span>
+                <span>Don vi active</span>
                 <strong>{{ formatNumber(statsSnapshot.newUnits + statsSnapshot.oldUnits) }}</strong>
               </div>
               <span class="module-link">Mở màn quản trị</span>
             </div>
           </RouterLink>
 
-          <RouterLink to="/catalog/insurance" class="module-card secondary">
+          <RouterLink v-can:view="'insurance'" to="/catalog/insurance" class="module-card secondary">
             <div class="module-meta">
               <div class="module-icon secondary">
                 <i class="pi pi-sliders-h" />
@@ -156,7 +163,7 @@
             </div>
           </RouterLink>
 
-          <RouterLink to="/catalog/administrative-imports" class="module-card tertiary">
+          <RouterLink v-can:view="'catalog'" to="/catalog/administrative-imports" class="module-card tertiary">
             <div class="module-meta">
               <div class="module-icon tertiary">
                 <i class="pi pi-download" />
@@ -175,7 +182,7 @@
             </div>
           </RouterLink>
 
-          <RouterLink to="/catalog/education" class="module-card quaternary">
+          <RouterLink v-can:view="'catalog'" to="/catalog/education" class="module-card quaternary">
             <div class="module-meta">
               <div class="module-icon quaternary">
                 <i class="pi pi-graduation-cap" />
@@ -194,7 +201,7 @@
             </div>
           </RouterLink>
 
-          <RouterLink to="/catalog/other-business" class="module-card">
+          <RouterLink v-can:view="'catalog'" to="/catalog/other-business" class="module-card">
             <div class="module-meta">
               <div class="module-icon">
                 <i class="pi pi-briefcase" />
@@ -213,7 +220,7 @@
             </div>
           </RouterLink>
 
-          <RouterLink to="/catalog/bhyt-clinics" class="module-card">
+          <RouterLink v-can:view="'insurance'" to="/catalog/bhyt-clinics" class="module-card">
             <div class="module-meta">
               <div class="module-icon" style="background: color-mix(in srgb, var(--p-red-500) 14%, var(--catalog-surface)); color: var(--p-red-600)">
                 <i class="pi pi-heart" />

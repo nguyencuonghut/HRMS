@@ -7,7 +7,7 @@
         <span class="subtitle">Quản lý các bản ghi nghỉ phép của nhân viên</span>
       </div>
       <div class="page-header-actions">
-        <Button icon="pi pi-plus" label="Thêm bản ghi" @click="openCreateDialog" />
+        <Button v-can:create="'leaves'" icon="pi pi-plus" label="Thêm bản ghi" @click="openCreateDialog" />
       </div>
     </div>
 
@@ -130,6 +130,7 @@
           <template #body="{ data }">
             <div class="action-cell">
               <Button
+                v-can:edit="'leaves'"
                 v-if="data.status === 'active'"
                 icon="pi pi-pencil"
                 text rounded size="small"
@@ -137,6 +138,7 @@
                 @click="openEditDialog(data)"
               />
               <Button
+                v-can:edit="'leaves'"
                 v-if="data.status === 'active'"
                 icon="pi pi-ban"
                 text rounded size="small"
@@ -145,6 +147,7 @@
                 @click="promptCancel(data)"
               />
               <Button
+                v-can:delete="'leaves'"
                 icon="pi pi-trash"
                 text rounded size="small"
                 severity="danger"
@@ -266,6 +269,7 @@
       <template #footer>
         <Button label="Hủy" severity="secondary" text @click="showDialog = false" />
         <Button
+          v-can="editingId ? 'leaves:edit' : 'leaves:create'"
           :label="editingId ? 'Lưu thay đổi' : 'Thêm'"
           :loading="saving"
           @click="submitForm"

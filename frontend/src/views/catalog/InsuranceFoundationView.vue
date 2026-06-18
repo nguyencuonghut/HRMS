@@ -6,13 +6,14 @@
         <span class="subtitle">Foundation cho policy, tỷ lệ đóng mặc định và vùng BHXH công ty</span>
       </div>
       <div class="insurance-header-actions">
-        <Button label="Cập nhật vùng công ty" icon="pi pi-map-marker" severity="secondary" @click="openRegionDialog" />
-        <Button label="Tạo policy mới" icon="pi pi-plus" @click="openCreatePolicyDialog" />
+        <Button v-can:edit="'insurance'" label="Cập nhật vùng công ty" icon="pi pi-map-marker" severity="secondary" @click="openRegionDialog" />
+        <Button v-can:create="'insurance'" label="Tạo policy mới" icon="pi pi-plus" @click="openCreatePolicyDialog" />
         <Button
           v-if="activePolicy"
           label="Tạo nháp từ policy hiện hành"
           icon="pi pi-copy"
           severity="secondary"
+          v-can:edit="'insurance'"
           @click="openCloneDialog"
         />
         <Button
@@ -131,6 +132,7 @@
                   text
                   rounded
                   size="small"
+                  v-can:edit="'insurance'"
                   @click="openEditPolicyDialog(data)"
                 />
                 <Button
@@ -141,6 +143,7 @@
                   rounded
                   size="small"
                   :loading="activatingPolicyId === data.id"
+                  v-can:edit="'insurance'"
                   @click="activatePolicy(data)"
                 />
                 <Button
@@ -150,6 +153,7 @@
                   text
                   rounded
                   size="small"
+                  v-can:delete="'insurance'"
                   @click="confirmDeletePolicy(data)"
                 />
               </div>
@@ -204,7 +208,7 @@
     <div class="card insurance-region-history-card">
       <div class="section-heading">
         <h3>Rule thâm niên BHXH</h3>
-        <Button label="Thêm rule thâm niên" icon="pi pi-plus" size="small" @click="openCreateSeniorityDialog" />
+        <Button v-can:create="'insurance'" label="Thêm rule thâm niên" icon="pi pi-plus" size="small" @click="openCreateSeniorityDialog" />
       </div>
 
       <DataTable :value="senioritySettings.history" stripedRows responsive-layout="scroll">
@@ -229,8 +233,8 @@
         <Column header="" style="width: 120px">
           <template #body="{ data }">
             <div class="action-cell">
-              <Button icon="pi pi-pencil" severity="secondary" text rounded size="small" @click="openEditSeniorityDialog(data)" />
-              <Button icon="pi pi-trash" severity="danger" text rounded size="small" @click="confirmDeleteSeniority(data)" />
+              <Button v-can:edit="'insurance'" icon="pi pi-pencil" severity="secondary" text rounded size="small" @click="openEditSeniorityDialog(data)" />
+              <Button v-can:delete="'insurance'" icon="pi pi-trash" severity="danger" text rounded size="small" @click="confirmDeleteSeniority(data)" />
             </div>
           </template>
         </Column>
@@ -259,7 +263,7 @@
     <div class="card insurance-region-history-card">
       <div class="section-heading">
         <h3>Lương tối thiểu vùng</h3>
-        <Button label="Thêm cấu hình LTTV" icon="pi pi-plus" size="small" @click="openCreateMinimumWageDialog" />
+        <Button v-can:create="'insurance'" label="Thêm cấu hình LTTV" icon="pi pi-plus" size="small" @click="openCreateMinimumWageDialog" />
       </div>
 
       <DataTable :value="minimumWages" stripedRows responsive-layout="scroll">
@@ -282,8 +286,8 @@
         <Column header="" style="width: 120px">
           <template #body="{ data }">
             <div class="action-cell">
-              <Button icon="pi pi-pencil" severity="secondary" text rounded size="small" @click="openEditMinimumWageDialog(data)" />
-              <Button icon="pi pi-trash" severity="danger" text rounded size="small" @click="confirmDeleteMinimumWage(data)" />
+              <Button v-can:edit="'insurance'" icon="pi pi-pencil" severity="secondary" text rounded size="small" @click="openEditMinimumWageDialog(data)" />
+              <Button v-can:delete="'insurance'" icon="pi pi-trash" severity="danger" text rounded size="small" @click="confirmDeleteMinimumWage(data)" />
             </div>
           </template>
         </Column>
@@ -294,7 +298,7 @@
     <div class="card insurance-region-history-card">
       <div class="section-heading">
         <h3>Thang bảng lương</h3>
-        <Button label="Thêm thang bảng lương" icon="pi pi-plus" size="small" @click="openCreateSalaryScaleDialog" />
+        <Button v-can:create="'insurance'" label="Thêm thang bảng lương" icon="pi pi-plus" size="small" @click="openCreateSalaryScaleDialog" />
       </div>
 
       <DataTable :value="salaryScales" stripedRows responsive-layout="scroll">
@@ -326,6 +330,7 @@
                 text
                 rounded
                 size="small"
+                v-can:edit="'insurance'"
                 @click="openCoefficientsDialog(data)"
               />
               <Button
@@ -337,6 +342,7 @@
                 rounded
                 size="small"
                 :loading="activatingScaleId === data.id"
+                v-can:edit="'insurance'"
                 @click="activateSalaryScale(data)"
               />
               <Button
@@ -346,6 +352,7 @@
                 text
                 rounded
                 size="small"
+                v-can:edit="'insurance'"
                 @click="openCloneSalaryScaleDialog(data)"
               />
               <Button
@@ -356,6 +363,7 @@
                 text
                 rounded
                 size="small"
+                v-can:edit="'insurance'"
                 @click="openEditSalaryScaleDialog(data)"
               />
               <Button
@@ -366,6 +374,7 @@
                 text
                 rounded
                 size="small"
+                v-can:delete="'insurance'"
                 @click="confirmDeleteSalaryScale(data)"
               />
             </div>
@@ -378,6 +387,7 @@
       <div class="section-heading">
         <h3>Nhóm vị trí BHXH + hệ số 7 bậc</h3>
         <Button
+          v-can:create="'insurance'"
           label="Thêm nhóm vị trí BHXH"
           icon="pi pi-plus"
           size="small"
@@ -415,8 +425,8 @@
         <Column header="" style="width: 120px">
           <template #body="{ data }">
             <div class="action-cell">
-              <Button icon="pi pi-pencil" severity="secondary" text rounded size="small" @click="openEditPositionGroupDialog(data)" />
-              <Button icon="pi pi-trash" severity="danger" text rounded size="small" @click="confirmDeletePositionGroup(data)" />
+              <Button v-can:edit="'insurance'" icon="pi pi-pencil" severity="secondary" text rounded size="small" @click="openEditPositionGroupDialog(data)" />
+              <Button v-can:delete="'insurance'" icon="pi pi-trash" severity="danger" text rounded size="small" @click="confirmDeletePositionGroup(data)" />
             </div>
           </template>
         </Column>
@@ -518,7 +528,7 @@
 
         <div class="dialog-actions">
           <Button type="button" label="Hủy" severity="secondary" text :disabled="submitting" @click="policyDialogVisible = false" />
-          <Button type="submit" :label="editingPolicy ? 'Lưu thay đổi' : 'Tạo policy'" icon="pi pi-check" :loading="submitting" />
+          <Button v-can="editingPolicy ? 'insurance:edit' : 'insurance:create'" type="submit" :label="editingPolicy ? 'Lưu thay đổi' : 'Tạo policy'" icon="pi pi-check" :loading="submitting" />
         </div>
       </form>
     </Dialog>
@@ -547,7 +557,7 @@
 
         <div class="dialog-actions">
           <Button type="button" label="Hủy" severity="secondary" text :disabled="submittingRegion" @click="regionDialogVisible = false" />
-          <Button type="submit" label="Lưu vùng công ty" icon="pi pi-check" :loading="submittingRegion" />
+          <Button v-can:edit="'insurance'" type="submit" label="Lưu vùng công ty" icon="pi pi-check" :loading="submittingRegion" />
         </div>
       </form>
     </Dialog>
@@ -587,7 +597,7 @@
         </div>
         <div class="dialog-actions">
           <Button type="button" label="Hủy" severity="secondary" text :disabled="submittingMinimumWage" @click="minimumWageDialogVisible = false" />
-          <Button type="submit" :label="editingMinimumWage ? 'Lưu thay đổi' : 'Thêm cấu hình'" icon="pi pi-check" :loading="submittingMinimumWage" />
+          <Button v-can="editingMinimumWage ? 'insurance:edit' : 'insurance:create'" type="submit" :label="editingMinimumWage ? 'Lưu thay đổi' : 'Thêm cấu hình'" icon="pi pi-check" :loading="submittingMinimumWage" />
         </div>
       </form>
     </Dialog>
@@ -635,7 +645,7 @@
         </div>
         <div class="dialog-actions">
           <Button type="button" label="Hủy" severity="secondary" text :disabled="submittingSeniority" @click="seniorityDialogVisible = false" />
-          <Button type="submit" :label="editingSeniority ? 'Lưu thay đổi' : 'Thêm rule'" icon="pi pi-check" :loading="submittingSeniority" />
+          <Button v-can="editingSeniority ? 'insurance:edit' : 'insurance:create'" type="submit" :label="editingSeniority ? 'Lưu thay đổi' : 'Thêm rule'" icon="pi pi-check" :loading="submittingSeniority" />
         </div>
       </form>
     </Dialog>
@@ -719,7 +729,7 @@
 
         <div class="dialog-actions">
           <Button type="button" label="Hủy" severity="secondary" text :disabled="submittingPositionGroup" @click="positionGroupDialogVisible = false" />
-          <Button type="submit" :label="editingPositionGroup ? 'Lưu thay đổi' : 'Thêm nhóm'" icon="pi pi-check" :loading="submittingPositionGroup" />
+          <Button v-can="editingPositionGroup ? 'insurance:edit' : 'insurance:create'" type="submit" :label="editingPositionGroup ? 'Lưu thay đổi' : 'Thêm nhóm'" icon="pi pi-check" :loading="submittingPositionGroup" />
         </div>
       </form>
     </Dialog>
@@ -751,7 +761,7 @@
 
         <div class="dialog-actions">
           <Button type="button" label="Hủy" severity="secondary" text :disabled="submittingSalaryScale" @click="salaryScaleDialogVisible = false" />
-          <Button type="submit" :label="editingSalaryScale ? 'Lưu thay đổi' : 'Tạo thang lương'" icon="pi pi-check" :loading="submittingSalaryScale" />
+          <Button v-can="editingSalaryScale ? 'insurance:edit' : 'insurance:create'" type="submit" :label="editingSalaryScale ? 'Lưu thay đổi' : 'Tạo thang lương'" icon="pi pi-check" :loading="submittingSalaryScale" />
         </div>
       </form>
     </Dialog>
@@ -788,7 +798,7 @@
 
         <div class="dialog-actions">
           <Button type="button" label="Hủy" severity="secondary" text :disabled="submittingSalaryScale" @click="salaryScaleCloneDialogVisible = false" />
-          <Button type="submit" label="Nhân bản & Sao chép hệ số" icon="pi pi-copy" :loading="submittingSalaryScale" />
+          <Button v-can:edit="'insurance'" type="submit" label="Nhân bản & Sao chép hệ số" icon="pi pi-copy" :loading="submittingSalaryScale" />
         </div>
       </form>
     </Dialog>
@@ -855,7 +865,7 @@
 
         <div class="dialog-actions">
           <Button type="button" label="Hủy" severity="secondary" text :disabled="submittingCoefficients" @click="coefficientsDialogVisible = false" />
-          <Button type="submit" label="Lưu hệ số" icon="pi pi-check" :loading="submittingCoefficients" />
+          <Button v-can:edit="'insurance'" type="submit" label="Lưu hệ số" icon="pi pi-check" :loading="submittingCoefficients" />
         </div>
       </form>
     </Dialog>

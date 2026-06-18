@@ -9,7 +9,7 @@
           chuẩn bị metadata cho mẫu hợp đồng, phụ lục và cơ chế auto-fill ở phase sau.
         </p>
         <div class="hero-actions">
-          <Button :label="primaryCreateLabel" icon="pi pi-plus" @click="openCreateForActiveTab" />
+          <Button v-can:create="'catalog'" :label="primaryCreateLabel" icon="pi pi-plus" @click="openCreateForActiveTab" />
           <Button label="Về tổng quan danh mục" icon="pi pi-th-large" severity="secondary" outlined @click="router.push('/catalog')" />
           <Button label="Xem nhật ký hệ thống" icon="pi pi-list" severity="contrast" outlined @click="router.push('/admin/audit-logs')" />
         </div>
@@ -107,7 +107,7 @@
                 <InputIcon class="pi pi-search" />
                 <InputText v-model="contractCategoryState.keyword" class="w-full" placeholder="Tìm theo mã hoặc tên loại hợp đồng..." @input="debounce(loadContractCategories)" />
               </IconField>
-              <Button icon="pi pi-plus" severity="secondary" text rounded @click="openCreateContractCategory" />
+              <Button v-can:create="'catalog'" icon="pi pi-plus" severity="secondary" text rounded @click="openCreateContractCategory" />
               <Button icon="pi pi-refresh" severity="secondary" text rounded :loading="contractCategoryState.loading" @click="loadContractCategories" />
             </div>
 
@@ -122,7 +122,7 @@
               <Column field="document_kind" header="Nhóm" style="width: 170px"><template #body="{ data }">{{ documentKindLabel(data.document_kind) }}</template></Column>
               <Column field="legal_contract_type" header="Pháp lý" style="width: 170px"><template #body="{ data }">{{ legalTypeLabel(data.legal_contract_type) }}</template></Column>
               <Column field="is_active" header="Trạng thái" style="width: 120px"><template #body="{ data }"><Tag :value="data.is_active ? 'Hoạt động' : 'Đã khóa'" :severity="data.is_active ? 'success' : 'danger'" /></template></Column>
-              <Column header="" style="width: 110px"><template #body="{ data }"><div class="action-cell"><Button icon="pi pi-pencil" severity="secondary" text rounded size="small" @click="openEditContractCategory(data)" /><Button icon="pi pi-trash" severity="danger" text rounded size="small" @click="confirmDelete('contractCategory', data)" /></div></template></Column>
+              <Column header="" style="width: 110px"><template #body="{ data }"><div class="action-cell"><Button v-can:edit="'catalog'" icon="pi pi-pencil" severity="secondary" text rounded size="small" @click="openEditContractCategory(data)" /><Button v-can:delete="'catalog'" icon="pi pi-trash" severity="danger" text rounded size="small" @click="confirmDelete('contractCategory', data)" /></div></template></Column>
             </DataTable>
           </TabPanel>
 
@@ -131,7 +131,7 @@
               <article class="mini-card">
                 <div class="mini-head">
                   <div><span class="section-kicker">Nhân thân</span><h3>Quốc tịch</h3></div>
-                  <Button icon="pi pi-plus" text rounded @click="openCreateIdentity('nationality')" />
+                  <Button v-can:create="'catalog'" icon="pi pi-plus" text rounded @click="openCreateIdentity('nationality')" />
                 </div>
                 <div class="toolbar compact">
                   <InputText v-model="nationalityState.keyword" class="w-full" placeholder="Tìm quốc tịch..." @input="debounce(loadNationalities)" />
@@ -140,14 +140,14 @@
                   <template #empty><div class="empty-state compact"><i class="pi pi-inbox" /><span>Không có dữ liệu</span></div></template>
                   <Column field="name" header="Tên" />
                   <Column field="code" header="Mã" style="width: 90px" />
-                  <Column header="" style="width: 90px"><template #body="{ data }"><div class="action-cell"><Button icon="pi pi-pencil" text rounded size="small" @click="openEditIdentity('nationality', data)" /><Button icon="pi pi-trash" severity="danger" text rounded size="small" @click="confirmDelete('nationality', data)" /></div></template></Column>
+                  <Column header="" style="width: 90px"><template #body="{ data }"><div class="action-cell"><Button v-can:edit="'catalog'" icon="pi pi-pencil" text rounded size="small" @click="openEditIdentity('nationality', data)" /><Button v-can:delete="'catalog'" icon="pi pi-trash" severity="danger" text rounded size="small" @click="confirmDelete('nationality', data)" /></div></template></Column>
                 </DataTable>
               </article>
 
               <article class="mini-card">
                 <div class="mini-head">
                   <div><span class="section-kicker">Nhân thân</span><h3>Dân tộc</h3></div>
-                  <Button icon="pi pi-plus" text rounded @click="openCreateIdentity('ethnicity')" />
+                  <Button v-can:create="'catalog'" icon="pi pi-plus" text rounded @click="openCreateIdentity('ethnicity')" />
                 </div>
                 <div class="toolbar compact">
                   <InputText v-model="ethnicityState.keyword" class="w-full" placeholder="Tìm dân tộc..." @input="debounce(loadEthnicities)" />
@@ -156,14 +156,14 @@
                   <template #empty><div class="empty-state compact"><i class="pi pi-inbox" /><span>Không có dữ liệu</span></div></template>
                   <Column field="name" header="Tên" />
                   <Column field="code" header="Mã" style="width: 90px" />
-                  <Column header="" style="width: 90px"><template #body="{ data }"><div class="action-cell"><Button icon="pi pi-pencil" text rounded size="small" @click="openEditIdentity('ethnicity', data)" /><Button icon="pi pi-trash" severity="danger" text rounded size="small" @click="confirmDelete('ethnicity', data)" /></div></template></Column>
+                  <Column header="" style="width: 90px"><template #body="{ data }"><div class="action-cell"><Button v-can:edit="'catalog'" icon="pi pi-pencil" text rounded size="small" @click="openEditIdentity('ethnicity', data)" /><Button v-can:delete="'catalog'" icon="pi pi-trash" severity="danger" text rounded size="small" @click="confirmDelete('ethnicity', data)" /></div></template></Column>
                 </DataTable>
               </article>
 
               <article class="mini-card">
                 <div class="mini-head">
                   <div><span class="section-kicker">Nhân thân</span><h3>Tôn giáo</h3></div>
-                  <Button icon="pi pi-plus" text rounded @click="openCreateIdentity('religion')" />
+                  <Button v-can:create="'catalog'" icon="pi pi-plus" text rounded @click="openCreateIdentity('religion')" />
                 </div>
                 <div class="toolbar compact">
                   <InputText v-model="religionState.keyword" class="w-full" placeholder="Tìm tôn giáo..." @input="debounce(loadReligions)" />
@@ -172,7 +172,7 @@
                   <template #empty><div class="empty-state compact"><i class="pi pi-inbox" /><span>Không có dữ liệu</span></div></template>
                   <Column field="name" header="Tên" />
                   <Column field="code" header="Mã" style="width: 90px" />
-                  <Column header="" style="width: 90px"><template #body="{ data }"><div class="action-cell"><Button icon="pi pi-pencil" text rounded size="small" @click="openEditIdentity('religion', data)" /><Button icon="pi pi-trash" severity="danger" text rounded size="small" @click="confirmDelete('religion', data)" /></div></template></Column>
+                  <Column header="" style="width: 90px"><template #body="{ data }"><div class="action-cell"><Button v-can:edit="'catalog'" icon="pi pi-pencil" text rounded size="small" @click="openEditIdentity('religion', data)" /><Button v-can:delete="'catalog'" icon="pi pi-trash" severity="danger" text rounded size="small" @click="confirmDelete('religion', data)" /></div></template></Column>
                 </DataTable>
               </article>
             </div>
@@ -185,7 +185,7 @@
                 <InputIcon class="pi pi-search" />
                 <InputText v-model="bankState.keyword" class="w-full" placeholder="Tìm theo tên, mã, short name, BIN..." @input="debounce(loadBanks)" />
               </IconField>
-              <Button icon="pi pi-plus" severity="secondary" text rounded @click="openCreateBank" />
+              <Button v-can:create="'catalog'" icon="pi pi-plus" severity="secondary" text rounded @click="openCreateBank" />
               <Button icon="pi pi-refresh" severity="secondary" text rounded :loading="bankState.loading" @click="loadBanks" />
             </div>
             <DataTable :value="bankState.items" :loading="bankState.loading" stripedRows paginator lazy responsive-layout="scroll"
@@ -199,7 +199,7 @@
               <Column field="bin_code" header="BIN" style="width: 110px"><template #body="{ data }">{{ data.bin_code || '—' }}</template></Column>
               <Column field="swift_code" header="SWIFT" style="width: 120px"><template #body="{ data }">{{ data.swift_code || '—' }}</template></Column>
               <Column field="is_active" header="Trạng thái" style="width: 120px"><template #body="{ data }"><Tag :value="data.is_active ? 'Hoạt động' : 'Đã khóa'" :severity="data.is_active ? 'success' : 'danger'" /></template></Column>
-              <Column header="" style="width: 110px"><template #body="{ data }"><div class="action-cell"><Button icon="pi pi-pencil" text rounded size="small" @click="openEditBank(data)" /><Button icon="pi pi-trash" severity="danger" text rounded size="small" @click="confirmDelete('bank', data)" /></div></template></Column>
+              <Column header="" style="width: 110px"><template #body="{ data }"><div class="action-cell"><Button v-can:edit="'catalog'" icon="pi pi-pencil" text rounded size="small" @click="openEditBank(data)" /><Button v-can:delete="'catalog'" icon="pi pi-trash" severity="danger" text rounded size="small" @click="confirmDelete('bank', data)" /></div></template></Column>
             </DataTable>
           </TabPanel>
 
@@ -208,7 +208,7 @@
               <article class="mini-card">
                 <div class="mini-head">
                   <div><span class="section-kicker">Năng lực</span><h3>Kỹ năng</h3></div>
-                  <Button icon="pi pi-plus" text rounded @click="openCreateSkill" />
+                  <Button v-can:create="'catalog'" icon="pi pi-plus" text rounded @click="openCreateSkill" />
                 </div>
                 <div class="toolbar compact">
                   <InputText v-model="skillState.keyword" class="w-full" placeholder="Tìm kỹ năng..." @input="debounce(loadSkills)" />
@@ -217,14 +217,14 @@
                   <template #empty><div class="empty-state compact"><i class="pi pi-inbox" /><span>Không có dữ liệu</span></div></template>
                   <Column field="name" header="Tên" />
                   <Column field="skill_group" header="Nhóm" style="width: 130px"><template #body="{ data }">{{ data.skill_group || '—' }}</template></Column>
-                  <Column header="" style="width: 90px"><template #body="{ data }"><div class="action-cell"><Button icon="pi pi-pencil" text rounded size="small" @click="openEditSkill(data)" /><Button icon="pi pi-trash" severity="danger" text rounded size="small" @click="confirmDelete('skill', data)" /></div></template></Column>
+                  <Column header="" style="width: 90px"><template #body="{ data }"><div class="action-cell"><Button v-can:edit="'catalog'" icon="pi pi-pencil" text rounded size="small" @click="openEditSkill(data)" /><Button v-can:delete="'catalog'" icon="pi pi-trash" severity="danger" text rounded size="small" @click="confirmDelete('skill', data)" /></div></template></Column>
                 </DataTable>
               </article>
 
               <article class="mini-card">
                 <div class="mini-head">
                   <div><span class="section-kicker">Năng lực</span><h3>Chứng chỉ</h3></div>
-                  <Button icon="pi pi-plus" text rounded @click="openCreateCertificate" />
+                  <Button v-can:create="'catalog'" icon="pi pi-plus" text rounded @click="openCreateCertificate" />
                 </div>
                 <div class="toolbar compact">
                   <InputText v-model="certificateState.keyword" class="w-full" placeholder="Tìm chứng chỉ..." @input="debounce(loadCertificates)" />
@@ -233,7 +233,7 @@
                   <template #empty><div class="empty-state compact"><i class="pi pi-inbox" /><span>Không có dữ liệu</span></div></template>
                   <Column field="name" header="Tên" />
                   <Column field="certificate_group" header="Nhóm" style="width: 130px"><template #body="{ data }">{{ data.certificate_group || '—' }}</template></Column>
-                  <Column header="" style="width: 90px"><template #body="{ data }"><div class="action-cell"><Button icon="pi pi-pencil" text rounded size="small" @click="openEditCertificate(data)" /><Button icon="pi pi-trash" severity="danger" text rounded size="small" @click="confirmDelete('certificate', data)" /></div></template></Column>
+                  <Column header="" style="width: 90px"><template #body="{ data }"><div class="action-cell"><Button v-can:edit="'catalog'" icon="pi pi-pencil" text rounded size="small" @click="openEditCertificate(data)" /><Button v-can:delete="'catalog'" icon="pi pi-trash" severity="danger" text rounded size="small" @click="confirmDelete('certificate', data)" /></div></template></Column>
                 </DataTable>
               </article>
             </div>
@@ -246,7 +246,7 @@
                 <InputIcon class="pi pi-search" />
                 <InputText v-model="leaveTypeState.keyword" class="w-full" placeholder="Tìm loại nghỉ phép..." @input="debounce(loadLeaveTypes)" />
               </IconField>
-              <Button icon="pi pi-plus" severity="secondary" text rounded @click="openCreateLeaveType" />
+              <Button v-can:create="'catalog'" icon="pi pi-plus" severity="secondary" text rounded @click="openCreateLeaveType" />
               <Button icon="pi pi-refresh" severity="secondary" text rounded :loading="leaveTypeState.loading" @click="loadLeaveTypes" />
             </div>
             <DataTable :value="leaveTypeState.items" :loading="leaveTypeState.loading" stripedRows paginator lazy responsive-layout="scroll"
@@ -270,7 +270,7 @@
                 </template>
               </Column>
               <Column field="is_active" header="Trạng thái" style="width: 115px"><template #body="{ data }"><Tag :value="data.is_active ? 'Hoạt động' : 'Đã khóa'" :severity="data.is_active ? 'success' : 'danger'" /></template></Column>
-              <Column header="" style="width: 110px"><template #body="{ data }"><div class="action-cell"><Button icon="pi pi-pencil" text rounded size="small" @click="openEditLeaveType(data)" /><Button icon="pi pi-trash" severity="danger" text rounded size="small" @click="confirmDelete('leaveType', data)" /></div></template></Column>
+              <Column header="" style="width: 110px"><template #body="{ data }"><div class="action-cell"><Button v-can:edit="'catalog'" icon="pi pi-pencil" text rounded size="small" @click="openEditLeaveType(data)" /><Button v-can:delete="'catalog'" icon="pi pi-trash" severity="danger" text rounded size="small" @click="confirmDelete('leaveType', data)" /></div></template></Column>
             </DataTable>
           </TabPanel>
 
@@ -282,7 +282,7 @@
                 <InputIcon class="pi pi-search" />
                 <InputText v-model="templateState.keyword" class="w-full" placeholder="Tìm mẫu hợp đồng/phụ lục..." @input="debounce(loadTemplates)" />
               </IconField>
-              <Button icon="pi pi-plus" severity="secondary" text rounded @click="openCreateTemplate" />
+              <Button v-can:create="'catalog'" icon="pi pi-plus" severity="secondary" text rounded @click="openCreateTemplate" />
               <Button icon="pi pi-refresh" severity="secondary" text rounded :loading="templateState.loading" @click="loadTemplates" />
             </div>
             <div v-if="templateHealthItems.length" class="health-panel">
@@ -314,9 +314,9 @@
               <Column header="" style="width: 240px">
                 <template #body="{ data }">
                   <div class="action-cell">
-                    <Button icon="pi pi-list" severity="secondary" text rounded size="small" aria-label="Quản lý placeholder" v-tooltip.top="'Quản lý placeholder'" @click="openTemplatePlaceholders(data)" />
-                    <Button icon="pi pi-search" severity="secondary" text rounded size="small" aria-label="Quét placeholder từ DOCX" v-tooltip.top="'Quét placeholder từ DOCX'" @click="openTemplatePlaceholders(data, true)" />
-                    <Button icon="pi pi-pencil" text rounded size="small" aria-label="Chỉnh sửa mẫu hợp đồng" v-tooltip.top="'Chỉnh sửa'" @click="openEditTemplate(data)" />
+                    <Button v-can:edit="'catalog'" icon="pi pi-list" severity="secondary" text rounded size="small" aria-label="Quản lý placeholder" v-tooltip.top="'Quản lý placeholder'" @click="openTemplatePlaceholders(data)" />
+                    <Button v-can:edit="'catalog'" icon="pi pi-search" severity="secondary" text rounded size="small" aria-label="Quét placeholder từ DOCX" v-tooltip.top="'Quét placeholder từ DOCX'" @click="openTemplatePlaceholders(data, true)" />
+                    <Button v-can:edit="'catalog'" icon="pi pi-pencil" text rounded size="small" aria-label="Chỉnh sửa mẫu hợp đồng" v-tooltip.top="'Chỉnh sửa'" @click="openEditTemplate(data)" />
                     <Button
                       v-if="data.is_active"
                       icon="pi pi-lock"
@@ -326,6 +326,7 @@
                       size="small"
                       aria-label="Khóa mẫu hợp đồng"
                       v-tooltip.top="'Khóa mẫu hợp đồng'"
+                      v-can:edit="'catalog'"
                       @click="confirmToggleTemplateActive(data, false)"
                     />
                     <Button
@@ -337,10 +338,12 @@
                       size="small"
                       aria-label="Mở khóa mẫu hợp đồng"
                       v-tooltip.top="'Mở khóa mẫu hợp đồng'"
+                      v-can:edit="'catalog'"
                       @click="confirmToggleTemplateActive(data, true)"
                     />
                     <Button
                       v-if="isSuperuser"
+                      v-can:delete="'catalog'"
                       icon="pi pi-trash"
                       severity="danger"
                       text
@@ -509,7 +512,7 @@
       </form>
       <template #footer>
         <Button label="Hủy" severity="secondary" outlined :disabled="submitting" @click="dialogVisible = false" />
-        <Button :label="editingMode ? 'Lưu thay đổi' : 'Tạo mới'" icon="pi pi-check" :loading="submitting" @click="submitActiveDialog" />
+        <Button v-can="editingMode ? 'catalog:edit' : 'catalog:create'" :label="editingMode ? 'Lưu thay đổi' : 'Tạo mới'" icon="pi pi-check" :loading="submitting" @click="submitActiveDialog" />
       </template>
     </Dialog>
 
@@ -532,6 +535,7 @@
           </div>
           <div class="placeholder-actions">
             <Button
+              v-can:edit="'catalog'"
               v-if="editingPlaceholderTemplate?.storage_path"
               label="Quét từ DOCX"
               icon="pi pi-search"
@@ -540,7 +544,7 @@
               :loading="inspectingTemplateDocx"
               @click="inspectTemplateDocx"
             />
-            <Button label="Thêm placeholder" icon="pi pi-plus" @click="addPlaceholderRow" />
+            <Button v-can:edit="'catalog'" label="Thêm placeholder" icon="pi pi-plus" @click="addPlaceholderRow" />
           </div>
         </div>
 
@@ -602,13 +606,13 @@
             </template>
           </Column>
           <Column header="Bắt buộc" style="width: 110px"><template #body="{ index }"><Checkbox v-model="placeholderRows[index].is_required" binary /></template></Column>
-          <Column header="" style="width: 70px"><template #body="{ index }"><Button icon="pi pi-times" severity="danger" text rounded @click="removePlaceholderRow(index)" /></template></Column>
+          <Column header="" style="width: 70px"><template #body="{ index }"><Button v-can:edit="'catalog'" icon="pi pi-times" severity="danger" text rounded @click="removePlaceholderRow(index)" /></template></Column>
         </DataTable>
       </div>
       <template #footer>
         <div class="placeholder-dialog-footer">
           <Button label="Đóng" severity="secondary" outlined :disabled="submittingPlaceholders" @click="placeholderDialogVisible = false" />
-          <Button label="Lưu placeholder" icon="pi pi-save" :loading="submittingPlaceholders" @click="savePlaceholders" />
+          <Button v-can:edit="'catalog'" label="Lưu placeholder" icon="pi pi-save" :loading="submittingPlaceholders" @click="savePlaceholders" />
         </div>
       </template>
     </Dialog>

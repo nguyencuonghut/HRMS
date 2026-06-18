@@ -8,12 +8,13 @@
       </div>
       <div class="page-header-actions">
         <Button
+          v-can:create="'leaves'"
           icon="pi pi-bolt"
           label="Nạp phép hàng loạt"
           severity="secondary"
           @click="openBulkDialog"
         />
-        <Button icon="pi pi-plus" label="Thêm thủ công" @click="openCreateDialog" />
+        <Button v-can:create="'leaves'" icon="pi pi-plus" label="Thêm thủ công" @click="openCreateDialog" />
       </div>
     </div>
 
@@ -126,12 +127,14 @@
           <template #body="{ data }">
             <div class="action-cell">
               <Button
+                v-can:edit="'leaves'"
                 icon="pi pi-pencil"
                 text rounded size="small"
                 v-tooltip.top="'Chỉnh sửa'"
                 @click="openEditDialog(data)"
               />
               <Button
+                v-can:delete="'leaves'"
                 icon="pi pi-trash"
                 text rounded size="small"
                 severity="danger"
@@ -247,6 +250,7 @@
       <template #footer>
         <Button label="Hủy" severity="secondary" text @click="showDialog = false" />
         <Button
+          v-can="editingId ? 'leaves:edit' : 'leaves:create'"
           :label="editingId ? 'Lưu thay đổi' : 'Thêm'"
           :loading="saving"
           @click="submitForm"
@@ -313,6 +317,7 @@
       <template #footer>
         <Button label="Đóng" severity="secondary" text @click="closeBulkDialog" />
         <Button
+          v-can:create="'leaves'"
           label="Xác nhận nạp phép"
           icon="pi pi-bolt"
           :loading="bulkLoading"

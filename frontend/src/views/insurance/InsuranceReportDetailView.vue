@@ -19,12 +19,14 @@
         <!-- Draft actions -->
         <template v-if="report.status === 'draft' || report.status === 'rejected'">
           <Button
+            v-can:edit="'insurance'"
             label="Thêm biến động"
             icon="pi pi-plus"
             text
             @click="openAddItemDialog"
           />
           <Button
+            v-can:edit="'insurance'"
             v-if="report.status === 'draft'"
             label="Nộp duyệt"
             icon="pi pi-send"
@@ -33,7 +35,7 @@
           />
         </template>
         <!-- Pending actions -->
-        <template v-if="report.status === 'pending_review'">
+        <template v-if="report.status === 'pending_review' && canReviewInsuranceReport">
           <Button
             label="Trả lại"
             severity="secondary"
@@ -51,6 +53,7 @@
         <!-- Approved actions -->
         <template v-if="report.status === 'approved'">
           <Button
+            v-can:view="'insurance'"
             label="Xuất D02-TS"
             icon="pi pi-download"
             :loading="exporting"
@@ -228,6 +231,7 @@
       <template #footer>
         <Button label="Hủy" text @click="adjustDialog.visible = false" />
         <Button
+          v-can:edit="'insurance'"
           label="Lưu điều chỉnh"
           icon="pi pi-check"
           :loading="adjustDialog.saving"
@@ -281,6 +285,7 @@
       <template #footer>
         <Button label="Hủy" text @click="addItemDialog.visible = false" />
         <Button
+          v-can:edit="'insurance'"
           label="Thêm vào báo cáo"
           icon="pi pi-plus"
           :disabled="!addItemDialog.selectedEvent"
@@ -360,10 +365,14 @@ import insuranceService, {
   type ReportStatus,
   type SubmissionType,
 } from '@/services/insuranceService'
+import { usePermissionGate } from '@/composables/usePermissionGate'
+import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
 const router = useRouter()
 const toast = useToast()
+const auth = useAuthStore()
+const permissionGate = usePermissionGate()
 
 const reportId = computed(() => Number(route.params.id))
 
@@ -375,9 +384,15 @@ const loading = ref(false)
 const actioning = ref(false)
 const exporting = ref(false)
 
+const canEditInsurance = computed(() => permissionGate.canEdit('insurance'))
 const isEditable = computed(() =>
-  report.value?.status === 'draft' || report.value?.status === 'rejected',
+  canEditInsurance.value && (report.value?.status === 'draft' || report.value?.status === 'rejected'),
 )
+const canReviewInsuranceReport = computed(() => {
+  if (auth.user?.is_superuser) return true
+  const roles = auth.user?.roles ?? []
+  return roles.includes('admin') || roles.includes('hr_manager') || roles.includes('hr_officer')
+})
 
 // Adjust dialog
 const adjustDialog = reactive<{

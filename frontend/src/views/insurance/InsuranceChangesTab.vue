@@ -96,6 +96,7 @@
             class="ins-changes-type-filter"
           />
           <Button
+            v-can:edit="'insurance'"
             label="+ Thêm thủ công"
             severity="secondary"
             @click="openAddDialog"
@@ -145,6 +146,7 @@
         <Column header="" style="width:48px;text-align:center">
           <template #body="{ data }">
             <Button
+              v-can:edit="'insurance'"
               v-if="data.is_manual"
               icon="pi pi-times"
               text
@@ -236,7 +238,7 @@
       </div>
       <template #footer>
         <Button label="Hủy" severity="secondary" text :disabled="saving" @click="showAddDialog = false" />
-        <Button label="Lưu" icon="pi pi-save" :loading="saving" @click="submitAdd" />
+        <Button v-can:edit="'insurance'" label="Lưu" icon="pi pi-save" :loading="saving" @click="submitAdd" />
       </template>
     </Dialog>
   </div>

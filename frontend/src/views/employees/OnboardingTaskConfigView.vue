@@ -15,7 +15,7 @@
         <span class="ob-page-title">Cấu hình task onboarding</span>
       </div>
       <div class="ob-toolbar-right">
-        <Button label="Thêm task mới" icon="pi pi-plus" @click="openAddDialog" />
+        <Button v-if="canEditEmployees" label="Thêm task mới" icon="pi pi-plus" @click="openAddDialog" />
       </div>
     </div>
 
@@ -74,15 +74,17 @@
         <Column header="Trạng thái" style="width: 100px">
           <template #body="{ data }">
             <ToggleSwitch
+              v-if="canEditEmployees"
               :model-value="data.is_active"
               @change="toggleActive(data)"
             />
+            <span v-else>{{ data.is_active ? 'Bật' : 'Tắt' }}</span>
           </template>
         </Column>
 
-        <Column row-editor style="width: 100px" />
+        <Column v-if="canEditEmployees" row-editor style="width: 100px" />
 
-        <Column header="Xóa" style="width: 70px">
+        <Column v-if="canEditEmployees" header="Xóa" style="width: 70px">
           <template #body="{ data }">
             <Button
               icon="pi pi-trash"
@@ -129,14 +131,14 @@
       </div>
       <template #footer>
         <Button label="Hủy" severity="secondary" outlined @click="showAddDialog = false" />
-        <Button label="Thêm" icon="pi pi-plus" :loading="saving" @click="addTask" />
+        <Button v-if="canEditEmployees" label="Thêm" icon="pi pi-plus" :loading="saving" @click="addTask" />
       </template>
     </Dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import Button from 'primevue/button'
 import Column from 'primevue/column'
 import DataTable from 'primevue/datatable'
@@ -152,9 +154,12 @@ import {
   onboardingTaskService,
   type OnboardingTaskRead,
 } from '@/services/onboardingService'
+import { usePermissionGate } from '@/composables/usePermissionGate'
 
 const toast = useToast()
 const confirm = useConfirm()
+const permissionGate = usePermissionGate()
+const canEditEmployees = computed(() => permissionGate.canEdit('employees'))
 
 const tasks = ref<OnboardingTaskRead[]>([])
 const loading = ref(false)

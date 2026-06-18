@@ -10,6 +10,7 @@
         </p>
         <div class="hero-actions">
           <Button
+            v-can:create="'catalog'"
             :label="createButtonLabel"
             icon="pi pi-plus"
             @click="openCreate(activeTab)"
@@ -181,8 +182,8 @@
               <Column header="" style="width: 110px">
                 <template #body="{ data }">
                   <div class="action-cell">
-                    <Button icon="pi pi-pencil" severity="secondary" text rounded size="small" v-tooltip.top="'Chỉnh sửa'" @click="openEdit('levels', data)" />
-                    <Button icon="pi pi-trash" severity="danger" text rounded size="small" v-tooltip.top="'Khóa'" @click="confirmDelete('levels', data)" />
+                    <Button v-can:edit="'catalog'" icon="pi pi-pencil" severity="secondary" text rounded size="small" v-tooltip.top="'Chỉnh sửa'" @click="openEdit('levels', data)" />
+                    <Button v-can:delete="'catalog'" icon="pi pi-trash" severity="danger" text rounded size="small" v-tooltip.top="'Khóa'" @click="confirmDelete('levels', data)" />
                   </div>
                 </template>
               </Column>
@@ -292,8 +293,8 @@
               <Column header="" style="width: 110px">
                 <template #body="{ data }">
                   <div class="action-cell">
-                    <Button icon="pi pi-pencil" severity="secondary" text rounded size="small" v-tooltip.top="'Chỉnh sửa'" @click="openEdit('institutions', data)" />
-                    <Button icon="pi pi-trash" severity="danger" text rounded size="small" v-tooltip.top="'Khóa'" @click="confirmDelete('institutions', data)" />
+                    <Button v-can:edit="'catalog'" icon="pi pi-pencil" severity="secondary" text rounded size="small" v-tooltip.top="'Chỉnh sửa'" @click="openEdit('institutions', data)" />
+                    <Button v-can:delete="'catalog'" icon="pi pi-trash" severity="danger" text rounded size="small" v-tooltip.top="'Khóa'" @click="confirmDelete('institutions', data)" />
                   </div>
                 </template>
               </Column>
@@ -384,8 +385,8 @@
               <Column header="" style="width: 110px">
                 <template #body="{ data }">
                   <div class="action-cell">
-                    <Button icon="pi pi-pencil" severity="secondary" text rounded size="small" v-tooltip.top="'Chỉnh sửa'" @click="openEdit('majors', data)" />
-                    <Button icon="pi pi-trash" severity="danger" text rounded size="small" v-tooltip.top="'Khóa'" @click="confirmDelete('majors', data)" />
+                    <Button v-can:edit="'catalog'" icon="pi pi-pencil" severity="secondary" text rounded size="small" v-tooltip.top="'Chỉnh sửa'" @click="openEdit('majors', data)" />
+                    <Button v-can:delete="'catalog'" icon="pi pi-trash" severity="danger" text rounded size="small" v-tooltip.top="'Khóa'" @click="confirmDelete('majors', data)" />
                   </div>
                 </template>
               </Column>
@@ -525,7 +526,7 @@
 
       <template #footer>
         <Button label="Hủy" severity="secondary" outlined :disabled="submitting" @click="dialogVisible = false" />
-        <Button :label="editingMode ? 'Lưu thay đổi' : 'Tạo mới'" icon="pi pi-check" :loading="submitting" @click="submitActiveForm" />
+        <Button v-can="editingMode ? 'catalog:edit' : 'catalog:create'" :label="editingMode ? 'Lưu thay đổi' : 'Tạo mới'" icon="pi pi-check" :loading="submitting" @click="submitActiveForm" />
       </template>
     </Dialog>
   </div>

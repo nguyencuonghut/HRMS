@@ -14,13 +14,14 @@
           @click="router.push('/catalog/administrative-imports')"
         />
         <Button
+          v-can:edit="'catalog'"
           label="Import dữ liệu"
           icon="pi pi-download"
           severity="contrast"
           :loading="importing"
           @click="importDialogVisible = true"
         />
-        <Button label="Thêm mới" icon="pi pi-plus" @click="openCreate" />
+        <Button v-can:create="'catalog'" label="Thêm mới" icon="pi pi-plus" @click="openCreate" />
       </div>
     </div>
 
@@ -225,6 +226,7 @@
             <template #body="{ data }">
               <div class="action-cell">
                 <Button
+                  v-can:edit="'catalog'"
                   icon="pi pi-pencil"
                   severity="secondary"
                   text
@@ -234,6 +236,7 @@
                   @click="openEdit(data)"
                 />
                 <Button
+                  v-can:delete="'catalog'"
                   icon="pi pi-trash"
                   severity="danger"
                   text

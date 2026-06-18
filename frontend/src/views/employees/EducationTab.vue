@@ -5,7 +5,7 @@
     <div class="section-card">
       <div class="section-header">
         <span class="section-title">Quá trình học vấn</span>
-        <Button label="Thêm" icon="pi pi-plus" size="small" @click="openEduCreate" />
+        <Button v-can:edit="'employees'" label="Thêm" icon="pi pi-plus" size="small" @click="openEduCreate" />
       </div>
 
       <div v-if="loading.edu" class="loading-state">
@@ -36,8 +36,8 @@
         <Column header="" style="width:80px">
           <template #body="{ data }">
             <div class="action-cell">
-              <Button icon="pi pi-pencil" severity="secondary" text rounded size="small" v-tooltip.top="'Sửa'" @click="openEduEdit(data)" />
-              <Button icon="pi pi-trash" severity="danger" text rounded size="small" v-tooltip.top="'Xóa'" @click="confirmDeleteEdu(data)" />
+              <Button v-can:edit="'employees'" icon="pi pi-pencil" severity="secondary" text rounded size="small" v-tooltip.top="'Sửa'" @click="openEduEdit(data)" />
+              <Button v-can:edit="'employees'" icon="pi pi-trash" severity="danger" text rounded size="small" v-tooltip.top="'Xóa'" @click="confirmDeleteEdu(data)" />
             </div>
           </template>
         </Column>
@@ -48,7 +48,7 @@
     <div class="section-card">
       <div class="section-header">
         <span class="section-title">Kinh nghiệm làm việc</span>
-        <Button label="Thêm" icon="pi pi-plus" size="small" @click="openExpCreate" />
+        <Button v-can:edit="'employees'" label="Thêm" icon="pi pi-plus" size="small" @click="openExpCreate" />
       </div>
 
       <div v-if="loading.exp" class="loading-state">
@@ -75,8 +75,8 @@
         <Column header="" style="width:80px">
           <template #body="{ data }">
             <div class="action-cell">
-              <Button icon="pi pi-pencil" severity="secondary" text rounded size="small" v-tooltip.top="'Sửa'" @click="openExpEdit(data)" />
-              <Button icon="pi pi-trash" severity="danger" text rounded size="small" v-tooltip.top="'Xóa'" @click="confirmDeleteExp(data)" />
+              <Button v-can:edit="'employees'" icon="pi pi-pencil" severity="secondary" text rounded size="small" v-tooltip.top="'Sửa'" @click="openExpEdit(data)" />
+              <Button v-can:edit="'employees'" icon="pi pi-trash" severity="danger" text rounded size="small" v-tooltip.top="'Xóa'" @click="confirmDeleteExp(data)" />
             </div>
           </template>
         </Column>
@@ -87,7 +87,7 @@
     <div class="section-card">
       <div class="section-header">
         <span class="section-title">Kỹ năng</span>
-        <Button label="Thêm" icon="pi pi-plus" size="small" @click="openSkillCreate" />
+        <Button v-can:edit="'employees'" label="Thêm" icon="pi pi-plus" size="small" @click="openSkillCreate" />
       </div>
 
       <div v-if="loading.skill" class="loading-state">
@@ -101,8 +101,8 @@
           <span class="chip-label">{{ sk.skill_name }}</span>
           <span class="chip-level">[{{ skillLevelLabel(sk.proficiency_level) }}]</span>
           <div class="chip-actions">
-            <Button icon="pi pi-pencil" severity="secondary" text rounded size="small" v-tooltip.top="'Sửa'" @click="openSkillEdit(sk)" />
-            <Button icon="pi pi-times" severity="danger" text rounded size="small" v-tooltip.top="'Xóa'" @click="confirmDeleteSkill(sk)" />
+            <Button v-can:edit="'employees'" icon="pi pi-pencil" severity="secondary" text rounded size="small" v-tooltip.top="'Sửa'" @click="openSkillEdit(sk)" />
+            <Button v-can:edit="'employees'" icon="pi pi-times" severity="danger" text rounded size="small" v-tooltip.top="'Xóa'" @click="confirmDeleteSkill(sk)" />
           </div>
         </div>
       </div>
@@ -112,7 +112,7 @@
     <div class="section-card">
       <div class="section-header">
         <span class="section-title">Chứng chỉ</span>
-        <Button label="Thêm" icon="pi pi-plus" size="small" @click="openCertCreate" />
+        <Button v-can:edit="'employees'" label="Thêm" icon="pi pi-plus" size="small" @click="openCertCreate" />
       </div>
 
       <div v-if="loading.cert" class="loading-state">
@@ -143,8 +143,8 @@
         <Column header="" style="width:80px">
           <template #body="{ data }">
             <div class="action-cell">
-              <Button icon="pi pi-pencil" severity="secondary" text rounded size="small" v-tooltip.top="'Sửa'" @click="openCertEdit(data)" />
-              <Button icon="pi pi-trash" severity="danger" text rounded size="small" v-tooltip.top="'Xóa'" @click="confirmDeleteCert(data)" />
+              <Button v-can:edit="'employees'" icon="pi pi-pencil" severity="secondary" text rounded size="small" v-tooltip.top="'Sửa'" @click="openCertEdit(data)" />
+              <Button v-can:edit="'employees'" icon="pi pi-trash" severity="danger" text rounded size="small" v-tooltip.top="'Xóa'" @click="confirmDeleteCert(data)" />
             </div>
           </template>
         </Column>
@@ -155,7 +155,7 @@
     <div class="section-card">
       <div class="section-header">
         <span class="section-title">Ngoại ngữ</span>
-        <Button label="Thêm" icon="pi pi-plus" size="small" @click="openLangCreate" />
+        <Button v-can:edit="'employees'" label="Thêm" icon="pi pi-plus" size="small" @click="openLangCreate" />
       </div>
 
       <div v-if="loading.lang" class="loading-state">
@@ -169,8 +169,8 @@
           <span class="chip-label">{{ lang.language_name }}</span>
           <span class="chip-level">[{{ langLevelLabel(lang.proficiency_level) }}]</span>
           <div class="chip-actions">
-            <Button icon="pi pi-pencil" severity="secondary" text rounded size="small" v-tooltip.top="'Sửa'" @click="openLangEdit(lang)" />
-            <Button icon="pi pi-times" severity="danger" text rounded size="small" v-tooltip.top="'Xóa'" @click="confirmDeleteLang(lang)" />
+            <Button v-can:edit="'employees'" icon="pi pi-pencil" severity="secondary" text rounded size="small" v-tooltip.top="'Sửa'" @click="openLangEdit(lang)" />
+            <Button v-can:edit="'employees'" icon="pi pi-times" severity="danger" text rounded size="small" v-tooltip.top="'Xóa'" @click="confirmDeleteLang(lang)" />
           </div>
         </div>
       </div>
@@ -253,7 +253,7 @@
       </div>
       <template #footer>
         <Button label="Hủy" severity="secondary" outlined :disabled="submitting" @click="eduDialog.visible = false" />
-        <Button :label="eduDialog.id ? 'Lưu thay đổi' : 'Thêm'" icon="pi pi-check" :loading="submitting" @click="submitEdu" />
+        <Button v-can:edit="'employees'" :label="eduDialog.id ? 'Lưu thay đổi' : 'Thêm'" icon="pi pi-check" :loading="submitting" @click="submitEdu" />
       </template>
     </Dialog>
 
@@ -287,7 +287,7 @@
       </div>
       <template #footer>
         <Button label="Hủy" severity="secondary" outlined :disabled="submitting" @click="expDialog.visible = false" />
-        <Button :label="expDialog.id ? 'Lưu thay đổi' : 'Thêm'" icon="pi pi-check" :loading="submitting" @click="submitExp" />
+        <Button v-can:edit="'employees'" :label="expDialog.id ? 'Lưu thay đổi' : 'Thêm'" icon="pi pi-check" :loading="submitting" @click="submitExp" />
       </template>
     </Dialog>
 
@@ -317,7 +317,7 @@
       </div>
       <template #footer>
         <Button label="Hủy" severity="secondary" outlined :disabled="submitting" @click="skillDialog.visible = false" />
-        <Button :label="skillDialog.id ? 'Lưu thay đổi' : 'Thêm'" icon="pi pi-check" :loading="submitting" @click="submitSkill" />
+        <Button v-can:edit="'employees'" :label="skillDialog.id ? 'Lưu thay đổi' : 'Thêm'" icon="pi pi-check" :loading="submitting" @click="submitSkill" />
       </template>
     </Dialog>
 
@@ -356,7 +356,7 @@
       </div>
       <template #footer>
         <Button label="Hủy" severity="secondary" outlined :disabled="submitting" @click="certDialog.visible = false" />
-        <Button :label="certDialog.id ? 'Lưu thay đổi' : 'Thêm'" icon="pi pi-check" :loading="submitting" @click="submitCert" />
+        <Button v-can:edit="'employees'" :label="certDialog.id ? 'Lưu thay đổi' : 'Thêm'" icon="pi pi-check" :loading="submitting" @click="submitCert" />
       </template>
     </Dialog>
 
@@ -386,7 +386,7 @@
       </div>
       <template #footer>
         <Button label="Hủy" severity="secondary" outlined :disabled="submitting" @click="langDialog.visible = false" />
-        <Button :label="langDialog.id ? 'Lưu thay đổi' : 'Thêm'" icon="pi pi-check" :loading="submitting" @click="submitLang" />
+        <Button v-can:edit="'employees'" :label="langDialog.id ? 'Lưu thay đổi' : 'Thêm'" icon="pi pi-check" :loading="submitting" @click="submitLang" />
       </template>
     </Dialog>
 

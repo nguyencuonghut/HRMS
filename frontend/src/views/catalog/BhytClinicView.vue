@@ -6,7 +6,7 @@
         <span class="subtitle">Danh sách cơ sở khám chữa bệnh ban đầu (nguồn VNPT/BHYT)</span>
       </div>
       <div class="page-header-actions">
-        <Button label="Thêm bệnh viện" icon="pi pi-plus" @click="openCreate" />
+        <Button v-can:create="'catalog'" label="Thêm bệnh viện" icon="pi pi-plus" @click="openCreate" />
         <Button
           label="Về tổng quan danh mục"
           icon="pi pi-th-large"
@@ -64,8 +64,8 @@
         <Column header="" style="width: 80px; text-align: right">
           <template #body="{ data }">
             <div class="row-actions">
-              <Button icon="pi pi-pencil" text rounded severity="secondary" @click="openEdit(data)" />
-              <Button icon="pi pi-trash" text rounded severity="danger" @click="confirmDelete(data)" />
+              <Button v-can:edit="'catalog'" icon="pi pi-pencil" text rounded severity="secondary" @click="openEdit(data)" />
+              <Button v-can:delete="'catalog'" icon="pi pi-trash" text rounded severity="danger" @click="confirmDelete(data)" />
             </div>
           </template>
         </Column>
@@ -103,7 +103,7 @@
 
       <template #footer>
         <Button label="Hủy" severity="secondary" text :disabled="saving" @click="closeDialog" />
-        <Button label="Lưu" icon="pi pi-save" :loading="saving" @click="submitForm" />
+        <Button v-can="editingId ? 'catalog:edit' : 'catalog:create'" label="Lưu" icon="pi pi-save" :loading="saving" @click="submitForm" />
       </template>
     </Dialog>
 

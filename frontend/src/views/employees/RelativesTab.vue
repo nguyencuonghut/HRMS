@@ -19,6 +19,7 @@
       <div class="section-header">
         <span class="section-title">Danh sách người thân</span>
         <Button
+          v-can:edit="'employees'"
           label="Thêm người thân"
           icon="pi pi-plus"
           size="small"
@@ -62,8 +63,8 @@
         <Column header="" style="width:80px">
           <template #body="{ data }">
             <div class="action-cell">
-              <Button icon="pi pi-pencil" severity="secondary" text rounded size="small" v-tooltip.top="'Sửa'" @click="openEdit(data)" />
-              <Button icon="pi pi-trash" severity="danger" text rounded size="small" v-tooltip.top="'Xóa'" @click="confirmDelete(data)" />
+              <Button v-can:edit="'employees'" icon="pi pi-pencil" severity="secondary" text rounded size="small" v-tooltip.top="'Sửa'" @click="openEdit(data)" />
+              <Button v-can:edit="'employees'" icon="pi pi-trash" severity="danger" text rounded size="small" v-tooltip.top="'Xóa'" @click="confirmDelete(data)" />
             </div>
           </template>
         </Column>
@@ -128,7 +129,7 @@
 
       <template #footer>
         <Button label="Hủy" severity="secondary" outlined :disabled="submitting" @click="dialogVisible = false" />
-        <Button :label="editingId ? 'Lưu thay đổi' : 'Thêm'" icon="pi pi-check" :loading="submitting" @click="submit" />
+        <Button v-can:edit="'employees'" :label="editingId ? 'Lưu thay đổi' : 'Thêm'" icon="pi pi-check" :loading="submitting" @click="submit" />
       </template>
     </Dialog>
 

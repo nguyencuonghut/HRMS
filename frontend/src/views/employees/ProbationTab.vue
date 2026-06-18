@@ -82,6 +82,7 @@
         <!-- Contract button -->
         <div v-if="detail.can_generate_contract" class="probation-contract-row">
           <Button
+            v-can:edit="'employees'"
             v-if="detail.contracts.length === 0"
             label="Tạo hợp đồng thử việc"
             icon="pi pi-file-plus"
@@ -172,6 +173,7 @@
           </div>
           <div class="probation-action-row">
             <Button
+              v-can:edit="'employees'"
               label="Rút lại để sửa"
               icon="pi pi-undo"
               severity="secondary"
@@ -180,6 +182,7 @@
               @click="recallEval"
             />
             <Button
+              v-if="canReviewProbation"
               label="Phê duyệt"
               icon="pi pi-check-circle"
               @click="openApproveDialog"
@@ -325,6 +328,7 @@
             <!-- Action buttons -->
             <div class="probation-action-row">
               <Button
+                v-can:edit="'employees'"
                 label="Lưu nháp"
                 icon="pi pi-save"
                 severity="secondary"
@@ -333,6 +337,7 @@
                 @click="saveDraft"
               />
               <Button
+                v-can:edit="'employees'"
                 v-if="detail.evaluation && detail.evaluation.status === 'draft'"
                 label="Nộp lên HR"
                 icon="pi pi-send"
@@ -376,9 +381,16 @@ import Tag from 'primevue/tag'
 import Textarea from 'primevue/textarea'
 import probationService, { type ProbationDetailRead } from '@/services/probationService'
 import userService from '@/services/userService'
+import { useAuthStore } from '@/stores/auth'
 import ProbationApproveDialog from './ProbationApproveDialog.vue'
 
 const props = defineProps<{ employeeId: number }>()
+const auth = useAuthStore()
+const canReviewProbation = computed(() => {
+  if (auth.user?.is_superuser) return true
+  const roles = auth.user?.roles ?? []
+  return roles.includes('admin') || roles.includes('hr_manager') || roles.includes('hr_officer')
+})
 
 const toast = useToast()
 const loading = ref(false)

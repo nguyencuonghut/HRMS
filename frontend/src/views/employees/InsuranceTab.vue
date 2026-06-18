@@ -20,6 +20,7 @@
         </div>
         <div class="ins-tab-actions">
           <Button
+            v-can:edit="'insurance'"
             v-if="!editing"
             label="Chỉnh sửa"
             icon="pi pi-pencil"
@@ -28,7 +29,7 @@
           />
           <template v-else>
             <Button label="Hủy" severity="secondary" text :disabled="saving" @click="cancelEdit" />
-            <Button label="Lưu" icon="pi pi-save" :loading="saving" @click="save" />
+            <Button v-can:edit="'insurance'" label="Lưu" icon="pi pi-save" :loading="saving" @click="save" />
           </template>
         </div>
       </div>
