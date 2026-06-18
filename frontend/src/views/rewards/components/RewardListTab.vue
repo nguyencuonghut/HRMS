@@ -59,7 +59,7 @@
         @click="reset"
       />
       <Button
-        v-if="canCreateReward"
+        v-can:create="'rewards'"
         label="Thêm quyết định"
         icon="pi pi-plus"
         class="ml-auto"
@@ -150,7 +150,7 @@
         <Column header="" style="width: 90px; text-align: right">
           <template #body="{ data }: { data: RewardRead }">
             <Button
-              v-if="canEditReward"
+              v-can:edit="'rewards'"
               icon="pi pi-pencil"
               text
               rounded
@@ -160,7 +160,7 @@
               @click="openEdit(data)"
             />
             <Button
-              v-if="canDeleteReward"
+              v-can:delete="'rewards'"
               icon="pi pi-trash"
               text
               rounded
@@ -425,10 +425,7 @@ const selectedTypeIsMonetary = computed(() => {
   const t = rewardTypes.value.find(t => t.id === form.value.reward_type_id)
   return t?.is_monetary ?? false
 })
-const canCreateReward = computed(() => permissionGate.hasPermission('rewards:create'))
-const canEditReward = computed(() => permissionGate.hasPermission('rewards:edit'))
-const canDeleteReward = computed(() => permissionGate.hasPermission('rewards:delete'))
-const canMutateReward = computed(() => canCreateReward.value || canEditReward.value)
+const canMutateReward = computed(() => permissionGate.canCreate('rewards') || permissionGate.canEdit('rewards'))
 
 // ── Load ──────────────────────────────────────────────────────────────────────
 

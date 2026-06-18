@@ -19,6 +19,7 @@ import App from './App.vue'
 import router from './router'
 import { pinia } from '@/stores/pinia'
 import '@/assets/styles/main.scss'
+import canDirective from '@/directives/can'
 
 // ─── Hồng Hà theme preset (Teal primary) ──────────────────────────────────
 const HongHaPreset = definePreset(Aura, {
@@ -126,5 +127,6 @@ app.use(PrimeVue, {
 app.use(ToastService)
 app.use(ConfirmationService)
 app.directive('tooltip', Tooltip)
+app.directive('can', canDirective)
 
 app.mount('#app')

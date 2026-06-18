@@ -62,7 +62,7 @@
       />
 
       <Button
-        v-if="canCreateRecruitment"
+        v-can:create="'recruitment'"
         label="Tạo yêu cầu tuyển dụng"
         icon="pi pi-plus"
         class="ml-auto"
@@ -137,14 +137,16 @@
               <Button icon="pi pi-eye" text rounded size="small" severity="secondary" v-tooltip.top="'Xem chi tiết'" />
             </RouterLink>
             <Button
-              v-if="canEditRecruitment && data.status === 'draft'"
+              v-can:edit="'recruitment'"
+              v-if="data.status === 'draft'"
               icon="pi pi-pencil"
               text rounded size="small" severity="secondary"
               v-tooltip.top="'Sửa'"
               @click="openEdit(data)"
             />
             <Button
-              v-if="canEditRecruitment && data.status === 'draft'"
+              v-can:edit="'recruitment'"
+              v-if="data.status === 'draft'"
               icon="pi pi-send"
               text rounded size="small" severity="info"
               v-tooltip.top="'Gửi duyệt'"
@@ -165,7 +167,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { RouterLink } from 'vue-router'
 import Button from 'primevue/button'
 import Column from 'primevue/column'
@@ -180,13 +182,8 @@ import recruitmentService, { type JobRequisitionListItem, type JobRequisitionRea
 import departmentService, { type DepartmentRead } from '@/services/departmentService'
 import jobPositionService, { type JobPositionListItem } from '@/services/jobPositionService'
 import JRFormDialog from './JRFormDialog.vue'
-import { usePermissionGate } from '@/composables/usePermissionGate'
-
 const confirm = useConfirm()
 const toast   = useToast()
-const permissionGate = usePermissionGate()
-const canCreateRecruitment = computed(() => permissionGate.hasPermission('recruitment:create'))
-const canEditRecruitment = computed(() => permissionGate.hasPermission('recruitment:edit'))
 
 const loading  = ref(false)
 const items    = ref<JobRequisitionListItem[]>([])

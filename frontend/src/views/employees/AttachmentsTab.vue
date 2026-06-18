@@ -153,7 +153,7 @@ import InputText from 'primevue/inputtext'
 import Select from 'primevue/select'
 import Tag from 'primevue/tag'
 
-import { useAuthStore } from '@/stores/auth'
+import { usePermissionGate } from '@/composables/usePermissionGate'
 import employeeService, {
   DOCUMENT_TYPE_GROUPS,
   DOCUMENT_TYPE_OPTIONS,
@@ -165,8 +165,8 @@ const props = defineProps<{ employeeId: number }>()
 
 const confirm = useConfirm()
 const toast   = useToast()
-const auth    = useAuthStore()
-const canEdit = computed(() => auth.hasPermission('employees:edit'))
+const permissionGate = usePermissionGate()
+const canEdit = computed(() => permissionGate.canEdit('employees'))
 
 // ── State ─────────────────────────────────────────────────────────
 const loading   = ref(false)

@@ -6,7 +6,7 @@
         <h2>Chức danh</h2>
         <span class="subtitle">Quản lý chức danh nhân sự</span>
       </div>
-      <Button v-if="canEditOrg" label="Thêm mới" icon="pi pi-plus" @click="openCreate" />
+      <Button v-can:edit="'org'" label="Thêm mới" icon="pi pi-plus" @click="openCreate" />
     </div>
 
     <!-- Toolbar -->
@@ -80,7 +80,7 @@
           <template #body="{ data }">
             <div class="action-cell">
               <Button
-                v-if="canEditOrg"
+                v-can:edit="'org'"
                 icon="pi pi-pencil"
                 severity="secondary"
                 text rounded size="small"
@@ -88,7 +88,7 @@
                 @click="openEdit(data)"
               />
               <Button
-                v-if="canEditOrg"
+                v-can:edit="'org'"
                 icon="pi pi-trash"
                 severity="danger"
                 text rounded size="small"
@@ -211,7 +211,7 @@ interface FormState {
 const toast   = useToast()
 const confirm = useConfirm()
 const permissionGate = usePermissionGate()
-const canEditOrg = computed(() => permissionGate.hasPermission('org:edit'))
+const canEditOrg = computed(() => permissionGate.canEdit('org'))
 
 const loading     = ref(false)
 const list        = ref<JobTitleRead[]>([])

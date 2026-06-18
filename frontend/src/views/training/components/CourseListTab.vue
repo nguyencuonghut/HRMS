@@ -55,7 +55,7 @@
         @click="reset"
       />
       <Button
-        v-if="canCreateTraining"
+        v-can:create="'training'"
         label="Thêm khóa học"
         icon="pi pi-plus"
         class="ml-auto"
@@ -155,14 +155,14 @@
         <Column header="" style="width: 90px; text-align: right">
           <template #body="{ data }: { data: CourseRead }">
             <Button
-              v-if="canEditTraining"
+              v-can:edit="'training'"
               icon="pi pi-pencil"
               text rounded size="small" severity="secondary"
               v-tooltip.top="'Sửa'"
               @click="openEdit(data)"
             />
             <Button
-              v-if="canDeleteTraining"
+              v-can:delete="'training'"
               icon="pi pi-trash"
               text rounded size="small" severity="danger"
               v-tooltip.top="'Xóa'"
@@ -312,10 +312,7 @@ const confirm = useConfirm()
 const toast   = useToast()
 const permissionGate = usePermissionGate()
 const courseTypeOptions = COURSE_TYPES.map((option) => ({ ...option }))
-const canCreateTraining = computed(() => permissionGate.hasPermission('training:create'))
-const canEditTraining = computed(() => permissionGate.hasPermission('training:edit'))
-const canDeleteTraining = computed(() => permissionGate.hasPermission('training:delete'))
-const canMutateTraining = computed(() => canCreateTraining.value || canEditTraining.value)
+const canMutateTraining = computed(() => permissionGate.canCreate('training') || permissionGate.canEdit('training'))
 
 // ── Options ───────────────────────────────────────────────────────────────────
 

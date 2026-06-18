@@ -250,7 +250,7 @@ import ConfirmDialog from 'primevue/confirmdialog'
 import Dialog from 'primevue/dialog'
 import Tag from 'primevue/tag'
 
-import { useAuthStore } from '@/stores/auth'
+import { usePermissionGate } from '@/composables/usePermissionGate'
 import contractService, { type ContractRead, statusSeverity } from '@/services/contractService'
 import ContractFormDialog from './ContractFormDialog.vue'
 import ContractGenerateDialog from './ContractGenerateDialog.vue'
@@ -259,8 +259,8 @@ const props   = defineProps<{ employeeId: number }>()
 const emit    = defineEmits<{ refresh: [] }>()
 const confirm = useConfirm()
 const toast   = useToast()
-const auth    = useAuthStore()
-const canEdit = computed(() => auth.hasPermission('contracts:edit') || auth.hasPermission('contracts:create'))
+const permissionGate = usePermissionGate()
+const canEdit = computed(() => permissionGate.canEdit('contracts') || permissionGate.canCreate('contracts'))
 
 // ── State ──────────────────────────────────────────────────────────
 const loading   = ref(false)

@@ -542,7 +542,7 @@ import departmentService, {
   type DepartmentOrgChartNodeRead,
 } from '@/services/departmentService'
 import employeeService, { type EmployeeLookupItem } from '@/services/employeeService'
-import { useAuthStore } from '@/stores/auth'
+import { usePermissionGate } from '@/composables/usePermissionGate'
 import { toLocalIso } from '@/utils/format'
 
 type HeadFormErrors = {
@@ -560,7 +560,7 @@ const route = useRoute()
 const router = useRouter()
 const toast = useToast()
 const confirm = useConfirm()
-const auth = useAuthStore()
+const permissionGate = usePermissionGate()
 
 const loadingDetail = ref(false)
 const loadingHead = ref(false)
@@ -587,7 +587,7 @@ const headForm = ref({
 const headFormErrors = ref<HeadFormErrors>({})
 
 const departmentId = computed(() => Number(route.params.id))
-const canEditHead = computed(() => auth.hasPermission('org:edit'))
+const canEditHead = computed(() => permissionGate.canEdit('org'))
 const selectedEmployeeOption = computed<EmployeeLookupItem | null>(() =>
   selectedEmployee.value && typeof selectedEmployee.value === 'object' ? selectedEmployee.value : null
 )

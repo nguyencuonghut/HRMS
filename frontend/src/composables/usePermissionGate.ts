@@ -1,8 +1,26 @@
 import { computed } from "vue";
 import type { RouteLocationRaw } from "vue-router";
-import { useRouter } from "vue-router";
+import router from "@/router";
 
 import { useAuthStore } from "@/stores/auth";
+
+export type PermissionModule =
+  | "org"
+  | "catalog"
+  | "employees"
+  | "contracts"
+  | "leaves"
+  | "insurance"
+  | "salary"
+  | "rewards"
+  | "disciplines"
+  | "training"
+  | "recruitment"
+  | "performance"
+  | "reports"
+  | "users"
+  | "roles"
+  | "audit_logs";
 
 type PermissionSpec = {
   permission?: string;
@@ -21,7 +39,6 @@ function normalizePermissionSpec(input: PermissionSpec): PermissionSpec {
 
 export function usePermissionGate() {
   const auth = useAuthStore();
-  const router = useRouter();
   const permissions = computed(() => new Set(auth.user?.permissions ?? []));
 
   function hasPermission(permission: string): boolean {
@@ -59,9 +76,35 @@ export function usePermissionGate() {
     });
   }
 
+  // Action-level helpers
+  function canView(module: PermissionModule): boolean {
+    return hasPermission(`${module}:view`);
+  }
+
+  function canCreate(module: PermissionModule): boolean {
+    return hasPermission(`${module}:create`);
+  }
+
+  function canEdit(module: PermissionModule): boolean {
+    return hasPermission(`${module}:edit`);
+  }
+
+  function canDelete(module: PermissionModule): boolean {
+    return hasPermission(`${module}:delete`);
+  }
+
+  function canExport(module: PermissionModule): boolean {
+    return hasPermission(`${module}:export`);
+  }
+
   return {
     hasPermission,
     canAccess,
     canAccessRoute,
+    canView,
+    canCreate,
+    canEdit,
+    canDelete,
+    canExport,
   };
 }

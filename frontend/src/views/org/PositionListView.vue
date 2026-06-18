@@ -6,7 +6,7 @@
         <h2>Vị trí công việc</h2>
         <span class="subtitle">Quản lý vị trí công việc theo phòng/ban</span>
       </div>
-      <Button v-if="canEditOrg" label="Thêm mới" icon="pi pi-plus" @click="openCreate" />
+      <Button v-can:edit="'org'" label="Thêm mới" icon="pi pi-plus" @click="openCreate" />
     </div>
 
     <!-- Toolbar -->
@@ -128,8 +128,8 @@
           <template #body="{ data }">
             <div class="action-cell">
               <Button icon="pi pi-eye"    severity="secondary" text rounded size="small" v-tooltip.top="'Chi tiết'" @click="openDetail(data)" />
-              <Button v-if="canEditOrg" icon="pi pi-pencil" severity="secondary" text rounded size="small" v-tooltip.top="'Chỉnh sửa'" @click="openEdit(data)" />
-              <Button v-if="canEditOrg" icon="pi pi-trash"  severity="danger"    text rounded size="small" v-tooltip.top="'Xóa'"       @click="confirmDelete(data)" />
+              <Button v-can:edit="'org'" icon="pi pi-pencil" severity="secondary" text rounded size="small" v-tooltip.top="'Chỉnh sửa'" @click="openEdit(data)" />
+              <Button v-can:edit="'org'" icon="pi pi-trash"  severity="danger"    text rounded size="small" v-tooltip.top="'Xóa'"       @click="confirmDelete(data)" />
             </div>
           </template>
         </Column>
@@ -366,7 +366,7 @@ interface FormState {
 const toast   = useToast()
 const confirm = useConfirm()
 const permissionGate = usePermissionGate()
-const canEditOrg = computed(() => permissionGate.hasPermission('org:edit'))
+const canEditOrg = computed(() => permissionGate.canEdit('org'))
 
 const loading      = ref(false)
 const list         = ref<JobPositionListItem[]>([])

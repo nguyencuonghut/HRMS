@@ -6,7 +6,7 @@
         <h2>Phòng / Ban</h2>
         <span class="subtitle">Quản lý cơ cấu phòng ban</span>
       </div>
-      <Button v-if="canEditOrg" label="Thêm mới" icon="pi pi-plus" @click="openCreate" />
+      <Button v-can:edit="'org'" label="Thêm mới" icon="pi pi-plus" @click="openCreate" />
     </div>
 
     <!-- Toolbar -->
@@ -104,7 +104,7 @@
           <template #body="{ node }">
             <div class="action-cell">
               <Button
-                v-if="canEditOrg"
+                v-can:edit="'org'"
                 icon="pi pi-pencil"
                 severity="secondary"
                 text
@@ -114,7 +114,7 @@
                 @click="openEdit(node.data)"
               />
               <Button
-                v-if="canEditOrg"
+                v-can:edit="'org'"
                 icon="pi pi-trash"
                 severity="danger"
                 text
@@ -357,7 +357,7 @@ const toast   = useToast()
 const confirm = useConfirm()
 const router = useRouter()
 const permissionGate = usePermissionGate()
-const canEditOrg = computed(() => permissionGate.hasPermission('org:edit'))
+const canEditOrg = computed(() => permissionGate.canEdit('org'))
 
 const loading      = ref(false)
 const treeData     = ref<PvTreeNode[]>([])

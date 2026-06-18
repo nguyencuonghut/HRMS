@@ -38,14 +38,14 @@
 
               <div class="export-main-actions">
                 <Button
-                  v-if="canExportReports"
+                  v-can:export="'reports'"
                   label="Xuất báo cáo"
                   icon="pi pi-file-export"
                   :loading="submitting"
                   @click="submitExport"
                 />
                 <Button
-                  v-if="canExportReports"
+                  v-can:export="'reports'"
                   label="Lưu thành mẫu"
                   icon="pi pi-bookmark"
                   severity="secondary"
@@ -94,7 +94,8 @@
                 </div>
                 <div class="export-current-actions">
                   <Button
-                    v-if="canExportReports && currentJob.status === 'done'"
+                    v-can:export="'reports'"
+                    v-if="currentJob.status === 'done'"
                     label="Tải file"
                     icon="pi pi-download"
                     severity="success"
@@ -177,7 +178,8 @@
                 <template #body="{ data }">
                   <div class="export-row-actions">
                     <Button
-                      v-if="canExportReports && data.status === 'done'"
+                      v-can:export="'reports'"
+                      v-if="data.status === 'done'"
                       icon="pi pi-download"
                       text
                       rounded
@@ -186,7 +188,7 @@
                       @click="downloadJob(data)"
                     />
                     <Button
-                      v-if="canExportReports"
+                      v-can:export="'reports'"
                       icon="pi pi-trash"
                       text
                       rounded
@@ -251,7 +253,7 @@
                       @click="applyTemplate(data)"
                     />
                     <Button
-                      v-if="canExportReports"
+                      v-can:export="'reports'"
                       icon="pi pi-pencil"
                       text
                       rounded
@@ -260,7 +262,7 @@
                       @click="openEditTemplateDialog(data)"
                     />
                     <Button
-                      v-if="canExportReports"
+                      v-can:export="'reports'"
                       icon="pi pi-trash"
                       text
                       rounded
@@ -319,7 +321,7 @@
                 <div class="bhxh-form-desc">Danh sách lao động tham gia BHXH, BHYT, BHTN</div>
               </div>
               <Button
-                v-if="canViewInsuranceExports"
+                v-can:view="'insurance'"
                 label="Xuất Excel"
                 icon="pi pi-file-excel"
                 severity="success"
@@ -336,7 +338,7 @@
                 <div class="bhxh-form-desc">Bảng tổng hợp mức đóng BHXH, BHYT, BHTN</div>
               </div>
               <Button
-                v-if="canViewInsuranceExports"
+                v-can:view="'insurance'"
                 label="Xuất Excel"
                 icon="pi pi-file-excel"
                 severity="success"
@@ -381,7 +383,7 @@
       </div>
       <template #footer>
         <Button label="Hủy" text @click="saveTemplateVisible = false" />
-        <Button v-if="canExportReports" label="Lưu mẫu" :loading="templateSaving" @click="saveTemplate" />
+        <Button v-can:export="'reports'" label="Lưu mẫu" :loading="templateSaving" @click="saveTemplate" />
       </template>
     </Dialog>
 
@@ -416,7 +418,7 @@
       </div>
       <template #footer>
         <Button label="Hủy" text @click="editTemplateVisible = false" />
-        <Button v-if="canExportReports" label="Cập nhật" :loading="templateSaving" @click="updateTemplateMeta" />
+        <Button v-can:export="'reports'" label="Cập nhật" :loading="templateSaving" @click="updateTemplateMeta" />
       </template>
     </Dialog>
   </div>
@@ -456,8 +458,8 @@ import { usePermissionGate } from '@/composables/usePermissionGate'
 const toast = useToast()
 const { isPolling, start } = useExportPolling()
 const permissionGate = usePermissionGate()
-const canExportReports = computed(() => permissionGate.hasPermission('reports:export'))
-const canViewInsuranceExports = computed(() => permissionGate.hasPermission('insurance:view'))
+const canExportReports = computed(() => permissionGate.canExport('reports'))
+const canViewInsuranceExports = computed(() => permissionGate.canView('insurance'))
 
 const activeTab = ref('quick')
 const departments = ref<DepartmentRead[]>([])

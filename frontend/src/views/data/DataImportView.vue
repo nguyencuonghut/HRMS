@@ -101,18 +101,18 @@ import TabPanels from 'primevue/tabpanels'
 import Tabs from 'primevue/tabs'
 
 import dataImportService from '@/services/dataImportService'
-import { useAuthStore } from '@/stores/auth'
+import { usePermissionGate } from '@/composables/usePermissionGate'
 import ImportPanel from './ImportPanel.vue'
 
 const activeTab = ref('departments')
 const svc = dataImportService
-const auth = useAuthStore()
+const permissionGate = usePermissionGate()
 
-const canImportOrg = computed(() => auth.hasPermission('org:edit'))
-const canImportEmployees = computed(() => auth.hasPermission('employees:edit'))
-const canImportLeaves = computed(() => auth.hasPermission('leaves:edit'))
-const canImportContracts = computed(() => auth.hasPermission('contracts:edit'))
-const canImportInsurance = computed(() => auth.hasPermission('insurance:edit'))
+const canImportOrg = computed(() => permissionGate.canEdit('org'))
+const canImportEmployees = computed(() => permissionGate.canEdit('employees'))
+const canImportLeaves = computed(() => permissionGate.canEdit('leaves'))
+const canImportContracts = computed(() => permissionGate.canEdit('contracts'))
+const canImportInsurance = computed(() => permissionGate.canEdit('insurance'))
 
 const visibleTabs = computed(() => [
   canImportOrg.value ? { value: 'departments', label: 'Phòng ban' } : null,
