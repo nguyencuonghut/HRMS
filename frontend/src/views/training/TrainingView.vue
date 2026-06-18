@@ -6,6 +6,7 @@
         <span class="page-subtitle">Khóa học · Kế hoạch đào tạo · Theo dõi · Chứng chỉ</span>
       </div>
       <Button
+        v-if="permissionGate.canAccessRoute('/reports/training')"
         label="Xem báo cáo đào tạo"
         icon="pi pi-chart-bar"
         severity="secondary"
@@ -45,7 +46,9 @@ import CourseListTab from './components/CourseListTab.vue'
 import TrainingPlanTab from './components/TrainingPlanTab.vue'
 import TrainingRecordTab from './components/TrainingRecordTab.vue'
 import CertificateTab from './components/CertificateTab.vue'
+import { usePermissionGate } from '@/composables/usePermissionGate'
 
 const router = useRouter()
+const permissionGate = usePermissionGate()
 const activeTab = ref('courses')
 </script>

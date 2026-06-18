@@ -6,6 +6,7 @@
         <span class="page-subtitle">KPI Tháng · Đánh giá Cuối năm · Shortcut tới báo cáo hiệu suất</span>
       </div>
       <Button
+        v-if="permissionGate.canAccessRoute('/reports/performance')"
         label="Xem báo cáo hiệu suất"
         icon="pi pi-chart-bar"
         severity="secondary"
@@ -38,7 +39,9 @@ import TabPanels from 'primevue/tabpanels'
 import Tabs from 'primevue/tabs'
 import KpiMonthlyTab from './components/KpiMonthlyTab.vue'
 import YearlyReviewTab from './components/YearlyReviewTab.vue'
+import { usePermissionGate } from '@/composables/usePermissionGate'
 
 const router = useRouter()
+const permissionGate = usePermissionGate()
 const activeTab = ref('kpi')
 </script>

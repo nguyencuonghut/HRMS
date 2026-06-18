@@ -102,6 +102,18 @@ api.interceptors.response.use(
       }
     }
 
+    // 403 → dispatch forbidden event
+    if (status === 403) {
+      const detail = error.response?.data?.detail ?? 'Bạn không có quyền thực hiện thao tác này.'
+      document.dispatchEvent(new CustomEvent('api:forbidden', {
+        detail: {
+          status,
+          message: detail,
+          method: config.method || 'get'
+        }
+      }))
+    }
+
     // 5xx → toast
     if (status !== undefined && status >= 500) {
       const detail = error.response?.data?.detail ?? 'Máy chủ gặp sự cố, vui lòng thử lại.'

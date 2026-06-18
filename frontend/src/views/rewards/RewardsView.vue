@@ -6,6 +6,7 @@
         <span class="page-subtitle">Quyết định khen thưởng · Kỷ luật · Shortcut tới báo cáo tổng hợp</span>
       </div>
       <Button
+        v-if="permissionGate.canAccessRoute('/reports/rewards')"
         label="Xem báo cáo khen thưởng & kỷ luật"
         icon="pi pi-chart-bar"
         severity="secondary"
@@ -41,10 +42,12 @@ import TabList from 'primevue/tablist'
 import TabPanel from 'primevue/tabpanel'
 import TabPanels from 'primevue/tabpanels'
 import Tabs from 'primevue/tabs'
+import { usePermissionGate } from '@/composables/usePermissionGate'
 
 import RewardListTab from './components/RewardListTab.vue'
 import DisciplineListTab from './components/DisciplineListTab.vue'
 
 const router = useRouter()
+const permissionGate = usePermissionGate()
 const activeTab = ref('rewards')
 </script>
