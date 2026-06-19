@@ -1,0 +1,86 @@
+name: Deploy Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Image tag cần deploy: commit SHA hoặc latest"
+        required: true
+        default: "latest"
+      compose_file:
+        description: "Compose file dùng để deploy"
+        required: true
+        type: choice
+        options:
+          - docker-compose.prod.yml
+          - docker-compose.lan.yml
+        default: docker-compose.prod.yml
+      deploy_path:
+        description: "Thư mục source trên server"
+        required: true
+        default: "/opt/hrms"
+      run_migrate:
+        description: "Chạy alembic upgrade head sau khi restart"
+        required: true
+        type: boolean
+        default: true
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAMESPACE: nguyencuonghut/hrms
+  IMAGE_BACKEND: hrms-backend
+  IMAGE_BACKUP: hrms-backup
+  IMAGE_FRONTEND: hrms-frontend
+
+jobs:
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/master'
+    environment: production
+    permissions:
+      contents: read
+      packages: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        env:
+          INPUT_IMAGE_TAG: ${{ inputs.image_tag }}
+          INPUT_COMPOSE_FILE: ${{ inputs.compose_file }}
+          INPUT_DEPLOY_PATH: ${{ inputs.deploy_path }}
+          INPUT_RUN_MIGRATE: ${{ inputs.run_migrate }}
+          BACKEND_IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/${{ env.IMAGE_BACKEND }}
+          BACKUP_IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/${{ env.IMAGE_BACKUP }}
+          FRONTEND_IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/${{ env.IMAGE_FRONTEND }}
+          GHCR_USERNAME: ${{ secrets.PRODUCTION_GHCR_USERNAME }}
+          GHCR_TOKEN: ${{ secrets.PRODUCTION_GHCR_TOKEN }}
+        with:
+          host: ${{ secrets.PRODUCTION_HOST }}
+          username: ${{ secrets.PRODUCTION_USER }}
+          key: ${{ secrets.PRODUCTION_SSH_KEY }}
+          envs: INPUT_IMAGE_TAG,INPUT_COMPOSE_FILE,INPUT_DEPLOY_PATH,INPUT_RUN_MIGRATE,BACKEND_IMAGE,BACKUP_IMAGE,FRONTEND_IMAGE,GHCR_USERNAME,GHCR_TOKEN
+          script: |
+            set -e
+            cd "$INPUT_DEPLOY_PATH"
+
+            export BACKEND_IMAGE="$BACKEND_IMAGE"
+            export BACKUP_IMAGE="$BACKUP_IMAGE"
+            export FRONTEND_IMAGE="$FRONTEND_IMAGE"
+            export IMAGE_TAG="$INPUT_IMAGE_TAG"
+
+            if [ -n "$GHCR_TOKEN" ] && [ -n "$GHCR_USERNAME" ]; then
+              echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
+            fi
+
+            docker compose -f "$INPUT_COMPOSE_FILE" pull backend celery_worker celery_beat backup_scheduler frontend
+            docker compose -f "$INPUT_COMPOSE_FILE" up -d --no-deps --remove-orphans backend celery_worker celery_beat backup_scheduler frontend
+
+            if [ "$INPUT_RUN_MIGRATE" = "true" ]; then
+              docker compose -f "$INPUT_COMPOSE_FILE" exec -T backend alembic upgrade head
+            fi
+
+            docker compose -f "$INPUT_COMPOSE_FILE" ps
+            echo "Production deploy complete at $(date)"

@@ -235,9 +235,9 @@ SECRET_KEY=<random-64-hex>
 ENCRYPTION_KEY=<fernet-key>
 REDIS_PASSWORD=<random-strong-password>
 
-BACKEND_IMAGE=ghcr.io/<owner>/<repo>/hrms-backend
-FRONTEND_IMAGE=ghcr.io/<owner>/<repo>/hrms-frontend
-BACKUP_IMAGE=ghcr.io/<owner>/<repo>/hrms-backup
+BACKEND_IMAGE=ghcr.io/nguyencuonghut/hrms/hrms-backend
+FRONTEND_IMAGE=ghcr.io/nguyencuonghut/hrms/hrms-frontend
+BACKUP_IMAGE=ghcr.io/nguyencuonghut/hrms/hrms-backup
 IMAGE_TAG=<commit-sha-hoac-tag>
 
 REFRESH_TOKEN_COOKIE_SECURE=true
@@ -376,13 +376,13 @@ Production compose không build tại chỗ. Phải chắc chắn image đã đ�
 
 Theo [.github/workflows/ci.yml](/run/media/cuong/DATA/02_Project/166_HonghaHRM/HRMS/.github/workflows/ci.yml):
 
-- branch `main` khi push sẽ build/push:
-  - `ghcr.io/<repo>/hrms-backend:latest`
-  - `ghcr.io/<repo>/hrms-backend:<github.sha>`
-  - `ghcr.io/<repo>/hrms-backup:latest`
-  - `ghcr.io/<repo>/hrms-backup:<github.sha>`
-  - `ghcr.io/<repo>/hrms-frontend:latest`
-  - `ghcr.io/<repo>/hrms-frontend:<github.sha>`
+- branch `master` khi push sẽ build/push:
+- `ghcr.io/nguyencuonghut/hrms/hrms-backend:latest`
+- `ghcr.io/nguyencuonghut/hrms/hrms-backend:<github.sha>`
+- `ghcr.io/nguyencuonghut/hrms/hrms-backup:latest`
+- `ghcr.io/nguyencuonghut/hrms/hrms-backup:<github.sha>`
+- `ghcr.io/nguyencuonghut/hrms/hrms-frontend:latest`
+- `ghcr.io/nguyencuonghut/hrms/hrms-frontend:<github.sha>`
 
 ### 9.1. Login registry
 
