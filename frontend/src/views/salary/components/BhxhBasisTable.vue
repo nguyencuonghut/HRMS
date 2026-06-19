@@ -159,7 +159,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import Button from 'primevue/button'
 import Column from 'primevue/column'
 import DataTable from 'primevue/datatable'
@@ -171,6 +171,7 @@ import Select from 'primevue/select'
 import Toast from 'primevue/toast'
 import { useToast } from 'primevue/usetoast'
 
+import { usePermissionGate } from '@/composables/usePermissionGate'
 import departmentService, { type DepartmentRead } from '@/services/departmentService'
 import salaryService, { type SalaryEmployeeRow } from '@/services/salaryService'
 import BhxhAdjustmentDialog from './BhxhAdjustmentDialog.vue'
@@ -179,6 +180,8 @@ import BhxhHistoryDialog from './BhxhHistoryDialog.vue'
 // ── State ─────────────────────────────────────────────────────────────────────
 
 const rows = ref<SalaryEmployeeRow[]>([])
+const permissionGate = usePermissionGate()
+const canLoadDepartments = computed(() => permissionGate.canAccessRoute('/org/departments'))
 const total = ref(0)
 const loading = ref(false)
 const currentPage = ref(1)
@@ -228,6 +231,10 @@ async function loadPage(page = 1) {
 }
 
 async function loadDepartments() {
+  if (!canLoadDepartments.value) {
+    departments.value = []
+    return
+  }
   try {
     const res = await departmentService.getList(true)
     departments.value = res.data

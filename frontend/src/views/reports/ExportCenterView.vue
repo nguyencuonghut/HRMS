@@ -460,6 +460,7 @@ const { isPolling, start } = useExportPolling()
 const permissionGate = usePermissionGate()
 const canExportReports = computed(() => permissionGate.canExport('reports'))
 const canViewInsuranceExports = computed(() => permissionGate.canView('insurance'))
+const canLoadDepartments = computed(() => permissionGate.canAccessRoute('/org/departments'))
 
 const activeTab = ref('quick')
 const departments = ref<DepartmentRead[]>([])
@@ -595,6 +596,10 @@ function formatDateTime(value?: string | null) {
 }
 
 async function loadDepartments() {
+  if (!canLoadDepartments.value) {
+    departments.value = []
+    return
+  }
   try {
     const res = await departmentService.getList(true)
     departments.value = res.data

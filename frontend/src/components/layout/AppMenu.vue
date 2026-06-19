@@ -90,8 +90,13 @@ const openGroups = ref<Set<string>>(
   new Set(["Cơ cấu tổ chức", "Nhân sự", "Tuyển dụng", "Báo cáo", "Danh mục"]),
 );
 const reminderBadge = ref(0);
+const canLoadReminderBadge = computed(() => permissionGate.canAccessRoute("/reminders"));
 
 onMounted(async () => {
+  if (!canLoadReminderBadge.value) {
+    reminderBadge.value = 0;
+    return;
+  }
   try {
     const res = await reminderService.getReminders(7);
     reminderBadge.value = res.data.total;
@@ -128,8 +133,28 @@ function canAccessItem(item: MenuItem): boolean {
   return true;
 }
 
+function flattenMenuRoutes(items: MenuItem[]): string[] {
+  return items.flatMap((item) => {
+    if (!canAccessItem(item)) return [];
+    const own = item.to ? [item.to] : [];
+    const children = item.items
+      ? item.items.filter((child) => canAccessChild(child)).map((child) => child.to)
+      : [];
+    return [...own, ...children];
+  });
+}
+
+const activeMenuTarget = computed(() => {
+  const currentPath = route.path;
+  const candidates = flattenMenuRoutes(filteredMenu.value).filter(
+    (target) => currentPath === target || currentPath.startsWith(`${target}/`),
+  );
+  if (candidates.length === 0) return null;
+  return candidates.sort((a, b) => b.length - a.length)[0];
+});
+
 function isRouteActive(target: string): boolean {
-  return route.path === target || route.path.startsWith(`${target}/`);
+  return activeMenuTarget.value === target;
 }
 
 const menu: MenuItem[] = [
@@ -308,7 +333,12 @@ const menu: MenuItem[] = [
     label: "Danh mục",
     icon: "pi-list",
     items: [
-      { to: "/catalog", label: "Tổng quan danh mục", icon: "pi-th-large" },
+      {
+        to: "/catalog",
+        label: "Tổng quan danh mục",
+        icon: "pi-th-large",
+        permission: "catalog:view",
+      },
       {
         to: "/catalog/insurance",
         label: "Cấu hình BHXH",

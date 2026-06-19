@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
 import { isNetworkError } from "@/utils/network";
+import { getDefaultAuthorizedRoute } from "@/router/defaultAuthorizedRoute";
 
 // Khai báo kiểu cho route meta
 declare module "vue-router" {
@@ -10,53 +11,6 @@ declare module "vue-router" {
     permission?: string   // permission code cần có — VD: 'users:view'
     anyPermissions?: string[]
   }
-}
-
-function getDefaultAuthorizedRoute(auth: ReturnType<typeof useAuthStore>) {
-  const candidates: Array<{
-    name: string;
-    permission?: string;
-    anyPermissions?: string[];
-  }> = [
-    { name: "dashboard-overview", permission: "employees:view" },
-    {
-      name: "reports",
-      anyPermissions: [
-        "employees:view",
-        "leaves:view",
-        "insurance:view",
-        "contracts:view",
-        "recruitment:view",
-        "training:view",
-        "rewards:view",
-        "performance:view",
-      ],
-    },
-    { name: "insurance-analytics", permission: "insurance:view" },
-    { name: "salary", permission: "insurance:view" },
-    { name: "employees", permission: "employees:view" },
-    { name: "contracts", permission: "contracts:view" },
-    { name: "leaves", permission: "leaves:view" },
-    { name: "performance", permission: "performance:view" },
-    { name: "jr-list", permission: "recruitment:view" },
-    { name: "training", permission: "training:view" },
-    { name: "rewards", permission: "rewards:view" },
-  ];
-
-  const firstAllowed = candidates.find((candidate) => {
-    if (candidate.permission && !auth.hasPermission(candidate.permission)) {
-      return false;
-    }
-    if (
-      candidate.anyPermissions &&
-      !candidate.anyPermissions.some((permission) => auth.hasPermission(permission))
-    ) {
-      return false;
-    }
-    return true;
-  });
-
-  return firstAllowed ? { name: firstAllowed.name } : { name: "forbidden" };
 }
 
 const router = createRouter({
@@ -346,6 +300,7 @@ const router = createRouter({
               "training:view",
               "rewards:view",
               "performance:view",
+              "reports:view",
             ],
           },
         },
@@ -449,7 +404,7 @@ const router = createRouter({
           component: () => import("@/views/catalog/CatalogView.vue"),
           meta: {
             title: "Danh mục",
-            anyPermissions: ["catalog:view", "insurance:view", "recruitment:view"],
+            permission: "catalog:view",
           },
         },
         {

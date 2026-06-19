@@ -219,7 +219,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import Button from 'primevue/button'
 import Column from 'primevue/column'
 import DataTable from 'primevue/datatable'
@@ -227,12 +227,15 @@ import Select from 'primevue/select'
 import Toast from 'primevue/toast'
 import { useToast } from 'primevue/usetoast'
 
+import { usePermissionGate } from '@/composables/usePermissionGate'
 import departmentService, { type DepartmentRead } from '@/services/departmentService'
 import salaryService, { type SalarySummaryPage, type SalarySummaryRow } from '@/services/salaryService'
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
 const now = new Date()
+const permissionGate = usePermissionGate()
+const canLoadDepartments = computed(() => permissionGate.canAccessRoute('/org/departments'))
 const filterYear = ref(now.getFullYear())
 const filterMonth = ref(now.getMonth() + 1)
 const filterDeptId = ref<number | null>(null)
@@ -305,6 +308,10 @@ async function exportExcel() {
 }
 
 async function loadDepartments() {
+  if (!canLoadDepartments.value) {
+    departments.value = []
+    return
+  }
   try {
     const res = await departmentService.getList(true)
     departments.value = res.data

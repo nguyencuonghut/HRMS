@@ -212,7 +212,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import Button from 'primevue/button'
 import Column from 'primevue/column'
 import DataTable from 'primevue/datatable'
@@ -223,12 +223,15 @@ import InputText from 'primevue/inputtext'
 import Paginator from 'primevue/paginator'
 import Select from 'primevue/select'
 
+import { usePermissionGate } from '@/composables/usePermissionGate'
 import departmentService, { type DepartmentRead } from '@/services/departmentService'
 import salaryService, { type BhxhSalaryAdjustmentRead } from '@/services/salaryService'
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
 const rows = ref<BhxhSalaryAdjustmentRead[]>([])
+const permissionGate = usePermissionGate()
+const canLoadDepartments = computed(() => permissionGate.canAccessRoute('/org/departments'))
 const total = ref(0)
 const loading = ref(false)
 const currentPage = ref(1)
@@ -273,6 +276,10 @@ async function loadPage(page = 1) {
 }
 
 async function loadDepartments() {
+  if (!canLoadDepartments.value) {
+    departments.value = []
+    return
+  }
   try {
     const res = await departmentService.getList(true)
     departments.value = res.data

@@ -382,6 +382,7 @@ import Toast from 'primevue/toast'
 import vTooltip from 'primevue/tooltip'
 import { useToast } from 'primevue/usetoast'
 
+import { usePermissionGate } from '@/composables/usePermissionGate'
 import insuranceService, {
   type InsuranceDashboardKPI,
   type InsuranceMonthlyChangesResponse,
@@ -392,6 +393,8 @@ import insuranceService, {
 import departmentService, { type DepartmentRead } from '@/services/departmentService'
 
 const toast = useToast()
+const permissionGate = usePermissionGate()
+const canLoadDepartments = computed(() => permissionGate.canAccessRoute('/org/departments'))
 
 // ── Configuration Options ────────────────────────────────────────────────────
 const now = new Date()
@@ -468,6 +471,10 @@ function generateLinePath(type: 'added' | 'removed'): string {
 
 // ── API Loader functions ──────────────────────────────────────────────────────
 async function loadMeta() {
+  if (!canLoadDepartments.value) {
+    departments.value = []
+    return
+  }
   try {
     const res = await departmentService.getList(true)
     departments.value = res.data

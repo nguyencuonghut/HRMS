@@ -362,7 +362,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import Button from 'primevue/button'
 import Column from 'primevue/column'
@@ -381,6 +381,7 @@ import TabPanel from 'primevue/tabpanel'
 import TabPanels from 'primevue/tabpanels'
 import Tabs from 'primevue/tabs'
 import Tag from 'primevue/tag'
+import { usePermissionGate } from '@/composables/usePermissionGate'
 import departmentService from '@/services/departmentService'
 import BhytClinicSelect from '@/components/catalog/BhytClinicSelect.vue'
 import InsuranceChangesTab from './InsuranceChangesTab.vue'
@@ -393,6 +394,8 @@ import insuranceService, {
 } from '@/services/insuranceService'
 
 const router = useRouter()
+const permissionGate = usePermissionGate()
+const canLoadDepartments = computed(() => permissionGate.canAccessRoute('/org/departments'))
 
 const activeTopTab = ref('profiles')
 
@@ -490,6 +493,10 @@ async function loadPolicyInfo() {
 }
 
 async function loadDepartments() {
+  if (!canLoadDepartments.value) {
+    departments.value = []
+    return
+  }
   try {
     const res = await departmentService.getList(true)
     departments.value = res.data as { id: number; name: string }[]
