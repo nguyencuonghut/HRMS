@@ -555,9 +555,7 @@ const PieSummaryChart = defineComponent({
     items: { type: Array as PropType<GenderStructureItem[]>, required: true },
   },
   setup(props) {
-    const colors = [
-      "var(--dashboard-pie-1)",
-      "var(--dashboard-pie-2)",
+    const fallbackColors = [
       "var(--dashboard-pie-3)",
       "var(--dashboard-pie-4)",
       "var(--dashboard-pie-5)",
@@ -566,18 +564,26 @@ const PieSummaryChart = defineComponent({
       props.items.reduce((sum, item) => sum + item.count, 0),
     );
 
+    function genderColor(label: string, index: number): string {
+      const normalized = label.trim().toLowerCase();
+      if (normalized === "nam") return "var(--dashboard-gender-male)";
+      if (normalized === "nữ" || normalized === "nu") return "var(--dashboard-gender-female)";
+      return fallbackColors[index % fallbackColors.length];
+    }
+
     const segments = computed(() => {
       let offset = 0;
       return props.items.map((item, index) => {
         const portion = total.value === 0 ? 0 : item.count / total.value;
         const dash = `${portion * 100} ${100 - portion * 100}`;
+        const color = genderColor(item.label, index);
         const segment = {
           label: item.label,
           count: item.count,
           percentage: item.percentage,
-          color: colors[index % colors.length],
+          color,
           style: {
-            stroke: colors[index % colors.length],
+            stroke: color,
             strokeDasharray: dash,
             strokeDashoffset: `${25 - offset}`,
           },
@@ -857,6 +863,8 @@ onMounted(async () => {
   --dashboard-tenure-bar: linear-gradient(90deg, #34d399, #059669);
   --dashboard-hires-color: #16a34a;
   --dashboard-resigned-color: #dc2626;
+  --dashboard-gender-male: #2563eb;
+  --dashboard-gender-female: #f97316;
   --dashboard-pie-1: #14b8a6;
   --dashboard-pie-2: #38bdf8;
   --dashboard-pie-3: #f59e0b;
@@ -890,6 +898,8 @@ html.dark-mode .dashboard-view {
   --dashboard-tenure-bar: linear-gradient(90deg, #6ee7b7, #10b981);
   --dashboard-hires-color: #4ade80;
   --dashboard-resigned-color: #f87171;
+  --dashboard-gender-male: #60a5fa;
+  --dashboard-gender-female: #fb7185;
   --dashboard-pie-1: #5eead4;
   --dashboard-pie-2: #7dd3fc;
   --dashboard-pie-3: #fcd34d;
