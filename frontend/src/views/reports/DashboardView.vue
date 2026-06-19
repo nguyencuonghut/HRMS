@@ -157,6 +157,7 @@
             value-key="count"
             value-suffix=" người"
             bar-color="var(--dashboard-age-bar)"
+            denominator-mode="total"
           />
         </div>
 
@@ -176,6 +177,7 @@
             value-key="count"
             value-suffix=" người"
             bar-color="var(--dashboard-education-bar)"
+            denominator-mode="total"
           />
         </div>
 
@@ -195,6 +197,7 @@
             value-key="count"
             value-suffix=" người"
             bar-color="var(--dashboard-tenure-bar)"
+            denominator-mode="total"
           />
         </div>
       </div>
@@ -367,6 +370,10 @@ const HorizontalBarChart = defineComponent({
     },
     valueSuffix: { type: String, default: "" },
     barColor: { type: String, required: true },
+    denominatorMode: {
+      type: String as PropType<"max" | "total">,
+      default: "max",
+    },
     layout: {
       type: String as PropType<"stacked" | "grid">,
       default: "stacked",
@@ -403,6 +410,15 @@ const HorizontalBarChart = defineComponent({
         0,
       ),
     );
+    const totalValue = computed(() =>
+      props.items.reduce(
+        (sum, item) => sum + Number(getItemValue(item, props.valueKey)),
+        0,
+      ),
+    );
+    const denominator = computed(() =>
+      props.denominatorMode === "total" ? totalValue.value : maxValue.value,
+    );
 
     return () =>
       h(
@@ -414,9 +430,9 @@ const HorizontalBarChart = defineComponent({
           const value = Number(getItemValue(item, props.valueKey));
           const label = getItemLabel(item);
           const width =
-            maxValue.value === 0
+            denominator.value === 0
               ? 0
-              : Math.max((value / maxValue.value) * 100, value > 0 ? 8 : 0);
+              : Math.max((value / denominator.value) * 100, value > 0 ? 8 : 0);
           return h(
             "div",
             {
@@ -1216,10 +1232,9 @@ html.dark-mode .dashboard-view .headcount-card.is-empty {
 }
 
 .bar-chart-row {
-  display: grid;
-  grid-template-columns: minmax(110px, 1.1fr) minmax(0, 3fr) auto;
-  gap: 0.75rem;
+  display: flex;
   align-items: center;
+  gap: 0.75rem;
 }
 
 .bar-chart.is-grid .bar-chart-row {
@@ -1250,6 +1265,7 @@ html.dark-mode .dashboard-view .headcount-card.is-empty {
 .bar-chart-label {
   display: flex;
   flex-direction: column;
+  flex: 0 0 110px;
   gap: 0.15rem;
   line-height: 1.35;
   color: var(--l-text);
@@ -1266,6 +1282,7 @@ html.dark-mode .dashboard-view .headcount-card.is-empty {
 
 .bar-chart-track {
   position: relative;
+  flex: 1 1 auto;
   height: 1.25rem;
   border-radius: 999px;
   background: var(--dashboard-track-bg);
@@ -1280,6 +1297,8 @@ html.dark-mode .dashboard-view .headcount-card.is-empty {
 
 .bar-chart-value {
   color: var(--l-text-muted);
+  flex: 0 0 4.5rem;
+  text-align: right;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
@@ -1433,8 +1452,18 @@ html.dark-mode .dashboard-view .headcount-card.is-empty {
   }
 
   .bar-chart-row {
-    grid-template-columns: 1fr;
+    flex-direction: column;
+    align-items: stretch;
     gap: 0.375rem;
+  }
+
+  .bar-chart-label,
+  .bar-chart-value {
+    flex-basis: auto;
+  }
+
+  .bar-chart-value {
+    text-align: left;
   }
 
   .pie-summary {
