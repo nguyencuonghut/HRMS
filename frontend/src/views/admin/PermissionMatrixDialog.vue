@@ -274,7 +274,8 @@ async function save() {
 }
 
 .matrix-table thead th {
-  background: var(--p-surface-100);
+  background: color-mix(in srgb, var(--l-surface-variant) 72%, var(--l-surface));
+  color: var(--l-text);
   font-weight: 600;
   text-align: center;
   white-space: nowrap;
@@ -282,7 +283,15 @@ async function save() {
 
 .module-col  { text-align: left; min-width: 160px; }
 .action-col  { width: 72px; text-align: center; }
-.all-col     { background: var(--p-surface-50); }
+.all-col     {
+  background: color-mix(in srgb, var(--l-surface-variant) 58%, var(--l-surface));
+}
+
+.matrix-table thead .all-col,
+.matrix-table tbody .all-col,
+.matrix-table tfoot .all-col {
+  color: var(--l-text);
+}
 
 .module-name {
   font-weight: 500;
