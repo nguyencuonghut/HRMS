@@ -262,11 +262,12 @@ async def _ensure_employee_with_basis() -> dict:
                 INSERT INTO employee_contracts (
                     employee_id, contract_category_id, document_kind,
                     contract_number, signed_date, effective_from, effective_to,
-                    insurance_salary, status, created_at, updated_at
+                    insurance_salary, insurance_salary_mode, insurance_salary_fixed_amount,
+                    status, created_at, updated_at
                 ) VALUES (
                     :employee_id, :category_id, :document_kind,
                     :contract_number, :signed_date, :effective_from, :effective_to,
-                    :insurance_salary, 'active', NOW(), NOW()
+                    :insurance_salary, 'fixed_manual', :insurance_salary, 'active', NOW(), NOW()
                 )
                 """
             ),

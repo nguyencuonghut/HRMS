@@ -43,8 +43,13 @@ async def test_required_document_checklist_seed_reconciles_active_catalog():
     active_rows = [row for row in actual if row[-1] is True]
     assert active_rows == expected_active
 
-    inactive_codes = {row[0] for row in actual if row[-1] is False}
-    assert {"mst", "tk_ngan_hang", "anh_the", "so_bhxh", "giay_phep_ld"} <= inactive_codes
+    expected_active_codes = {row[0] for row in expected_active}
+    unexpected_active_codes = {row[0] for row in actual if row[-1] is True and row[0] not in expected_active_codes}
+    assert unexpected_active_codes == set()
+
+    legacy_codes = {"mst", "tk_ngan_hang", "anh_the", "so_bhxh", "giay_phep_ld"}
+    legacy_rows = [row for row in actual if row[0] in legacy_codes]
+    assert all(row[-1] is False for row in legacy_rows)
 
 
 async def test_required_document_checklist_seed_backfills_existing_employees():

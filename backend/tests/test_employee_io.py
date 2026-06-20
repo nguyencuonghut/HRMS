@@ -313,8 +313,8 @@ def test_import_with_position_and_sequence_override(client: TestClient):
     position_dept = next(d for d in depts if d["id"] == position["department_id"])
 
     row = _valid_row("0013", position_dept["code"])
-    row[16] = position["name"]
-    row[17] = "SYS2"
+    row[19] = position["name"]
+    row[20] = "SYS2"
     xlsx = _make_xlsx([IMPORT_COLUMNS, row])
 
     resp = _upload(client, headers, xlsx)
@@ -334,8 +334,8 @@ async def test_import_with_position_and_sequence_override_persists_context(clien
     employee_id_number = f"{_PREFIX}0014"
 
     row = _valid_row("0014", position_dept["code"])
-    row[16] = position["name"]
-    row[17] = "SYS2"
+    row[19] = position["name"]
+    row[20] = "SYS2"
     xlsx = _make_xlsx([IMPORT_COLUMNS, row])
     resp = _upload(client, headers, xlsx)
     assert resp.status_code == 200
@@ -367,7 +367,7 @@ def test_import_invalid_sequence_override_fails_row(client: TestClient):
     headers = _admin(client)
     dept = _get_dept_code(client, headers)
     row = _valid_row("0015", dept)
-    row[17] = "UNKNOWN_SYS"
+    row[20] = "UNKNOWN_SYS"
     xlsx = _make_xlsx([IMPORT_COLUMNS, row])
 
     resp = _upload(client, headers, xlsx)

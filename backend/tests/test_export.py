@@ -143,11 +143,12 @@ async def _seed() -> None:
                 INSERT INTO employee_contracts (
                     employee_id, parent_contract_id, contract_category_id, document_kind,
                     contract_number, signed_date, effective_from, effective_to,
-                    insurance_salary, status, created_at, updated_at
+                    insurance_salary, insurance_salary_mode, insurance_salary_fixed_amount,
+                    status, created_at, updated_at
                 ) VALUES (
                     :employee_id, NULL, :category_id, 'labor_contract',
                     :contract_number, :signed_date, :effective_from, :effective_to,
-                    NULL, 'active', NOW(), NOW()
+                    NULL, 'fixed_manual', NULL, 'active', NOW(), NOW()
                 )
             """), {
                 "employee_id": employee_id,

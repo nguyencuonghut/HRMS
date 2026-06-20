@@ -39,11 +39,11 @@ async def _cleanup():
         ids = [r[0] for r in rows.fetchall()]
         if ids:
             await s.execute(
-                text("DELETE FROM salary_scale_entries WHERE salary_scale_id IN (:ids)"),
+                text("DELETE FROM salary_scale_entries WHERE salary_scale_id = ANY(:ids)"),
                 {"ids": ids},
             )
             await s.execute(
-                text("DELETE FROM salary_scales WHERE id IN (:ids)"),
+                text("DELETE FROM salary_scales WHERE id = ANY(:ids)"),
                 {"ids": ids},
             )
         # Restore effective_to of default scale if it was closed

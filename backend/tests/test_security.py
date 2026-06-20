@@ -62,6 +62,11 @@ async def clear_security_state():
         "login_failed:rate-limit@hrms.local",
         "login_rate:198.51.100.10",
     )
+    # Clean up skill rows inserted during CSRF tests to prevent database pollution
+    engine = create_async_engine(settings.DATABASE_URL, connect_args={"ssl": False})
+    async with engine.begin() as conn:
+        await conn.execute(text("DELETE FROM skills WHERE code LIKE 'SEC-SKILL-%'"))
+    await engine.dispose()
 
 
 @pytest.fixture()
@@ -243,6 +248,7 @@ def test_settings_rejects_loopback_cors_origins_in_production():
             MINIO_ACCESS_KEY="prod-access-key",
             MINIO_SECRET_KEY="prod-secret-key",
             CORS_ORIGINS=["http://localhost:5173"],
+            REFRESH_TOKEN_COOKIE_SECURE=True,
         )
 
 
@@ -255,6 +261,7 @@ def test_settings_normalizes_cors_origins():
         MINIO_ACCESS_KEY="prod-access-key",
         MINIO_SECRET_KEY="prod-secret-key",
         CORS_ORIGINS=["https://hrms.example.com/"],
+        REFRESH_TOKEN_COOKIE_SECURE=True,
     )
     assert cfg.CORS_ORIGINS == ["https://hrms.example.com"]
 
@@ -269,6 +276,7 @@ def test_settings_rejects_default_minio_endpoint_in_production():
             MINIO_ACCESS_KEY="prod-access-key",
             MINIO_SECRET_KEY="prod-secret-key",
             CORS_ORIGINS=["https://hrms.example.com"],
+            REFRESH_TOKEN_COOKIE_SECURE=True,
         )
 
 
@@ -281,6 +289,7 @@ def test_settings_normalizes_minio_endpoint_in_production():
         MINIO_ACCESS_KEY="prod-access-key",
         MINIO_SECRET_KEY="prod-secret-key",
         CORS_ORIGINS=["https://hrms.example.com"],
+        REFRESH_TOKEN_COOKIE_SECURE=True,
     )
     assert cfg.MINIO_ENDPOINT == "s3.example.com"
 

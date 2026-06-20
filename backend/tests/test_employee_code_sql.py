@@ -2,14 +2,17 @@ from __future__ import annotations
 
 import pytest
 import sqlalchemy as sa
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from app.core.database import AsyncSessionLocal
+from app.core.config import settings
 from app.utils.employee_code_sql import sql_padded_employee_seq_expr
 
 
 @pytest.mark.asyncio
 async def test_sql_padded_employee_seq_expr_preserves_long_numbers_and_respects_min_digits():
-    async with AsyncSessionLocal() as session:
+    engine = create_async_engine(settings.DATABASE_URL, connect_args={"ssl": False})
+    Session = async_sessionmaker(engine, expire_on_commit=False)
+    async with Session() as session:
         row = (
             await session.execute(
                 sa.select(
@@ -22,6 +25,7 @@ async def test_sql_padded_employee_seq_expr_preserves_long_numbers_and_respects_
                 )
             )
         ).mappings().one()
+    await engine.dispose()
 
     assert row["short_code"] == "0312"
     assert row["long_code"] == "10000"

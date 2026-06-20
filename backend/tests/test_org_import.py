@@ -45,35 +45,36 @@ def _upload(client: TestClient, headers: dict[str, str], endpoint: str, content:
     )
 
 
-def _delete_position_by_code(client: TestClient, code: str) -> None:
-    for item in client.get(POS_BASE).json():
+def _delete_position_by_code(client: TestClient, headers: dict[str, str], code: str) -> None:
+    for item in client.get(POS_BASE, headers=headers).json():
         if item["code"] == code:
-            client.delete(f"{POS_BASE}/{item['id']}")
+            client.delete(f"{POS_BASE}/{item['id']}", headers=headers)
 
 
-def _delete_title_by_code(client: TestClient, code: str) -> None:
-    for item in client.get(JT_BASE).json():
+def _delete_title_by_code(client: TestClient, headers: dict[str, str], code: str) -> None:
+    for item in client.get(JT_BASE, headers=headers).json():
         if item["code"] == code:
-            client.delete(f"{JT_BASE}/{item['id']}")
+            client.delete(f"{JT_BASE}/{item['id']}", headers=headers)
 
 
-def _delete_dept_by_code(client: TestClient, code: str) -> None:
-    for item in client.get(DEPT_BASE).json():
+def _delete_dept_by_code(client: TestClient, headers: dict[str, str], code: str) -> None:
+    for item in client.get(DEPT_BASE, headers=headers).json():
         if item["code"] == code:
-            client.delete(f"{DEPT_BASE}/{item['id']}")
+            client.delete(f"{DEPT_BASE}/{item['id']}", headers=headers)
 
 
 @pytest.fixture(autouse=True)
 def cleanup(client: TestClient):
-    _delete_position_by_code(client, POS_CODE)
-    _delete_title_by_code(client, JT_CODE)
-    _delete_dept_by_code(client, DEPT_CHILD)
-    _delete_dept_by_code(client, DEPT_ROOT)
+    headers = _login(client)
+    _delete_position_by_code(client, headers, POS_CODE)
+    _delete_title_by_code(client, headers, JT_CODE)
+    _delete_dept_by_code(client, headers, DEPT_CHILD)
+    _delete_dept_by_code(client, headers, DEPT_ROOT)
     yield
-    _delete_position_by_code(client, POS_CODE)
-    _delete_title_by_code(client, JT_CODE)
-    _delete_dept_by_code(client, DEPT_CHILD)
-    _delete_dept_by_code(client, DEPT_ROOT)
+    _delete_position_by_code(client, headers, POS_CODE)
+    _delete_title_by_code(client, headers, JT_CODE)
+    _delete_dept_by_code(client, headers, DEPT_CHILD)
+    _delete_dept_by_code(client, headers, DEPT_ROOT)
 
 
 def test_department_import_supports_parent_child_upsert(client: TestClient):
@@ -92,7 +93,7 @@ def test_department_import_supports_parent_child_upsert(client: TestClient):
     assert body["success"] == 2
     assert body["failed"] == 0
 
-    departments = client.get(DEPT_BASE).json()
+    departments = client.get(DEPT_BASE, headers=headers).json()
     root = next(item for item in departments if item["code"] == DEPT_ROOT)
     child = next(item for item in departments if item["code"] == DEPT_CHILD)
     assert child["parent_id"] == root["id"]
@@ -107,7 +108,7 @@ def test_department_import_supports_parent_child_upsert(client: TestClient):
     )
     updated = _upload(client, headers, f"{IMPORT_BASE}/departments", xlsx_update)
     assert updated.status_code == 200, updated.text
-    root_after = next(item for item in client.get(DEPT_BASE).json() if item["code"] == DEPT_ROOT)
+    root_after = next(item for item in client.get(DEPT_BASE, headers=headers).json() if item["code"] == DEPT_ROOT)
     assert root_after["name"] == "Khối nhập liệu cập nhật"
     assert root_after["order_no"] == 5
 
@@ -122,7 +123,7 @@ def test_job_title_import_supports_upsert(client: TestClient):
     assert resp.status_code == 200, resp.text
     assert resp.json()["success"] == 1
 
-    titles = client.get(JT_BASE).json()
+    titles = client.get(JT_BASE, headers=headers).json()
     title = next(item for item in titles if item["code"] == JT_CODE)
     assert title["name"] == "Chức danh import"
     assert title["level"] == 4
@@ -133,7 +134,7 @@ def test_job_title_import_supports_upsert(client: TestClient):
     )
     updated = _upload(client, headers, f"{IMPORT_BASE}/job-titles", xlsx_update)
     assert updated.status_code == 200, updated.text
-    title_after = next(item for item in client.get(JT_BASE).json() if item["code"] == JT_CODE)
+    title_after = next(item for item in client.get(JT_BASE, headers=headers).json() if item["code"] == JT_CODE)
     assert title_after["name"] == "Chức danh import cập nhật"
     assert title_after["level"] == 2
     assert title_after["is_active"] is False
@@ -164,7 +165,7 @@ def test_job_title_import_ignores_trailing_formatted_blank_rows(client: TestClie
         assert body["failed"] == 0
     finally:
         for code in created_codes:
-            _delete_title_by_code(client, code)
+            _delete_title_by_code(client, headers, code)
 
 
 def test_job_position_import_requires_existing_dependencies_and_upserts(client: TestClient):
@@ -198,7 +199,7 @@ def test_job_position_import_requires_existing_dependencies_and_upserts(client: 
     assert created.status_code == 200, created.text
     assert created.json()["success"] == 1
 
-    position = next(item for item in client.get(POS_BASE).json() if item["code"] == POS_CODE)
+    position = next(item for item in client.get(POS_BASE, headers=headers).json() if item["code"] == POS_CODE)
     assert position["department_name"] == "Phòng kinh doanh import"
     assert position["job_title_name"] == "Nhân viên kinh doanh import"
     assert position["bhxh_allowance"] == 150000
@@ -212,7 +213,7 @@ def test_job_position_import_requires_existing_dependencies_and_upserts(client: 
     )
     updated = _upload(client, headers, f"{IMPORT_BASE}/job-positions", pos_update_xlsx)
     assert updated.status_code == 200, updated.text
-    position_after = next(item for item in client.get(POS_BASE).json() if item["code"] == POS_CODE)
+    position_after = next(item for item in client.get(POS_BASE, headers=headers).json() if item["code"] == POS_CODE)
     assert position_after["name"] == "Nhân viên kinh doanh import cập nhật"
     assert position_after["bhxh_allowance"] == 200000
     assert position_after["non_bhxh_allowance"] == 90000

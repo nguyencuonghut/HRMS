@@ -106,10 +106,18 @@ def _create_employee(client: TestClient, headers: dict, *, id_number: str, full_
     return resp.json()
 
 
-def _create_department(client: TestClient, *, code: str, name: str, dept_type: str = "PHONG") -> dict:
+def _create_department(
+    client: TestClient,
+    headers: dict,
+    *,
+    code: str,
+    name: str,
+    dept_type: str = "PHONG",
+) -> dict:
     resp = client.post(
         BASE,
         json={"code": code, "name": name, "dept_type": dept_type},
+        headers=headers,
     )
     assert resp.status_code == 201, resp.text
     return resp.json()
@@ -207,8 +215,8 @@ def test_department_head_api_supports_cross_department_assignment_and_audit(clie
     asyncio.run(_cleanup_department_head_test_data())
     headers = _login(client)
 
-    dept_a = _create_department(client, code="TESTHEADA", name="Test Head A")
-    dept_b = _create_department(client, code="TESTHEADB", name="Test Head B")
+    dept_a = _create_department(client, headers, code="TESTHEADA", name="Test Head A")
+    dept_b = _create_department(client, headers, code="TESTHEADB", name="Test Head B")
 
     position = client.post(
         "/api/v1/job-positions",
@@ -217,6 +225,7 @@ def test_department_head_api_supports_cross_department_assignment_and_audit(clie
             "name": "Giám đốc khối kiểm soát",
             "department_id": dept_a["id"],
         },
+        headers=headers,
     )
     assert position.status_code == 201, position.text
 
@@ -289,7 +298,7 @@ def test_department_head_replace_and_delete_close_current_record_and_log_audit(c
     asyncio.run(_cleanup_department_head_test_data())
     headers = _login(client)
 
-    dept_a = _create_department(client, code="TESTHEADA", name="Test Head A")
+    dept_a = _create_department(client, headers, code="TESTHEADA", name="Test Head A")
     emp_1 = _create_employee(client, headers, id_number="TESTDEPTHEAD0001", full_name="Test Head One")
     emp_2 = _create_employee(client, headers, id_number="TESTDEPTHEAD0002", full_name="Test Head Two")
 

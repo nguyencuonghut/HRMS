@@ -71,10 +71,11 @@ async def _cleanup():
         await s.commit()
 
 
-def _ensure_position(client: TestClient) -> int:
+def _ensure_position(client: TestClient, headers: dict) -> int:
     dept_resp = client.post(
         DEPT_URL,
         json={"code": _TEST_DEPT_CODE, "name": "Test Dept BHXH Group", "dept_type": "PHONG"},
+        headers=headers,
     )
     assert dept_resp.status_code == 201, dept_resp.text
     dept_id = dept_resp.json()["id"]
@@ -82,6 +83,7 @@ def _ensure_position(client: TestClient) -> int:
     pos_resp = client.post(
         POS_URL,
         json={"code": _TEST_POS_CODE, "name": "Test Position BHXH Group", "department_id": dept_id},
+        headers=headers,
     )
     assert pos_resp.status_code == 201, pos_resp.text
     return pos_resp.json()["id"]
@@ -123,7 +125,7 @@ def test_list_position_groups_returns_current_scale_and_seeded_groups(client: Te
 
 def test_create_position_group_persists_members_and_coefficients(client: TestClient):
     headers = _admin(client)
-    position_id = _ensure_position(client)
+    position_id = _ensure_position(client, headers)
 
     resp = client.post(
         BASE,
@@ -148,7 +150,7 @@ def test_create_position_group_persists_members_and_coefficients(client: TestCli
 
 def test_same_position_cannot_belong_to_two_bhxh_groups(client: TestClient):
     headers = _admin(client)
-    position_id = _ensure_position(client)
+    position_id = _ensure_position(client, headers)
 
     first = client.post(
         BASE,

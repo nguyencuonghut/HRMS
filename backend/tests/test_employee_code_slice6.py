@@ -62,10 +62,11 @@ def _get_department(client: TestClient, headers: dict, code: str) -> dict:
     return dept
 
 
-def _create_position(client: TestClient, dept_id: int, suffix: str) -> dict:
+def _create_position(client: TestClient, headers: dict, dept_id: int, suffix: str) -> dict:
     resp = client.post(
         BASE_POS,
         json={"code": f"{_PREFIX}POS{suffix}", "name": f"Slice6 Pos {suffix}", "department_id": dept_id},
+        headers=headers,
     )
     assert resp.status_code == 201, resp.text
     return resp.json()
@@ -226,7 +227,7 @@ def _numeric_suffix(display_code: str, prefix: str | None) -> str:
 def test_job_position_rule_overrides_department_rule_for_new_employee(client: TestClient):
     headers = _login(client)
     hc = _get_department(client, headers, "HC")
-    pos = _create_position(client, hc["id"], "001")
+    pos = _create_position(client, headers, hc["id"], "001")
 
     sys2_id = asyncio.run(_get_sequence_id("SYS2"))
     sys3_id = asyncio.run(_get_sequence_id("SYS3"))
@@ -252,10 +253,10 @@ def test_update_job_position_rejects_move_when_active_rule(client: TestClient):
     headers = _login(client)
     hc = _get_department(client, headers, "HC")
     kd = _get_department(client, headers, "KD")
-    pos = _create_position(client, hc["id"], "002")
+    pos = _create_position(client, headers, hc["id"], "002")
     asyncio.run(_insert_job_position_rule(pos["id"], "SYS2", note=f"{_PREFIX}-ACTIVE-RULE"))
 
-    resp = client.put(f"{BASE_POS}/{pos['id']}", json={"department_id": kd["id"]})
+    resp = client.put(f"{BASE_POS}/{pos['id']}", json={"department_id": kd["id"]}, headers=headers)
     assert resp.status_code == 409, resp.text
     assert "rule active" in resp.json()["detail"].lower()
 
@@ -263,10 +264,10 @@ def test_update_job_position_rejects_move_when_active_rule(client: TestClient):
 def test_delete_job_position_rejects_when_active_rule(client: TestClient):
     headers = _login(client)
     hc = _get_department(client, headers, "HC")
-    pos = _create_position(client, hc["id"], "003")
+    pos = _create_position(client, headers, hc["id"], "003")
     asyncio.run(_insert_job_position_rule(pos["id"], "SYS2", note=f"{_PREFIX}-DELETE-RULE"))
 
-    resp = client.delete(f"{BASE_POS}/{pos['id']}")
+    resp = client.delete(f"{BASE_POS}/{pos['id']}", headers=headers)
     assert resp.status_code == 409, resp.text
     assert "rule active" in resp.json()["detail"].lower()
 
@@ -275,10 +276,10 @@ def test_update_job_position_rejects_move_when_current_assignee_exists(client: T
     headers = _login(client)
     hc = _get_department(client, headers, "HC")
     kd = _get_department(client, headers, "KD")
-    pos = _create_position(client, hc["id"], "004")
+    pos = _create_position(client, headers, hc["id"], "004")
     _create_employee(client, headers, "EMP004", department_id=hc["id"], job_position_id=pos["id"])
 
-    resp = client.put(f"{BASE_POS}/{pos['id']}", json={"department_id": kd["id"]})
+    resp = client.put(f"{BASE_POS}/{pos['id']}", json={"department_id": kd["id"]}, headers=headers)
     assert resp.status_code == 409, resp.text
     assert "đang được gán" in resp.json()["detail"].lower()
 
@@ -286,9 +287,9 @@ def test_update_job_position_rejects_move_when_current_assignee_exists(client: T
 def test_delete_job_position_rejects_when_current_assignee_exists(client: TestClient):
     headers = _login(client)
     hc = _get_department(client, headers, "HC")
-    pos = _create_position(client, hc["id"], "005")
+    pos = _create_position(client, headers, hc["id"], "005")
     _create_employee(client, headers, "EMP005", department_id=hc["id"], job_position_id=pos["id"])
 
-    resp = client.delete(f"{BASE_POS}/{pos['id']}")
+    resp = client.delete(f"{BASE_POS}/{pos['id']}", headers=headers)
     assert resp.status_code == 409, resp.text
     assert "đang được gán" in resp.json()["detail"].lower()

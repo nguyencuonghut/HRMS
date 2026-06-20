@@ -97,7 +97,7 @@ def _get_dept_id(client: TestClient, headers: dict, code: str = "HC") -> int:
     pytest.fail(f"Department '{code}' not found")
 
 
-def _create_job_position(client: TestClient, department_id: int, suffix: str) -> int:
+def _create_job_position(client: TestClient, headers: dict, department_id: int, suffix: str) -> int:
     resp = client.post(
         "/api/v1/job-positions",
         json={
@@ -105,6 +105,7 @@ def _create_job_position(client: TestClient, department_id: int, suffix: str) ->
             "name": f"Test Job Position {suffix}",
             "department_id": department_id,
         },
+        headers=headers,
     )
     assert resp.status_code == 201, resp.text
     return resp.json()["id"]
@@ -211,7 +212,7 @@ def test_create_job_record_rejects_job_position_department_mismatch(client: Test
     emp = _create_employee(client, headers, "TESTJOB0000013A")
     hc_id = _get_dept_id(client, headers, "HC")
     kd_id = _get_dept_id(client, headers, "KD")
-    hc_position_id = _create_job_position(client, hc_id, "001")
+    hc_position_id = _create_job_position(client, headers, hc_id, "001")
 
     payload = _job_record_payload(kd_id)
     payload["job_position_id"] = hc_position_id
@@ -299,7 +300,7 @@ def test_update_current_rejects_job_position_department_mismatch(client: TestCli
     emp = _create_employee(client, headers, "TESTJOB0000022A")
     hc_id = _get_dept_id(client, headers, "HC")
     kd_id = _get_dept_id(client, headers, "KD")
-    hc_position_id = _create_job_position(client, hc_id, "002")
+    hc_position_id = _create_job_position(client, headers, hc_id, "002")
 
     client.post(f"{BASE}/{emp['id']}/job-records", json=_job_record_payload(hc_id), headers=headers)
 
@@ -398,7 +399,7 @@ def test_transfer_rejects_job_position_department_mismatch(client: TestClient):
     emp = _create_employee(client, headers, "TESTJOB0000032A")
     hc_id = _get_dept_id(client, headers, "HC")
     kd_id = _get_dept_id(client, headers, "KD")
-    hc_position_id = _create_job_position(client, hc_id, "003")
+    hc_position_id = _create_job_position(client, headers, hc_id, "003")
 
     client.post(f"{BASE}/{emp['id']}/job-records", json=_job_record_payload(hc_id), headers=headers)
     r = client.post(

@@ -94,6 +94,16 @@ class EmployeeImportLookup:
                 f"Không tìm thấy nhân viên với hệ mã '{sequence_code}' và số '{seq}'",
             )
 
+        seq = _extract_seq(code)
+        seq_matches = self._by_global_seq.get(seq, []) if seq is not None else []
+        # Bare numeric input like "9901" is ambiguous if that sequence exists in
+        # multiple code systems, even when one display code happens to equal it.
+        if seq is not None and code.isdigit() and code == str(seq) and len(seq_matches) > 1:
+            return EmployeeLookupResult(
+                None,
+                f"Số nhân viên '{seq}' tồn tại ở nhiều hệ mã. Hãy điền thêm cột 'Hệ mã nhân viên'",
+            )
+
         exact_matches = self._by_display_code.get(code, [])
         if len(exact_matches) == 1:
             return EmployeeLookupResult(exact_matches[0])
@@ -103,11 +113,9 @@ class EmployeeImportLookup:
                 f"Mã nhân viên '{code}' đang bị trùng giữa nhiều hệ mã. Hãy điền thêm cột 'Hệ mã nhân viên'",
             )
 
-        seq = _extract_seq(code)
         if seq is None:
             return EmployeeLookupResult(None, f"Không tìm thấy nhân viên với mã '{code}'")
 
-        seq_matches = self._by_global_seq.get(seq, [])
         if len(seq_matches) == 1:
             return EmployeeLookupResult(seq_matches[0])
         if len(seq_matches) > 1:

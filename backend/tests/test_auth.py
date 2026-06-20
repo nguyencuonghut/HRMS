@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.api.v1.endpoints import auth as auth_endpoint
 from app.core.config import Settings, settings
+from app.core.rate_limit import limiter
 from app.core.security import create_refresh_token, hash_password
 
 BASE = "/api/v1/auth"
@@ -38,6 +39,13 @@ async def reset_officer_password():
         await s.commit()
     await engine.dispose()
     yield
+
+
+@pytest.fixture(autouse=True)
+def reset_rate_limit_storage():
+    limiter._storage.reset()
+    yield
+    limiter._storage.reset()
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────

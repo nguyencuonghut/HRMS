@@ -71,6 +71,11 @@ async def test_required_other_business_catalog_seed_is_idempotent():
 
 
 async def test_sample_other_business_catalog_seed_is_idempotent():
+    # Clean up any leftover SEC-SKILL- rows from previous polluted runs
+    async with _make_session()() as session:
+        await session.execute(text("DELETE FROM skills WHERE code LIKE 'SEC-SKILL-%'"))
+        await session.commit()
+
     async with _make_session()() as session:
         await other_business_catalog.seed_required_other_business_catalog(session)
         await other_business_catalog.seed_sample_other_business_catalog(session)

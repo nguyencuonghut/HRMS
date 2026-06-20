@@ -1,7 +1,7 @@
-"""Shared test fixtures — dùng TestClient đồng bộ, tránh event loop conflict."""
-import asyncio
+"""Shared test fixtures for the backend test suite."""
 
 import pytest
+import pytest_asyncio
 from fastapi.testclient import TestClient
 
 from app.core.database import AsyncSessionLocal, engine
@@ -16,9 +16,15 @@ async def _ensure_test_auth_identities() -> None:
     await engine.dispose()
 
 
+@pytest_asyncio.fixture(scope="session", loop_scope="session", autouse=True)
+async def ensure_test_auth_identities():
+    """Seed test auth data inside pytest-asyncio's managed session loop."""
+    await _ensure_test_auth_identities()
+    yield
+
+
 @pytest.fixture(scope="session")
-def client():
+def client(ensure_test_auth_identities):
     """Session-scoped TestClient: 1 DB connection pool cho toàn bộ test session."""
-    asyncio.run(_ensure_test_auth_identities())
     with TestClient(app) as c:
         yield c

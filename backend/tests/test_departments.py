@@ -72,17 +72,19 @@ async def _cleanup_detail_test_data() -> None:
         await session.commit()
 
 
-def _delete_by_code(client: TestClient, code: str) -> None:
-    resp = client.get(BASE)
+def _delete_by_code(client: TestClient, headers: dict, code: str) -> None:
+    resp = client.get(BASE, headers=headers)
     assert resp.status_code == 200, resp.text
     for item in resp.json():
         if item["code"] == code:
-            client.delete(f"{BASE}/{item['id']}")
+            delete_resp = client.delete(f"{BASE}/{item['id']}", headers=headers)
+            assert delete_resp.status_code == 200, delete_resp.text
 
 
 def test_create_department_persists_display_prefix(client: TestClient):
     code = "TEST_DEPT_PREFIX_1"
-    _delete_by_code(client, code)
+    headers = _login(client)
+    _delete_by_code(client, headers, code)
 
     resp = client.post(
         BASE,
@@ -92,17 +94,19 @@ def test_create_department_persists_display_prefix(client: TestClient):
             "dept_type": "PHONG",
             "display_prefix": " cnt ",
         },
+        headers=headers,
     )
     assert resp.status_code == 201, resp.text
     body = resp.json()
     assert body["display_prefix"] == "CNT"
 
-    _delete_by_code(client, code)
+    _delete_by_code(client, headers, code)
 
 
 def test_update_department_display_prefix_can_be_changed_and_cleared(client: TestClient):
     code = "TEST_DEPT_PREFIX_2"
-    _delete_by_code(client, code)
+    headers = _login(client)
+    _delete_by_code(client, headers, code)
 
     created = client.post(
         BASE,
@@ -112,6 +116,7 @@ def test_update_department_display_prefix_can_be_changed_and_cleared(client: Tes
             "dept_type": "PHONG",
             "display_prefix": "abc",
         },
+        headers=headers,
     )
     assert created.status_code == 201, created.text
     dept_id = created.json()["id"]
@@ -120,6 +125,7 @@ def test_update_department_display_prefix_can_be_changed_and_cleared(client: Tes
     updated = client.put(
         f"{BASE}/{dept_id}",
         json={"display_prefix": " pk "},
+        headers=headers,
     )
     assert updated.status_code == 200, updated.text
     assert updated.json()["display_prefix"] == "PK"
@@ -127,11 +133,12 @@ def test_update_department_display_prefix_can_be_changed_and_cleared(client: Tes
     cleared = client.put(
         f"{BASE}/{dept_id}",
         json={"display_prefix": "   "},
+        headers=headers,
     )
     assert cleared.status_code == 200, cleared.text
     assert cleared.json()["display_prefix"] is None
 
-    _delete_by_code(client, code)
+    _delete_by_code(client, headers, code)
 
 
 def _create_employee(client: TestClient, headers: dict, *, id_number: str, full_name: str) -> dict:
@@ -177,6 +184,7 @@ def test_department_detail_returns_summary_and_subtree_employees(client: TestCli
             "dept_type": "PHONG",
             "display_prefix": "tr",
         },
+        headers=headers,
     )
     assert root.status_code == 201, root.text
     root_id = root.json()["id"]
@@ -189,6 +197,7 @@ def test_department_detail_returns_summary_and_subtree_employees(client: TestCli
             "dept_type": "TO",
             "parent_id": root_id,
         },
+        headers=headers,
     )
     assert child.status_code == 201, child.text
     child_id = child.json()["id"]
@@ -200,6 +209,7 @@ def test_department_detail_returns_summary_and_subtree_employees(client: TestCli
             "name": "Test Root Position",
             "department_id": root_id,
         },
+        headers=headers,
     )
     assert root_position.status_code == 201, root_position.text
     root_position_id = root_position.json()["id"]
@@ -249,7 +259,7 @@ def test_department_detail_returns_summary_and_subtree_employees(client: TestCli
     )
     assert child_job.status_code == 201, child_job.text
 
-    detail = client.get(f"{BASE}/{root_id}/detail")
+    detail = client.get(f"{BASE}/{root_id}/detail", headers=headers)
     assert detail.status_code == 200, detail.text
     body = detail.json()
 
@@ -311,6 +321,7 @@ def test_department_detail_org_chart_uses_latest_avatar_attachment(client: TestC
             "dept_type": "PHONG",
             "display_prefix": "tr",
         },
+        headers=headers,
     )
     assert root.status_code == 201, root.text
     root_id = root.json()["id"]
@@ -359,7 +370,7 @@ def test_department_detail_org_chart_uses_latest_avatar_attachment(client: TestC
     )
     assert second_avatar["id"] > first_avatar["id"]
 
-    detail = client.get(f"{BASE}/{root_id}/detail")
+    detail = client.get(f"{BASE}/{root_id}/detail", headers=headers)
     assert detail.status_code == 200, detail.text
     body = detail.json()
 

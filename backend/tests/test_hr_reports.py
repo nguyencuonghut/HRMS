@@ -436,13 +436,9 @@ def test_employee_list_endpoint_returns_display_code(client: TestClient):
     assert resp.status_code == 200, resp.text
     data = resp.json()
     alpha = next(item for item in data["items"] if item["full_name"] == f"{_PREFIX} Alpha")
-    employees_payload = client.get("/api/v1/employees", headers=headers, params={"page_size": 100})
-    assert employees_payload.status_code == 200, employees_payload.text
-    expected_code = next(
-        row["display_code"]
-        for row in employees_payload.json()["items"]
-        if row["full_name"] == f"{_PREFIX} Alpha"
-    )
+    employee_detail = client.get(f"/api/v1/employees/{alpha['id']}", headers=headers)
+    assert employee_detail.status_code == 200, employee_detail.text
+    expected_code = employee_detail.json()["display_code"]
     assert alpha["employee_code"] == expected_code
 
 
