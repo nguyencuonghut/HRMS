@@ -82,7 +82,7 @@ jobs:
           MINIO_SECURE:    "false"
         run: alembic upgrade head
 
-      - name: Seed required data and RBAC core
+      - name: Seed test baseline data
         working-directory: backend
         env:
           DATABASE_URL:    postgresql+asyncpg://postgres:testpass@localhost:5432/hrms_test
@@ -92,7 +92,7 @@ jobs:
           ENVIRONMENT:     development
           MINIO_ENDPOINT:  localhost:9000
           MINIO_SECURE:    "false"
-        run: python -m app.seeds
+        run: python -m app.seeds --sample
 
       - name: Run tests
         working-directory: backend
