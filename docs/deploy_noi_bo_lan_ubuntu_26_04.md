@@ -275,6 +275,16 @@ chmod 600 .env
 
 ### 8.1. Biến bắt buộc
 
+Lưu ý:
+
+- `.env.example` hiện đã để mặc định image local:
+  - `BACKEND_IMAGE=hrms-backend`
+  - `FRONTEND_IMAGE=hrms-frontend`
+  - `BACKUP_IMAGE=hrms-backup`
+  - `IMAGE_TAG=local`
+- với kịch bản LAN nội bộ, nên giữ tư duy này: **build local trước, rồi compose chạy bằng tag local**
+- không đổi sang `ghcr.io/...` trừ khi bạn chủ động chọn flow registry-based
+
 ```env
 ENVIRONMENT=production
 DEBUG=false
@@ -290,7 +300,7 @@ REDIS_PASSWORD=<random-strong-password>
 BACKEND_IMAGE=hrms-backend
 FRONTEND_IMAGE=hrms-frontend
 BACKUP_IMAGE=hrms-backup
-IMAGE_TAG=lan-local
+IMAGE_TAG=local
 
 MINIO_ENDPOINT=<object-storage-endpoint>
 MINIO_ACCESS_KEY=<access-key>
@@ -307,9 +317,9 @@ Giải thích:
 
 - `docker-compose.lan.yml` và `docker-compose.prod.yml` hiện dùng `image: ${...}:${IMAGE_TAG}`
 - vì vậy khi build local, chỉ cần build image với đúng tag:
-  - `hrms-backend:lan-local`
-  - `hrms-frontend:lan-local`
-  - `hrms-backup:lan-local`
+  - `hrms-backend:local`
+  - `hrms-frontend:local`
+  - `hrms-backup:local`
 
 ### 8.2. `CORS_ORIGINS` và `REFRESH_TOKEN_COOKIE_SECURE`
 
@@ -469,9 +479,9 @@ Phần này là flow **ưu tiên** cho server nội bộ IP tĩnh không public.
 Từ thư mục source `/opt/hrms`:
 
 ```bash
-docker build -t hrms-backend:lan-local ./backend
-docker build -t hrms-frontend:lan-local ./frontend
-docker build -t hrms-backup:lan-local -f docker/backup/Dockerfile .
+docker build -t hrms-backend:local ./backend
+docker build -t hrms-frontend:local ./frontend
+docker build -t hrms-backup:local -f docker/backup/Dockerfile .
 ```
 
 Kiểm tra image đã có:
