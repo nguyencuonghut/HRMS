@@ -1,5 +1,6 @@
 # Web framework
 fastapi[standard]>=0.136.1
+gunicorn>=23.0.0
 
 # ORM + Validation
 sqlmodel>=0.0.38

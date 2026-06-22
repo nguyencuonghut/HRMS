@@ -484,6 +484,11 @@ docker build -t hrms-frontend:local ./frontend
 docker build -t hrms-backup:local -f docker/backup/Dockerfile .
 ```
 
+Lưu ý:
+
+- backend image phải được build lại sau mỗi lần thay đổi dependency Python
+- nếu trước đó đã build một image cũ thiếu `gunicorn`, cần rebuild lại backend image trước khi `docker compose up -d`
+
 Kiểm tra image đã có:
 
 ```bash
@@ -524,7 +529,24 @@ docker compose -f docker-compose.lan.yml exec -T backend python -m app.seeds --b
 docker compose -f docker-compose.lan.yml exec -T backend python -m app.seeds --bootstrap-admin
 ```
 
-### 11.4. Khi nào mới dùng GHCR
+### 11.4. Troubleshooting nhanh
+
+Nếu `docker compose -f docker-compose.lan.yml up -d` báo lỗi:
+
+```text
+exec: "gunicorn": executable file not found in $PATH
+```
+
+thì nguyên nhân là backend image đang được build từ một state chưa có `gunicorn`.
+
+Chạy lại:
+
+```bash
+docker build --no-cache -t hrms-backend:local ./backend
+docker compose -f docker-compose.lan.yml up -d
+```
+
+### 11.5. Khi nào mới dùng GHCR
 
 Chỉ dùng GHCR nếu bạn chủ động chọn flow registry-based.
 
