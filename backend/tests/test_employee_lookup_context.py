@@ -62,32 +62,25 @@ async def _cleanup_lookup_test_data() -> None:
         await session.commit()
 
 
-def _get_department(client: TestClient, headers: dict, code: str = "HC") -> dict:
-    resp = client.get("/api/v1/departments", headers=headers)
-    payload = resp.json()
-    items = payload["items"] if isinstance(payload, dict) else payload
-    dept = next((x for x in items if x["code"] == code), None)
-    assert dept is not None, f"Department '{code}' not found"
-    return dept
-
-
-def _get_job_position(client: TestClient, headers: dict, department_id: int) -> dict:
-    resp = client.get(
-        "/api/v1/job-positions",
-        params={"department_id": department_id, "is_active": True},
-        headers=headers,
-    )
+def _get_seeded_job_position(client: TestClient, headers: dict) -> dict:
+    resp = client.get("/api/v1/job-positions", params={"is_active": True}, headers=headers)
     assert resp.status_code == 200, resp.text
     items = resp.json()
-    assert items, f"No active job positions for department_id={department_id}"
+    assert items, "No active job positions in seeded baseline"
     return items[0]
 
 
 def test_lookup_returns_current_job_context(client: TestClient):
     asyncio.run(_cleanup_lookup_test_data())
     headers = _login(client)
-    department = _get_department(client, headers, "HC")
-    job_position = _get_job_position(client, headers, department["id"])
+    job_position = _get_seeded_job_position(client, headers)
+
+    dept_resp = client.get("/api/v1/departments", headers=headers)
+    assert dept_resp.status_code == 200, dept_resp.text
+    dept_payload = dept_resp.json()
+    departments = dept_payload["items"] if isinstance(dept_payload, dict) else dept_payload
+    department = next((x for x in departments if x["id"] == job_position["department_id"]), None)
+    assert department is not None, f"Department '{job_position['department_id']}' not found"
 
     created = client.post(
         BASE,
