@@ -198,6 +198,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Validate staging SSH secrets
+        env:
+          STAGING_HOST: ${{ secrets.STAGING_HOST }}
+          STAGING_USER: ${{ secrets.STAGING_USER }}
+          STAGING_SSH_KEY: ${{ secrets.STAGING_SSH_KEY }}
+        run: |
+          set -e
+          [ -n "$STAGING_HOST" ] || { echo "Missing required secret: STAGING_HOST"; exit 1; }
+          [ -n "$STAGING_USER" ] || { echo "Missing required secret: STAGING_USER"; exit 1; }
+          [ -n "$STAGING_SSH_KEY" ] || { echo "Missing required secret: STAGING_SSH_KEY"; exit 1; }
+
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1
         with:
