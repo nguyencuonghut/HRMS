@@ -203,7 +203,7 @@ Khuyến nghị tối thiểu:
 sudo apt update
 sudo apt upgrade -y
 sudo timedatectl set-timezone Asia/Ho_Chi_Minh
-sudo apt install -y ca-certificates curl gnupg lsb-release git jq unzip
+sudo apt install -y ca-certificates curl gnupg lsb-release git jq unzip make
 ```
 
 Nếu dùng `ufw`, chỉ mở port LAN cần dùng:
@@ -532,23 +532,47 @@ docker compose -f docker-compose.lan.yml up -d
 
 ### 11.3. Migrate và seed
 
+Không dùng `make migrate-refresh` trên môi trường production nội bộ.
+
+Đã xác nhận từ [Makefile](/run/media/cuong/DATA/02_Project/166_HonghaHRM/HRMS/Makefile:54):
+
+- `migrate-refresh` chạy:
+  - `alembic downgrade base`
+  - rồi `alembic upgrade head`
+- đây là flow rollback toàn bộ migration rồi apply lại từ đầu
+- phù hợp cho dev/reset môi trường, không phải flow deploy production thông thường
+
 #### Nếu chạy HTTPS nội bộ
 
 ```bash
-docker compose -f docker-compose.prod.yml exec -T backend alembic upgrade head
-docker compose -f docker-compose.prod.yml exec -T backend python -m app.seeds
-docker compose -f docker-compose.prod.yml exec -T backend python -m app.seeds --bootstrap
-docker compose -f docker-compose.prod.yml exec -T backend python -m app.seeds --bootstrap-admin
+COMPOSE_FILE=docker-compose.prod.yml make migrate
+COMPOSE_FILE=docker-compose.prod.yml make seed-required
+COMPOSE_FILE=docker-compose.prod.yml make seed-bootstrap-admin
 ```
 
 #### Nếu chạy HTTP-only nội bộ
 
 ```bash
-docker compose -f docker-compose.lan.yml exec -T backend alembic upgrade head
-docker compose -f docker-compose.lan.yml exec -T backend python -m app.seeds
-docker compose -f docker-compose.lan.yml exec -T backend python -m app.seeds --bootstrap
-docker compose -f docker-compose.lan.yml exec -T backend python -m app.seeds --bootstrap-admin
+COMPOSE_FILE=docker-compose.lan.yml make migrate
+COMPOSE_FILE=docker-compose.lan.yml make seed-required
+COMPOSE_FILE=docker-compose.lan.yml make seed-bootstrap-admin
 ```
+
+Giải thích:
+
+- `make migrate` tương đương chạy `alembic upgrade head`
+- `make seed-required` chỉ seed baseline production:
+  - required data
+  - RBAC core
+- `make seed-bootstrap-admin` tạo admin đầu tiên từ `BOOTSTRAP_ADMIN_*` trong `.env`
+- không cần chạy `seed-bootstrap` trong flow production tối thiểu nếu mục tiêu là đưa hệ thống lên chạy nội bộ với bộ dữ liệu nền bắt buộc
+
+Lưu ý quan trọng:
+
+- `Makefile` hiện dùng `docker compose exec ...` không kèm `-f`
+- repo này có cả [docker-compose.yml](/run/media/cuong/DATA/02_Project/166_HonghaHRM/HRMS/docker-compose.yml) và [docker-compose.lan.yml](/run/media/cuong/DATA/02_Project/166_HonghaHRM/HRMS/docker-compose.lan.yml)
+- vì vậy khi chạy theo tài liệu LAN phải truyền `COMPOSE_FILE=docker-compose.lan.yml`
+- nếu không truyền `COMPOSE_FILE`, `make` sẽ mặc định bám vào `docker-compose.yml` và có thể chạy nhầm stack dev
 
 ### 11.4. Troubleshooting nhanh
 
