@@ -294,6 +294,22 @@ def test_settings_normalizes_minio_endpoint_in_production():
     assert cfg.MINIO_ENDPOINT == "s3.example.com"
 
 
+def test_settings_allow_http_only_lan_configuration():
+    cfg = Settings(
+        ENVIRONMENT="lan",
+        SECRET_KEY="dev-secret-key-change-in-prod",
+        ENCRYPTION_KEY="",
+        MINIO_ENDPOINT="minio:9000",
+        MINIO_ACCESS_KEY="CHANGE_ME",
+        MINIO_SECRET_KEY="CHANGE_ME",
+        CORS_ORIGINS=["http://hrms.honghafeed.com.vn", "http://172.16.2.100"],
+        REFRESH_TOKEN_COOKIE_SECURE=False,
+    )
+    assert cfg.ENVIRONMENT == "lan"
+    assert cfg.MINIO_ENDPOINT == "minio:9000"
+    assert cfg.REFRESH_TOKEN_COOKIE_SECURE is False
+
+
 def test_encryption_roundtrip():
     plaintext = "1234567890"
     ciphertext = encrypt(plaintext)

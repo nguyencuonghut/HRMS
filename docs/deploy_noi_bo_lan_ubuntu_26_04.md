@@ -121,30 +121,40 @@ Ví dụ user truy cập:
 - `http://172.16.2.100`
 - `http://hrms.honghafeed.com.vn`
 
-Lưu ý:
+Đã xác nhận trực tiếp từ source hiện tại:
 
-- với HTTP-only, `REFRESH_TOKEN_COOKIE_SECURE` **không được để `true`**
-- nếu để `true`, browser sẽ không gửi secure cookie qua HTTP
+- [docker-compose.lan.yml](/run/media/cuong/DATA/02_Project/166_HonghaHRM/HRMS/docker-compose.lan.yml) nay chạy `ENVIRONMENT=${ENVIRONMENT:-lan}`
+- `docker-compose.lan.yml` đã có service `minio` nội bộ
+- `backup_scheduler` trong LAN stack đã được chuyển sang `profile` tùy chọn, không khởi động mặc định
 
-Điểm này được xác nhận từ [.env.example](/run/media/cuong/DATA/02_Project/166_HonghaHRM/HRMS/.env.example):
+Đã verify runtime trên máy dev:
 
-- dev HTTP local dùng `REFRESH_TOKEN_COOKIE_SECURE=false`
-- production HTTPS dùng `REFRESH_TOKEN_COOKIE_SECURE=true`
+- boot stack tối thiểu `db + redis + minio + backend` với `HTTP-only`
+- `backend` lên trạng thái `healthy`
+
+Kết luận:
+
+- artifact hiện tại **đã hỗ trợ HTTP-only nội bộ**
+- không cần HTTPS để chỉ đạt mục tiêu boot và chạy trong LAN kín
 
 ---
 
 ## 3. Kiến trúc LAN hiện tại
 
-Theo [docker-compose.prod.yml](/run/media/cuong/DATA/02_Project/166_HonghaHRM/HRMS/docker-compose.prod.yml), stack LAN vẫn dùng cùng kiến trúc production:
+Theo [docker-compose.lan.yml](/run/media/cuong/DATA/02_Project/166_HonghaHRM/HRMS/docker-compose.lan.yml), stack LAN hiện gồm:
 
 - `db`
 - `redis`
+- `minio`
 - `backend`
 - `celery_worker`
 - `celery_beat`
 - `frontend`
-- `backup_scheduler`
 - `nginx`
+
+Ngoài ra:
+
+- `backup_scheduler` là service tùy chọn, chỉ chạy khi bật profile `backup`
 
 User trong LAN sẽ truy cập qua:
 
@@ -286,7 +296,7 @@ Lưu ý:
 - không đổi sang `ghcr.io/...` trừ khi bạn chủ động chọn flow registry-based
 
 ```env
-ENVIRONMENT=production
+ENVIRONMENT=lan
 DEBUG=false
 
 POSTGRES_USER=postgres
@@ -302,16 +312,32 @@ FRONTEND_IMAGE=hrms-frontend
 BACKUP_IMAGE=hrms-backup
 IMAGE_TAG=local
 
-MINIO_ENDPOINT=<object-storage-endpoint>
-MINIO_ACCESS_KEY=<access-key>
-MINIO_SECRET_KEY=<secret-key>
-MINIO_SECURE=<true-hoac-false>
-MINIO_BUCKET=hrms-attachments-prod
+MINIO_ENDPOINT=minio:9000
+MINIO_ACCESS_KEY=<minio-access-key-noi-bo>
+MINIO_SECRET_KEY=<minio-secret-key-noi-bo>
+MINIO_SECURE=false
+MINIO_BUCKET=hrms-attachments-lan
 
 BOOTSTRAP_ADMIN_EMAIL=admin@company.local
 BOOTSTRAP_ADMIN_FULL_NAME=System Administrator
 BOOTSTRAP_ADMIN_PASSWORD=<mat-khau-admin-dau-tien>
 ```
+
+Lệnh sinh `MINIO_ACCESS_KEY` và `MINIO_SECRET_KEY` trên Ubuntu:
+
+```bash
+python3 - <<'PY'
+import secrets
+print("MINIO_ACCESS_KEY=" + secrets.token_hex(12))
+print("MINIO_SECRET_KEY=" + secrets.token_hex(24))
+PY
+```
+
+Ghi chú:
+
+- `MINIO_ACCESS_KEY` ở đây sinh ra 24 ký tự hex
+- `MINIO_SECRET_KEY` ở đây sinh ra 48 ký tự hex
+- có thể copy trực tiếp 2 dòng output vào file `.env`
 
 Giải thích:
 
@@ -330,20 +356,15 @@ CORS_ORIGINS=["https://hrms.honghafeed.com.vn"]
 REFRESH_TOKEN_COOKIE_SECURE=true
 ```
 
-#### Nếu chạy HTTP-only nội bộ
+#### Nếu muốn chạy HTTP-only nội bộ
 
 ```env
+ENVIRONMENT=lan
 CORS_ORIGINS=["http://hrms.honghafeed.com.vn","http://172.16.2.100"]
 REFRESH_TOKEN_COOKIE_SECURE=false
 ```
 
 Nếu user truy cập bằng nhiều hostname/IP khác nhau, phải khai báo đủ tất cả origin hợp lệ trong `CORS_ORIGINS`.
-
-Ví dụ:
-
-```env
-CORS_ORIGINS=["http://hrms.honghafeed.com.vn","http://172.16.2.100"]
-```
 
 ---
 
@@ -653,29 +674,31 @@ curl -kI https://172.16.2.100
 
 ## 14. Backup trên server nội bộ
 
-Source hiện tại vẫn có `backup_scheduler` trong LAN deployment.
+Trong LAN deployment hiện tại:
 
-Đã xác nhận từ:
+- `backup_scheduler` không chạy mặc định
+- muốn bật backup phải dùng profile `backup`
 
-- [docker-compose.prod.yml](/run/media/cuong/DATA/02_Project/166_HonghaHRM/HRMS/docker-compose.prod.yml)
-- [docker-compose.lan.yml](/run/media/cuong/DATA/02_Project/166_HonghaHRM/HRMS/docker-compose.lan.yml)
-
-- `backup_scheduler` luôn có trong stack
-- backup DB và object storage vẫn dùng các biến:
-  - `BACKUP_STORAGE_ENDPOINT`
-  - `BACKUP_STORAGE_ACCESS_KEY`
-  - `BACKUP_STORAGE_SECRET_KEY`
-  - `BACKUP_STORAGE_BUCKET`
-
-Nếu hệ thống LAN không có object storage backup riêng, service này có thể không chạy đúng. Phần này không phải suy đoán logic nghiệp vụ, mà là yêu cầu cấu hình trực tiếp từ source hiện tại.
-
-Cần kiểm tra log:
+Ví dụ:
 
 ```bash
-docker compose -f docker-compose.prod.yml logs backup_scheduler --tail=200
+docker compose -f docker-compose.lan.yml --profile backup up -d
 ```
 
-Nếu chạy HTTP-only nội bộ, thay `docker-compose.prod.yml` bằng `docker-compose.lan.yml`.
+Khi bật profile này, vẫn cần cấu hình:
+
+- `BACKUP_STORAGE_ENDPOINT`
+- `BACKUP_STORAGE_ACCESS_KEY`
+- `BACKUP_STORAGE_SECRET_KEY`
+- `BACKUP_STORAGE_BUCKET`
+
+Nếu hệ thống LAN chưa có object storage backup riêng, cứ để profile này tắt trong giai đoạn pilot/go-live ban đầu.
+
+Cần kiểm tra log khi đã bật profile:
+
+```bash
+docker compose -f docker-compose.lan.yml --profile backup logs backup_scheduler --tail=200
+```
 
 ---
 
@@ -684,9 +707,12 @@ Nếu chạy HTTP-only nội bộ, thay `docker-compose.prod.yml` bằng `docker
 ### Đã xác nhận
 
 1. source hiện tại mặc định ưu tiên HTTPS
-2. HTTP-only nội bộ đã có artifact riêng, không cần sửa tay file production
+2. `docker-compose.lan.yml` hiện hỗ trợ `ENVIRONMENT=lan` cho HTTP-only nội bộ
 3. FE production không dùng port `5173`
 4. `REFRESH_TOKEN_COOKIE_SECURE` phải khớp với HTTP/HTTPS thực tế
+5. `docker-compose.lan.yml` có service `minio` nội bộ
+6. `backup_scheduler` trong LAN hiện là optional profile, không chạy mặc định
+7. runtime verify cục bộ cho `db + redis + minio + backend` đã cho `backend` trạng thái `healthy`
 
 ### Chưa xác nhận trong tài liệu này
 
@@ -702,11 +728,13 @@ Nếu chạy HTTP-only nội bộ, thay `docker-compose.prod.yml` bằng `docker
 Nếu cần lên nhanh trong LAN:
 
 1. dùng **HTTP-only nội bộ**
-2. set `REFRESH_TOKEN_COOKIE_SECURE=false`
-3. khai báo `CORS_ORIGINS` đúng theo IP/hostname LAN
-4. build image local ngay trên server
-5. deploy bằng [docker-compose.lan.yml](/run/media/cuong/DATA/02_Project/166_HonghaHRM/HRMS/docker-compose.lan.yml)
-6. chạy deploy **ngay trên server nội bộ** hoặc bằng **self-hosted runner trong LAN**
+2. set `ENVIRONMENT=lan`
+3. set `REFRESH_TOKEN_COOKIE_SECURE=false`
+4. khai báo `CORS_ORIGINS` đúng theo hostname/IP mà user thực sự dùng
+5. build image local ngay trên server
+6. deploy bằng [docker-compose.lan.yml](/run/media/cuong/DATA/02_Project/166_HonghaHRM/HRMS/docker-compose.lan.yml)
+7. chạy deploy **ngay trên server nội bộ** hoặc bằng **self-hosted runner trong LAN**
+8. chỉ bật profile `backup` khi đã có cấu hình backup destination
 
 Nếu cần vận hành lâu dài:
 
@@ -716,3 +744,19 @@ Nếu cần vận hành lâu dài:
 4. vẫn ưu tiên build local hoặc self-hosted runner
 5. nếu vẫn muốn CD tự động từ GitHub, dùng **self-hosted runner**
 6. chỉ dùng GHCR khi thật sự cần quản lý image qua registry
+
+### 16.1. Checklist khi gặp lỗi `container hrms-backend-1 is unhealthy`
+
+Chạy đúng 3 lệnh này trên server:
+
+```bash
+docker compose -f docker-compose.lan.yml ps
+docker compose -f docker-compose.lan.yml logs backend --tail=200
+docker inspect hrms-backend-1 --format '{{json .State.Health}}'
+```
+
+Với source hiện tại, 3 nguyên nhân phải kiểm tra đầu tiên là:
+
+1. `ENVIRONMENT` trong `.env` không phải `lan` hoặc bị override ngoài ý muốn
+2. `CORS_ORIGINS` không phải JSON array hợp lệ
+3. image local đang cũ, chưa rebuild theo source mới

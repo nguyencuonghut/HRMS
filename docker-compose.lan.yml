@@ -29,6 +29,21 @@ services:
       timeout: 3s
       retries: 5
 
+  minio:
+    image: minio/minio:latest
+    restart: always
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   backend:
     image: ${BACKEND_IMAGE}:${IMAGE_TAG}
     restart: always
@@ -54,7 +69,7 @@ services:
       MINIO_BUCKET: ${MINIO_BUCKET:-}
       MINIO_SECURE: ${MINIO_SECURE}
       DEBUG: "false"
-      ENVIRONMENT: production
+      ENVIRONMENT: ${ENVIRONMENT:-lan}
       SENTRY_DSN: ${SENTRY_DSN:-}
       HEALTHCHECK_PING_URL: ${HEALTHCHECK_PING_URL:-}
       BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
@@ -64,6 +79,8 @@ services:
       db:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      minio:
         condition: service_healthy
 
   celery_worker:
@@ -81,12 +98,14 @@ services:
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
       MINIO_BUCKET: ${MINIO_BUCKET:-}
       MINIO_SECURE: ${MINIO_SECURE}
-      ENVIRONMENT: production
+      ENVIRONMENT: ${ENVIRONMENT:-lan}
       SENTRY_DSN: ${SENTRY_DSN:-}
     depends_on:
       db:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      minio:
         condition: service_healthy
 
   celery_beat:
@@ -104,11 +123,15 @@ services:
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
       MINIO_BUCKET: ${MINIO_BUCKET:-}
       MINIO_SECURE: ${MINIO_SECURE}
-      ENVIRONMENT: production
+      ENVIRONMENT: ${ENVIRONMENT:-lan}
       SENTRY_DSN: ${SENTRY_DSN:-}
     depends_on:
-      - redis
-      - celery_worker
+      redis:
+        condition: service_healthy
+      celery_worker:
+        condition: service_started
+      minio:
+        condition: service_healthy
 
   frontend:
     image: ${FRONTEND_IMAGE}:${IMAGE_TAG}
@@ -117,6 +140,7 @@ services:
   backup_scheduler:
     image: ${BACKUP_IMAGE}:${IMAGE_TAG}
     restart: always
+    profiles: ["backup"]
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-hrms}
       SECRET_KEY: ${SECRET_KEY}
@@ -128,7 +152,7 @@ services:
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
       MINIO_BUCKET: ${MINIO_BUCKET:-hrms-attachments-prod}
       MINIO_SECURE: ${MINIO_SECURE}
-      ENVIRONMENT: production
+      ENVIRONMENT: ${ENVIRONMENT:-lan}
       SMTP_HOST: ${SMTP_HOST}
       SMTP_PORT: ${SMTP_PORT}
       SMTP_USERNAME: ${SMTP_USERNAME:-}
@@ -166,6 +190,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      minio:
+        condition: service_healthy
 
   nginx:
     image: nginx:alpine
@@ -188,4 +214,5 @@ services:
 volumes:
   backup_data:
   backup_logs:
+  minio_data:
   postgres_data:

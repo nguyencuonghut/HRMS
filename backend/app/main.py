@@ -45,8 +45,8 @@ if settings.SENTRY_DSN:
 
 
 async def seed_rbac_if_possible() -> None:
-    """Auto-seed local RBAC users only outside production."""
-    if settings.ENVIRONMENT.lower() == "production":
+    """Auto-seed local RBAC users only in explicit local/dev environments."""
+    if settings.ENVIRONMENT.lower() not in {"development", "dev", "local", "test"}:
         return
 
     async with AsyncSessionLocal() as session:
@@ -62,8 +62,8 @@ async def seed_rbac_if_possible() -> None:
 
 
 async def seed_notifications_if_possible() -> None:
-    """Auto-seed notification templates only outside production."""
-    if settings.ENVIRONMENT.lower() == "production":
+    """Auto-seed notification templates only in explicit local/dev environments."""
+    if settings.ENVIRONMENT.lower() not in {"development", "dev", "local", "test"}:
         return
 
     async with AsyncSessionLocal() as session:
