@@ -241,6 +241,8 @@
       </DataTable>
     </div>
 
+    <RetirementAgePolicyCard />
+
     <div class="card insurance-region-history-card">
       <div class="section-heading">
         <h3>Lịch sử vùng BHXH công ty</h3>
@@ -888,6 +890,7 @@ import Select from 'primevue/select'
 import Tag from 'primevue/tag'
 import Textarea from 'primevue/textarea'
 import { useToast } from 'primevue/usetoast'
+import RetirementAgePolicyCard from '@/views/catalog/components/RetirementAgePolicyCard.vue'
 import jobPositionService, { type JobPositionListItem } from '@/services/jobPositionService'
 import insuranceService, {
   type BhxhPositionGroupCatalogRead,

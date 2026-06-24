@@ -193,3 +193,62 @@ class BhxhSenioritySetting(SQLModel, table=True):
     )
     created_at: datetime = Field(default_factory=_utcnow)
     updated_at: Optional[datetime] = Field(default=None)
+
+
+class RetirementAgePolicy(SQLModel, table=True):
+    """
+    Cấu hình lộ trình tuổi nghỉ hưu áp dụng cho báo cáo lao động cao tuổi.
+
+    Thiết kế theo version hiệu lực:
+    - mỗi policy có `effective_from` / `effective_to`
+    - bảng con lưu ngưỡng tuổi nghỉ hưu theo giới tính + năm áp dụng
+    - khi pháp luật đổi lộ trình, chỉ cần tạo policy mới và nhập lại các ngưỡng
+    """
+
+    __tablename__ = "retirement_age_policies"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str = Field(max_length=255)
+    legal_basis_summary: Optional[str] = Field(
+        default=None,
+        sa_column=Column(sa.Text(), nullable=True),
+    )
+    effective_from: date = Field(sa_column=Column(sa.Date(), nullable=False))
+    effective_to: Optional[date] = Field(
+        default=None,
+        sa_column=Column(sa.Date(), nullable=True),
+    )
+    note: Optional[str] = Field(
+        default=None,
+        sa_column=Column(sa.Text(), nullable=True),
+    )
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: Optional[datetime] = Field(default=None)
+
+
+class RetirementAgePolicyThreshold(SQLModel, table=True):
+    """Ngưỡng tuổi nghỉ hưu theo giới tính và năm báo cáo."""
+
+    __tablename__ = "retirement_age_policy_thresholds"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    policy_id: int = Field(foreign_key="retirement_age_policies.id")
+    gender: str = Field(max_length=10)
+    applicable_year: int = Field(sa_column=Column(sa.SmallInteger(), nullable=False))
+    age_years: int = Field(sa_column=Column(sa.SmallInteger(), nullable=False))
+    age_months: int = Field(sa_column=Column(sa.SmallInteger(), nullable=False))
+
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "policy_id",
+            "gender",
+            "applicable_year",
+            name="uq_retirement_age_policy_thresholds",
+        ),
+        sa.Index(
+            "ix_retirement_age_policy_thresholds_lookup",
+            "policy_id",
+            "gender",
+            "applicable_year",
+        ),
+    )

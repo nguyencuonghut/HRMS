@@ -4,7 +4,7 @@
       <div>
         <h2>Báo cáo nhân sự</h2>
         <div class="subtitle">
-          Danh sách nhân viên, biến động nhân sự, thâm niên và cơ cấu tổ chức.
+          Danh sách nhân viên, biến động nhân sự, lao động cao tuổi, thâm niên và cơ cấu tổ chức.
         </div>
       </div>
     </div>
@@ -13,6 +13,7 @@
       <TabList>
         <Tab value="employee-list">Danh sách nhân viên</Tab>
         <Tab value="movement">Biến động nhân sự</Tab>
+        <Tab value="older-worker">Người lao động cao tuổi</Tab>
         <Tab value="tenure">Thâm niên</Tab>
         <Tab value="org-structure">Cơ cấu tổ chức</Tab>
       </TabList>
@@ -22,6 +23,9 @@
         </TabPanel>
         <TabPanel value="movement">
           <MovementTab />
+        </TabPanel>
+        <TabPanel value="older-worker">
+          <OlderWorkerTab />
         </TabPanel>
         <TabPanel value="tenure">
           <TenureTab />
@@ -44,6 +48,7 @@ import Tabs from 'primevue/tabs'
 
 import EmployeeListTab from './components/hr/EmployeeListTab.vue'
 import MovementTab from './components/hr/MovementTab.vue'
+import OlderWorkerTab from './components/hr/OlderWorkerTab.vue'
 import TenureTab from './components/hr/TenureTab.vue'
 import OrgStructureTab from './components/hr/OrgStructureTab.vue'
 

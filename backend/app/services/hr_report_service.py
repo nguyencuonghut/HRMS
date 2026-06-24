@@ -8,7 +8,8 @@ from math import ceil
 from typing import Optional
 
 import sqlalchemy as sa
-from sqlalchemy import and_, func, select
+from fastapi import HTTPException, status
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.catalog import ContractCategory
@@ -16,6 +17,7 @@ from app.models.employee import Employee
 from app.models.employee_contract import EmployeeContract
 from app.models.employee_job import EmployeeJobRecord
 from app.models.org import Department, JobTitle
+from app.models.salary import RetirementAgePolicy, RetirementAgePolicyThreshold
 from app.schemas.hr_report import (
     DepartmentNode,
     EmployeeListItem,
@@ -23,7 +25,16 @@ from app.schemas.hr_report import (
     JobTitleHeadcount,
     MovementPeriodRow,
     MovementReportResponse,
+    OlderWorkerListItem,
+    OlderWorkerReportResponse,
+    OlderWorkerSummary,
     OrgStructureResponse,
+    RetirementAgePoliciesRead,
+    RetirementAgePolicyCreate,
+    RetirementAgePolicyRead,
+    RetirementAgeThresholdRead,
+    RetirementAgeThresholdInput,
+    RetirementAgePolicyUpdate,
     TenureGroup,
     TenureGroupDetail,
     TenureReportResponse,
@@ -38,11 +49,19 @@ TENURE_GROUPS: list[tuple[str, str, int, Optional[int]]] = [
     ("gt_10", "> 10 năm", 10, None),
 ]
 
+_OLDER_WORKER_SUPPORTED_GENDERS = {"male", "female"}
+
 
 @dataclass
 class _Period:
     start: date
     end: date
+
+
+@dataclass(frozen=True)
+class _RetirementAgeThresholdValue:
+    years: int
+    months: int
 
 
 def _tenure_years(start_date: date, end_date: Optional[date] = None) -> int:
@@ -59,6 +78,71 @@ def _save_workbook_bytes(workbook) -> BytesIO:
     workbook.save(output)
     output.seek(0)
     return output
+
+
+def _last_day_of_month(year: int, month: int) -> date:
+    if month < 1 or month > 12:
+        raise ValueError("month must be between 1 and 12")
+    if month == 12:
+        return date(year, 12, 31)
+    return date(year, month + 1, 1) - timedelta(days=1)
+
+
+def _add_months(value: date, months: int) -> date:
+    total_month = (value.month - 1) + months
+    year = value.year + total_month // 12
+    month = total_month % 12 + 1
+    next_month = date(year + (1 if month == 12 else 0), 1 if month == 12 else month + 1, 1)
+    last_day = (next_month - timedelta(days=1)).day
+    day = min(value.day, last_day)
+    return date(year, month, day)
+
+
+def _diff_years_months(start: date, end: date) -> tuple[int, int]:
+    years = end.year - start.year
+    months = end.month - start.month
+    if end.day < start.day:
+        months -= 1
+    if months < 0:
+        years -= 1
+        months += 12
+    return max(years, 0), max(months, 0)
+
+
+def _diff_total_months(start: date, end: date) -> int:
+    years, months = _diff_years_months(start, end)
+    return years * 12 + months
+
+
+def _threshold_label(value: _RetirementAgeThresholdValue | None) -> str | None:
+    if value is None:
+        return None
+    return f"{value.years} tuổi {value.months} tháng"
+
+
+def _normalize_thresholds(
+    thresholds: list[RetirementAgeThresholdInput],
+) -> list[RetirementAgeThresholdInput]:
+    seen: set[tuple[str, int]] = set()
+    normalized: list[RetirementAgeThresholdInput] = []
+    for item in sorted(thresholds, key=lambda row: (row.gender, row.applicable_year)):
+        key = (item.gender, item.applicable_year)
+        if key in seen:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Trùng ngưỡng tuổi nghỉ hưu cho giới tính '{item.gender}' năm {item.applicable_year}",
+            )
+        seen.add(key)
+        normalized.append(item)
+
+    missing_genders = _OLDER_WORKER_SUPPORTED_GENDERS - {item.gender for item in normalized}
+    if missing_genders:
+        genders = ", ".join(sorted(missing_genders))
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Thiếu ngưỡng tuổi nghỉ hưu cho giới tính: {genders}",
+        )
+    return normalized
 
 
 def _period_label(period_start: date, group_by: str) -> str:
@@ -163,6 +247,240 @@ def _group_members(scope_ids: Optional[set[int]], direct_department_id: Optional
     if direct_department_id is None:
         return False
     return direct_department_id in scope_ids
+
+
+async def _policy_to_read(
+    session: AsyncSession,
+    policy: RetirementAgePolicy,
+) -> RetirementAgePolicyRead:
+    rows = await session.execute(
+        select(RetirementAgePolicyThreshold)
+        .where(RetirementAgePolicyThreshold.policy_id == policy.id)
+        .order_by(
+            RetirementAgePolicyThreshold.gender.asc(),
+            RetirementAgePolicyThreshold.applicable_year.asc(),
+            RetirementAgePolicyThreshold.id.asc(),
+        )
+    )
+    thresholds = [
+        RetirementAgeThresholdRead(
+            id=item.id,
+            gender=item.gender,
+            applicable_year=item.applicable_year,
+            age_years=item.age_years,
+            age_months=item.age_months,
+        )
+        for item in rows.scalars().all()
+    ]
+    return RetirementAgePolicyRead(
+        id=policy.id,
+        name=policy.name,
+        legal_basis_summary=policy.legal_basis_summary,
+        effective_from=policy.effective_from,
+        effective_to=policy.effective_to,
+        note=policy.note,
+        thresholds=thresholds,
+        created_at=policy.created_at,
+        updated_at=policy.updated_at,
+    )
+
+
+async def _replace_policy_thresholds(
+    session: AsyncSession,
+    *,
+    policy_id: int,
+    thresholds: list[RetirementAgeThresholdInput],
+) -> None:
+    normalized = _normalize_thresholds(thresholds)
+    await session.execute(
+        sa.delete(RetirementAgePolicyThreshold).where(
+            RetirementAgePolicyThreshold.policy_id == policy_id
+        )
+    )
+    await session.flush()
+    for item in normalized:
+        session.add(
+            RetirementAgePolicyThreshold(
+                policy_id=policy_id,
+                gender=item.gender,
+                applicable_year=item.applicable_year,
+                age_years=item.age_years,
+                age_months=item.age_months,
+            )
+        )
+
+
+async def get_retirement_age_policies(session: AsyncSession) -> RetirementAgePoliciesRead:
+    rows = await session.execute(
+        select(RetirementAgePolicy).order_by(
+            RetirementAgePolicy.effective_from.desc(),
+            RetirementAgePolicy.id.desc(),
+        )
+    )
+    items = list(rows.scalars().all())
+    history = [await _policy_to_read(session, item) for item in items]
+    current = next((item for item in history if item.effective_to is None), None)
+    return RetirementAgePoliciesRead(current=current, history=history)
+
+
+async def create_retirement_age_policy(
+    session: AsyncSession,
+    payload: RetirementAgePolicyCreate,
+) -> RetirementAgePoliciesRead:
+    rows = await session.execute(
+        select(RetirementAgePolicy)
+        .where(RetirementAgePolicy.effective_to.is_(None))
+        .order_by(RetirementAgePolicy.effective_from.desc(), RetirementAgePolicy.id.desc())
+    )
+    current = rows.scalars().first()
+    if current and payload.effective_from <= current.effective_from:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Ngày hiệu lực policy mới phải lớn hơn policy đang hiệu lực",
+        )
+
+    if current:
+        current.effective_to = payload.effective_from - timedelta(days=1)
+        current.updated_at = _utcnow()
+
+    policy = RetirementAgePolicy(
+        name=payload.name,
+        legal_basis_summary=payload.legal_basis_summary,
+        effective_from=payload.effective_from,
+        effective_to=None,
+        note=payload.note,
+    )
+    session.add(policy)
+    await session.flush()
+    await _replace_policy_thresholds(
+        session,
+        policy_id=policy.id,
+        thresholds=payload.thresholds,
+    )
+    await session.commit()
+    return await get_retirement_age_policies(session)
+
+
+async def update_retirement_age_policy(
+    session: AsyncSession,
+    policy_id: int,
+    payload: RetirementAgePolicyUpdate,
+) -> RetirementAgePoliciesRead:
+    policy = await session.get(RetirementAgePolicy, policy_id)
+    if not policy:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy policy tuổi nghỉ hưu")
+
+    provided = payload.model_fields_set
+    if "name" in provided and payload.name is not None:
+        policy.name = payload.name
+    if "legal_basis_summary" in provided:
+        policy.legal_basis_summary = payload.legal_basis_summary
+    if "note" in provided:
+        policy.note = payload.note
+    if "thresholds" in provided and payload.thresholds is not None:
+        await _replace_policy_thresholds(
+            session,
+            policy_id=policy.id,
+            thresholds=payload.thresholds,
+        )
+    policy.updated_at = _utcnow()
+    session.add(policy)
+    await session.commit()
+    return await get_retirement_age_policies(session)
+
+
+async def delete_retirement_age_policy(
+    session: AsyncSession,
+    policy_id: int,
+) -> RetirementAgePoliciesRead:
+    policy = await session.get(RetirementAgePolicy, policy_id)
+    if not policy:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy policy tuổi nghỉ hưu")
+
+    rows = await session.execute(
+        select(RetirementAgePolicy).order_by(
+            RetirementAgePolicy.effective_from.asc(),
+            RetirementAgePolicy.id.asc(),
+        )
+    )
+    items = list(rows.scalars().all())
+    idx = next((i for i, item in enumerate(items) if item.id == policy.id), None)
+    if idx is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy policy tuổi nghỉ hưu")
+
+    previous = items[idx - 1] if idx > 0 else None
+    following = items[idx + 1] if idx + 1 < len(items) else None
+    if previous:
+        previous.effective_to = (following.effective_from - timedelta(days=1)) if following else None
+        session.add(previous)
+
+    await session.delete(policy)
+    await session.commit()
+    return await get_retirement_age_policies(session)
+
+
+async def _resolve_retirement_age_policy(
+    session: AsyncSession,
+    *,
+    as_of_date: date,
+) -> RetirementAgePolicy:
+    row = await session.execute(
+        select(RetirementAgePolicy)
+        .where(
+            RetirementAgePolicy.effective_from <= as_of_date,
+            or_(
+                RetirementAgePolicy.effective_to.is_(None),
+                RetirementAgePolicy.effective_to >= as_of_date,
+            ),
+        )
+        .order_by(RetirementAgePolicy.effective_from.desc(), RetirementAgePolicy.id.desc())
+    )
+    policy = row.scalars().first()
+    if not policy:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Chưa có policy tuổi nghỉ hưu hiệu lực tại ngày {as_of_date.isoformat()}",
+        )
+    return policy
+
+
+async def _resolve_retirement_threshold_map(
+    session: AsyncSession,
+    *,
+    policy_id: int,
+    report_year: int,
+) -> dict[str, _RetirementAgeThresholdValue]:
+    rows = await session.execute(
+        select(RetirementAgePolicyThreshold)
+        .where(
+            RetirementAgePolicyThreshold.policy_id == policy_id,
+            RetirementAgePolicyThreshold.applicable_year <= report_year,
+        )
+        .order_by(
+            RetirementAgePolicyThreshold.gender.asc(),
+            RetirementAgePolicyThreshold.applicable_year.desc(),
+            RetirementAgePolicyThreshold.id.desc(),
+        )
+    )
+    result: dict[str, _RetirementAgeThresholdValue] = {}
+    for row in rows.scalars().all():
+        if row.gender not in result:
+            result[row.gender] = _RetirementAgeThresholdValue(
+                years=row.age_years,
+                months=row.age_months,
+            )
+
+    missing = _OLDER_WORKER_SUPPORTED_GENDERS - set(result.keys())
+    if missing:
+        missing_gender = ", ".join(sorted(missing))
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "Policy tuổi nghỉ hưu chưa có đủ ngưỡng cho năm "
+                f"{report_year}: {missing_gender}"
+            ),
+        )
+    return result
 
 
 async def get_employee_list(
@@ -586,6 +904,146 @@ async def get_org_structure(
     )
 
 
+async def get_older_worker_report(
+    session: AsyncSession,
+    *,
+    year: int,
+    month: int,
+    department_id: Optional[int] = None,
+    gender: Optional[str] = None,
+) -> OlderWorkerReportResponse:
+    normalized_gender = gender.strip().lower() if isinstance(gender, str) and gender.strip() else None
+    if normalized_gender is not None and normalized_gender not in _OLDER_WORKER_SUPPORTED_GENDERS:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="gender phải là male hoặc female",
+        )
+
+    as_of_date = _last_day_of_month(year, month)
+    department_name = await _department_name(session, department_id)
+    scope_ids = await _department_scope_ids(session, department_id)
+    policy = await _resolve_retirement_age_policy(session, as_of_date=as_of_date)
+    threshold_map = await _resolve_retirement_threshold_map(
+        session,
+        policy_id=policy.id,
+        report_year=year,
+    )
+
+    stmt = (
+        select(
+            Employee,
+            EmployeeJobRecord.department_id,
+            Department.name.label("department_name"),
+            JobTitle.name.label("job_title_name"),
+        )
+        .join(
+            EmployeeJobRecord,
+            and_(
+                EmployeeJobRecord.employee_id == Employee.id,
+                EmployeeJobRecord.effective_from <= as_of_date,
+                or_(
+                    EmployeeJobRecord.effective_to.is_(None),
+                    EmployeeJobRecord.effective_to >= as_of_date,
+                ),
+            ),
+        )
+        .outerjoin(Department, Department.id == EmployeeJobRecord.department_id)
+        .outerjoin(JobTitle, JobTitle.id == EmployeeJobRecord.job_title_id)
+        .where(
+            Employee.date_of_birth.is_not(None),
+            Employee.start_date <= as_of_date,
+            or_(
+                Employee.resigned_date.is_(None),
+                Employee.resigned_date >= as_of_date,
+            ),
+            Employee.gender.in_(tuple(sorted(_OLDER_WORKER_SUPPORTED_GENDERS))),
+        )
+        .order_by(Department.name.asc(), JobTitle.name.asc(), Employee.full_name.asc(), Employee.id.asc())
+    )
+    if normalized_gender is not None:
+        stmt = stmt.where(Employee.gender == normalized_gender)
+    if scope_ids is not None:
+        if not scope_ids:
+            return OlderWorkerReportResponse(
+                year=year,
+                month=month,
+                as_of_date=as_of_date,
+                department_id=department_id,
+                department_name=department_name,
+                gender=normalized_gender,
+                policy_id=policy.id,
+                policy_name=policy.name,
+                legal_basis_summary=policy.legal_basis_summary,
+                male_threshold_label=_threshold_label(threshold_map.get("male")),
+                female_threshold_label=_threshold_label(threshold_map.get("female")),
+                summary=OlderWorkerSummary(total=0, male_count=0, female_count=0),
+                items=[],
+            )
+        stmt = stmt.where(EmployeeJobRecord.department_id.in_(scope_ids))
+
+    rows = (await session.execute(stmt)).all()
+    employees = [employee for employee, *_ in rows]
+    employee_codes = await employee_code_service.batch_build_employee_display_codes(session, employees)
+
+    items: list[OlderWorkerListItem] = []
+    male_count = 0
+    female_count = 0
+    for employee, dept_id, dept_name, job_title_name in rows:
+        threshold = threshold_map.get(employee.gender)
+        if threshold is None:
+            continue
+        retirement_date = _add_months(
+            employee.date_of_birth,
+            threshold.years * 12 + threshold.months,
+        )
+        if retirement_date > as_of_date:
+            continue
+        age_years, age_months = _diff_years_months(employee.date_of_birth, as_of_date)
+        months_beyond_retirement = _diff_total_months(retirement_date, as_of_date)
+        item = OlderWorkerListItem(
+            id=employee.id,
+            employee_code=employee_codes.get(employee.id, str(employee.employee_seq)),
+            full_name=employee.full_name,
+            gender=employee.gender,
+            date_of_birth=employee.date_of_birth,
+            start_date=employee.start_date,
+            department_id=dept_id,
+            department_name=dept_name,
+            job_title_name=job_title_name,
+            retirement_age_years=threshold.years,
+            retirement_age_months=threshold.months,
+            retirement_date=retirement_date,
+            age_years=age_years,
+            age_months=age_months,
+            months_beyond_retirement=months_beyond_retirement,
+        )
+        items.append(item)
+        if employee.gender == "male":
+            male_count += 1
+        elif employee.gender == "female":
+            female_count += 1
+
+    return OlderWorkerReportResponse(
+        year=year,
+        month=month,
+        as_of_date=as_of_date,
+        department_id=department_id,
+        department_name=department_name,
+        gender=normalized_gender,
+        policy_id=policy.id,
+        policy_name=policy.name,
+        legal_basis_summary=policy.legal_basis_summary,
+        male_threshold_label=_threshold_label(threshold_map.get("male")),
+        female_threshold_label=_threshold_label(threshold_map.get("female")),
+        summary=OlderWorkerSummary(
+            total=len(items),
+            male_count=male_count,
+            female_count=female_count,
+        ),
+        items=items,
+    )
+
+
 async def export_employee_list_excel(
     session: AsyncSession,
     **filters,
@@ -674,6 +1132,60 @@ async def export_movement_excel(
                 row.resigned_count,
                 row.transfer_count,
                 row.net_change,
+            ]
+    )
+    return _save_workbook_bytes(wb)
+
+
+async def export_older_worker_excel(
+    session: AsyncSession,
+    *,
+    year: int,
+    month: int,
+    department_id: Optional[int] = None,
+    gender: Optional[str] = None,
+) -> BytesIO:
+    from openpyxl import Workbook
+
+    report = await get_older_worker_report(
+        session,
+        year=year,
+        month=month,
+        department_id=department_id,
+        gender=gender,
+    )
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Lao động cao tuổi"
+    ws.append(
+        [
+            "Mã NV",
+            "Họ tên",
+            "Giới tính",
+            "Ngày sinh",
+            "Phòng ban",
+            "Chức danh",
+            "Ngày vào làm",
+            "Ngưỡng tuổi nghỉ hưu",
+            "Ngày đủ tuổi nghỉ hưu",
+            "Tuổi tại kỳ báo cáo",
+            "Số tháng vượt ngưỡng",
+        ]
+    )
+    for item in report.items:
+        ws.append(
+            [
+                item.employee_code,
+                item.full_name,
+                item.gender,
+                item.date_of_birth.isoformat(),
+                item.department_name or "",
+                item.job_title_name or "",
+                item.start_date.isoformat(),
+                f"{item.retirement_age_years} tuổi {item.retirement_age_months} tháng",
+                item.retirement_date.isoformat(),
+                f"{item.age_years} tuổi {item.age_months} tháng",
+                item.months_beyond_retirement,
             ]
         )
     return _save_workbook_bytes(wb)

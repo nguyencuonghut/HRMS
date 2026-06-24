@@ -20,7 +20,7 @@ def _n(v: str) -> str:
     return normalize_text(v)
 
 
-# 10 nhân viên mẫu — đa dạng trạng thái, giới tính
+# 13 nhân viên mẫu — đa dạng trạng thái, giới tính, gồm cả lao động cao tuổi để demo report
 SAMPLE_EMPLOYEES = [
     {
         "employee_seq": 1,
@@ -233,11 +233,74 @@ SAMPLE_EMPLOYEES = [
         "bank_code": "VCB",
         "account_name": "TRINH THI KIM",
     },
+    {
+        "employee_seq": 11,
+        "full_name": "Phan Văn Lộc",
+        "last_name": "Phan",
+        "first_name": "Văn Lộc",
+        "date_of_birth": "1964-06-15",
+        "gender": "male",
+        "nationality_code": "VN",
+        "ethnicity_code": "KINH",
+        "id_number": "079064111111",
+        "id_issued_on": "2021-01-12",
+        "id_issued_by": "Cục Cảnh sát ĐKQLCƯ và DLQGVDC",
+        "phone_number": "0901234011",
+        "personal_email": "phanvanloc@gmail.com",
+        "personal_tax_code": "8801234011",
+        "start_date": "2012-05-10",
+        "status": "official",
+        "bank_account_number": "0011234001234",
+        "bank_code": "BIDV",
+        "account_name": "PHAN VAN LOC",
+    },
+    {
+        "employee_seq": 12,
+        "full_name": "Lý Thị Mai",
+        "last_name": "Lý",
+        "first_name": "Thị Mai",
+        "date_of_birth": "1968-11-20",
+        "gender": "female",
+        "nationality_code": "VN",
+        "ethnicity_code": "TAY",
+        "id_number": "019068222222",
+        "id_issued_on": "2021-02-18",
+        "id_issued_by": "Cục Cảnh sát ĐKQLCƯ và DLQGVDC",
+        "phone_number": "0901234012",
+        "personal_email": "lythimai@gmail.com",
+        "personal_tax_code": "8801234012",
+        "start_date": "2014-08-01",
+        "status": "official",
+        "bank_account_number": "0012234001234",
+        "bank_code": "VCB",
+        "account_name": "LY THI MAI",
+    },
+    {
+        "employee_seq": 13,
+        "full_name": "Tạ Thị Sen",
+        "last_name": "Tạ",
+        "first_name": "Thị Sen",
+        "date_of_birth": "1967-02-09",
+        "gender": "female",
+        "nationality_code": "VN",
+        "ethnicity_code": "KINH",
+        "id_number": "079067333333",
+        "id_issued_on": "2021-03-22",
+        "id_issued_by": "Cục Cảnh sát ĐKQLCƯ và DLQGVDC",
+        "phone_number": "0901234013",
+        "personal_email": "tathisen@gmail.com",
+        "personal_tax_code": "8801234013",
+        "start_date": "2010-03-15",
+        "status": "official",
+        "bank_account_number": "0013234001234",
+        "bank_code": "AGRIBANK",
+        "account_name": "TA THI SEN",
+    },
 ]
 
 
 async def seed_sample_employees(session: AsyncSession) -> int:
-    """Seed 10 nhân viên mẫu. Idempotent — bỏ qua nếu id_number đã tồn tại."""
+    """Seed 13 nhân viên mẫu. Idempotent — bỏ qua nếu id_number đã tồn tại."""
     added = 0
     for emp in SAMPLE_EMPLOYEES:
         result = await session.execute(

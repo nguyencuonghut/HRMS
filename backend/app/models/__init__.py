@@ -42,6 +42,8 @@ from app.models.salary import (  # noqa: F401
     BhxhSenioritySetting,
     BhxhPositionGroup,
     BhxhPositionGroupMember,
+    RetirementAgePolicy,
+    RetirementAgePolicyThreshold,
 )
 from app.models.insurance import (  # noqa: F401
     InsuranceContributionComponent,

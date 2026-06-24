@@ -1,10 +1,10 @@
 """Schemas cho báo cáo nhân sự (11.2)."""
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class EmployeeListItem(BaseModel):
@@ -104,3 +104,116 @@ class OrgStructureResponse(BaseModel):
     total_headcount: int
     department_count: int
     tree: list[DepartmentNode]
+
+
+class RetirementAgeThresholdRead(BaseModel):
+    id: int
+    gender: str
+    applicable_year: int
+    age_years: int
+    age_months: int
+
+
+class RetirementAgeThresholdInput(BaseModel):
+    gender: str
+    applicable_year: int = Field(..., ge=1900)
+    age_years: int = Field(..., ge=0)
+    age_months: int = Field(..., ge=0, le=11)
+
+    @field_validator("gender")
+    @classmethod
+    def _validate_gender(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if normalized not in {"male", "female"}:
+            raise ValueError("Giới tính phải là male hoặc female")
+        return normalized
+
+
+class RetirementAgePolicyRead(BaseModel):
+    id: int
+    name: str
+    legal_basis_summary: Optional[str]
+    effective_from: date
+    effective_to: Optional[date]
+    note: Optional[str]
+    thresholds: list[RetirementAgeThresholdRead]
+    created_at: datetime
+    updated_at: Optional[datetime]
+
+
+class RetirementAgePolicyCreate(BaseModel):
+    name: str = Field(..., max_length=255)
+    legal_basis_summary: Optional[str] = Field(None, max_length=4000)
+    effective_from: date
+    note: Optional[str] = Field(None, max_length=4000)
+    thresholds: list[RetirementAgeThresholdInput]
+
+    @field_validator("name")
+    @classmethod
+    def _strip_name(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("Tên policy không được để trống")
+        return stripped
+
+
+class RetirementAgePolicyUpdate(BaseModel):
+    name: Optional[str] = Field(None, max_length=255)
+    legal_basis_summary: Optional[str] = Field(None, max_length=4000)
+    note: Optional[str] = Field(None, max_length=4000)
+    thresholds: Optional[list[RetirementAgeThresholdInput]] = None
+
+    @field_validator("name")
+    @classmethod
+    def _strip_optional_name(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return value
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("Tên policy không được để trống")
+        return stripped
+
+
+class RetirementAgePoliciesRead(BaseModel):
+    current: Optional[RetirementAgePolicyRead]
+    history: list[RetirementAgePolicyRead]
+
+
+class OlderWorkerListItem(BaseModel):
+    id: int
+    employee_code: Optional[str] = None
+    full_name: str
+    gender: str
+    date_of_birth: date
+    start_date: date
+    department_id: Optional[int] = None
+    department_name: Optional[str] = None
+    job_title_name: Optional[str] = None
+    retirement_age_years: int
+    retirement_age_months: int
+    retirement_date: date
+    age_years: int
+    age_months: int
+    months_beyond_retirement: int
+
+
+class OlderWorkerSummary(BaseModel):
+    total: int
+    male_count: int
+    female_count: int
+
+
+class OlderWorkerReportResponse(BaseModel):
+    year: int
+    month: int
+    as_of_date: date
+    department_id: Optional[int] = None
+    department_name: Optional[str] = None
+    gender: Optional[str] = None
+    policy_id: int
+    policy_name: str
+    legal_basis_summary: Optional[str] = None
+    male_threshold_label: Optional[str] = None
+    female_threshold_label: Optional[str] = None
+    summary: OlderWorkerSummary
+    items: list[OlderWorkerListItem]

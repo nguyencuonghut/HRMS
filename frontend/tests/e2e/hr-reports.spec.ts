@@ -12,7 +12,7 @@ async function login(page: Page) {
 }
 
 test.describe("Báo cáo nhân sự", () => {
-  test("renders employee list and movement tabs", async ({ page }) => {
+  test("renders employee list, movement, and older-worker tabs", async ({ page }) => {
     await login(page);
     await page.goto("/reports/hr");
     await page.waitForLoadState("networkidle");
@@ -50,6 +50,15 @@ test.describe("Báo cáo nhân sự", () => {
     await expect(summaryStrip).toContainText("Tuyển mới");
     await expect(summaryStrip).toContainText("Chuyển bộ phận");
     await expect(movementPanel.locator("tbody tr").first()).toBeVisible();
+
+    await page.getByRole("tab", { name: "Người lao động cao tuổi" }).click();
+    await page.waitForLoadState("networkidle");
+
+    const olderWorkerPanel = page.getByRole("tabpanel").filter({
+      has: page.getByText("Danh sách người lao động cao tuổi"),
+    });
+    await expect(olderWorkerPanel.getByText("Policy áp dụng")).toBeVisible();
+    await expect(olderWorkerPanel.locator(".hr-table-card table").first()).toBeVisible();
   });
 
   test("opens mobile filter drawer on 375px viewport", async ({ page }) => {

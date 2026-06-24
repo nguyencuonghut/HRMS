@@ -1,4 +1,4 @@
-"""Seed bản ghi công việc cho 10 nhân viên mẫu.
+"""Seed bản ghi công việc cho 13 nhân viên mẫu.
 
 Idempotent: kiểm tra is_current trước khi insert, bỏ qua nếu đã có.
 Cũng cập nhật display_prefix cho một số phòng ban để demo display_code có prefix.
@@ -40,6 +40,9 @@ ASSIGNMENTS = [
     ("001201789012", "HC",  "NV",   "2026-03-01", "probation"),
     ("051098890123", "PK",  "NV",   "2026-04-15", "probation"),
     ("025087901234", "KD",  "NVKD", "2023-06-01", "resigned"),
+    ("079064111111", "HC",  "NV",   "2012-05-10", "official"),
+    ("019068222222", "PK",  "NV",   "2014-08-01", "official"),
+    ("079067333333", "KD",  "NVKD", "2010-03-15", "official"),
 ]
 
 # Bản ghi lịch sử thêm cho nhân viên 1 (demo tab lịch sử):

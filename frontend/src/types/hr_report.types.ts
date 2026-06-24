@@ -117,5 +117,96 @@ export interface HrOrgStructureResponse {
 export type HrExportType =
   | 'employee-list'
   | 'movement'
+  | 'older-worker'
   | 'tenure'
   | 'org-structure'
+
+export interface HrOlderWorkerParams {
+  year: number
+  month: number
+  department_id?: number | null
+  gender?: 'male' | 'female' | null
+}
+
+export interface HrOlderWorkerItem {
+  id: number
+  employee_code: string | null
+  full_name: string
+  gender: string
+  date_of_birth: string
+  start_date: string
+  department_id: number | null
+  department_name: string | null
+  job_title_name: string | null
+  retirement_age_years: number
+  retirement_age_months: number
+  retirement_date: string
+  age_years: number
+  age_months: number
+  months_beyond_retirement: number
+}
+
+export interface HrOlderWorkerSummary {
+  total: number
+  male_count: number
+  female_count: number
+}
+
+export interface HrOlderWorkerReportResponse {
+  year: number
+  month: number
+  as_of_date: string
+  department_id: number | null
+  department_name: string | null
+  gender: string | null
+  policy_id: number
+  policy_name: string
+  legal_basis_summary: string | null
+  male_threshold_label: string | null
+  female_threshold_label: string | null
+  summary: HrOlderWorkerSummary
+  items: HrOlderWorkerItem[]
+}
+
+export interface HrRetirementAgeThresholdInput {
+  gender: 'male' | 'female'
+  applicable_year: number
+  age_years: number
+  age_months: number
+}
+
+export interface HrRetirementAgeThresholdRead extends HrRetirementAgeThresholdInput {
+  id: number
+}
+
+export interface HrRetirementAgePolicyRead {
+  id: number
+  name: string
+  legal_basis_summary: string | null
+  effective_from: string
+  effective_to: string | null
+  note: string | null
+  thresholds: HrRetirementAgeThresholdRead[]
+  created_at: string
+  updated_at: string | null
+}
+
+export interface HrRetirementAgePoliciesRead {
+  current: HrRetirementAgePolicyRead | null
+  history: HrRetirementAgePolicyRead[]
+}
+
+export interface HrRetirementAgePolicyCreate {
+  name: string
+  legal_basis_summary?: string | null
+  effective_from: string
+  note?: string | null
+  thresholds: HrRetirementAgeThresholdInput[]
+}
+
+export interface HrRetirementAgePolicyUpdate {
+  name?: string | null
+  legal_basis_summary?: string | null
+  note?: string | null
+  thresholds?: HrRetirementAgeThresholdInput[] | null
+}

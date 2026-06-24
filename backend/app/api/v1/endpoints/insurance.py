@@ -13,6 +13,11 @@ from app.schemas.employee_insurance import (
     EmployeeInsuranceProfileRead,
     EmployeeInsuranceProfileUpdate,
 )
+from app.schemas.hr_report import (
+    RetirementAgePoliciesRead,
+    RetirementAgePolicyCreate,
+    RetirementAgePolicyUpdate,
+)
 from app.schemas.insurance import (
     BhxhPositionGroupCatalogRead,
     BhxhPositionGroupCreate,
@@ -57,6 +62,7 @@ from app.schemas.insurance_report import (
 )
 from app.services import (
     employee_insurance_service,
+    hr_report_service,
     insurance_change_service,
     insurance_export_service,
     insurance_policy_service,
@@ -256,6 +262,59 @@ async def delete_bhxh_seniority_setting(
     session: AsyncSession = Depends(get_session),
 ):
     return await insurance_policy_service.delete_bhxh_seniority_setting(session, setting_id)
+
+
+@router.get(
+    "/retirement-age-policies",
+    response_model=RetirementAgePoliciesRead,
+    summary="Xem policy tuổi nghỉ hưu hiện hành và lịch sử",
+)
+async def get_retirement_age_policies(
+    _: User = require_permission("insurance:view"),
+    session: AsyncSession = Depends(get_session),
+) -> RetirementAgePoliciesRead:
+    return await hr_report_service.get_retirement_age_policies(session)
+
+
+@router.post(
+    "/retirement-age-policies",
+    response_model=RetirementAgePoliciesRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Tạo policy tuổi nghỉ hưu mới",
+)
+async def create_retirement_age_policy(
+    body: RetirementAgePolicyCreate,
+    _: User = require_permission("insurance:create"),
+    session: AsyncSession = Depends(get_session),
+) -> RetirementAgePoliciesRead:
+    return await hr_report_service.create_retirement_age_policy(session, body)
+
+
+@router.put(
+    "/retirement-age-policies/{policy_id}",
+    response_model=RetirementAgePoliciesRead,
+    summary="Cập nhật policy tuổi nghỉ hưu",
+)
+async def update_retirement_age_policy(
+    policy_id: int,
+    body: RetirementAgePolicyUpdate,
+    _: User = require_permission("insurance:edit"),
+    session: AsyncSession = Depends(get_session),
+) -> RetirementAgePoliciesRead:
+    return await hr_report_service.update_retirement_age_policy(session, policy_id, body)
+
+
+@router.delete(
+    "/retirement-age-policies/{policy_id}",
+    response_model=RetirementAgePoliciesRead,
+    summary="Xóa policy tuổi nghỉ hưu",
+)
+async def delete_retirement_age_policy(
+    policy_id: int,
+    _: User = require_permission("insurance:delete"),
+    session: AsyncSession = Depends(get_session),
+) -> RetirementAgePoliciesRead:
+    return await hr_report_service.delete_retirement_age_policy(session, policy_id)
 
 
 @router.get(

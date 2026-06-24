@@ -1,4 +1,9 @@
 import api from './api'
+import type {
+  HrRetirementAgePoliciesRead,
+  HrRetirementAgePolicyCreate,
+  HrRetirementAgePolicyUpdate,
+} from '@/types/hr_report.types'
 
 async function downloadBlob(url: string, fallbackFilename: string, params?: Record<string, unknown>) {
   const res = await api.get(url, { responseType: 'blob', params })
@@ -464,6 +469,18 @@ export default {
 
   deleteSenioritySetting: (settingId: number) =>
     api.delete<BhxhSenioritySettingsRead>(`/insurance/seniority-settings/${settingId}`),
+
+  getRetirementAgePolicies: () =>
+    api.get<HrRetirementAgePoliciesRead>('/insurance/retirement-age-policies'),
+
+  createRetirementAgePolicy: (payload: HrRetirementAgePolicyCreate) =>
+    api.post<HrRetirementAgePoliciesRead>('/insurance/retirement-age-policies', payload),
+
+  updateRetirementAgePolicy: (policyId: number, payload: HrRetirementAgePolicyUpdate) =>
+    api.put<HrRetirementAgePoliciesRead>(`/insurance/retirement-age-policies/${policyId}`, payload),
+
+  deleteRetirementAgePolicy: (policyId: number) =>
+    api.delete<HrRetirementAgePoliciesRead>(`/insurance/retirement-age-policies/${policyId}`),
 
   getPositionGroups: () =>
     api.get<BhxhPositionGroupCatalogRead>('/insurance/position-groups'),

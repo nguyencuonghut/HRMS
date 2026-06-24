@@ -15,6 +15,7 @@ from app.models.auth import User
 from app.schemas.hr_report import (
     EmployeeListResponse,
     MovementReportResponse,
+    OlderWorkerReportResponse,
     OrgStructureResponse,
     TenureReportResponse,
 )
@@ -36,6 +37,7 @@ class ExportType(str, Enum):
     movement = "movement"
     tenure = "tenure"
     org_structure = "org-structure"
+    older_worker = "older-worker"
 
 
 @router.get("/employee-list", response_model=EmployeeListResponse, summary="Danh sách nhân sự")
@@ -109,6 +111,28 @@ async def get_org_structure(
     return await hr_report_service.get_org_structure(session, department_id=department_id)
 
 
+@router.get(
+    "/older-workers",
+    response_model=OlderWorkerReportResponse,
+    summary="Báo cáo người lao động cao tuổi theo tháng",
+)
+async def get_older_worker_report(
+    year: int = Query(..., ge=1900, le=2500),
+    month: int = Query(..., ge=1, le=12),
+    department_id: Optional[int] = Query(None),
+    gender: Optional[str] = Query(None),
+    _: User = require_permission("employees:view"),
+    session: AsyncSession = Depends(get_session),
+) -> OlderWorkerReportResponse:
+    return await hr_report_service.get_older_worker_report(
+        session,
+        year=year,
+        month=month,
+        department_id=department_id,
+        gender=gender,
+    )
+
+
 @router.get("/export", summary="Xuất Excel báo cáo nhân sự", response_class=StreamingResponse)
 async def export_hr_report(
     type: ExportType = Query(...),
@@ -124,6 +148,8 @@ async def export_hr_report(
     tenure_max: Optional[int] = Query(None, ge=0),
     movement_start_date: Optional[date] = Query(None, alias="start_date"),
     movement_end_date: Optional[date] = Query(None, alias="end_date"),
+    older_worker_year: Optional[int] = Query(None, alias="year", ge=1900, le=2500),
+    older_worker_month: Optional[int] = Query(None, alias="month", ge=1, le=12),
     group_by: GroupBy = Query(GroupBy.month),
     _: User = require_permission("employees:view"),
     session: AsyncSession = Depends(get_session),
@@ -162,6 +188,19 @@ async def export_hr_report(
         )
     elif type == ExportType.tenure:
         buf = await hr_report_service.export_tenure_excel(session, department_id=department_id)
+    elif type == ExportType.older_worker:
+        if older_worker_year is None or older_worker_month is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="year và month là bắt buộc cho export older-worker",
+            )
+        buf = await hr_report_service.export_older_worker_excel(
+            session,
+            year=older_worker_year,
+            month=older_worker_month,
+            department_id=department_id,
+            gender=gender,
+        )
     else:
         buf = await hr_report_service.export_org_structure_excel(session, department_id=department_id)
 

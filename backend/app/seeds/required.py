@@ -149,6 +149,80 @@ async def seed_bhxh_seniority_settings(session: AsyncSession) -> int:
     return 1
 
 
+def _retirement_threshold_rows() -> list[dict]:
+    rows: list[dict] = []
+    for year in range(2021, 2029):
+        extra_months = (year - 2021) * 3
+        total_months = 60 * 12 + 3 + extra_months
+        rows.append(
+            {
+                "gender": "male",
+                "applicable_year": year,
+                "age_years": total_months // 12,
+                "age_months": total_months % 12,
+            }
+        )
+    for year in range(2021, 2036):
+        extra_months = (year - 2021) * 4
+        total_months = 55 * 12 + 4 + extra_months
+        rows.append(
+            {
+                "gender": "female",
+                "applicable_year": year,
+                "age_years": total_months // 12,
+                "age_months": total_months % 12,
+            }
+        )
+    return rows
+
+
+async def seed_retirement_age_policy(session: AsyncSession) -> int:
+    existing = await session.execute(
+        text("SELECT COUNT(*) FROM retirement_age_policies WHERE effective_to IS NULL")
+    )
+    if existing.scalar() > 0:
+        return 0
+
+    policy_id = (
+        await session.execute(
+            text("""
+                INSERT INTO retirement_age_policies
+                    (name, legal_basis_summary, effective_from, effective_to, note)
+                VALUES
+                    (:name, :legal_basis_summary, :effective_from, NULL, :note)
+                RETURNING id
+            """),
+            {
+                "name": "Lộ trình tuổi nghỉ hưu NLĐ điều kiện bình thường",
+                "legal_basis_summary": (
+                    "Khoản 2 Điều 169 Bộ luật Lao động 2019; "
+                    "Nghị định 135/2020/NĐ-CP."
+                ),
+                "effective_from": datetime.date(2021, 1, 1),
+                "note": (
+                    "Seed mặc định cho báo cáo người lao động cao tuổi. "
+                    "Ngưỡng được khai báo theo năm áp dụng cho nam và nữ."
+                ),
+            },
+        )
+    ).scalar_one()
+
+    inserted = 1
+    for row in _retirement_threshold_rows():
+        result = await session.execute(
+            text("""
+                INSERT INTO retirement_age_policy_thresholds
+                    (policy_id, gender, applicable_year, age_years, age_months)
+                VALUES
+                    (:policy_id, :gender, :applicable_year, :age_years, :age_months)
+                ON CONFLICT (policy_id, gender, applicable_year) DO NOTHING
+            """),
+            {"policy_id": policy_id, **row},
+        )
+        inserted += result.rowcount
+    return inserted
+
+
 async def seed_insurance_components(session: AsyncSession) -> int:
     """Seed danh mục 5 thành phần đóng BHXH/BHYT/BHTN chuẩn.
 
@@ -274,6 +348,7 @@ async def run(session: AsyncSession) -> None:
     wages_added = await seed_minimum_wages(session)
     region_added = await seed_company_region(session)
     seniority_added = await seed_bhxh_seniority_settings(session)
+    retirement_policy_added = await seed_retirement_age_policy(session)
     ins_components_added = await seed_insurance_components(session)
     ins_policy_seeded = await seed_insurance_policy_version_baseline(session)
     education_levels_added = await education_catalog.seed_required_education_catalog(session)
@@ -295,6 +370,7 @@ async def run(session: AsyncSession) -> None:
     print(f"  [required] Mức lương tối thiểu vùng: +{wages_added} dòng")
     print(f"  [required] Vùng BHXH công ty:         +{region_added} dòng")
     print(f"  [required] Rule thâm niên BHXH:      +{seniority_added} dòng")
+    print(f"  [required] Policy tuổi nghỉ hưu:     +{retirement_policy_added} dòng")
     print(f"  [required] Component BHXH/BHYT/BHTN:  +{ins_components_added} dòng")
     print(f"  [required] Policy version baseline:    {'seeded (BHXH_2025_V1)' if ins_policy_seeded else 'bỏ qua (đã có policy active)'}")
     print(f"  [required] Trình độ học vấn:         +{education_levels_added} upsert")

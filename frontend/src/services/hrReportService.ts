@@ -5,6 +5,8 @@ import type {
   HrExportType,
   HrMovementParams,
   HrMovementReportResponse,
+  HrOlderWorkerParams,
+  HrOlderWorkerReportResponse,
   HrOrgStructureResponse,
   HrTenureReportResponse,
 } from '@/types/hr_report.types'
@@ -52,11 +54,15 @@ export default {
       params: cleanParams({ department_id }),
     }),
 
+  getOlderWorkerReport: (params: HrOlderWorkerParams) =>
+    api.get<HrOlderWorkerReportResponse>(`${BASE}/older-workers`, {
+      params: cleanParams(params),
+    }),
+
   getOrgStructure: (department_id?: number | null) =>
     api.get<HrOrgStructureResponse>(`${BASE}/org-structure`, {
       params: cleanParams({ department_id }),
     }),
-
   exportReport: async (
     type: HrExportType,
     params: Record<string, unknown>,

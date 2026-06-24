@@ -18,6 +18,7 @@ from app.models.employee import Employee
 from app.services import employee_code_service, hr_report_service
 
 BASE = "/api/v1/reports/hr"
+INSURANCE_BASE = "/api/v1/insurance"
 _ADMIN_EMAIL = "admin@hrms.local"
 _ADMIN_PASSWORD = "Hrms@2026"
 _PREFIX = f"T11HR_{uuid.uuid4().hex[:8]}"
@@ -82,6 +83,21 @@ async def _cleanup() -> None:
         await s.execute(text("DELETE FROM contract_categories WHERE code LIKE :prefix"), {"prefix": f"{_PREFIX}%"})
         await s.execute(text("DELETE FROM job_titles WHERE code LIKE :prefix"), {"prefix": f"{_PREFIX}%"})
         await s.execute(text("DELETE FROM departments WHERE code LIKE :prefix"), {"prefix": f"{_PREFIX}%"})
+        await s.execute(
+            text(
+                """
+                DELETE FROM retirement_age_policy_thresholds
+                WHERE policy_id IN (
+                    SELECT id FROM retirement_age_policies WHERE name LIKE :prefix
+                )
+                """
+            ),
+            {"prefix": f"{_PREFIX}%"},
+        )
+        await s.execute(
+            text("DELETE FROM retirement_age_policies WHERE name LIKE :prefix"),
+            {"prefix": f"{_PREFIX}%"},
+        )
         await s.commit()
     await engine.dispose()
 
@@ -273,6 +289,117 @@ async def _seed_hr_report_data() -> dict[str, int]:
         "dept_sales": dept_sales,
         "dept_ops": dept_ops,
     }
+
+
+async def _seed_older_worker_data() -> dict[str, int]:
+    await _cleanup()
+    engine = _engine()
+    Session = async_sessionmaker(engine, expire_on_commit=False)
+
+    async with Session() as s:
+        nationality_id = (await s.execute(text("SELECT id FROM nationalities ORDER BY id LIMIT 1"))).scalar_one()
+        sequence_id = (await s.execute(text("SELECT id FROM employee_code_sequences ORDER BY id LIMIT 1"))).scalar_one()
+        max_seq = (await s.execute(text("SELECT COALESCE(MAX(employee_seq), 0) FROM employees"))).scalar_one()
+
+        dept_id = (await s.execute(text("""
+            INSERT INTO departments (code, name, short_name, dept_type, order_no, is_active, created_at)
+            VALUES (:code, :name, 'OLD', 'PHONG', 0, TRUE, NOW())
+            RETURNING id
+        """), {"code": f"{_PREFIX}_OLD", "name": f"{_PREFIX} Older"})).scalar_one()
+        title_id = (await s.execute(text("""
+            INSERT INTO job_titles (code, name, level, is_active, created_at)
+            VALUES (:code, :name, 4, TRUE, NOW())
+            RETURNING id
+        """), {"code": f"{_PREFIX}_OLD_T", "name": f"{_PREFIX} Older Title"})).scalar_one()
+
+        older_employees = [
+            ("Older Male", "male", date(1964, 9, 30), True),
+            ("Older Female", "female", date(1969, 4, 30), True),
+            ("Younger Female", "female", date(1969, 5, 1), True),
+        ]
+
+        for index, (name, gender, dob, is_active) in enumerate(older_employees, start=1):
+            employee_id = (await s.execute(text("""
+                INSERT INTO employees (
+                    employee_seq, employee_code_sequence_id, full_name, normalized_name,
+                    last_name, first_name, date_of_birth, gender, nationality_id,
+                    ethnicity_id, religion_id, id_number, id_number_hash, id_issued_on, id_issued_by,
+                    id_expires_on, passport_number, passport_issued_on, passport_expires_on,
+                    work_permit_number, work_permit_issued_on, work_permit_expires_on,
+                    phone_number, personal_email, personal_tax_code, bhxh_code, avatar_path,
+                    status, start_date, resigned_date, user_id, is_active, created_at, updated_at
+                ) VALUES (
+                    :employee_seq, :sequence_id, :full_name, :normalized_name,
+                    :last_name, :first_name, :date_of_birth, :gender, :nationality_id,
+                    NULL, NULL, :id_number, :id_number_hash, :id_issued_on, :id_issued_by,
+                    NULL, NULL, NULL, NULL,
+                    NULL, NULL, NULL,
+                    NULL, :personal_email, NULL, NULL, NULL,
+                    'official', :start_date, NULL, NULL, :is_active, NOW(), NOW()
+                )
+                RETURNING id
+            """), {
+                "employee_seq": max_seq + index,
+                "sequence_id": sequence_id,
+                "full_name": f"{_PREFIX} {name}",
+                "normalized_name": f"{_PREFIX.lower()} {name.lower()}",
+                "last_name": name,
+                "first_name": _PREFIX,
+                "date_of_birth": dob,
+                "gender": gender,
+                "nationality_id": nationality_id,
+                "id_number": encrypt(f"{_PREFIX}_OLD_{index:03d}"),
+                "id_number_hash": hash_sensitive(f"{_PREFIX}_OLD_{index:03d}"),
+                "id_issued_on": date(2020, 1, 1),
+                "id_issued_by": "CA Test",
+                "personal_email": f"{_PREFIX.lower()}_old_{index}@example.com",
+                "start_date": date(2010, 1, 1),
+                "is_active": is_active,
+            })).scalar_one()
+            await s.execute(text("""
+                INSERT INTO employee_job_records (
+                    employee_id, department_id, job_title_id, job_position_id,
+                    probation_start_date, probation_end_date, official_date,
+                    effective_from, effective_to, is_current, notes, changed_by,
+                    created_at, updated_at
+                ) VALUES (
+                    :employee_id, :department_id, :job_title_id, NULL,
+                    NULL, NULL, NULL,
+                    :effective_from, NULL, TRUE, NULL, NULL, NOW(), NOW()
+                )
+            """), {
+                "employee_id": employee_id,
+                "department_id": dept_id,
+                "job_title_id": title_id,
+                "effective_from": date(2010, 1, 1),
+            })
+
+        policy_id = (await s.execute(text("""
+            INSERT INTO retirement_age_policies
+                (name, legal_basis_summary, effective_from, effective_to, note, created_at)
+            VALUES
+                (:name, :legal_basis_summary, :effective_from, NULL, :note, NOW())
+            RETURNING id
+        """), {
+            "name": f"{_PREFIX} Retirement Policy",
+            "legal_basis_summary": "Test policy for older-worker report",
+            "effective_from": date(2025, 1, 1),
+            "note": "Policy test",
+        })).scalar_one()
+        for row in (
+            {"gender": "male", "applicable_year": 2025, "age_years": 61, "age_months": 3},
+            {"gender": "female", "applicable_year": 2025, "age_years": 56, "age_months": 8},
+        ):
+            await s.execute(text("""
+                INSERT INTO retirement_age_policy_thresholds
+                    (policy_id, gender, applicable_year, age_years, age_months)
+                VALUES
+                    (:policy_id, :gender, :applicable_year, :age_years, :age_months)
+            """), {"policy_id": policy_id, **row})
+
+        await s.commit()
+    await engine.dispose()
+    return {"department_id": dept_id}
 
 
 @pytest.fixture(autouse=True)
@@ -486,3 +613,85 @@ def test_export_employee_list_returns_valid_xlsx(client: TestClient):
 def test_export_requires_auth(client: TestClient):
     resp = client.get(f"{BASE}/export", params={"type": "tenure"})
     assert resp.status_code in (401, 403)
+
+
+def test_get_older_worker_report_returns_month_snapshot_with_legal_thresholds():
+    refs = asyncio.run(_seed_older_worker_data())
+    engine = _engine()
+    Session = async_sessionmaker(engine, expire_on_commit=False)
+
+    async def run():
+        async with Session() as s:
+            return await hr_report_service.get_older_worker_report(
+                s,
+                year=2025,
+                month=12,
+                department_id=refs["department_id"],
+            )
+
+    report = asyncio.run(run())
+    asyncio.run(engine.dispose())
+
+    assert report.as_of_date == date(2025, 12, 31)
+    assert report.male_threshold_label == "61 tuổi 3 tháng"
+    assert report.female_threshold_label == "56 tuổi 8 tháng"
+    assert report.summary.total == 2
+    assert report.summary.male_count == 1
+    assert report.summary.female_count == 1
+    assert [item.full_name for item in report.items] == [
+        f"{_PREFIX} Older Female",
+        f"{_PREFIX} Older Male",
+    ]
+
+
+def test_older_worker_endpoint_returns_monthly_report(client: TestClient):
+    refs = asyncio.run(_seed_older_worker_data())
+    headers = _admin_headers(client)
+
+    resp = client.get(
+        f"{BASE}/older-workers",
+        headers=headers,
+        params={"year": 2025, "month": 12, "department_id": refs["department_id"]},
+    )
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["summary"]["total"] == 2
+    assert data["male_threshold_label"] == "61 tuổi 3 tháng"
+    assert data["female_threshold_label"] == "56 tuổi 8 tháng"
+
+
+def test_retirement_age_policies_are_served_from_insurance_foundation_api(client: TestClient):
+    asyncio.run(_seed_older_worker_data())
+    headers = _admin_headers(client)
+
+    resp = client.get(
+        f"{INSURANCE_BASE}/retirement-age-policies",
+        headers=headers,
+    )
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["current"]["name"] == f"{_PREFIX} Retirement Policy"
+    assert {item["gender"] for item in data["current"]["thresholds"]} == {"male", "female"}
+
+
+def test_export_older_worker_returns_valid_xlsx(client: TestClient):
+    refs = asyncio.run(_seed_older_worker_data())
+    headers = _admin_headers(client)
+
+    resp = client.get(
+        f"{BASE}/export",
+        headers=headers,
+        params={
+            "type": "older-worker",
+            "year": 2025,
+            "month": 12,
+            "department_id": refs["department_id"],
+        },
+    )
+    assert resp.status_code == 200, resp.text
+    assert "bao_cao_nhan_su_older-worker" in resp.headers.get("content-disposition", "")
+
+    wb = openpyxl.load_workbook(io.BytesIO(resp.content))
+    ws = wb["Lao động cao tuổi"]
+    assert ws.max_row == 3
+    assert ws["B2"].value in {f"{_PREFIX} Older Female", f"{_PREFIX} Older Male"}
