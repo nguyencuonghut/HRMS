@@ -32,11 +32,57 @@ def _get_dept_id(client: TestClient, h: dict) -> int:
     return rows[0]["id"]
 
 
-def _get_pos_id(client: TestClient, h: dict) -> int:
-    items = client.get(BASE_POS, headers=h, params={"page_size": 1}).json()
+def _get_dept_rows(client: TestClient, h: dict) -> list[dict]:
+    items = client.get(BASE_DEPT, headers=h, params={"page_size": 200}).json()
+    rows = items if isinstance(items, list) else items.get("items", items)
+    assert rows, "Cần ít nhất 1 phòng ban trong DB"
+    return rows
+
+
+def _get_pos_id(client: TestClient, h: dict, *, department_id: int | None = None) -> int:
+    params: dict[str, int] = {"page_size": 200}
+    if department_id is not None:
+        params["department_id"] = department_id
+    items = client.get(BASE_POS, headers=h, params=params).json()
     rows = items if isinstance(items, list) else items.get("items", items)
     assert rows, "Cần ít nhất 1 vị trí công việc trong DB"
     return rows[0]["id"]
+
+
+def _get_valid_dept_pos_pair(client: TestClient, h: dict) -> tuple[int, int]:
+    for row in _get_dept_rows(client, h):
+        dept_id = row["id"]
+        positions = client.get(
+            BASE_POS,
+            headers=h,
+            params={"department_id": dept_id, "page_size": 200},
+        ).json()
+        pos_rows = positions if isinstance(positions, list) else positions.get("items", positions)
+        if pos_rows:
+            return dept_id, pos_rows[0]["id"]
+    raise AssertionError("Cần ít nhất 1 cặp phòng ban/vị trí hợp lệ trong DB")
+
+
+def _get_second_dept_id(client: TestClient, h: dict, exclude_id: int) -> int:
+    for row in _get_dept_rows(client, h):
+        if row["id"] != exclude_id:
+            return row["id"]
+    pytest.skip("Cần ít nhất 2 phòng ban để kiểm tra validation mapping position")
+
+
+def _create_scoped_position(client: TestClient, h: dict, owner_dept_id: int) -> int:
+    payload = {
+        "code": f"TSTPOS{owner_dept_id}",
+        "name": f"Test Position {owner_dept_id}",
+        "department_id": owner_dept_id,
+        "default_grade": 1,
+        "bhxh_allowance": 0,
+        "non_bhxh_allowance": 0,
+        "assigned_department_ids": [owner_dept_id],
+    }
+    response = client.post(BASE_POS, json=payload, headers=h)
+    assert response.status_code == 201, response.text
+    return response.json()["id"]
 
 
 def _create_jr(client: TestClient, h: dict, dept_id: int, pos_id: int, **kwargs) -> dict:
@@ -70,7 +116,7 @@ def _delete_jr(client: TestClient, h: dict, jr_id: int):
 class TestHeadcountPlan:
     def test_create_plan_success(self, client: TestClient):
         h = _admin(client)
-        dept_id = _get_dept_id(client, h)
+        dept_id, _ = _get_valid_dept_pos_pair(client, h)
         r = client.post(
             BASE_HC,
             json={"year": _TEST_YEAR, "department_id": dept_id, "planned_count": 3},
@@ -98,7 +144,7 @@ class TestHeadcountPlan:
 
     def test_create_duplicate_plan_returns_409(self, client: TestClient):
         h = _admin(client)
-        dept_id = _get_dept_id(client, h)
+        dept_id, _ = _get_valid_dept_pos_pair(client, h)
         r1 = client.post(
             BASE_HC,
             json={"year": _TEST_YEAR, "department_id": dept_id, "job_position_id": None, "planned_count": 2},
@@ -117,8 +163,7 @@ class TestHeadcountPlan:
 
     def test_list_plans_filter_by_year(self, client: TestClient):
         h = _admin(client)
-        dept_id = _get_dept_id(client, h)
-        pos_id = _get_pos_id(client, h)
+        dept_id, pos_id = _get_valid_dept_pos_pair(client, h)
         r = client.post(
             BASE_HC,
             json={"year": _TEST_YEAR, "department_id": dept_id, "job_position_id": pos_id, "planned_count": 4},
@@ -136,8 +181,7 @@ class TestHeadcountPlan:
 
     def test_update_plan(self, client: TestClient):
         h = _admin(client)
-        dept_id = _get_dept_id(client, h)
-        pos_id = _get_pos_id(client, h)
+        dept_id, pos_id = _get_valid_dept_pos_pair(client, h)
         r = client.post(
             BASE_HC,
             json={"year": _TEST_YEAR, "department_id": dept_id, "job_position_id": pos_id,
@@ -154,8 +198,7 @@ class TestHeadcountPlan:
 
     def test_delete_plan_with_linked_jr_returns_409(self, client: TestClient):
         h = _admin(client)
-        dept_id = _get_dept_id(client, h)
-        pos_id = _get_pos_id(client, h)
+        dept_id, pos_id = _get_valid_dept_pos_pair(client, h)
 
         # Tạo plan dùng năm và vị trí riêng để không đụng duplicate
         r_plan = client.post(
@@ -175,6 +218,26 @@ class TestHeadcountPlan:
         # Cleanup
         _delete_jr(client, h, jr_id)
         client.delete(f"{BASE_HC}/{plan_id}", headers=h)
+
+    def test_create_plan_rejects_position_not_assigned_to_department(self, client: TestClient):
+        h = _admin(client)
+        owner_dept_id, _ = _get_valid_dept_pos_pair(client, h)
+        other_dept_id = _get_second_dept_id(client, h, owner_dept_id)
+        pos_id = _create_scoped_position(client, h, owner_dept_id)
+        try:
+            response = client.post(
+                BASE_HC,
+                json={
+                    "year": _TEST_YEAR,
+                    "department_id": other_dept_id,
+                    "job_position_id": pos_id,
+                    "planned_count": 1,
+                },
+                headers=h,
+            )
+            assert response.status_code == 422, response.text
+        finally:
+            client.delete(f"{BASE_POS}/{pos_id}", headers=h)
 
     def test_fulfillment_rate_endpoint(self, client: TestClient):
         h = _admin(client)
@@ -196,8 +259,7 @@ class TestHeadcountPlan:
 class TestJobRequisitionCRUD:
     def test_create_jr_success(self, client: TestClient):
         h = _admin(client)
-        dept_id = _get_dept_id(client, h)
-        pos_id = _get_pos_id(client, h)
+        dept_id, pos_id = _get_valid_dept_pos_pair(client, h)
         jr = _create_jr(client, h, dept_id, pos_id)
 
         assert jr["status"] == "draft"
@@ -211,8 +273,7 @@ class TestJobRequisitionCRUD:
 
     def test_create_jr_auto_generates_code(self, client: TestClient):
         h = _admin(client)
-        dept_id = _get_dept_id(client, h)
-        pos_id = _get_pos_id(client, h)
+        dept_id, pos_id = _get_valid_dept_pos_pair(client, h)
         jr1 = _create_jr(client, h, dept_id, pos_id)
         jr2 = _create_jr(client, h, dept_id, pos_id)
         assert jr1["code"] != jr2["code"]
@@ -223,8 +284,7 @@ class TestJobRequisitionCRUD:
 
     def test_create_jr_inherits_jd_from_position(self, client: TestClient):
         h = _admin(client)
-        dept_id = _get_dept_id(client, h)
-        pos_id = _get_pos_id(client, h)
+        dept_id, pos_id = _get_valid_dept_pos_pair(client, h)
         jr = _create_jr(client, h, dept_id, pos_id)
         # effective_description có thể là None (nếu position chưa có JD) hoặc từ position
         assert "effective_description" in jr
@@ -232,8 +292,7 @@ class TestJobRequisitionCRUD:
 
     def test_create_jr_with_jd_override(self, client: TestClient):
         h = _admin(client)
-        dept_id = _get_dept_id(client, h)
-        pos_id = _get_pos_id(client, h)
+        dept_id, pos_id = _get_valid_dept_pos_pair(client, h)
         jr = _create_jr(client, h, dept_id, pos_id,
                         jd_description="Override JD", jd_requirements="Override Req")
         assert jr["effective_description"] == "Override JD"
@@ -242,8 +301,7 @@ class TestJobRequisitionCRUD:
 
     def test_get_jr_by_id(self, client: TestClient):
         h = _admin(client)
-        dept_id = _get_dept_id(client, h)
-        pos_id = _get_pos_id(client, h)
+        dept_id, pos_id = _get_valid_dept_pos_pair(client, h)
         jr = _create_jr(client, h, dept_id, pos_id)
         r = client.get(f"{BASE_JR}/{jr['id']}", headers=h)
         assert r.status_code == 200
@@ -257,8 +315,7 @@ class TestJobRequisitionCRUD:
 
     def test_update_jr_in_draft(self, client: TestClient):
         h = _admin(client)
-        dept_id = _get_dept_id(client, h)
-        pos_id = _get_pos_id(client, h)
+        dept_id, pos_id = _get_valid_dept_pos_pair(client, h)
         jr = _create_jr(client, h, dept_id, pos_id)
         r = client.put(
             f"{BASE_JR}/{jr['id']}",
@@ -274,8 +331,7 @@ class TestJobRequisitionCRUD:
 
     def test_delete_draft_jr(self, client: TestClient):
         h = _admin(client)
-        dept_id = _get_dept_id(client, h)
-        pos_id = _get_pos_id(client, h)
+        dept_id, pos_id = _get_valid_dept_pos_pair(client, h)
         jr = _create_jr(client, h, dept_id, pos_id)
         r = client.delete(f"{BASE_JR}/{jr['id']}", headers=h)
         assert r.status_code == 204
@@ -295,8 +351,7 @@ class TestJobRequisitionCRUD:
 
     def test_list_jr_filter_by_status(self, client: TestClient):
         h = _admin(client)
-        dept_id = _get_dept_id(client, h)
-        pos_id = _get_pos_id(client, h)
+        dept_id, pos_id = _get_valid_dept_pos_pair(client, h)
         jr = _create_jr(client, h, dept_id, pos_id)
 
         r = client.get(BASE_JR, headers=h, params={"status": "draft"})
@@ -307,8 +362,7 @@ class TestJobRequisitionCRUD:
 
     def test_salary_range_validation(self, client: TestClient):
         h = _admin(client)
-        dept_id = _get_dept_id(client, h)
-        pos_id = _get_pos_id(client, h)
+        dept_id, pos_id = _get_valid_dept_pos_pair(client, h)
         r = client.post(
             BASE_JR,
             json={
@@ -325,7 +379,7 @@ class TestJobRequisitionCRUD:
 
     def test_create_jr_invalid_position_returns_404(self, client: TestClient):
         h = _admin(client)
-        dept_id = _get_dept_id(client, h)
+        dept_id, _ = _get_valid_dept_pos_pair(client, h)
         r = client.post(
             BASE_JR,
             json={"job_position_id": 999999, "department_id": dept_id, "quantity": 1, "reason_type": "new"},
@@ -333,10 +387,29 @@ class TestJobRequisitionCRUD:
         )
         assert r.status_code == 404
 
+    def test_create_jr_rejects_position_not_assigned_to_department(self, client: TestClient):
+        h = _admin(client)
+        owner_dept_id, _ = _get_valid_dept_pos_pair(client, h)
+        other_dept_id = _get_second_dept_id(client, h, owner_dept_id)
+        pos_id = _create_scoped_position(client, h, owner_dept_id)
+        try:
+            response = client.post(
+                BASE_JR,
+                json={
+                    "job_position_id": pos_id,
+                    "department_id": other_dept_id,
+                    "quantity": 1,
+                    "reason_type": "new",
+                },
+                headers=h,
+            )
+            assert response.status_code == 422, response.text
+        finally:
+            client.delete(f"{BASE_POS}/{pos_id}", headers=h)
+
     def test_read_includes_reason_type_label(self, client: TestClient):
         h = _admin(client)
-        dept_id = _get_dept_id(client, h)
-        pos_id = _get_pos_id(client, h)
+        dept_id, pos_id = _get_valid_dept_pos_pair(client, h)
         jr = _create_jr(client, h, dept_id, pos_id, reason_type="replacement")
         assert jr["reason_type_label"] == "Thay thế nhân sự"
         _delete_jr(client, h, jr["id"])
@@ -348,8 +421,7 @@ class TestJobRequisitionCRUD:
 class TestJRWorkflow:
     def test_submit_draft_to_pending_review(self, client: TestClient):
         h = _admin(client)
-        dept_id = _get_dept_id(client, h)
-        pos_id = _get_pos_id(client, h)
+        dept_id, pos_id = _get_valid_dept_pos_pair(client, h)
         jr = _create_jr(client, h, dept_id, pos_id)
 
         r = client.post(f"{BASE_JR}/{jr['id']}/submit", headers=h)
@@ -362,8 +434,7 @@ class TestJRWorkflow:
 
     def test_submit_non_draft_returns_409(self, client: TestClient):
         h = _admin(client)
-        dept_id = _get_dept_id(client, h)
-        pos_id = _get_pos_id(client, h)
+        dept_id, pos_id = _get_valid_dept_pos_pair(client, h)
         jr = _create_jr(client, h, dept_id, pos_id)
         client.post(f"{BASE_JR}/{jr['id']}/submit", headers=h)
 
@@ -373,8 +444,7 @@ class TestJRWorkflow:
 
     def test_approve_pending_jr(self, client: TestClient):
         h = _admin(client)
-        dept_id = _get_dept_id(client, h)
-        pos_id = _get_pos_id(client, h)
+        dept_id, pos_id = _get_valid_dept_pos_pair(client, h)
         jr = _create_jr(client, h, dept_id, pos_id)
         client.post(f"{BASE_JR}/{jr['id']}/submit", headers=h)
 
@@ -388,8 +458,7 @@ class TestJRWorkflow:
 
     def test_approve_non_pending_returns_409(self, client: TestClient):
         h = _admin(client)
-        dept_id = _get_dept_id(client, h)
-        pos_id = _get_pos_id(client, h)
+        dept_id, pos_id = _get_valid_dept_pos_pair(client, h)
         jr = _create_jr(client, h, dept_id, pos_id)
 
         r = client.post(f"{BASE_JR}/{jr['id']}/approve", headers=h)
@@ -398,8 +467,7 @@ class TestJRWorkflow:
 
     def test_reject_returns_to_draft_with_note(self, client: TestClient):
         h = _admin(client)
-        dept_id = _get_dept_id(client, h)
-        pos_id = _get_pos_id(client, h)
+        dept_id, pos_id = _get_valid_dept_pos_pair(client, h)
         jr = _create_jr(client, h, dept_id, pos_id)
         client.post(f"{BASE_JR}/{jr['id']}/submit", headers=h)
 
@@ -416,8 +484,7 @@ class TestJRWorkflow:
 
     def test_reject_without_note_returns_422(self, client: TestClient):
         h = _admin(client)
-        dept_id = _get_dept_id(client, h)
-        pos_id = _get_pos_id(client, h)
+        dept_id, pos_id = _get_valid_dept_pos_pair(client, h)
         jr = _create_jr(client, h, dept_id, pos_id)
         client.post(f"{BASE_JR}/{jr['id']}/submit", headers=h)
 
@@ -427,8 +494,7 @@ class TestJRWorkflow:
 
     def test_cancel_draft_jr(self, client: TestClient):
         h = _admin(client)
-        dept_id = _get_dept_id(client, h)
-        pos_id = _get_pos_id(client, h)
+        dept_id, pos_id = _get_valid_dept_pos_pair(client, h)
         jr = _create_jr(client, h, dept_id, pos_id)
 
         r = client.post(f"{BASE_JR}/{jr['id']}/cancel", json={}, headers=h)
@@ -437,8 +503,7 @@ class TestJRWorkflow:
 
     def test_cancel_approved_jr(self, client: TestClient):
         h = _admin(client)
-        dept_id = _get_dept_id(client, h)
-        pos_id = _get_pos_id(client, h)
+        dept_id, pos_id = _get_valid_dept_pos_pair(client, h)
         jr = _create_jr(client, h, dept_id, pos_id)
         client.post(f"{BASE_JR}/{jr['id']}/submit", headers=h)
         client.post(f"{BASE_JR}/{jr['id']}/approve", headers=h)
@@ -449,8 +514,7 @@ class TestJRWorkflow:
 
     def test_delete_non_draft_jr_returns_409(self, client: TestClient):
         h = _admin(client)
-        dept_id = _get_dept_id(client, h)
-        pos_id = _get_pos_id(client, h)
+        dept_id, pos_id = _get_valid_dept_pos_pair(client, h)
         jr = _create_jr(client, h, dept_id, pos_id)
         client.post(f"{BASE_JR}/{jr['id']}/submit", headers=h)
 
@@ -460,8 +524,7 @@ class TestJRWorkflow:
 
     def test_update_approved_jr_returns_409(self, client: TestClient):
         h = _admin(client)
-        dept_id = _get_dept_id(client, h)
-        pos_id = _get_pos_id(client, h)
+        dept_id, pos_id = _get_valid_dept_pos_pair(client, h)
         jr = _create_jr(client, h, dept_id, pos_id)
         client.post(f"{BASE_JR}/{jr['id']}/submit", headers=h)
         client.post(f"{BASE_JR}/{jr['id']}/approve", headers=h)
@@ -472,8 +535,7 @@ class TestJRWorkflow:
 
     def test_rejected_jr_can_be_resubmitted(self, client: TestClient):
         h = _admin(client)
-        dept_id = _get_dept_id(client, h)
-        pos_id = _get_pos_id(client, h)
+        dept_id, pos_id = _get_valid_dept_pos_pair(client, h)
         jr = _create_jr(client, h, dept_id, pos_id)
         client.post(f"{BASE_JR}/{jr['id']}/submit", headers=h)
         client.post(
@@ -494,8 +556,7 @@ class TestJRWorkflow:
 class TestBudget:
     def test_add_budget_item(self, client: TestClient):
         h = _admin(client)
-        dept_id = _get_dept_id(client, h)
-        pos_id = _get_pos_id(client, h)
+        dept_id, pos_id = _get_valid_dept_pos_pair(client, h)
         jr = _create_jr(client, h, dept_id, pos_id)
 
         r = client.post(
@@ -512,8 +573,7 @@ class TestBudget:
 
     def test_get_budget_summary(self, client: TestClient):
         h = _admin(client)
-        dept_id = _get_dept_id(client, h)
-        pos_id = _get_pos_id(client, h)
+        dept_id, pos_id = _get_valid_dept_pos_pair(client, h)
         jr = _create_jr(client, h, dept_id, pos_id)
 
         client.post(
@@ -537,8 +597,7 @@ class TestBudget:
 
     def test_update_budget_item(self, client: TestClient):
         h = _admin(client)
-        dept_id = _get_dept_id(client, h)
-        pos_id = _get_pos_id(client, h)
+        dept_id, pos_id = _get_valid_dept_pos_pair(client, h)
         jr = _create_jr(client, h, dept_id, pos_id)
 
         item = client.post(
@@ -560,8 +619,7 @@ class TestBudget:
 
     def test_delete_budget_item(self, client: TestClient):
         h = _admin(client)
-        dept_id = _get_dept_id(client, h)
-        pos_id = _get_pos_id(client, h)
+        dept_id, pos_id = _get_valid_dept_pos_pair(client, h)
         jr = _create_jr(client, h, dept_id, pos_id)
 
         item = client.post(
@@ -581,8 +639,7 @@ class TestBudget:
 
     def test_budget_item_wrong_jr_returns_404(self, client: TestClient):
         h = _admin(client)
-        dept_id = _get_dept_id(client, h)
-        pos_id = _get_pos_id(client, h)
+        dept_id, pos_id = _get_valid_dept_pos_pair(client, h)
         jr = _create_jr(client, h, dept_id, pos_id)
 
         item = client.post(
@@ -602,8 +659,7 @@ class TestBudget:
 
     def test_budget_total_empty_jr(self, client: TestClient):
         h = _admin(client)
-        dept_id = _get_dept_id(client, h)
-        pos_id = _get_pos_id(client, h)
+        dept_id, pos_id = _get_valid_dept_pos_pair(client, h)
         jr = _create_jr(client, h, dept_id, pos_id)
 
         r = client.get(f"{BASE_JR}/{jr['id']}/budget", headers=h)

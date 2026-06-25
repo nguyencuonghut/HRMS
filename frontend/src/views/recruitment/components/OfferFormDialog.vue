@@ -16,18 +16,6 @@
       </div>
       <div v-else class="rc-row">
         <div class="rc-field">
-          <label class="rc-label">Vị trí tuyển dụng <span class="req">*</span></label>
-          <Select
-            v-model="form.job_position_id"
-            :options="jobPositionOptions"
-            option-label="label"
-            option-value="value"
-            filter
-            class="w-full"
-            placeholder="Chọn vị trí..."
-          />
-        </div>
-        <div class="rc-field">
           <label class="rc-label">Phòng ban <span class="req">*</span></label>
           <Select
             v-model="form.department_id"
@@ -37,6 +25,20 @@
             filter
             class="w-full"
             placeholder="Chọn phòng ban..."
+            @change="onDepartmentChange"
+          />
+        </div>
+        <div class="rc-field">
+          <label class="rc-label">Vị trí tuyển dụng <span class="req">*</span></label>
+          <Select
+            v-model="form.job_position_id"
+            :options="jobPositionOptions"
+            option-label="label"
+            option-value="value"
+            filter
+            class="w-full"
+            placeholder="Chọn vị trí..."
+            :disabled="!form.department_id"
           />
         </div>
       </div>
@@ -205,6 +207,11 @@ const probationDaysWarning = computed(() =>
   && (form.value.probation_days ?? 0) > probationDaysLimit.value,
 )
 
+async function loadDepartments() {
+  const response = await departmentService.getList(true)
+  departmentOptions.value = response.data.map((d: any) => ({ label: d.name, value: d.id }))
+}
+
 function resetForm() {
   const o = props.offer
   form.value = {
@@ -218,6 +225,21 @@ function resetForm() {
     benefits_note:    o?.benefits_note  ?? '',
     internal_note:    o?.internal_note  ?? '',
   }
+}
+
+async function loadPositionsForDepartment(departmentId: number | null) {
+  jobPositionOptions.value = []
+  if (!departmentId) return
+  const response = await jobPositionService.getList({
+    department_id: departmentId,
+    is_active: true,
+  })
+  jobPositionOptions.value = response.data.map((p: JobPositionListItem) => ({ ...p, label: p.name, value: p.id }))
+}
+
+async function onDepartmentChange() {
+  form.value.job_position_id = null
+  await loadPositionsForDepartment(form.value.department_id)
 }
 
 function toDateStr(d: Date | null): string | null {
@@ -259,17 +281,22 @@ async function save() {
   }
 }
 
-watch(visible, (v: boolean) => { if (v) resetForm() })
+watch(visible, async (v: boolean) => {
+  if (!v) return
+  resetForm()
+  if (!hasJrContext.value || editing.value) {
+    if (!departmentOptions.value.length) {
+      await loadDepartments()
+    }
+    await loadPositionsForDepartment(form.value.department_id)
+  }
+})
 
 onMounted(async () => {
   // Chỉ load options khi không có JR context (cần cho trường hợp sửa offer)
   if (!hasJrContext.value || editing.value) {
-    const [deptsRes, positionsRes] = await Promise.all([
-      departmentService.getList(true),
-      jobPositionService.getList({ is_active: true }),
-    ])
-    departmentOptions.value = deptsRes.data.map((d: any) => ({ label: d.name, value: d.id }))
-    jobPositionOptions.value = positionsRes.data.map((p: JobPositionListItem) => ({ ...p, label: p.name, value: p.id }))
+    await loadDepartments()
+    await loadPositionsForDepartment(form.value.department_id)
   }
 })
 </script>

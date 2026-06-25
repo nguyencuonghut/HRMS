@@ -128,6 +128,7 @@
             filter
             class="w-full"
             :disabled="!!editingPlan"
+            @change="onDepartmentChange"
           />
         </div>
 
@@ -142,7 +143,7 @@
             show-clear
             filter
             class="w-full"
-            :disabled="!!editingPlan"
+            :disabled="!!editingPlan || !form.department_id"
           />
         </div>
 
@@ -240,6 +241,16 @@ async function load() {
   }
 }
 
+async function loadPositionsForDepartment(departmentId: number | null) {
+  positions.value = []
+  if (!departmentId) return
+  const response = await jobPositionService.getList({
+    department_id: departmentId,
+    is_active: true,
+  })
+  positions.value = response.data
+}
+
 function openCreate() {
   editingPlan.value = null
   apiError.value    = ''
@@ -252,10 +263,11 @@ function openCreate() {
     planned_count:   1,
     reason:          '',
   }
+  void loadPositionsForDepartment(form.value.department_id)
   showDialog.value = true
 }
 
-function openEdit(plan: HeadcountPlanRead) {
+async function openEdit(plan: HeadcountPlanRead) {
   editingPlan.value = plan
   apiError.value    = ''
   formErrors.value  = {}
@@ -267,7 +279,13 @@ function openEdit(plan: HeadcountPlanRead) {
     planned_count:   plan.planned_count,
     reason:          plan.reason ?? '',
   }
+  await loadPositionsForDepartment(form.value.department_id)
   showDialog.value = true
+}
+
+async function onDepartmentChange() {
+  form.value.job_position_id = null
+  await loadPositionsForDepartment(form.value.department_id)
 }
 
 function validatePlan(): boolean {
@@ -337,12 +355,8 @@ async function doDelete(id: number) {
 
 onMounted(async () => {
   try {
-    const [deptsRes, posRes] = await Promise.all([
-      departmentService.getList(true),
-      jobPositionService.getList({ is_active: true }),
-    ])
+    const deptsRes = await departmentService.getList(true)
     departments.value = deptsRes.data
-    positions.value   = posRes.data
   } catch { /* ignore */ }
   load()
 })

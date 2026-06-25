@@ -319,23 +319,12 @@ const records   = ref<JobRecordRead[]>([])
 
 const departments    = ref<{ id: number; name: string; code: string }[]>([])
 const jobTitles      = ref<JobTitleRead[]>([])
-const allPositions   = ref<JobPositionListItem[]>([])
+const filteredPositions = ref<JobPositionListItem[]>([])
+const transferFilteredPositions = ref<JobPositionListItem[]>([])
 
 // ── Computed ───────────────────────────────────────────────────────────────────
 const currentJob = computed(() => records.value.find(r => r.is_current) ?? null)
 const historyRecords = computed(() => records.value.filter(r => !r.is_current))
-
-const filteredPositions = computed(() =>
-  form.value.department_id
-    ? allPositions.value.filter(p => p.department_id === form.value.department_id)
-    : []
-)
-
-const transferFilteredPositions = computed(() =>
-  transferForm.value.department_id
-    ? allPositions.value.filter(p => p.department_id === transferForm.value.department_id)
-    : []
-)
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 function formatDate(iso: string | null | undefined): string {
@@ -373,14 +362,32 @@ async function loadRecords() {
 }
 
 async function loadCatalogs() {
-  const [depts, titles, positions] = await Promise.all([
+  const [depts, titles] = await Promise.all([
     departmentService.getList(true),
     jobTitleService.getList(true),
-    jobPositionService.getList({ is_active: true }),
   ])
   departments.value  = depts.data
   jobTitles.value    = titles.data
-  allPositions.value = positions.data
+}
+
+async function loadPositionsForDepartment(departmentId: number | null) {
+  filteredPositions.value = []
+  if (!departmentId) return
+  const response = await jobPositionService.getList({
+    department_id: departmentId,
+    is_active: true,
+  })
+  filteredPositions.value = response.data
+}
+
+async function loadTransferPositionsForDepartment(departmentId: number | null) {
+  transferFilteredPositions.value = []
+  if (!departmentId) return
+  const response = await jobPositionService.getList({
+    department_id: departmentId,
+    is_active: true,
+  })
+  transferFilteredPositions.value = response.data
 }
 
 onMounted(async () => {
@@ -417,6 +424,7 @@ function resetForm() {
 function openCreate() {
   isEditing.value = false
   resetForm()
+  filteredPositions.value = []
   formDialogVisible.value = true
 }
 
@@ -435,11 +443,13 @@ function openEdit() {
     official_date:        j.official_date ? new Date(j.official_date) : null,
     notes:                j.notes ?? '',
   }
+  void loadPositionsForDepartment(j.department_id)
   formDialogVisible.value = true
 }
 
-function onDeptChange() {
+async function onDeptChange() {
   form.value.job_position_id = null
+  await loadPositionsForDepartment(form.value.department_id)
 }
 
 function validateForm(): boolean {
@@ -506,11 +516,13 @@ watch(transferDialogVisible, (v) => {
       department_id: null, job_title_id: null, job_position_id: null,
       effective_from_date: null, notes: '',
     }
+    transferFilteredPositions.value = []
   }
 })
 
-function onTransferDeptChange() {
+async function onTransferDeptChange() {
   transferForm.value.job_position_id = null
+  await loadTransferPositionsForDepartment(transferForm.value.department_id)
 }
 
 function validateTransfer(): boolean {

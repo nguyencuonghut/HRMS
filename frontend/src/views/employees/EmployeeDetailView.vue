@@ -601,15 +601,10 @@ const addresses    = ref<EmployeeAddressRead[]>([])
 const bankAccounts = ref<EmployeeBankAccountRead[]>([])
 const departments  = ref<DepartmentRead[]>([])
 const jobTitles    = ref<JobTitleRead[]>([])
-const allPositions = ref<JobPositionListItem[]>([])
+const filteredPositions = ref<JobPositionListItem[]>([])
 
 const permanentAddress = computed(() => addresses.value.find(a => a.address_type === 'permanent') ?? null)
 const contactAddress   = computed(() => addresses.value.find(a => a.address_type === 'contact') ?? null)
-const filteredPositions = computed(() =>
-  form.value.initial_department_id
-    ? allPositions.value.filter(p => p.department_id === form.value.initial_department_id)
-    : []
-)
 
 // ── Edit state ─────────────────────────────────────────────────────────────────
 const editing   = ref(false)
@@ -787,14 +782,22 @@ async function loadAddresses() {
 }
 
 async function loadCatalogs() {
-  const [deptResp, titleResp, positionResp] = await Promise.all([
+  const [deptResp, titleResp] = await Promise.all([
     departmentService.getList(true),
     jobTitleService.getList(true),
-    jobPositionService.getList({ is_active: true }),
   ])
   departments.value = deptResp.data
   jobTitles.value = titleResp.data
-  allPositions.value = positionResp.data
+}
+
+async function loadPositionsForInitialDepartment(departmentId: number | null) {
+  filteredPositions.value = []
+  if (!departmentId) return
+  const response = await jobPositionService.getList({
+    department_id: departmentId,
+    is_active: true,
+  })
+  filteredPositions.value = response.data
 }
 
 async function handleContractRefresh() {
@@ -811,8 +814,9 @@ function cancelEdit() {
   if (employee.value) fillForm(employee.value)
 }
 
-function onInitialDepartmentChange() {
+async function onInitialDepartmentChange() {
   form.value.initial_job_position_id = null
+  await loadPositionsForInitialDepartment(form.value.initial_department_id)
 }
 
 function onInitialJobPositionChange(positionId: number | null) {

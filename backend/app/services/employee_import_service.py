@@ -21,7 +21,7 @@ from app.core.encryption import hash_sensitive
 from app.models.catalog import Ethnicity, Nationality, Religion
 from app.models.employee import Employee
 from app.models.employee_code import EmployeeCodeSequence
-from app.models.org import Department, JobPosition, JobTitle
+from app.models.org import Department, DepartmentJobPosition, JobPosition, JobTitle
 from app.schemas.employee import EmployeeCreate
 from app.schemas.employee_import import (
     GENDER_MAP,
@@ -208,9 +208,13 @@ async def _find_job_position(
         return None
 
     raw = name_or_code.strip()
-    query = select(JobPosition)
+    query = select(JobPosition).where(JobPosition.deleted_at.is_(None))
     if department_id is not None:
-        query = query.where(JobPosition.department_id == department_id)
+        query = query.join(
+            DepartmentJobPosition,
+            (DepartmentJobPosition.job_position_id == JobPosition.id)
+            & (DepartmentJobPosition.is_active.is_(True)),
+        ).where(DepartmentJobPosition.department_id == department_id)
 
     exact = (await session.execute(query.where(JobPosition.code == raw))).scalar_one_or_none()
     if exact:
@@ -233,13 +237,13 @@ async def _find_job_positions_any_department(
 
     raw = name_or_code.strip()
     exact = (
-        await session.execute(select(JobPosition).where(JobPosition.code == raw))
+        await session.execute(select(JobPosition).where(JobPosition.code == raw, JobPosition.deleted_at.is_(None)))
     ).scalars().all()
     if exact:
         return list(exact)
 
     norm_val = _norm(raw)
-    rows = await session.execute(select(JobPosition))
+    rows = await session.execute(select(JobPosition).where(JobPosition.deleted_at.is_(None)))
     return [position for position in rows.scalars().all() if _norm(position.name) == norm_val]
 
 

@@ -4,7 +4,7 @@
     <div class="page-header">
       <div>
         <h2>Vị trí công việc</h2>
-        <span class="subtitle">Quản lý vị trí công việc theo phòng/ban</span>
+        <span class="subtitle">Quản lý vị trí dùng riêng hoặc dùng chung cho nhiều đơn vị</span>
       </div>
       <Button v-can:edit="'org'" label="Thêm mới" icon="pi pi-plus" @click="openCreate" />
     </div>
@@ -52,25 +52,27 @@
       />
     </div>
 
+    <!-- Warning Alert -->
+    <div v-if="unconfiguredCount > 0" class="config-alert">
+      <div class="config-alert__content">
+        <i class="pi pi-exclamation-triangle" />
+        <span>
+          Còn <strong>{{ unconfiguredCount }}</strong> vị trí chưa cấu hình
+          <strong>nhóm thử việc pháp lý</strong>.
+        </span>
+      </div>
+      <Button
+        v-if="filterProbationConfigured !== false"
+        label="Chỉ xem chưa cấu hình"
+        size="small"
+        severity="warn"
+        outlined
+        @click="filterProbationConfigured = false"
+      />
+    </div>
+
     <!-- DataTable -->
     <div class="card">
-      <div v-if="unconfiguredCount > 0" class="config-alert">
-        <div class="config-alert__content">
-          <i class="pi pi-exclamation-triangle" />
-          <span>
-            Còn <strong>{{ unconfiguredCount }}</strong> vị trí chưa cấu hình
-            <strong>nhóm thử việc pháp lý</strong>.
-          </span>
-        </div>
-        <Button
-          v-if="filterProbationConfigured !== false"
-          label="Chỉ xem chưa cấu hình"
-          size="small"
-          severity="warn"
-          outlined
-          @click="filterProbationConfigured = false"
-        />
-      </div>
       <DataTable
         :value="filteredList"
         :loading="loading"
@@ -96,7 +98,34 @@
 
         <Column field="code"            header="Mã"           sortable style="width: 110px" />
         <Column field="name"            header="Tên vị trí"   sortable style="min-width: 180px" />
-        <Column field="department_name" header="Phòng/Ban"    sortable style="min-width: 150px" />
+        <Column field="department_name" header="Đơn vị quản lý" sortable style="min-width: 170px" />
+        <Column header="Phạm vi áp dụng" style="min-width: 240px">
+          <template #body="{ data }">
+            <div class="scope-cell">
+              <Tag
+                :value="data.is_shared ? 'Dùng chung' : 'Dùng riêng'"
+                :severity="data.is_shared ? 'info' : 'secondary'"
+              />
+              <span class="scope-summary">
+                {{ data.assigned_departments.length }} đơn vị
+              </span>
+            </div>
+            <div class="scope-departments">
+              <Tag
+                v-for="department in data.assigned_departments.slice(0, 3)"
+                :key="department.id"
+                :value="department.name"
+                severity="contrast"
+              />
+              <span
+                v-if="data.assigned_departments.length > 3"
+                class="scope-more"
+              >
+                +{{ data.assigned_departments.length - 3 }}
+              </span>
+            </div>
+          </template>
+        </Column>
         <Column field="job_title_name"  header="Chức danh"    sortable style="width: 140px">
           <template #body="{ data }">{{ data.job_title_name ?? '—' }}</template>
         </Column>
@@ -162,12 +191,12 @@
           <small v-if="errors.name" class="error-msg">{{ errors.name }}</small>
         </div>
 
-        <!-- Phòng/Ban + Chức danh -->
+        <!-- Đơn vị quản lý + Chức danh -->
         <div class="field-row">
           <div class="field">
-            <label>Phòng/Ban <span class="req">*</span></label>
+            <label>Đơn vị quản lý <span class="req">*</span></label>
             <Select v-model="form.department_id" :options="deptOptions" option-label="label" option-value="value"
-              placeholder="Chọn phòng/ban" class="w-full" filter filter-placeholder="Tìm..." :invalid="!!errors.department_id" />
+              placeholder="Chọn đơn vị quản lý" class="w-full" filter filter-placeholder="Tìm..." :invalid="!!errors.department_id" @change="onOwnerDepartmentChange" />
             <small v-if="errors.department_id" class="error-msg">{{ errors.department_id }}</small>
           </div>
           <div class="field">
@@ -175,6 +204,25 @@
             <Select v-model="form.job_title_id" :options="jtOptions" option-label="label" option-value="value"
               placeholder="— Không có —" show-clear class="w-full" filter filter-placeholder="Tìm..." />
           </div>
+        </div>
+
+        <div class="field">
+          <label>Đơn vị áp dụng <span class="req">*</span></label>
+          <MultiSelect
+            v-model="form.assigned_department_ids"
+            :options="deptOptions"
+            option-label="label"
+            option-value="value"
+            filter
+            display="chip"
+            placeholder="Chọn các đơn vị được phép dùng vị trí này"
+            class="w-full"
+            :invalid="!!errors.assigned_department_ids"
+          />
+          <small class="help-msg">
+            Đơn vị quản lý sẽ luôn được đưa vào danh sách áp dụng. Nếu chọn nhiều đơn vị, vị trí này sẽ là vị trí dùng chung.
+          </small>
+          <small v-if="errors.assigned_department_ids" class="error-msg">{{ errors.assigned_department_ids }}</small>
         </div>
 
         <!-- Bậc + Phụ cấp BHXH + Phụ cấp không BHXH -->
@@ -281,6 +329,22 @@
             <div class="detail-grid mt-3">
               <div class="detail-row"><span class="detail-label">Mã</span><span>{{ detailItem.code }}</span></div>
               <div class="detail-row"><span class="detail-label">Tên vị trí</span><span>{{ detailItem.name }}</span></div>
+              <div class="detail-row"><span class="detail-label">Đơn vị quản lý</span><span>{{ detailItem.department_name }}</span></div>
+              <div class="detail-row">
+                <span class="detail-label">Phạm vi áp dụng</span>
+                <div class="detail-departments">
+                  <Tag
+                    :value="detailItem.is_shared ? 'Dùng chung nhiều đơn vị' : 'Dùng riêng một đơn vị'"
+                    :severity="detailItem.is_shared ? 'info' : 'secondary'"
+                  />
+                  <Tag
+                    v-for="department in detailItem.assigned_departments"
+                    :key="department.id"
+                    :value="department.name"
+                    severity="contrast"
+                  />
+                </div>
+              </div>
               <div class="detail-row"><span class="detail-label">Bậc mặc định</span><span>{{ detailItem.default_grade }}</span></div>
               <div class="detail-row"><span class="detail-label">PC tính BHXH</span><span>{{ formatVND(detailItem.bhxh_allowance) }}</span></div>
               <div class="detail-row"><span class="detail-label">PC không BHXH</span><span>{{ formatVND(detailItem.non_bhxh_allowance) }}</span></div>
@@ -325,6 +389,7 @@ import IconField from 'primevue/iconfield'
 import InputIcon from 'primevue/inputicon'
 import InputNumber from 'primevue/inputnumber'
 import InputText from 'primevue/inputtext'
+import MultiSelect from 'primevue/multiselect'
 import Select from 'primevue/select'
 import Tab from 'primevue/tab'
 import TabList from 'primevue/tablist'
@@ -349,6 +414,7 @@ interface FormState {
   code:               string
   name:               string
   department_id:      number | null
+  assigned_department_ids: number[]
   job_title_id:       number | null
   default_grade:      number
   bhxh_allowance:     number
@@ -390,6 +456,7 @@ const detailItem    = ref<JobPositionRead | null>(null)
 
 const form = ref<FormState>({
   code: '', name: '', department_id: null, job_title_id: null,
+  assigned_department_ids: [],
   default_grade: 1, bhxh_allowance: 0, non_bhxh_allowance: 0,
   description: '', requirements: '', probation_legal_group: null, is_active: true,
   employee_code_sequence_id: null, employee_code_rule_note: '',
@@ -513,6 +580,7 @@ function openCreate() {
   editingItem.value = null
   form.value = {
     code: '', name: '', department_id: null, job_title_id: null,
+    assigned_department_ids: [],
     default_grade: 1, bhxh_allowance: 0, non_bhxh_allowance: 0,
     description: '', requirements: '', probation_legal_group: null, is_active: true,
     employee_code_sequence_id: null, employee_code_rule_note: '',
@@ -527,6 +595,7 @@ async function openEdit(item: JobPositionListItem) {
     code:               item.code,
     name:               item.name,
     department_id:      item.department_id,
+    assigned_department_ids: [...item.assigned_department_ids],
     job_title_id:       item.job_title_id,
     default_grade:      1,
     bhxh_allowance:     item.bhxh_allowance,
@@ -548,6 +617,7 @@ async function openEdit(item: JobPositionListItem) {
     form.value.description    = detailRes.data.description ?? ''
     form.value.requirements   = detailRes.data.requirements ?? ''
     form.value.probation_legal_group = detailRes.data.probation_legal_group
+    form.value.assigned_department_ids = [...detailRes.data.assigned_department_ids]
     form.value.employee_code_sequence_id = ruleRes.data?.employee_code_sequence_id ?? null
     form.value.employee_code_rule_note = ruleRes.data?.note ?? ''
   } catch (e) {
@@ -570,8 +640,16 @@ function validate(): boolean {
   errors.value = {}
   if (!editingItem.value && !form.value.code.trim()) errors.value.code = 'Mã không được để trống'
   if (!form.value.name.trim())                        errors.value.name = 'Tên không được để trống'
-  if (!form.value.department_id)                      errors.value.department_id = 'Vui lòng chọn phòng/ban'
+  if (!form.value.department_id)                      errors.value.department_id = 'Vui lòng chọn đơn vị quản lý'
+  if (!form.value.assigned_department_ids.length)     errors.value.assigned_department_ids = 'Vui lòng chọn ít nhất 1 đơn vị áp dụng'
   return Object.keys(errors.value).length === 0
+}
+
+function onOwnerDepartmentChange() {
+  if (!form.value.department_id) return
+  const nextIds = new Set(form.value.assigned_department_ids)
+  nextIds.add(form.value.department_id)
+  form.value.assigned_department_ids = Array.from(nextIds)
 }
 
 async function submitForm() {
@@ -582,6 +660,7 @@ async function submitForm() {
       await jobPositionService.update(editingItem.value.id, {
         name:               form.value.name.trim(),
         department_id:      form.value.department_id!,
+        assigned_department_ids: form.value.assigned_department_ids,
         job_title_id:       form.value.job_title_id,
         default_grade:      form.value.default_grade,
         bhxh_allowance:     form.value.bhxh_allowance,
@@ -609,6 +688,7 @@ async function submitForm() {
         code:               form.value.code.trim(),
         name:               form.value.name.trim(),
         department_id:      form.value.department_id!,
+        assigned_department_ids: form.value.assigned_department_ids,
         job_title_id:       form.value.job_title_id,
         default_grade:      form.value.default_grade,
         bhxh_allowance:     form.value.bhxh_allowance,
@@ -679,13 +759,13 @@ watch([searchQuery, filterProbationConfigured], () => {
   padding: 0.875rem 1rem;
   border: 1px solid color-mix(in srgb, var(--p-orange-400) 40%, transparent);
   border-radius: 0.875rem;
-  background: color-mix(in srgb, var(--p-orange-500) 10%, var(--p-surface-0));
+  background: color-mix(in srgb, var(--p-orange-500) 10%, var(--l-surface));
 }
 .config-alert__content {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  color: var(--p-text-color);
+  color: var(--l-text);
 }
 .config-alert__content i {
   color: var(--p-orange-400);
@@ -701,6 +781,26 @@ watch([searchQuery, filterProbationConfigured], () => {
 }
 .help-msg {
   color: var(--p-text-muted-color);
+}
+
+.scope-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.scope-summary,
+.scope-more {
+  font-size: 0.85rem;
+  color: var(--p-text-muted-color);
+}
+
+.scope-departments,
+.detail-departments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.35rem;
 }
 
 .detail-grid { display: flex; flex-direction: column; gap: 0.75rem; }

@@ -8,24 +8,6 @@
     :closable="!saving"
   >
     <div class="rc-form">
-      <!-- Vị trí công việc -->
-      <div class="rc-field">
-        <label class="rc-label">Vị trí công việc <span class="rc-req">*</span></label>
-        <Select
-          v-model="form.job_position_id"
-          :options="positions"
-          option-label="name"
-          option-value="id"
-          placeholder="Chọn vị trí..."
-          filter
-          :disabled="!!editingJr"
-          class="w-full"
-          @change="onPositionChange"
-        />
-        <span v-if="errors.job_position_id" class="rc-error">{{ errors.job_position_id }}</span>
-      </div>
-
-      <!-- Phòng ban -->
       <div class="rc-field">
         <label class="rc-label">Phòng ban <span class="rc-req">*</span></label>
         <Select
@@ -36,8 +18,24 @@
           placeholder="Chọn phòng ban..."
           filter
           class="w-full"
+          @change="onDepartmentChange"
         />
         <span v-if="errors.department_id" class="rc-error">{{ errors.department_id }}</span>
+      </div>
+
+      <div class="rc-field">
+        <label class="rc-label">Vị trí công việc <span class="rc-req">*</span></label>
+        <Select
+          v-model="form.job_position_id"
+          :options="positions"
+          option-label="name"
+          option-value="id"
+          placeholder="Chọn vị trí..."
+          filter
+          :disabled="!form.department_id"
+          class="w-full"
+        />
+        <span v-if="errors.job_position_id" class="rc-error">{{ errors.job_position_id }}</span>
       </div>
 
       <!-- Số lượng + Lý do -->
@@ -218,13 +216,25 @@ function resetForm() {
   }
 }
 
-watch(() => props.visible, (v) => { if (v) resetForm() })
+watch(() => props.visible, async (v) => {
+  if (!v) return
+  resetForm()
+  await loadPositionsForDepartment(form.value.department_id)
+})
 
-function onPositionChange() {
-  const pos = positions.value.find(p => p.id === form.value.job_position_id)
-  if (pos && !form.value.department_id) {
-    form.value.department_id = pos.department_id
-  }
+async function loadPositionsForDepartment(departmentId: number | null) {
+  positions.value = []
+  if (!departmentId) return
+  const response = await jobPositionService.getList({
+    department_id: departmentId,
+    is_active: true,
+  })
+  positions.value = response.data
+}
+
+async function onDepartmentChange() {
+  form.value.job_position_id = null
+  await loadPositionsForDepartment(form.value.department_id)
 }
 
 function validate(): boolean {
@@ -275,12 +285,11 @@ async function submit() {
 
 onMounted(async () => {
   try {
-    const [deptsRes, posRes] = await Promise.all([
+    const [deptsRes] = await Promise.all([
       departmentService.getList(true),
-      jobPositionService.getList({ is_active: true }),
     ])
     departments.value = deptsRes.data
-    positions.value   = posRes.data
+    await loadPositionsForDepartment(form.value.department_id)
   } catch { /* ignore */ }
 })
 </script>

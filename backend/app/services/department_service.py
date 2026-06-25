@@ -12,7 +12,7 @@ from app.core.security import create_signed_token
 from app.models.employee_attachment import EmployeeAttachment
 from app.models.employee import Employee
 from app.models.employee_job import EmployeeJobRecord
-from app.models.org import Department, DepartmentHead, JobPosition, JobTitle, OrgChangeLog
+from app.models.org import Department, DepartmentHead, DepartmentJobPosition, JobPosition, JobTitle, OrgChangeLog
 from app.schemas.department import (
     DepartmentBrief,
     DepartmentCreate,
@@ -375,10 +375,10 @@ async def get_detail(
     job_position_count = (
         await session.execute(
             select(func.count())
-            .select_from(JobPosition)
+            .select_from(DepartmentJobPosition)
             .where(
-                JobPosition.department_id == dept_id,
-                JobPosition.deleted_at.is_(None),
+                DepartmentJobPosition.department_id == dept_id,
+                DepartmentJobPosition.is_active == True,  # noqa: E712
             )
         )
     ).scalar_one()
@@ -681,8 +681,14 @@ async def delete(
 
     # Kiểm tra còn vị trí công việc chưa bị xóa mềm
     pos_count_result = await session.execute(
-        text("SELECT COUNT(*) FROM job_positions WHERE department_id = :dept_id AND deleted_at IS NULL"),
-        {"dept_id": dept_id},
+        select(func.count())
+        .select_from(DepartmentJobPosition)
+        .join(JobPosition, JobPosition.id == DepartmentJobPosition.job_position_id)
+        .where(
+            DepartmentJobPosition.department_id == dept_id,
+            DepartmentJobPosition.is_active == True,  # noqa: E712
+            JobPosition.deleted_at.is_(None),
+        )
     )
     pos_count = pos_count_result.scalar_one()
     if pos_count > 0:

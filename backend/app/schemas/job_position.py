@@ -12,6 +12,12 @@ from app.services.probation_rules import (
 )
 
 
+class JobPositionDepartmentAssignment(BaseModel):
+    id: int
+    code: str
+    name: str
+
+
 class JobPositionCreate(BaseModel):
     code:               str           = Field(..., max_length=20,  description="Mã vị trí (tự động viết hoa)")
     name:               str           = Field(..., max_length=200, description="Tên vị trí")
@@ -25,6 +31,10 @@ class JobPositionCreate(BaseModel):
     probation_legal_group: Optional[str] = Field(
         None,
         description="Nhóm pháp lý thử việc theo Điều 25 BLLĐ 2019",
+    )
+    assigned_department_ids: list[int] = Field(
+        default_factory=list,
+        description="Danh sách đơn vị được phép dùng vị trí này",
     )
 
     @field_validator("code")
@@ -56,6 +66,10 @@ class JobPositionUpdate(BaseModel):
         None,
         description="Nhóm pháp lý thử việc theo Điều 25 BLLĐ 2019",
     )
+    assigned_department_ids: Optional[list[int]] = Field(
+        default=None,
+        description="Danh sách đơn vị được phép dùng vị trí này",
+    )
     is_active:          Optional[bool] = None
 
     @field_validator("name")
@@ -75,6 +89,7 @@ class JobPositionRead(BaseModel):
     code:               str
     name:               str
     department_id:      int
+    department_name:    str
     job_title_id:       Optional[int]
     default_grade:      int
     bhxh_allowance:     int
@@ -84,6 +99,9 @@ class JobPositionRead(BaseModel):
     probation_legal_group: Optional[str]
     probation_legal_group_label: Optional[str] = None
     probation_days_limit: Optional[int] = None
+    assigned_department_ids: list[int] = Field(default_factory=list)
+    assigned_departments: list[JobPositionDepartmentAssignment] = Field(default_factory=list)
+    is_shared: bool = False
     is_active:          bool
     created_at:         datetime
     updated_at:         Optional[datetime]
@@ -105,6 +123,9 @@ class JobPositionListItem(BaseModel):
     probation_legal_group: Optional[str]
     probation_legal_group_label: Optional[str] = None
     probation_days_limit: Optional[int] = None
+    assigned_department_ids: list[int] = Field(default_factory=list)
+    assigned_departments: list[JobPositionDepartmentAssignment] = Field(default_factory=list)
+    is_shared: bool = False
     is_active:          bool
     created_at:         datetime
     updated_at:         Optional[datetime]

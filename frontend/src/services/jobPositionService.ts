@@ -1,5 +1,11 @@
 import api from './api'
 
+export interface JobPositionDepartmentAssignment {
+  id: number
+  code: string
+  name: string
+}
+
 export interface JobPositionListItem {
   id:                 number
   code:               string
@@ -13,6 +19,9 @@ export interface JobPositionListItem {
   probation_legal_group: string | null
   probation_legal_group_label: string | null
   probation_days_limit: number | null
+  assigned_department_ids: number[]
+  assigned_departments: JobPositionDepartmentAssignment[]
+  is_shared: boolean
   is_active:          boolean
   created_at:         string
   updated_at:         string | null
@@ -23,6 +32,7 @@ export interface JobPositionRead {
   code:               string
   name:               string
   department_id:      number
+  department_name:    string
   job_title_id:       number | null
   default_grade:      number
   bhxh_allowance:     number
@@ -32,6 +42,9 @@ export interface JobPositionRead {
   probation_legal_group: string | null
   probation_legal_group_label: string | null
   probation_days_limit: number | null
+  assigned_department_ids: number[]
+  assigned_departments: JobPositionDepartmentAssignment[]
+  is_shared: boolean
   is_active:          boolean
   created_at:         string
   updated_at:         string | null
@@ -41,6 +54,7 @@ export interface JobPositionCreate {
   code:               string
   name:               string
   department_id:      number
+  assigned_department_ids?: number[]
   job_title_id?:      number | null
   default_grade?:     number
   bhxh_allowance?:    number
@@ -53,6 +67,7 @@ export interface JobPositionCreate {
 export interface JobPositionUpdate {
   name?:               string
   department_id?:      number
+  assigned_department_ids?: number[]
   job_title_id?:       number | null
   default_grade?:      number
   bhxh_allowance?:     number

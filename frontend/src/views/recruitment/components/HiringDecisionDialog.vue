@@ -30,6 +30,7 @@
             filter
             class="w-full"
             placeholder="Chọn phòng ban..."
+            @change="onDepartmentChange"
           />
         </div>
         <div class="rc-field">
@@ -42,6 +43,7 @@
             filter
             class="w-full"
             placeholder="Chọn vị trí..."
+            :disabled="!form.department_id"
           />
         </div>
       </div>
@@ -220,6 +222,21 @@ function resetForm() {
   }
 }
 
+async function loadPositionsForDepartment(departmentId: number | null) {
+  jobPositionOptions.value = []
+  if (!departmentId) return
+  const response = await jobPositionService.getList({
+    department_id: departmentId,
+    is_active: true,
+  })
+  jobPositionOptions.value = response.data.map((p: any) => ({ label: p.name, value: p.id }))
+}
+
+async function onDepartmentChange() {
+  form.value.job_position_id = null
+  await loadPositionsForDepartment(form.value.department_id)
+}
+
 async function save() {
   if (!form.value.department_id || !form.value.job_position_id || !form.value.start_date || !form.value.official_salary || !form.value.probation_salary || !form.value.probation_days) {
     toast.add({ severity: 'warn', summary: 'Thiếu thông tin', detail: 'Vui lòng điền đầy đủ các trường bắt buộc.', life: 3000 })
@@ -293,14 +310,17 @@ async function convert() {
   }
 }
 
-watch(visible, (v: boolean) => { if (v) resetForm() })
+watch(visible, async (v: boolean) => {
+  if (!v) return
+  resetForm()
+  await loadPositionsForDepartment(form.value.department_id)
+})
 
 onMounted(async () => {
-  const [deptsRes, positionsRes] = await Promise.all([
+  const [deptsRes] = await Promise.all([
     departmentService.getList(true),
-    jobPositionService.getList({ is_active: true }),
   ])
   departmentOptions.value = deptsRes.data.map((d: any) => ({ label: d.name, value: d.id }))
-  jobPositionOptions.value = positionsRes.data.map((p: any) => ({ label: p.name, value: p.id }))
+  await loadPositionsForDepartment(form.value.department_id)
 })
 </script>

@@ -15,6 +15,7 @@ from app.models.recruitment import (
     HiringDecision,
     Offer,
 )
+from app.services import department_job_position_service
 from app.schemas.recruitment import (
     ConvertToEmployeeResult,
     HiringDecisionCreate,
@@ -111,11 +112,11 @@ async def _validate_dept_position(session: AsyncSession, department_id: int, job
     jp = await session.get(JobPosition, job_position_id)
     if not jp:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Không tìm thấy vị trí công việc")
-    if jp.department_id != department_id:
-        raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="Vị trí công việc không thuộc phòng ban đã chọn",
-        )
+    await department_job_position_service.require_position_allowed_for_department(
+        session,
+        department_id=department_id,
+        job_position_id=jp.id,
+    )
 
 
 async def create_decision(

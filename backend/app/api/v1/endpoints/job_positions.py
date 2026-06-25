@@ -17,7 +17,6 @@ from app.schemas.job_position import (
     JobPositionRead,
     JobPositionUpdate,
     ProbationLegalGroupOption,
-    enrich_probation_legal_group_fields,
 )
 from app.services import employee_code_rule_service, job_position_service
 from app.services.probation_rules import PROBATION_LEGAL_GROUP_LABELS, PROBATION_LEGAL_LIMITS
@@ -65,8 +64,7 @@ async def get_job_position(
     _: User = require_permission("org:view"),
     session: AsyncSession = Depends(get_session),
 ):
-    pos = await job_position_service.get_by_id(session, pos_id)
-    return JobPositionRead.model_validate(enrich_probation_legal_group_fields(pos.model_dump()))
+    return await job_position_service.get_read_by_id(session, pos_id)
 
 
 @router.post("", response_model=JobPositionRead, status_code=status.HTTP_201_CREATED, summary="Tạo vị trí mới")
@@ -76,7 +74,7 @@ async def create_job_position(
     session: AsyncSession = Depends(get_session),
 ):
     pos = await job_position_service.create(session, body)
-    return JobPositionRead.model_validate(enrich_probation_legal_group_fields(pos.model_dump()))
+    return await job_position_service.get_read_by_id(session, pos.id)
 
 
 @router.put("/{pos_id}", response_model=JobPositionRead, summary="Cập nhật vị trí công việc")
@@ -87,7 +85,7 @@ async def update_job_position(
     session: AsyncSession = Depends(get_session),
 ):
     pos = await job_position_service.update(session, pos_id, body)
-    return JobPositionRead.model_validate(enrich_probation_legal_group_fields(pos.model_dump()))
+    return await job_position_service.get_read_by_id(session, pos.id)
 
 
 @router.delete("/{pos_id}", summary="Xóa vị trí công việc")

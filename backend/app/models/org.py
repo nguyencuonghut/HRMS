@@ -96,6 +96,41 @@ class JobPosition(SoftDeleteMixin, SQLModel, table=True):
     updated_at: Optional[datetime] = Field(default=None)
 
 
+class DepartmentJobPosition(SQLModel, table=True):
+    """Mapping cho phép một position được dùng ở nhiều đơn vị."""
+
+    __tablename__ = "department_job_positions"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    department_id: int = Field(
+        sa_column=Column(
+            sa.Integer(),
+            sa.ForeignKey("departments.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        )
+    )
+    job_position_id: int = Field(
+        sa_column=Column(
+            sa.Integer(),
+            sa.ForeignKey("job_positions.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        )
+    )
+    is_active: bool = Field(default=True)
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: Optional[datetime] = Field(default=None)
+
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "department_id",
+            "job_position_id",
+            name="uq_department_job_positions",
+        ),
+    )
+
+
 class JobPositionAttachment(SQLModel, table=True):
     """File đính kèm tiêu chuẩn tuyển dụng của vị trí công việc."""
 

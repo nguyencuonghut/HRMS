@@ -17,6 +17,7 @@ from app.schemas.recruitment import (
     HeadcountPlanRead,
     HeadcountPlanUpdate,
 )
+from app.services import department_job_position_service
 
 
 def _utcnow() -> datetime:
@@ -95,6 +96,12 @@ async def create_headcount_plan(
         pos = await session.get(JobPosition, data.job_position_id)
         if not pos:
             raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Không tìm thấy vị trí công việc")
+        if data.department_id is not None:
+            await department_job_position_service.require_position_allowed_for_department(
+                session,
+                department_id=data.department_id,
+                job_position_id=data.job_position_id,
+            )
 
     # Kiểm tra trùng
     dup_stmt = select(HeadcountPlan).where(

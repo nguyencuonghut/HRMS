@@ -20,6 +20,7 @@ from app.schemas.employee import (
     EmployeeUpdate,
 )
 from app.services import (
+    department_job_position_service,
     employee_code_service,
     employee_education_service,
     employee_insurance_service,
@@ -81,10 +82,11 @@ async def _resolve_initial_job_context(session: AsyncSession, payload: EmployeeC
 
         if department is None:
             department = await _require_department(session, job_position.department_id)
-        elif job_position.department_id != department.id:
-            raise HTTPException(
-                status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail="Vị trí công việc không thuộc phòng ban đã chọn",
+        else:
+            await department_job_position_service.require_position_allowed_for_department(
+                session,
+                department_id=department.id,
+                job_position_id=job_position.id,
             )
 
         if job_position.job_title_id is not None:

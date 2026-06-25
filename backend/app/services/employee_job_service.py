@@ -12,6 +12,7 @@ from app.models.employee import Employee
 from app.models.employee_job import EmployeeJobRecord
 from app.models.org import Department, JobPosition, JobTitle
 from app.schemas.employee import JobRecordCreate, JobRecordTransfer, JobRecordUpdate
+from app.services import department_job_position_service
 
 
 def _utcnow() -> datetime:
@@ -55,11 +56,11 @@ async def _validate_job_assignment(
         return
 
     job_position = await _require_job_position(session, job_position_id)
-    if job_position.department_id != department_id:
-        raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="Vị trí công việc không thuộc phòng ban đã chọn",
-        )
+    await department_job_position_service.require_position_allowed_for_department(
+        session,
+        department_id=department_id,
+        job_position_id=job_position.id,
+    )
 
     if job_title_id is not None and job_position.job_title_id is not None and job_position.job_title_id != job_title_id:
         raise HTTPException(

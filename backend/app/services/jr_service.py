@@ -27,6 +27,7 @@ from app.schemas.recruitment import (
     JobRequisitionUpdate,
     RejectRequest,
 )
+from app.services import department_job_position_service
 
 logger = logging.getLogger(__name__)
 
@@ -185,6 +186,11 @@ async def create_job_requisition(
     dept = await session.get(Department, data.department_id)
     if not dept:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Không tìm thấy phòng ban")
+    await department_job_position_service.require_position_allowed_for_department(
+        session,
+        department_id=data.department_id,
+        job_position_id=data.job_position_id,
+    )
 
     if data.headcount_plan_id is not None:
         plan = await session.get(HeadcountPlan, data.headcount_plan_id)
@@ -239,6 +245,13 @@ async def update_job_requisition(
         if not dept:
             raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Không tìm thấy phòng ban")
         jr.department_id = data.department_id
+
+    if data.department_id is not None:
+        await department_job_position_service.require_position_allowed_for_department(
+            session,
+            department_id=jr.department_id,
+            job_position_id=jr.job_position_id,
+        )
 
     if data.headcount_plan_id is not None:
         plan = await session.get(HeadcountPlan, data.headcount_plan_id)
