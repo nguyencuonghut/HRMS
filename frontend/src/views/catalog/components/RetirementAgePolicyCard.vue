@@ -161,6 +161,7 @@
               <InputNumber
                 v-model="row.applicable_year"
                 :min="1900"
+                :use-grouping="false"
                 placeholder="Năm"
                 class="retirement-policy-input"
               />
@@ -194,6 +195,7 @@
               <InputNumber
                 v-model="row.applicable_year"
                 :min="1900"
+                :use-grouping="false"
                 placeholder="Năm"
                 class="retirement-policy-input"
               />
