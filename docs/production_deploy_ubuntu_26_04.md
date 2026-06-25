@@ -521,7 +521,7 @@ Theo workflow hiện tại, deploy update nên đi theo flow:
 IMAGE_TAG=<new-commit-sha>
 ```
 
-### 12.2. Pull và restart
+### 12.2. Pull và restart toàn bộ app layer
 
 ```bash
 docker compose -f docker-compose.prod.yml pull backend celery_worker celery_beat backup_scheduler frontend
@@ -530,6 +530,25 @@ docker compose -f docker-compose.prod.yml exec -T backend alembic upgrade head
 ```
 
 Đây là đúng flow đã được xác nhận trong [.github/workflows/ci.yml](/run/media/cuong/DATA/02_Project/166_HonghaHRM/HRMS/.github/workflows/ci.yml).
+
+### 12.3. Cập nhật riêng biệt (FE hoặc BE) để giảm downtime
+
+Nếu chỉ có thay đổi ở Frontend hoặc Backend, bạn có thể pull và cập nhật riêng từng phần:
+
+#### A. Chỉ cập nhật Frontend (FE)
+```bash
+docker compose -f docker-compose.prod.yml pull frontend
+docker compose -f docker-compose.prod.yml up -d --no-deps frontend
+```
+> [!NOTE]
+> Cấu hình Nginx reverse proxy đã được cập nhật để không cache file `index.html`. Tuy nhiên, nếu trình duyệt của người dùng vẫn còn cache phiên bản cũ trước đó, hãy hướng dẫn họ thực hiện **Hard Reload (Ctrl + F5)** hoặc mở ở chế độ ẩn danh (Incognito) để kiểm tra.
+
+#### B. Chỉ cập nhật Backend (BE)
+```bash
+docker compose -f docker-compose.prod.yml pull backend celery_worker celery_beat
+docker compose -f docker-compose.prod.yml up -d --no-deps backend celery_worker celery_beat
+docker compose -f docker-compose.prod.yml exec -T backend alembic upgrade head
+```
 
 ---
 

@@ -615,7 +615,83 @@ IMAGE_TAG=<tag-da-push>
 
 ---
 
-## 12. User trong LAN sẽ truy cập bằng gì
+## 12. Cập nhật hệ thống khi thay đổi code (FE / BE)
+
+Khi có thay đổi ở mã nguồn Frontend hoặc Backend, việc chỉ pull code và build lại image là chưa đủ. Bạn cần yêu cầu Docker Compose tạo lại (recreate) các container tương ứng để áp dụng các thay đổi từ image mới.
+
+Dưới đây là quy trình chi tiết cho môi trường production nội bộ LAN (sử dụng `docker-compose.lan.yml` và tag `:local`):
+
+### 12.1. Bước chung: Cập nhật mã nguồn
+Truy cập thư mục deploy trên máy chủ và cập nhật code mới từ repository:
+```bash
+cd /opt/hrms
+git pull origin main # hoặc branch tương ứng
+```
+
+### 12.2. Trường hợp thay đổi Frontend (FE)
+Nếu chỉ thay đổi code ở thư mục `frontend`:
+
+1. **Build lại image local cho Frontend:**
+   ```bash
+   docker build -t hrms-frontend:local ./frontend
+   ```
+2. **Recreate container `frontend`:**
+   ```bash
+   docker compose -f docker-compose.lan.yml up -d --force-recreate frontend
+   ```
+   > [!NOTE]
+   > Việc dùng `--force-recreate` bắt buộc Docker Compose hủy container cũ đang chạy và dựng container mới bằng image `hrms-frontend:local` vừa được build lại.
+3. **Lưu ý cache trình duyệt:**
+   Cấu hình Nginx reverse proxy đã được cập nhật để không cache file `index.html` của frontend. Tuy nhiên, nếu trình duyệt của người dùng vẫn lưu cache phiên bản cũ trước đó, hãy hướng dẫn họ thực hiện **Hard Reload (Ctrl + F5)** hoặc mở ở chế độ ẩn danh (Incognito) để kiểm tra.
+
+### 12.3. Trường hợp thay đổi Backend (BE)
+Nếu thay đổi code ở thư mục `backend` (bao gồm cả Celery task và DB schema):
+
+1. **Build lại image local cho Backend:**
+   ```bash
+   docker build -t hrms-backend:local ./backend
+   ```
+2. **Recreate container `backend` và các Celery worker/beat:**
+   ```bash
+   docker compose -f docker-compose.lan.yml up -d --force-recreate backend celery_worker celery_beat
+   ```
+3. **Chạy Migration Database (nếu có thay đổi DB schema/models):**
+   ```bash
+   COMPOSE_FILE=docker-compose.lan.yml make migrate
+   ```
+   *Hoặc chạy trực tiếp qua docker compose:*
+   ```bash
+   docker compose -f docker-compose.lan.yml exec backend alembic upgrade head
+   ```
+
+### 12.4. Trường hợp cập nhật cấu hình Nginx
+Nếu thay đổi cấu hình trong thư mục `nginx/conf.d/`:
+```bash
+docker compose -f docker-compose.lan.yml up -d --force-recreate nginx
+```
+
+### 12.5. Lệnh cập nhật nhanh toàn bộ hệ thống (FE + BE)
+Để cập nhật nhanh toàn bộ stack và áp dụng mọi thay đổi:
+```bash
+# 1. Pull code mới
+git pull origin main
+
+# 2. Build song song/tuần tự các image
+docker build -t hrms-backend:local ./backend
+docker build -t hrms-frontend:local ./frontend
+
+# 3. Tạo lại toàn bộ container
+docker compose -f docker-compose.lan.yml up -d --force-recreate
+
+# 4. Migrate database
+COMPOSE_FILE=docker-compose.lan.yml make migrate
+```
+
+*(Nếu deploy bằng kịch bản HTTPS sử dụng `docker-compose.prod.yml`, hãy thay thế tham số `-f docker-compose.lan.yml` thành `-f docker-compose.prod.yml` trong các câu lệnh trên).*
+
+---
+
+## 13. User trong LAN sẽ truy cập bằng gì
 
 Đã xác nhận từ source:
 
@@ -642,9 +718,9 @@ trừ khi tự chạy dev server Vite, nhưng đó không phải flow deploy LAN
 
 ---
 
-## 13. Kiểm tra sau deploy
+## 14. Kiểm tra sau deploy
 
-### 13.1. Kiểm tra container
+### 14.1. Kiểm tra container
 
 ```bash
 docker compose -f docker-compose.prod.yml ps
@@ -657,7 +733,7 @@ docker compose -f docker-compose.prod.yml logs backup_scheduler --tail=100
 
 Nếu chạy HTTP-only nội bộ, thay `docker-compose.prod.yml` bằng `docker-compose.lan.yml`.
 
-### 13.2. Kiểm tra HTTP/HTTPS từ chính server
+### 14.2. Kiểm tra HTTP/HTTPS từ chính server
 
 #### Nếu HTTPS nội bộ
 
@@ -696,7 +772,7 @@ curl -kI https://172.16.2.100
 
 ---
 
-## 14. Backup trên server nội bộ
+## 15. Backup trên server nội bộ
 
 Trong LAN deployment hiện tại:
 
@@ -726,7 +802,7 @@ docker compose -f docker-compose.lan.yml --profile backup logs backup_scheduler 
 
 ---
 
-## 15. Known gaps cho kịch bản LAN
+## 16. Known gaps cho kịch bản LAN
 
 ### Đã xác nhận
 
@@ -747,7 +823,7 @@ docker compose -f docker-compose.lan.yml --profile backup logs backup_scheduler 
 
 ---
 
-## 16. Khuyến nghị thực tế
+## 17. Khuyến nghị thực tế
 
 Nếu cần lên nhanh trong LAN:
 
@@ -769,7 +845,7 @@ Nếu cần vận hành lâu dài:
 5. nếu vẫn muốn CD tự động từ GitHub, dùng **self-hosted runner**
 6. chỉ dùng GHCR khi thật sự cần quản lý image qua registry
 
-### 16.1. Checklist khi gặp lỗi `container hrms-backend-1 is unhealthy`
+### 17.1. Checklist khi gặp lỗi `container hrms-backend-1 is unhealthy`
 
 Chạy đúng 3 lệnh này trên server:
 
@@ -784,3 +860,4 @@ Với source hiện tại, 3 nguyên nhân phải kiểm tra đầu tiên là:
 1. `ENVIRONMENT` trong `.env` không phải `lan` hoặc bị override ngoài ý muốn
 2. `CORS_ORIGINS` không phải JSON array hợp lệ
 3. image local đang cũ, chưa rebuild theo source mới
+
