@@ -3,6 +3,7 @@ import uuid
 from fastapi.testclient import TestClient
 
 BASE = "/api/v1/users"
+DEPARTMENTS_BASE = "/api/v1/departments"
 
 _ADMIN_EMAIL    = "admin@hrms.local"
 _ADMIN_PASSWORD = "Hrms@2026"
@@ -39,6 +40,22 @@ def _create_test_user(client: TestClient, suffix: str = "") -> dict:
         "is_active": True,
         "is_superuser": False,
     }, headers=_admin(client))
+    assert resp.status_code == 201, resp.text
+    return resp.json()
+
+
+def _create_test_department(client: TestClient, suffix: str = "") -> dict:
+    unique = uuid.uuid4().hex[:6].upper()
+    code = f"TU{suffix.upper()}{unique}"[:20]
+    resp = client.post(
+        DEPARTMENTS_BASE,
+        json={
+            "code": code,
+            "name": f"Test Department {suffix or unique}",
+            "dept_type": "PHONG",
+        },
+        headers=_admin(client),
+    )
     assert resp.status_code == 201, resp.text
     return resp.json()
 
@@ -298,3 +315,64 @@ def test_remove_role_not_assigned_404(client: TestClient):
     user = _create_test_user(client, suffix="rnr")
     resp = client.delete(f"{BASE}/{user['id']}/roles/999999", headers=_admin(client))
     assert resp.status_code == 404
+
+
+def test_assign_line_manager_requires_department_scope(client: TestClient):
+    user = _create_test_user(client, suffix="lmnoscope")
+    roles_resp = client.get("/api/v1/roles", headers=_admin(client))
+    assert roles_resp.status_code == 200, roles_resp.text
+    role_id = next(role["id"] for role in roles_resp.json() if role["code"] == "line_manager")
+
+    resp = client.post(
+        f"{BASE}/{user['id']}/roles",
+        json={"role_id": role_id},
+        headers=_admin(client),
+    )
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "Role 'Quản lý phòng ban' bắt buộc phải gán phạm vi phòng ban"
+
+
+def test_assign_department_scope_rejects_missing_departments(client: TestClient):
+    user = _create_test_user(client, suffix="baddept")
+    roles_resp = client.get("/api/v1/roles", headers=_admin(client))
+    assert roles_resp.status_code == 200, roles_resp.text
+    role_id = next(role["id"] for role in roles_resp.json() if role["code"] == "line_manager")
+
+    resp = client.post(
+        f"{BASE}/{user['id']}/roles",
+        json={"role_id": role_id, "scope_type": "department", "department_ids": [999999]},
+        headers=_admin(client),
+    )
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "Không tìm thấy phòng ban với id: 999999"
+
+
+def test_assign_line_manager_returns_scope_metadata(client: TestClient):
+    user = _create_test_user(client, suffix="lmscope")
+    department = _create_test_department(client, suffix="lmscope")
+    roles_resp = client.get("/api/v1/roles", headers=_admin(client))
+    assert roles_resp.status_code == 200, roles_resp.text
+    role_id = next(role["id"] for role in roles_resp.json() if role["code"] == "line_manager")
+
+    resp = client.post(
+        f"{BASE}/{user['id']}/roles",
+        json={
+            "role_id": role_id,
+            "scope_type": "department",
+            "department_ids": [department["id"]],
+        },
+        headers=_admin(client),
+    )
+    assert resp.status_code == 201, resp.text
+    body = resp.json()
+    assert body["code"] == "line_manager"
+    assert body["scope_type"] == "department"
+    assert body["department_ids"] == [department["id"]]
+    assert body["department_names"] == [department["name"]]
+
+    list_resp = client.get(f"{BASE}/{user['id']}/roles", headers=_admin(client))
+    assert list_resp.status_code == 200, list_resp.text
+    role = next(item for item in list_resp.json() if item["code"] == "line_manager")
+    assert role["scope_type"] == "department"
+    assert role["department_ids"] == [department["id"]]
+    assert role["department_names"] == [department["name"]]

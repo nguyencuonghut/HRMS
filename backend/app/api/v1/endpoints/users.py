@@ -6,7 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import require_permission
 from app.core.database import get_session
-from app.models.auth import Role, User
+from app.models.auth import Role, User, UserRole
+from app.models.org import Department
 from app.schemas.user import (
     PasswordReset,
     RoleAssign,
@@ -32,7 +33,34 @@ def _build_user_read(user: User, roles: list[RoleRef]) -> UserRead:
 
 async def _load_roles(session: AsyncSession, user_id: int) -> list[RoleRef]:
     pairs = await user_service.get_roles_for_user(session, user_id)
-    return [RoleRef.model_validate(role) for role, _ in pairs]
+    return [await _build_role_ref(session, role, user_role) for role, user_role in pairs]
+
+
+async def _build_role_ref(
+    session: AsyncSession,
+    role: Role,
+    user_role: UserRole | None,
+) -> RoleRef:
+    department_ids = list(user_role.department_ids or []) if user_role else []
+    department_names: list[str] = []
+
+    if department_ids:
+        departments = (
+            await session.execute(
+                select(Department.id, Department.name).where(Department.id.in_(department_ids))
+            )
+        ).all()
+        name_by_id = {dept_id: name for dept_id, name in departments}
+        department_names = [name_by_id[dept_id] for dept_id in department_ids if dept_id in name_by_id]
+
+    return RoleRef(
+        id=role.id,
+        code=role.code,
+        name=role.name,
+        scope_type=user_role.scope_type if user_role else None,
+        department_ids=department_ids,
+        department_names=department_names,
+    )
 
 
 async def _get_or_404(session: AsyncSession, user_id: int) -> User:
@@ -201,7 +229,47 @@ async def assign_role(
     if not role:
         raise HTTPException(status_code=404, detail="Không tìm thấy role")
 
-    await user_service.assign_role(
+    if payload.department_ids and payload.scope_type != "department":
+        raise HTTPException(
+            status_code=422,
+            detail="department_ids chỉ được dùng khi scope_type = 'department'",
+        )
+
+    if payload.scope_type == "department" and not payload.department_ids:
+        raise HTTPException(
+            status_code=422,
+            detail="Scope phòng ban phải có ít nhất 1 phòng ban",
+        )
+
+    if role.code == "line_manager":
+        if payload.scope_type != "department" or not payload.department_ids:
+            raise HTTPException(
+                status_code=422,
+                detail="Role 'Quản lý phòng ban' bắt buộc phải gán phạm vi phòng ban",
+            )
+
+    if payload.department_ids:
+        found_department_ids = set(
+            (
+                await session.execute(
+                    select(Department.id).where(Department.id.in_(payload.department_ids))
+                )
+            )
+            .scalars()
+            .all()
+        )
+        missing_department_ids = [
+            department_id
+            for department_id in payload.department_ids
+            if department_id not in found_department_ids
+        ]
+        if missing_department_ids:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Không tìm thấy phòng ban với id: {', '.join(map(str, missing_department_ids))}",
+            )
+
+    user_role = await user_service.assign_role(
         session, user_id, payload.role_id,
         scope_type=payload.scope_type,
         department_ids=payload.department_ids,
@@ -213,7 +281,7 @@ async def assign_role(
         entity_name=f"{user.full_name} ({user.email}) + {role.name}",
     )
     await session.commit()
-    return RoleRef.model_validate(role)
+    return await _build_role_ref(session, role, user_role)
 
 
 @router.delete("/{user_id}/roles/{role_id}", status_code=204, summary="Bỏ role khỏi user")

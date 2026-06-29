@@ -137,6 +137,8 @@ _SEED_USERS = [
         "password":     "Hrms@2026",
         "is_superuser": False,
         "role":         "line_manager",
+        "scope_type":   "department",
+        "department_codes": ["KS"],
     },
     {
         "email":        "finance@hrms.local",
@@ -224,16 +226,54 @@ async def seed_users(session: AsyncSession) -> int:
         )
         inserted += result.rowcount
 
-        # Gán role cho user (idempotent)
+        department_ids = None
+        scope_type = u.get("scope_type")
+        department_codes = u.get("department_codes") or []
+
+        if scope_type == "department":
+            if not department_codes:
+                raise RuntimeError(
+                    f"Seed user {u['email']} khai báo scope_type='department' nhưng không có department_codes"
+                )
+            dept_rows = (
+                await session.execute(
+                    text("""
+                        SELECT id, code
+                        FROM departments
+                        WHERE code = ANY(:codes)
+                    """),
+                    {"codes": department_codes},
+                )
+            ).fetchall()
+            department_ids_by_code = {row.code: row.id for row in dept_rows}
+            missing_codes = [
+                code for code in department_codes if code not in department_ids_by_code
+            ]
+            if missing_codes:
+                raise RuntimeError(
+                    "Thiếu phòng ban để seed scope cho user "
+                    f"{u['email']}: {', '.join(missing_codes)}. "
+                    "Hãy chạy bootstrap departments trước khi seed local users."
+                )
+            department_ids = [department_ids_by_code[code] for code in department_codes]
+
+        # Gán role cho user (idempotent) + đồng bộ scope theo seed
         await session.execute(
             text("""
-                INSERT INTO user_roles (user_id, role_id)
-                SELECT u.id, r.id
+                INSERT INTO user_roles (user_id, role_id, scope_type, department_ids)
+                SELECT u.id, r.id, :scope_type, :department_ids
                 FROM users u, roles r
                 WHERE u.email = :email AND r.code = :role_code
-                ON CONFLICT DO NOTHING
+                ON CONFLICT (user_id, role_id) DO UPDATE
+                SET scope_type = EXCLUDED.scope_type,
+                    department_ids = EXCLUDED.department_ids
             """),
-            {"email": u["email"], "role_code": u["role"]},
+            {
+                "email": u["email"],
+                "role_code": u["role"],
+                "scope_type": scope_type,
+                "department_ids": department_ids,
+            },
         )
     return inserted
 

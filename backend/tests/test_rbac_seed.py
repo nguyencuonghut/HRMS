@@ -27,6 +27,13 @@ async def _rows(sql: str, **params) -> list:
 @pytest.fixture(scope="module", autouse=True)
 async def ensure_latest_rbac_seed():
     async with _make_session()() as s:
+        await s.execute(
+            text("""
+                INSERT INTO departments (code, name, short_name, parent_id, dept_type, order_no, is_active)
+                VALUES ('KS', 'Phòng kiểm soát', NULL, NULL, 'PHONG', 1, TRUE)
+                ON CONFLICT (code) WHERE deleted_at IS NULL DO NOTHING
+            """)
+        )
         await rbac.run(s)
     yield
 
@@ -250,3 +257,28 @@ async def test_user_role_assignments():
     """)
     actual = {r.email: r.code for r in rows}
     assert actual == expected
+
+
+async def test_line_manager_seed_has_department_scope():
+    row = (
+        await _rows("""
+            SELECT ur.scope_type, ur.department_ids
+            FROM user_roles ur
+            JOIN users u ON ur.user_id = u.id
+            JOIN roles r ON ur.role_id = r.id
+            WHERE u.email = 'linemanager@hrms.local'
+              AND r.code = 'line_manager'
+        """)
+    )[0]
+    assert row.scope_type == "department"
+    assert isinstance(row.department_ids, list)
+    assert len(row.department_ids) == 1
+
+    dept_row = (
+        await _rows("""
+            SELECT d.code
+            FROM departments d
+            WHERE d.id = :department_id
+        """, department_id=row.department_ids[0])
+    )[0]
+    assert dept_row.code == "KS"

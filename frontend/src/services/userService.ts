@@ -4,6 +4,9 @@ export interface RoleRef {
   id:   number
   code: string
   name: string
+  scope_type?: string | null
+  department_ids?: number[]
+  department_names?: string[]
 }
 
 export interface UserRead {

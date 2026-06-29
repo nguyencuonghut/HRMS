@@ -91,6 +91,24 @@ class RoleAssign(BaseModel):
     scope_type:     Optional[str]   = Field(None, max_length=20)
     department_ids: Optional[list[int]] = None
 
+    @field_validator("scope_type")
+    @classmethod
+    def _validate_scope_type(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        value = v.strip().lower()
+        if value != "department":
+            raise ValueError("scope_type chỉ hỗ trợ giá trị 'department'")
+        return value
+
+    @field_validator("department_ids")
+    @classmethod
+    def _normalize_department_ids(cls, v: Optional[list[int]]) -> Optional[list[int]]:
+        if v is None:
+            return None
+        normalized = [int(item) for item in v]
+        return list(dict.fromkeys(normalized))
+
 
 # ── Response schemas ───────────────────────────────────────────────────────────
 
@@ -98,6 +116,9 @@ class RoleRef(BaseModel):
     id:   int
     code: str
     name: str
+    scope_type: Optional[str] = None
+    department_ids: list[int] = Field(default_factory=list)
+    department_names: list[str] = Field(default_factory=list)
 
     model_config = {"from_attributes": True}
 

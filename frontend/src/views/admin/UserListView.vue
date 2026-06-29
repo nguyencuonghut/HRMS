@@ -73,13 +73,20 @@
         <Column header="Vai trò" style="min-width: 160px">
           <template #body="{ data }">
             <div class="role-tags">
-              <Tag
+              <div
                 v-for="role in data.roles"
                 :key="role.id"
-                :value="role.name"
-                severity="info"
-                class="role-tag"
-              />
+                class="role-item"
+              >
+                <Tag
+                  :value="role.name"
+                  severity="info"
+                  class="role-tag"
+                />
+                <div v-if="renderRoleScope(role)" class="role-scope-text">
+                  {{ renderRoleScope(role) }}
+                </div>
+              </div>
               <span v-if="data.roles.length === 0" class="no-role">—</span>
             </div>
           </template>
@@ -198,7 +205,7 @@ import Tag from 'primevue/tag'
 
 import UserFormDialog from './UserFormDialog.vue'
 import UserRoleDialog from './UserRoleDialog.vue'
-import userService, { type UserListItem } from '@/services/userService'
+import userService, { type RoleRef, type UserListItem } from '@/services/userService'
 
 const toast   = useToast()
 const confirm = useConfirm()
@@ -235,6 +242,17 @@ const activeOptions = [
 function formatDate(iso: string | null): string {
   if (!iso) return '—'
   return new Date(iso).toLocaleString('vi-VN', { dateStyle: 'short', timeStyle: 'short' })
+}
+
+function renderRoleScope(role: RoleRef): string {
+  if (role.scope_type !== 'department') return ''
+  if (role.department_names && role.department_names.length > 0) {
+    return `Phạm vi: ${role.department_names.join(', ')}`
+  }
+  if (role.department_ids && role.department_ids.length > 0) {
+    return `Phạm vi: ID ${role.department_ids.join(', ')}`
+  }
+  return 'Phạm vi phòng ban chưa cấu hình'
 }
 
 function apiError(e: unknown): string {
@@ -348,7 +366,30 @@ onMounted(loadData)
 </script>
 
 <style scoped>
-.role-tags { display: flex; flex-wrap: wrap; gap: 0.3rem; }
-.role-tag  { font-size: 0.75rem !important; }
-.no-role   { color: var(--p-text-muted-color); }
+.role-tags {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.role-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.18rem;
+}
+
+.role-tag {
+  font-size: 0.75rem !important;
+}
+
+.role-scope-text {
+  font-size: 0.78rem;
+  line-height: 1.35;
+  color: var(--l-text-muted);
+}
+
+.no-role {
+  color: var(--p-text-muted-color);
+}
 </style>
