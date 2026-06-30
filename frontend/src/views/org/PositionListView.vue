@@ -552,26 +552,46 @@ function handlePage(e: { first: number; rows: number }) {
 async function loadData() {
   loading.value = true
   try {
-    const [posRes, deptRes, jtRes, seqRes, probationGroupRes] = await Promise.all([
+    const [posRes, deptRes, probationGroupRes] = await Promise.all([
       jobPositionService.getList({
         department_id: filterDeptId.value ?? undefined,
         is_active:     filterActive.value ?? undefined,
       }),
       departmentService.getList(),
-      jobTitleService.getList(true),
-      employeeCodeRuleService.getSequences(),
       jobPositionService.getProbationLegalGroups(),
     ])
     list.value      = posRes.data
     flatDepts.value = deptRes.data
-    jobTitles.value = jtRes.data
-    sequences.value = seqRes.data
     probationLegalGroups.value = probationGroupRes.data
   } catch (e) {
     toast.add({ severity: 'error', summary: 'Lỗi', detail: apiError(e), life: 4000 })
   } finally {
     loading.value = false
   }
+}
+
+async function ensureFormLookupsLoaded() {
+  if (!canEditOrg.value) return
+  const requests: Promise<unknown>[] = []
+
+  if (jobTitles.value.length === 0) {
+    requests.push(
+      jobTitleService.getList(true).then((response) => {
+        jobTitles.value = response.data
+      }),
+    )
+  }
+
+  if (sequences.value.length === 0) {
+    requests.push(
+      employeeCodeRuleService.getSequences().then((response) => {
+        sequences.value = response.data
+      }),
+    )
+  }
+
+  if (requests.length === 0) return
+  await Promise.all(requests)
 }
 
 // ── CRUD ───────────────────────────────────────────────────────────────────────
@@ -586,10 +606,22 @@ function openCreate() {
     employee_code_sequence_id: null, employee_code_rule_note: '',
   }
   errors.value = {}
-  dialogVisible.value = true
+  ensureFormLookupsLoaded()
+    .then(() => {
+      dialogVisible.value = true
+    })
+    .catch((e) => {
+      toast.add({ severity: 'error', summary: 'Lỗi', detail: apiError(e), life: 4000 })
+    })
 }
 
 async function openEdit(item: JobPositionListItem) {
+  try {
+    await ensureFormLookupsLoaded()
+  } catch (e) {
+    toast.add({ severity: 'error', summary: 'Lỗi', detail: apiError(e), life: 4000 })
+    return
+  }
   editingItem.value = item
   form.value = {
     code:               item.code,

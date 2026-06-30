@@ -66,6 +66,16 @@ test("line manager only sees org UI within assigned department scope", async ({ 
   await expect(nav.locator('a[href="/org/job-titles"]')).toHaveCount(0);
   await expect(nav.locator('a[href="/org/history"]')).toHaveCount(0);
 
+  const positionsResponsePromise = page.waitForResponse((response) => {
+    return response.url().includes("/api/v1/job-positions") && response.status() === 200;
+  });
+  await nav.locator('a[href="/org/positions"]').click();
+  await positionsResponsePromise;
+  await page.waitForLoadState("networkidle");
+  await expect(page).toHaveURL(/\/org\/positions$/);
+  await expect(page.getByRole("heading", { name: "Vị trí công việc" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Không có quyền truy cập" })).toHaveCount(0);
+
   const treeResponsePromise = page.waitForResponse((response) => {
     return response.url().includes("/api/v1/departments/tree") && response.status() === 200;
   });
