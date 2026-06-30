@@ -14,6 +14,7 @@
           @click="router.push('/catalog/administrative-units')"
         />
         <Button
+          v-can:edit="'catalog'"
           label="Import lại"
           icon="pi pi-download"
           :loading="importing"

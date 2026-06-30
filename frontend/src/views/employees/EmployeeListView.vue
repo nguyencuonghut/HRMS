@@ -7,6 +7,7 @@
       </div>
       <div class="page-header-actions">
         <Button
+          v-can:export="'employees'"
           label="Tải về Excel"
           icon="pi pi-download"
           severity="secondary"
@@ -141,6 +142,7 @@
                 @click="router.push(`/employees/${data.id}`)"
               />
               <Button
+                v-can:delete="'employees'"
                 v-if="data.is_active"
                 icon="pi pi-ban"
                 severity="danger"

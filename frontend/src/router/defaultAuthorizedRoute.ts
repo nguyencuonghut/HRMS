@@ -10,9 +10,14 @@ export function getDefaultAuthorizedRoute(auth: AuthStore): RouteLocationRaw {
     permission?: string;
     anyPermissions?: string[];
   }> = [
-    { name: "dashboard-overview", permission: "employees:view" },
+    {
+      name: "dashboard-overview",
+      permission: "reports:view",
+      anyPermissions: ["employees:view"],
+    },
     {
       name: "reports",
+      permission: "reports:view",
       anyPermissions: [
         "employees:view",
         "leaves:view",

@@ -387,9 +387,7 @@ import ProbationApproveDialog from './ProbationApproveDialog.vue'
 const props = defineProps<{ employeeId: number }>()
 const auth = useAuthStore()
 const canReviewProbation = computed(() => {
-  if (auth.user?.is_superuser) return true
-  const roles = auth.user?.roles ?? []
-  return roles.includes('admin') || roles.includes('hr_manager') || roles.includes('hr_officer')
+  return auth.hasPermission("employees:edit")
 })
 
 const toast = useToast()

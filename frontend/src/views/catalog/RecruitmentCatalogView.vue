@@ -9,7 +9,7 @@
           ngân hàng câu hỏi phỏng vấn và tiêu chí chấm điểm.
         </p>
         <div class="hero-actions">
-          <Button :label="primaryCreateLabel" icon="pi pi-plus" @click="openCreate" />
+          <Button v-can:create="'recruitment'" :label="primaryCreateLabel" icon="pi pi-plus" @click="openCreate" />
           <Button
             label="Về tổng quan danh mục"
             icon="pi pi-th-large"
@@ -107,6 +107,7 @@
                 <template #body="{ data }: { data: PipelineStageTemplateRead }">
                   <div class="action-cell">
                     <Button
+                      v-can:edit="'recruitment'"
                       icon="pi pi-pencil"
                       severity="secondary"
                       text
@@ -115,6 +116,7 @@
                       @click="openEditTemplate(data)"
                     />
                     <Button
+                      v-can:delete="'recruitment'"
                       icon="pi pi-trash"
                       severity="danger"
                       text
@@ -209,6 +211,7 @@
                 <template #body="{ data }: { data: InterviewQuestionRead }">
                   <div class="action-cell">
                     <Button
+                      v-can:edit="'recruitment'"
                       icon="pi pi-pencil"
                       severity="secondary"
                       text
@@ -217,6 +220,7 @@
                       @click="openEditQuestion(data)"
                     />
                     <Button
+                      v-can:delete="'recruitment'"
                       icon="pi pi-trash"
                       severity="danger"
                       text
@@ -284,6 +288,7 @@
                 <template #body="{ data }: { data: ScorecardCriterionRead }">
                   <div class="action-cell">
                     <Button
+                      v-can:edit="'recruitment'"
                       icon="pi pi-pencil"
                       severity="secondary"
                       text
@@ -292,6 +297,7 @@
                       @click="openEditCriterion(data)"
                     />
                     <Button
+                      v-can:delete="'recruitment'"
                       icon="pi pi-trash"
                       severity="danger"
                       text
@@ -393,6 +399,7 @@
           @click="templateDialog.visible = false"
         />
         <Button
+          v-can="templateDialog.editing ? 'recruitment:edit' : 'recruitment:create'"
           :label="templateDialog.editing ? 'Cập nhật' : 'Tạo mẫu quy trình'"
           :loading="templateDialog.saving"
           @click="submitTemplate"
@@ -478,6 +485,7 @@
           @click="questionDialog.visible = false"
         />
         <Button
+          v-can="questionDialog.editing ? 'recruitment:edit' : 'recruitment:create'"
           :label="questionDialog.editing ? 'Cập nhật' : 'Thêm câu hỏi'"
           :loading="questionDialog.saving"
           @click="submitQuestion"
@@ -556,6 +564,7 @@
           @click="criterionDialog.visible = false"
         />
         <Button
+          v-can="criterionDialog.editing ? 'recruitment:edit' : 'recruitment:create'"
           :label="criterionDialog.editing ? 'Cập nhật' : 'Thêm tiêu chí'"
           :loading="criterionDialog.saving"
           @click="submitCriterion"

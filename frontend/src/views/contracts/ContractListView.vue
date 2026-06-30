@@ -170,6 +170,7 @@
           <template #body="{ data }">
             <div style="display:flex; gap:0.25rem;">
               <Button
+                v-can:edit="'contracts'"
                 v-if="data.days_until_expiry !== null && data.days_until_expiry !== undefined && data.days_until_expiry <= 30"
                 icon="pi pi-replay"
                 text rounded size="small"

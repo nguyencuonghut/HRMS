@@ -190,21 +190,58 @@ async def seed_roles(session: AsyncSession) -> int:
 
 async def seed_role_permissions(session: AsyncSession) -> int:
     inserted = 0
+    # 1. Lấy map role_code -> role_id
+    role_rows = (await session.execute(text("SELECT id, code FROM roles"))).fetchall()
+    role_id_map = {row.code: row.id for row in role_rows}
+
+    # 2. Lấy map perm_code -> perm_id
+    perm_rows = (await session.execute(text("SELECT id, code FROM permissions"))).fetchall()
+    perm_id_map = {row.code: row.id for row in perm_rows}
+
     for role_code, module_perms in _ROLE_PERMS.items():
+        role_id = role_id_map.get(role_code)
+        if not role_id:
+            continue
+
+        # Tập hợp các permission ID mong muốn cho role này
+        expected_perm_ids = set()
         for module, actions in module_perms.items():
             for action in actions:
                 perm_code = f"{module}:{action}"
-                result = await session.execute(
-                    text("""
-                        INSERT INTO role_permissions (role_id, permission_id)
-                        SELECT r.id, p.id
-                        FROM roles r, permissions p
-                        WHERE r.code = :role_code AND p.code = :perm_code
-                        ON CONFLICT DO NOTHING
-                    """),
-                    {"role_code": role_code, "perm_code": perm_code},
-                )
-                inserted += result.rowcount
+                perm_id = perm_id_map.get(perm_code)
+                if perm_id:
+                    expected_perm_ids.add(perm_id)
+
+        # 3. Lấy các permission hiện có của role này
+        existing_rows = (await session.execute(
+            text("SELECT permission_id FROM role_permissions WHERE role_id = :role_id"),
+            {"role_id": role_id}
+        )).fetchall()
+        existing_perm_ids = {row[0] for row in existing_rows}
+
+        # 4. Xác định các permission cần xóa và cần thêm
+        to_delete = existing_perm_ids - expected_perm_ids
+        to_insert = expected_perm_ids - existing_perm_ids
+
+        # 5. Xóa các permission không còn trong cấu hình
+        for pid in to_delete:
+            await session.execute(
+                text("DELETE FROM role_permissions WHERE role_id = :role_id AND permission_id = :pid"),
+                {"role_id": role_id, "pid": pid}
+            )
+
+        # 6. Insert các permission chưa có
+        for pid in to_insert:
+            result = await session.execute(
+                text("""
+                    INSERT INTO role_permissions (role_id, permission_id)
+                    VALUES (:role_id, :pid)
+                    ON CONFLICT DO NOTHING
+                """),
+                {"role_id": role_id, "pid": pid},
+            )
+            inserted += result.rowcount
+
     return inserted
 
 

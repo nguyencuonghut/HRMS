@@ -37,12 +37,14 @@
         <!-- Pending actions -->
         <template v-if="report.status === 'pending_review' && canReviewInsuranceReport">
           <Button
+            v-can:edit="'insurance'"
             label="Trả lại"
             severity="secondary"
             icon="pi pi-undo"
             @click="openRejectDialog"
           />
           <Button
+            v-can:edit="'insurance'"
             label="Phê duyệt"
             icon="pi pi-check"
             severity="success"
@@ -53,7 +55,7 @@
         <!-- Approved actions -->
         <template v-if="report.status === 'approved'">
           <Button
-            v-can:view="'insurance'"
+            v-can:export="'insurance'"
             label="Xuất D02-TS"
             icon="pi pi-download"
             :loading="exporting"
@@ -173,6 +175,7 @@
         <Column v-if="isEditable" header="" style="width: 60px">
           <template #body="{ data }">
             <Button
+              v-can:delete="'insurance'"
               icon="pi pi-trash"
               text
               rounded
@@ -309,6 +312,7 @@
       <template #footer>
         <Button label="Hủy" text @click="approveDialog.visible = false" />
         <Button
+          v-can:edit="'insurance'"
           label="Phê duyệt"
           icon="pi pi-check"
           severity="success"
@@ -332,6 +336,7 @@
       <template #footer>
         <Button label="Hủy" text @click="rejectDialog.visible = false" />
         <Button
+          v-can:edit="'insurance'"
           label="Trả lại"
           icon="pi pi-undo"
           severity="danger"
@@ -389,9 +394,7 @@ const isEditable = computed(() =>
   canEditInsurance.value && (report.value?.status === 'draft' || report.value?.status === 'rejected'),
 )
 const canReviewInsuranceReport = computed(() => {
-  if (auth.user?.is_superuser) return true
-  const roles = auth.user?.roles ?? []
-  return roles.includes('admin') || roles.includes('hr_manager') || roles.includes('hr_officer')
+  return canEditInsurance.value
 })
 
 // Adjust dialog

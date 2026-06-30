@@ -98,7 +98,7 @@
                 @click="goToDetail(data.id)"
               />
               <Button
-                v-can:view="'insurance'"
+                v-can:export="'insurance'"
                 v-if="data.status === 'approved'"
                 label="Xuất D02-TS"
                 size="small"
@@ -108,7 +108,7 @@
                 @click="exportReport(data)"
               />
               <Button
-                v-can:edit="'insurance'"
+                v-can:delete="'insurance'"
                 v-if="data.status === 'draft'"
                 icon="pi pi-trash"
                 size="small"

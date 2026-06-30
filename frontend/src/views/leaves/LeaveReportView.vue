@@ -100,6 +100,7 @@
         @click="reset"
       />
       <Button
+        v-can:export="'leaves'"
         icon="pi pi-file-excel"
         label="Xuất Excel"
         severity="success"

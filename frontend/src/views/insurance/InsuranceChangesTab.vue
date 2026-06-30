@@ -13,6 +13,7 @@
       />
       <div class="ins-changes-export-group">
         <Button
+          v-can:export="'insurance'"
           label="Xuất D02-TS (VNPT)"
           icon="pi pi-file-excel"
           severity="secondary"

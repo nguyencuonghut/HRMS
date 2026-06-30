@@ -291,6 +291,7 @@ const router = createRouter({
           component: () => import("@/views/reports/ReportView.vue"),
           meta: {
             title: "Tổng quan báo cáo",
+            permission: "reports:view",
             anyPermissions: [
               "employees:view",
               "leaves:view",
@@ -308,73 +309,121 @@ const router = createRouter({
           path: "reports/dashboard",
           name: "dashboard-overview",
           component: () => import("@/views/reports/DashboardView.vue"),
-          meta: { title: "Dashboard tổng quan", permission: "employees:view" },
+          meta: {
+            title: "Dashboard tổng quan",
+            permission: "reports:view",
+            anyPermissions: ["employees:view"],
+          },
         },
         {
           path: "reports/hr",
           name: "hr-reports",
           component: () => import("@/views/reports/HRReportView.vue"),
-          meta: { title: "Báo cáo nhân sự", permission: "employees:view" },
+          meta: {
+            title: "Báo cáo nhân sự",
+            permission: "reports:view",
+            anyPermissions: ["employees:view"],
+          },
         },
         {
           path: "reports/probation",
           name: "probation-analytics",
           component: () => import("@/views/reports/ProbationAnalyticsView.vue"),
-          meta: { title: "Thử việc & onboarding", permission: "employees:view" },
+          meta: {
+            title: "Thử việc & onboarding",
+            permission: "reports:view",
+            anyPermissions: ["employees:view"],
+          },
         },
         {
           path: "reports/leave",
           name: "leave-reports-canonical",
           component: () => import("@/views/leaves/LeaveReportView.vue"),
-          meta: { title: "Báo cáo nghỉ phép", permission: "leaves:view" },
+          meta: {
+            title: "Báo cáo nghỉ phép",
+            permission: "reports:view",
+            anyPermissions: ["leaves:view"],
+          },
         },
         {
           path: "reports/leave-analytics",
           name: "leave-analytics",
           redirect: { name: "leave-reports-canonical" },
-          meta: { title: "Báo cáo nghỉ phép", permission: "leaves:view" },
+          meta: {
+            title: "Báo cáo nghỉ phép",
+            permission: "reports:view",
+            anyPermissions: ["leaves:view"],
+          },
         },
         {
           path: "reports/insurance",
           name: "insurance-analytics",
           component: () => import("@/views/reports/InsuranceAnalyticsView.vue"),
-          meta: { title: "Phân tích bảo hiểm", permission: "insurance:view" },
+          meta: {
+            title: "Phân tích bảo hiểm",
+            permission: "reports:view",
+            anyPermissions: ["insurance:view"],
+          },
         },
         {
           path: "reports/contracts",
           name: "contract-reports",
           component: () => import("@/views/reports/ContractReportView.vue"),
-          meta: { title: "Báo cáo hợp đồng", permission: "contracts:view" },
+          meta: {
+            title: "Báo cáo hợp đồng",
+            permission: "reports:view",
+            anyPermissions: ["contracts:view"],
+          },
         },
         {
           path: "reports/recruitment",
           name: "recruitment-analytics",
           component: () => import("@/views/reports/RecruitmentAnalyticsView.vue"),
-          meta: { title: "Báo cáo tuyển dụng", permission: "recruitment:view" },
+          meta: {
+            title: "Báo cáo tuyển dụng",
+            permission: "reports:view",
+            anyPermissions: ["recruitment:view"],
+          },
         },
         {
           path: "reports/employee-document-checklist",
           name: "employee-document-checklist-report",
           component: () => import("@/views/reports/EmployeeDocumentChecklistReportView.vue"),
-          meta: { title: "Báo cáo checklist hồ sơ lao động", permission: "recruitment:view" },
+          meta: {
+            title: "Báo cáo checklist hồ sơ lao động",
+            permission: "reports:view",
+            anyPermissions: ["recruitment:view"],
+          },
         },
         {
           path: "reports/training",
           name: "training-analytics",
           component: () => import("@/views/reports/TrainingAnalyticsView.vue"),
-          meta: { title: "Báo cáo đào tạo", permission: "training:view" },
+          meta: {
+            title: "Báo cáo đào tạo",
+            permission: "reports:view",
+            anyPermissions: ["training:view"],
+          },
         },
         {
           path: "reports/rewards",
           name: "rewards-analytics",
           component: () => import("@/views/reports/RewardsAnalyticsView.vue"),
-          meta: { title: "Báo cáo khen thưởng & kỷ luật", permission: "rewards:view" },
+          meta: {
+            title: "Báo cáo khen thưởng & kỷ luật",
+            permission: "reports:view",
+            anyPermissions: ["rewards:view"],
+          },
         },
         {
           path: "reports/performance",
           name: "performance-analytics",
           component: () => import("@/views/reports/PerformanceAnalyticsView.vue"),
-          meta: { title: "Báo cáo hiệu suất / KPI", permission: "performance:view" },
+          meta: {
+            title: "Báo cáo hiệu suất / KPI",
+            permission: "reports:view",
+            anyPermissions: ["performance:view"],
+          },
         },
         {
           path: "reports/export",
