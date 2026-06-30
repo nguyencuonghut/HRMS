@@ -33,6 +33,8 @@
               <ExportFilterPanel
                 :draft="quickDraft"
                 :departments="departments"
+                :report-type-options="reportTypeOptions"
+                :format-options="formatOptions"
                 @report-type-change="handleReportTypeChange"
               />
 
@@ -156,16 +158,16 @@
                 <template #body="{ data }">
                   <div class="export-history-name">
                     <strong>{{ data.filename || data.report_type }}</strong>
-                    <span>{{ reportLabel(data.report_type) }}</span>
+                    <span>{{ data.report_type_label }}</span>
                   </div>
                 </template>
               </Column>
               <Column header="Định dạng" style="width: 100px">
-                <template #body="{ data }">{{ data.format.toUpperCase() }}</template>
+                <template #body="{ data }">{{ data.format_label }}</template>
               </Column>
               <Column header="Trạng thái" style="width: 140px">
                 <template #body="{ data }">
-                  <Tag :value="statusLabel(data.status)" :severity="statusSeverity(data.status)" rounded />
+                  <Tag :value="data.status_label" :severity="data.status_severity" rounded />
                 </template>
               </Column>
               <Column header="Số dòng" style="width: 110px">
@@ -226,7 +228,7 @@
                 <template #body="{ data }">
                   <div class="export-template-name">
                     <strong>{{ data.name }}</strong>
-                    <span>{{ reportLabel(data.report_type) }}</span>
+                    <span>{{ data.report_type_label }}</span>
                   </div>
                 </template>
               </Column>
@@ -373,7 +375,7 @@
             v-model="templateForm.format"
             :options="formatOptions"
             option-label="label"
-            option-value="value"
+            option-value="code"
           />
         </div>
         <div class="export-check">
@@ -408,7 +410,7 @@
             v-model="editTemplateForm.format"
             :options="formatOptions"
             option-label="label"
-            option-value="value"
+            option-value="code"
           />
         </div>
         <div class="export-check">
@@ -446,10 +448,13 @@ import { useToast } from 'primevue/usetoast'
 import { useExportPolling } from '@/composables/useExportPolling'
 import departmentService, { type DepartmentRead } from '@/services/departmentService'
 import exportService, {
+  type ExportFormatOption,
   type ExportFormat,
   type ExportJobResponse,
+  type ExportReportTypeOption,
   type ExportReportType,
   type ReportTemplateResponse,
+  type ExportStatusOption,
 } from '@/services/exportService'
 import bhxhExportService from '@/services/bhxhExportService'
 import ExportFilterPanel from './components/export/ExportFilterPanel.vue'
@@ -466,6 +471,10 @@ const activeTab = ref('quick')
 const departments = ref<DepartmentRead[]>([])
 const templates = ref<ReportTemplateResponse[]>([])
 const currentJob = ref<ExportJobResponse | null>(null)
+const reportTypeOptions = ref<ExportReportTypeOption[]>([])
+const formatOptions = ref<ExportFormatOption[]>([])
+const statusOptions = ref<ExportStatusOption[]>([])
+const statusMetaMap = ref<Record<string, ExportStatusOption>>({})
 
 const submitting = ref(false)
 const historyLoading = ref(false)
@@ -506,11 +515,6 @@ const editTemplateForm = reactive({
   format: 'xlsx' as ExportFormat,
   is_default: false,
 })
-
-const formatOptions = [
-  { label: 'Excel (.xlsx)', value: 'xlsx' },
-  { label: 'PDF (.pdf)', value: 'pdf' },
-]
 
 function resetFiltersForReportType(reportType: ExportReportType) {
   const currentYear = new Date().getFullYear()
@@ -557,34 +561,12 @@ function handleReportTypeChange(reportType: ExportReportType) {
   resetFiltersForReportType(reportType)
 }
 
-function reportLabel(reportType: ExportReportType) {
-  const labels: Record<ExportReportType, string> = {
-    dashboard: 'Dashboard tổng quan',
-    'hr-employee-list': 'Nhân sự: Danh sách nhân viên',
-    'hr-movement': 'Nhân sự: Biến động',
-    'hr-tenure': 'Nhân sự: Thâm niên',
-    'hr-org-structure': 'Nhân sự: Cơ cấu tổ chức',
-    leaves: 'Phân tích nghỉ phép',
-    insurance: 'Báo cáo bảo hiểm',
-    contracts: 'Báo cáo hợp đồng',
-    recruitment: 'Báo cáo tuyển dụng',
-    probation: 'Báo cáo thử việc',
-  }
-  return labels[reportType]
-}
-
 function statusLabel(status: string) {
-  if (status === 'done') return 'Hoàn tất'
-  if (status === 'processing') return 'Đang xử lý'
-  if (status === 'failed') return 'Thất bại'
-  return 'Chờ xử lý'
+  return statusMetaMap.value[status]?.label ?? status
 }
 
 function statusSeverity(status: string) {
-  if (status === 'done') return 'success'
-  if (status === 'processing') return 'info'
-  if (status === 'failed') return 'danger'
-  return 'warn'
+  return statusMetaMap.value[status]?.severity ?? 'secondary'
 }
 
 function formatDateTime(value?: string | null) {
@@ -606,6 +588,14 @@ async function loadDepartments() {
   } catch {
     departments.value = []
   }
+}
+
+async function loadMeta() {
+  const res = await exportService.getMeta()
+  reportTypeOptions.value = [...res.data.report_types].sort((a, b) => a.order - b.order)
+  formatOptions.value = [...res.data.formats].sort((a, b) => a.order - b.order)
+  statusOptions.value = [...res.data.statuses].sort((a, b) => a.order - b.order)
+  statusMetaMap.value = Object.fromEntries(statusOptions.value.map((item) => [item.code, item]))
 }
 
 async function loadHistory(page = historyPage.page) {
@@ -918,6 +908,7 @@ async function doExportD03() {
 
 onMounted(async () => {
   await Promise.all([
+    loadMeta(),
     loadDepartments(),
     loadHistory(1),
     loadTemplates(),

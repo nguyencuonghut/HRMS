@@ -208,7 +208,7 @@
     </div>
     <template #footer>
       <Button label="Hủy" text @click="updateVisible = false" />
-      <Button v-can:edit="'employees'" label="Lưu" icon="pi pi-check" :loading=\"saving\" @click=\"submitUpdate\" />
+      <Button v-can:edit="'employees'" label="Lưu" icon="pi pi-check" :loading="saving" @click="submitUpdate" />
     </template>
   </Dialog>
 
@@ -228,7 +228,7 @@
     </div>
     <template #footer>
       <Button label="Hủy" text @click="addItemVisible = false" />
-      <Button v-can:edit="'employees'" label="Thêm" icon="pi pi-plus" :loading=\"saving\" :disabled=\"!addItemTypeId\" @click=\"submitAddItem\" />
+      <Button v-can:edit="'employees'" label="Thêm" icon="pi pi-plus" :loading="saving" :disabled="!addItemTypeId" @click="submitAddItem" />
     </template>
   </Dialog>
 
@@ -243,7 +243,7 @@
     </div>
     <template #footer>
       <Button label="Hủy" text @click="waiveVisible = false" />
-      <Button v-can:edit="'employees'" label="Xác nhận miễn" icon="pi pi-ban" severity="warn" :loading=\"saving\" @click=\"submitWaive\" />
+      <Button v-can:edit="'employees'" label="Xác nhận miễn" icon="pi pi-ban" severity="warn" :loading="saving" @click="submitWaive" />
     </template>
   </Dialog>
 </template>

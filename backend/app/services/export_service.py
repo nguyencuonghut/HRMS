@@ -21,6 +21,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.auth import User
 from app.models.export import ExportJob, ReportTemplate
+from app.core.export_catalog import (
+    EXPORT_FORMAT_LABELS,
+    EXPORT_FORMAT_ORDER,
+    EXPORT_STATUS_LABELS,
+    EXPORT_STATUS_ORDER,
+    EXPORT_STATUS_SEVERITIES,
+    REPORT_TYPE_LABELS,
+    REPORT_TYPE_ORDER,
+)
 from app.schemas.export import (
     ExportFormat,
     ExportHistoryResponse,
@@ -52,19 +61,6 @@ _XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 _PDF_MIME = "application/pdf"
 _PDF_FONT_NAME = "NotoSans"
 _PDF_FONT_PATH = Path(__file__).resolve().parent.parent / "assets" / "fonts" / "NotoSans-Regular.ttf"
-_REPORT_TYPE_LABELS: dict[str, str] = {
-    "dashboard": "Dashboard tổng quan",
-    "hr-employee-list": "Nhân sự: Danh sách nhân viên",
-    "hr-movement": "Nhân sự: Biến động nhân sự",
-    "hr-tenure": "Nhân sự: Thâm niên nhân sự",
-    "hr-org-structure": "Nhân sự: Cơ cấu tổ chức",
-    "leaves": "Nghỉ phép: Phân tích nghỉ phép",
-    "insurance": "Bảo hiểm: Phân tích bảo hiểm",
-    "contracts": "Hợp đồng: Báo cáo hợp đồng",
-    "recruitment": "Tuyển dụng: Báo cáo tuyển dụng",
-    "probation": "Thử việc: Báo cáo thử việc",
-}
-
 
 @dataclass(frozen=True)
 class ReportHandler:
@@ -123,7 +119,7 @@ def _ensure_pdf_font() -> None:
 
 
 def _report_type_label(report_type: str) -> str:
-    return _REPORT_TYPE_LABELS.get(report_type, report_type)
+    return REPORT_TYPE_LABELS.get(report_type, report_type)
 
 
 def _workbook_pdf(report_type: str, filters: dict[str, Any], row_count: int, workbook_bytes: bytes) -> bytes:
@@ -576,6 +572,9 @@ class ExportService:
         return ExportJobStatusResponse(
             id=job.id,
             status=job.status,
+            status_label=EXPORT_STATUS_LABELS.get(job.status, job.status),
+            status_order=EXPORT_STATUS_ORDER.get(job.status, 999),
+            status_severity=EXPORT_STATUS_SEVERITIES.get(job.status, "secondary"),
             error_message=job.error_message,
             download_url=_build_download_url(job),
         )
@@ -684,8 +683,15 @@ class ExportService:
         return ExportJobResponse(
             id=job.id,
             report_type=job.report_type,
+            report_type_label=REPORT_TYPE_LABELS.get(job.report_type, job.report_type),
+            report_type_order=REPORT_TYPE_ORDER.get(job.report_type, 999),
             format=job.format,
+            format_label=EXPORT_FORMAT_LABELS.get(job.format, job.format.upper()),
+            format_order=EXPORT_FORMAT_ORDER.get(job.format, 999),
             status=job.status,
+            status_label=EXPORT_STATUS_LABELS.get(job.status, job.status),
+            status_order=EXPORT_STATUS_ORDER.get(job.status, 999),
+            status_severity=EXPORT_STATUS_SEVERITIES.get(job.status, "secondary"),
             filename=job.filename,
             file_size_bytes=job.file_size_bytes,
             row_count=job.row_count,
@@ -704,7 +710,11 @@ class ExportService:
             name=template.name,
             description=template.description,
             report_type=template.report_type,
+            report_type_label=REPORT_TYPE_LABELS.get(template.report_type, template.report_type),
+            report_type_order=REPORT_TYPE_ORDER.get(template.report_type, 999),
             format=template.format,
+            format_label=EXPORT_FORMAT_LABELS.get(template.format, template.format.upper()),
+            format_order=EXPORT_FORMAT_ORDER.get(template.format, 999),
             filters=template.filters,
             is_default=template.is_default,
             created_at=template.created_at,

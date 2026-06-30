@@ -42,8 +42,15 @@ class ExportJobRequest(BaseModel):
 class ExportJobResponse(BaseModel):
     id: uuid.UUID
     report_type: str
+    report_type_label: str
+    report_type_order: int
     format: str
+    format_label: str
+    format_order: int
     status: ExportStatus
+    status_label: str
+    status_order: int
+    status_severity: str
     filename: Optional[str]
     file_size_bytes: Optional[int]
     row_count: Optional[int]
@@ -60,6 +67,9 @@ class ExportJobResponse(BaseModel):
 class ExportJobStatusResponse(BaseModel):
     id: uuid.UUID
     status: ExportStatus
+    status_label: str
+    status_order: int
+    status_severity: str
     progress_pct: Optional[int] = None
     error_message: Optional[str] = None
     download_url: Optional[str] = None
@@ -94,10 +104,39 @@ class ReportTemplateResponse(BaseModel):
     name: str
     description: Optional[str]
     report_type: str
+    report_type_label: str
+    report_type_order: int
     format: str
+    format_label: str
+    format_order: int
     filters: dict[str, Any]
     is_default: bool
     created_at: datetime
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class ExportReportTypeOption(BaseModel):
+    code: ReportType
+    label: str
+    order: int
+
+
+class ExportFormatOption(BaseModel):
+    code: ExportFormat
+    label: str
+    order: int
+
+
+class ExportStatusOption(BaseModel):
+    code: ExportStatus
+    label: str
+    severity: str
+    order: int
+
+
+class ExportMetaResponse(BaseModel):
+    report_types: list[ExportReportTypeOption]
+    formats: list[ExportFormatOption]
+    statuses: list[ExportStatusOption]

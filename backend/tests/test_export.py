@@ -194,6 +194,17 @@ def test_sync_export_xlsx(client: TestClient):
     assert workbook.active["A1"].value == "Mã NV"
 
 
+def test_export_meta_contract(client: TestClient):
+    headers = _admin_headers(client)
+    response = client.get(f"{BASE}/meta", headers=headers)
+    assert response.status_code == 200
+    payload = response.json()
+    report_types = payload["report_types"]
+    assert any(item["code"] == "hr-movement" and item["label"] == "Nhân sự: Biến động nhân sự" for item in report_types)
+    assert [item["code"] for item in payload["formats"]] == ["xlsx", "pdf"]
+    assert [item["code"] for item in payload["statuses"]] == ["pending", "processing", "done", "failed"]
+
+
 def test_sync_export_dashboard_xlsx(client: TestClient):
     headers = _admin_headers(client)
     response = client.post(

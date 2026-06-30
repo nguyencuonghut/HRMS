@@ -35,6 +35,8 @@ class TemplateResponse(BaseModel):
     id: int
     code: str
     event_type: str
+    event_type_label: str
+    event_type_order: int
     name: str
     subject: str
     body_html: str
@@ -53,6 +55,8 @@ class TemplateResponse(BaseModel):
 class ConfigResponse(BaseModel):
     id: int
     event_type: str
+    event_type_label: str
+    event_type_order: int
     is_enabled: bool
     days_before: Optional[list[int]]
     extra_recipients: Optional[list[str]]
@@ -65,6 +69,8 @@ class LogItem(BaseModel):
     id: int
     template_code: Optional[str]
     event_type: str
+    event_type_label: str
+    event_type_order: int
     employee_id: Optional[int]
     recipient_email: str
     recipient_name: Optional[str]
@@ -83,3 +89,21 @@ class LogListResponse(BaseModel):
     page: int
     page_size: int
     total_pages: int
+
+
+class NotificationEventOption(BaseModel):
+    code: str
+    label: str
+    order: int
+
+
+class NotificationStatusOption(BaseModel):
+    code: str
+    label: str
+    severity: str
+    order: int
+
+
+class NotificationMetaResponse(BaseModel):
+    event_types: list[NotificationEventOption]
+    statuses: list[NotificationStatusOption]

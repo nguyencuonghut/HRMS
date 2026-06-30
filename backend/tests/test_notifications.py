@@ -44,6 +44,7 @@ def test_list_templates(client: TestClient):
     data = resp.json()
     assert isinstance(data, list)
     assert len(data) >= 1
+    assert "event_type_label" in data[0]
 
 
 def test_get_template_detail(client: TestClient):
@@ -52,6 +53,17 @@ def test_get_template_detail(client: TestClient):
     data = resp.json()
     assert data["code"] == "contract_expiry_30d"
     assert data["event_type"] == "contract_expiry"
+    assert data["event_type_label"] == "Hợp đồng sắp hết hạn"
+
+
+def test_notification_meta_contract(client: TestClient):
+    resp = client.get(f"{BASE}/meta", headers=_bearer(client))
+    assert resp.status_code == 200
+    data = resp.json()
+    codes = [item["code"] for item in data["event_types"]]
+    assert codes == ["contract_expiry", "probation_end", "birthday", "carryover_expiry"]
+    assert "certificate_expiry" not in codes
+    assert [item["code"] for item in data["statuses"]] == ["sent", "failed", "skipped"]
 
 
 def test_get_template_not_found(client: TestClient):
@@ -134,6 +146,7 @@ def test_list_config(client: TestClient):
     data = resp.json()
     assert isinstance(data, list)
     assert len(data) >= 1
+    assert "event_type_label" in data[0]
 
 
 def test_update_config(client: TestClient):
@@ -174,6 +187,8 @@ def test_logs_empty_or_list(client: TestClient):
     assert "page" in data
     assert "page_size" in data
     assert "total_pages" in data
+    if data["items"]:
+        assert "event_type_label" in data["items"][0]
 
 
 def test_logs_with_filter(client: TestClient):

@@ -52,6 +52,14 @@ def test_list_admin_200(client: TestClient):
     assert data["total"] >= len(data["items"])
 
 
+def test_audit_log_meta_contract(client: TestClient):
+    resp = client.get(f"{BASE}/meta", headers=_admin(client))
+    assert resp.status_code == 200
+    data = resp.json()
+    assert any(item["code"] == "CREATE_CONTRACT" and item["label"] == "Tạo hợp đồng" for item in data["actions"])
+    assert any(item["code"] == "employee_contract" and item["label"] == "Hợp đồng nhân viên" for item in data["entity_types"])
+
+
 def test_list_hr_manager_200(client: TestClient):
     # hr_manager có audit_logs:view
     resp = client.get(BASE, headers=_hr_mgr(client))
@@ -66,6 +74,7 @@ def test_response_fields(client: TestClient):
     row = rows[0]
     assert "id" in row
     assert "action" in row
+    assert "action_label" in row
     assert "created_at" in row
 
 

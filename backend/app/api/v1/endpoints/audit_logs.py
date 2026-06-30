@@ -10,6 +10,16 @@ from sqlalchemy import func, or_, outerjoin, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import require_permission
+from app.core.audit_catalog import (
+    AUDIT_ACTION_DEFS,
+    AUDIT_ACTION_LABELS,
+    AUDIT_ACTION_ORDER,
+    AUDIT_ACTION_SEVERITIES,
+    AUDIT_ENTITY_DEFS,
+    AUDIT_ENTITY_LABELS,
+    AUDIT_ENTITY_ORDER,
+    AUDIT_ENTITY_SEVERITIES,
+)
 from app.core.database import get_session
 from app.models.auth import AuditLog, User
 
@@ -22,7 +32,13 @@ class AuditLogRead(BaseModel):
     user_email:  Optional[str]
     user_name:   Optional[str]
     action:      str
+    action_label: str
+    action_order: int
+    action_severity: str
     entity_type: Optional[str]
+    entity_type_label: Optional[str]
+    entity_type_order: Optional[int]
+    entity_type_severity: Optional[str]
     entity_id:   Optional[int]
     entity_name: Optional[str]
     old_data:    Optional[dict]
@@ -41,7 +57,13 @@ class AuditLogRead(BaseModel):
             user_email=user.email if user else None,
             user_name=user.full_name if user else None,
             action=log.action,
+            action_label=AUDIT_ACTION_LABELS.get(log.action, log.action),
+            action_order=AUDIT_ACTION_ORDER.get(log.action, 999),
+            action_severity=AUDIT_ACTION_SEVERITIES.get(log.action, "secondary"),
             entity_type=log.entity_type,
+            entity_type_label=AUDIT_ENTITY_LABELS.get(log.entity_type, log.entity_type) if log.entity_type else None,
+            entity_type_order=AUDIT_ENTITY_ORDER.get(log.entity_type) if log.entity_type else None,
+            entity_type_severity=AUDIT_ENTITY_SEVERITIES.get(log.entity_type, "secondary") if log.entity_type else None,
             entity_id=log.entity_id,
             entity_name=log.entity_name,
             old_data=log.old_data,
@@ -58,6 +80,41 @@ class AuditLogPageResponse(BaseModel):
     page:        int
     page_size:   int
     total_pages: int
+
+
+class AuditActionOption(BaseModel):
+    code: str
+    label: str
+    severity: str
+    order: int
+
+
+class AuditEntityTypeOption(BaseModel):
+    code: str
+    label: str
+    severity: str
+    order: int
+
+
+class AuditLogMetaResponse(BaseModel):
+    actions: list[AuditActionOption]
+    entity_types: list[AuditEntityTypeOption]
+
+
+@router.get("/meta", response_model=AuditLogMetaResponse, summary="Metadata audit log")
+async def get_audit_log_meta(
+    _: User = require_permission("audit_logs:view"),
+) -> AuditLogMetaResponse:
+    return AuditLogMetaResponse(
+        actions=[
+            AuditActionOption(code=code, label=label, severity=severity, order=AUDIT_ACTION_ORDER[code])
+            for code, label, severity in AUDIT_ACTION_DEFS
+        ],
+        entity_types=[
+            AuditEntityTypeOption(code=code, label=label, severity=severity, order=AUDIT_ENTITY_ORDER[code])
+            for code, label, severity in AUDIT_ENTITY_DEFS
+        ],
+    )
 
 
 @router.get("", response_model=AuditLogPageResponse, summary="Lịch sử thao tác hệ thống")

@@ -14,7 +14,7 @@
         v-model="filterAction"
         :options="actionOptions"
         option-label="label"
-        option-value="value"
+        option-value="code"
         placeholder="Tất cả hành động"
         show-clear
         filter
@@ -24,7 +24,7 @@
         v-model="filterEntityType"
         :options="entityTypeOptions"
         option-label="label"
-        option-value="value"
+        option-value="code"
         placeholder="Tất cả đối tượng"
         show-clear
         filter
@@ -104,14 +104,14 @@
 
         <Column field="action" header="Hành động" sortable style="width: 140px">
           <template #body="{ data }">
-            <Tag :value="actionLabel(data.action)" :severity="actionSeverity(data.action)" />
+            <Tag :value="data.action_label" :severity="data.action_severity" />
           </template>
         </Column>
 
         <Column field="entity_type" header="Đối tượng" sortable style="min-width: 180px">
           <template #body="{ data }">
             <div v-if="data.entity_type">
-              <Tag :value="entityLabel(data.entity_type)" :severity="entitySeverity(data.entity_type)" />
+              <Tag :value="data.entity_type_label || data.entity_type" :severity="data.entity_type_severity || 'secondary'" />
               <span v-if="data.entity_name" class="muted-text" style="margin-left: 0.5rem;">{{ data.entity_name }}</span>
             </div>
             <span v-else class="muted-text">—</span>
@@ -144,7 +144,7 @@
       <div v-if="detailItem" class="detail-wrap">
         <div class="detail-meta">
           <span><strong>Hành động:</strong>
-            <Tag :value="actionLabel(detailItem.action)" :severity="actionSeverity(detailItem.action)" class="ml-2" />
+            <Tag :value="detailItem.action_label" :severity="detailItem.action_severity" class="ml-2" />
           </span>
           <span><strong>Thời gian:</strong> {{ formatDate(detailItem.created_at) }}</span>
           <span v-if="detailItem.user_name"><strong>Người thực hiện:</strong> {{ detailItem.user_name }}</span>
@@ -218,7 +218,11 @@ import InputText from 'primevue/inputtext'
 import Select from 'primevue/select'
 import Tag from 'primevue/tag'
 
-import auditLogService, { type AuditLogItem } from '@/services/auditLogService'
+import auditLogService, {
+  type AuditActionOption,
+  type AuditEntityTypeOption,
+  type AuditLogItem,
+} from '@/services/auditLogService'
 import { toLocalIso } from '@/utils/format'
 
 const toast    = useToast()
@@ -243,26 +247,8 @@ const filterKeyword    = ref('')
 const detailVisible = ref(false)
 const detailItem    = ref<AuditLogItem | null>(null)
 
-const actionOptions = [
-  { label: 'Đăng nhập',    value: 'LOGIN' },
-  { label: 'Tạo mới',      value: 'CREATE' },
-  { label: 'Cập nhật',     value: 'UPDATE' },
-  { label: 'Xóa',          value: 'DELETE' },
-  { label: 'Xuất dữ liệu', value: 'EXPORT' },
-  { label: 'Đặt lại MK',   value: 'RESET_PASSWORD' },
-]
-
-const entityTypeOptions = [
-  { label: 'Người dùng',    value: 'user' },
-  { label: 'Phân quyền',    value: 'user_role' },
-  { label: 'Vai trò',       value: 'role' },
-  { label: 'Quyền vai trò', value: 'role_permissions' },
-  { label: 'Phòng/Ban',     value: 'department' },
-  { label: 'Chức danh',     value: 'job_title' },
-  { label: 'Vị trí',        value: 'job_position' },
-  { label: 'Nhân viên',     value: 'employee' },
-  { label: 'Hợp đồng',      value: 'contract' },
-]
+const actionOptions = ref<AuditActionOption[]>([])
+const entityTypeOptions = ref<AuditEntityTypeOption[]>([])
 
 async function loadData(resetPage = false) {
   if (resetPage) page.value = 1
@@ -285,6 +271,12 @@ async function loadData(resetPage = false) {
   } finally {
     loading.value = false
   }
+}
+
+async function loadMeta() {
+  const { data } = await auditLogService.getMeta()
+  actionOptions.value = [...data.actions].sort((a, b) => a.order - b.order)
+  entityTypeOptions.value = [...data.entity_types].sort((a, b) => a.order - b.order)
 }
 
 function applyFilter() { loadData(true) }
@@ -339,57 +331,10 @@ function formatValue(val: unknown): string {
   return String(val)
 }
 
-function actionLabel(action: string): string {
-  return ({
-    LOGIN:          'Đăng nhập',
-    CREATE:         'Tạo mới',
-    UPDATE:         'Cập nhật',
-    DELETE:         'Xóa',
-    EXPORT:         'Xuất',
-    RESET_PASSWORD: 'Đặt lại MK',
-  } as Record<string, string>)[action] ?? action
-}
-
-function actionSeverity(action: string): string {
-  return ({
-    LOGIN:          'info',
-    CREATE:         'success',
-    UPDATE:         'warn',
-    DELETE:         'danger',
-    EXPORT:         'secondary',
-    RESET_PASSWORD: 'warn',
-  } as Record<string, string>)[action] ?? 'secondary'
-}
-
-function entityLabel(type: string): string {
-  return ({
-    user:             'Người dùng',
-    user_role:        'Phân quyền',
-    role:             'Vai trò',
-    role_permissions: 'Quyền vai trò',
-    department:       'Phòng/Ban',
-    job_title:        'Chức danh',
-    job_position:     'Vị trí',
-    employee:         'Nhân viên',
-    contract:         'Hợp đồng',
-  } as Record<string, string>)[type] ?? type
-}
-
-function entitySeverity(type: string): string {
-  return ({
-    user:             'warn',
-    user_role:        'warn',
-    role:             'danger',
-    role_permissions: 'danger',
-    department:       'info',
-    job_title:        'secondary',
-    job_position:     'secondary',
-    employee:         'info',
-    contract:         'success',
-  } as Record<string, string>)[type] ?? 'secondary'
-}
-
-onMounted(loadData)
+onMounted(async () => {
+  await loadMeta()
+  await loadData()
+})
 </script>
 
 <style scoped>

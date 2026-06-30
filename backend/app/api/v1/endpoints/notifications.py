@@ -10,11 +10,21 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import require_permission
+from app.core.notification_catalog import (
+    NOTIFICATION_EVENT_DEFS,
+    NOTIFICATION_EVENT_LABELS,
+    NOTIFICATION_EVENT_ORDER,
+    NOTIFICATION_STATUS_DEFS,
+    NOTIFICATION_STATUS_ORDER,
+)
 from app.core.database import get_session
 from app.models.auth import User
 from app.models.notification import EmailLog, NotificationTemplate, NotifConfig
 from app.schemas.notification import (
     ConfigResponse,
+    NotificationEventOption,
+    NotificationMetaResponse,
+    NotificationStatusOption,
     ConfigUpdate,
     LogItem,
     LogListResponse,
@@ -29,6 +39,74 @@ from app.services import notification_service
 router = APIRouter()
 
 
+def _to_template_response(row: NotificationTemplate) -> TemplateResponse:
+    return TemplateResponse(
+        id=row.id,
+        code=row.code,
+        event_type=row.event_type,
+        event_type_label=NOTIFICATION_EVENT_LABELS.get(row.event_type, row.event_type),
+        event_type_order=NOTIFICATION_EVENT_ORDER.get(row.event_type, 999),
+        name=row.name,
+        subject=row.subject,
+        body_html=row.body_html,
+        body_text=row.body_text,
+        merge_fields=row.merge_fields,
+        is_active=row.is_active,
+        is_system=row.is_system,
+        days_before=row.days_before,
+        recipient_type=row.recipient_type,
+        created_at=row.created_at,
+        updated_at=row.updated_at,
+    )
+
+
+def _to_config_response(row: NotifConfig) -> ConfigResponse:
+    return ConfigResponse(
+        id=row.id,
+        event_type=row.event_type,
+        event_type_label=NOTIFICATION_EVENT_LABELS.get(row.event_type, row.event_type),
+        event_type_order=NOTIFICATION_EVENT_ORDER.get(row.event_type, 999),
+        is_enabled=row.is_enabled,
+        days_before=row.days_before,
+        extra_recipients=row.extra_recipients,
+        updated_at=row.updated_at,
+    )
+
+
+def _to_log_item(row: EmailLog) -> LogItem:
+    return LogItem(
+        id=row.id,
+        template_code=row.template_code,
+        event_type=row.event_type,
+        event_type_label=NOTIFICATION_EVENT_LABELS.get(row.event_type, row.event_type),
+        event_type_order=NOTIFICATION_EVENT_ORDER.get(row.event_type, 999),
+        employee_id=row.employee_id,
+        recipient_email=row.recipient_email,
+        recipient_name=row.recipient_name,
+        subject=row.subject,
+        status=row.status,
+        error_message=row.error_message,
+        sent_at=row.sent_at,
+        celery_task_id=row.celery_task_id,
+    )
+
+
+@router.get("/meta", response_model=NotificationMetaResponse)
+async def get_notification_meta(
+    _: User = require_permission("settings:view"),
+) -> NotificationMetaResponse:
+    return NotificationMetaResponse(
+        event_types=[
+            NotificationEventOption(code=code, label=label, order=index)
+            for index, (code, label) in enumerate(NOTIFICATION_EVENT_DEFS, start=1)
+        ],
+        statuses=[
+            NotificationStatusOption(code=code, label=label, severity=severity, order=NOTIFICATION_STATUS_ORDER[code])
+            for code, label, severity in NOTIFICATION_STATUS_DEFS
+        ],
+    )
+
+
 # ─── Templates ────────────────────────────────────────────────────────────────
 
 @router.get("/templates", response_model=list[TemplateResponse])
@@ -37,7 +115,7 @@ async def list_templates(
     session: AsyncSession = Depends(get_session),
 ) -> list[TemplateResponse]:
     rows = (await session.execute(select(NotificationTemplate).order_by(NotificationTemplate.id))).scalars().all()
-    return [TemplateResponse.model_validate(r) for r in rows]
+    return [_to_template_response(r) for r in rows]
 
 
 @router.get("/templates/{code}", response_model=TemplateResponse)
@@ -51,7 +129,7 @@ async def get_template(
     ).scalar_one_or_none()
     if not tpl:
         raise HTTPException(status_code=404, detail=f"Template '{code}' không tồn tại")
-    return TemplateResponse.model_validate(tpl)
+    return _to_template_response(tpl)
 
 
 @router.put("/templates/{code}", response_model=TemplateResponse)
@@ -78,7 +156,7 @@ async def update_template(
     tpl.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
     await session.commit()
     await session.refresh(tpl)
-    return TemplateResponse.model_validate(tpl)
+    return _to_template_response(tpl)
 
 
 @router.post("/templates/{code}/preview", response_model=PreviewResponse)
@@ -105,7 +183,7 @@ async def list_config(
     session: AsyncSession = Depends(get_session),
 ) -> list[ConfigResponse]:
     rows = (await session.execute(select(NotifConfig).order_by(NotifConfig.id))).scalars().all()
-    return [ConfigResponse.model_validate(r) for r in rows]
+    return [_to_config_response(r) for r in rows]
 
 
 @router.put("/config/{event_type}", response_model=ConfigResponse)
@@ -130,7 +208,7 @@ async def update_config(
     cfg.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
     await session.commit()
     await session.refresh(cfg)
-    return ConfigResponse.model_validate(cfg)
+    return _to_config_response(cfg)
 
 
 # ─── Logs ─────────────────────────────────────────────────────────────────────
@@ -169,7 +247,7 @@ async def list_logs(
     ).scalars().all()
 
     return LogListResponse(
-        items=[LogItem.model_validate(r) for r in rows],
+        items=[_to_log_item(r) for r in rows],
         total=total,
         page=page,
         page_size=page_size,

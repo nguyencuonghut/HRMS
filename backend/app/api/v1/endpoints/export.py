@@ -8,13 +8,25 @@ from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import require_permission
+from app.core.export_catalog import (
+    EXPORT_FORMAT_DEFS,
+    EXPORT_FORMAT_ORDER,
+    EXPORT_STATUS_DEFS,
+    EXPORT_STATUS_ORDER,
+    REPORT_DEFS,
+    REPORT_TYPE_ORDER,
+)
 from app.core.database import get_session
 from app.models.auth import User
 from app.schemas.export import (
     ExportHistoryResponse,
+    ExportFormatOption,
     ExportJobRequest,
     ExportJobResponse,
     ExportJobStatusResponse,
+    ExportMetaResponse,
+    ExportReportTypeOption,
+    ExportStatusOption,
     ReportTemplateCreate,
     ReportTemplateResponse,
     ReportTemplateUpdate,
@@ -22,6 +34,26 @@ from app.schemas.export import (
 from app.services.export_service import ExportService
 
 router = APIRouter()
+
+
+@router.get("/meta", response_model=ExportMetaResponse)
+async def get_export_meta(
+    _: User = require_permission("reports:view"),
+) -> ExportMetaResponse:
+    return ExportMetaResponse(
+        report_types=[
+            ExportReportTypeOption(code=code, label=label, order=REPORT_TYPE_ORDER[code])
+            for code, label in REPORT_DEFS
+        ],
+        formats=[
+            ExportFormatOption(code=code, label=label, order=EXPORT_FORMAT_ORDER[code])
+            for code, label in EXPORT_FORMAT_DEFS
+        ],
+        statuses=[
+            ExportStatusOption(code=code, label=label, severity=severity, order=EXPORT_STATUS_ORDER[code])
+            for code, label, severity in EXPORT_STATUS_DEFS
+        ],
+    )
 
 
 @router.post("", response_model=ExportJobResponse)

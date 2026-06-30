@@ -371,12 +371,10 @@ import insuranceService, {
   type SubmissionType,
 } from '@/services/insuranceService'
 import { usePermissionGate } from '@/composables/usePermissionGate'
-import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
 const router = useRouter()
 const toast = useToast()
-const auth = useAuthStore()
 const permissionGate = usePermissionGate()
 
 const reportId = computed(() => Number(route.params.id))

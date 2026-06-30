@@ -82,7 +82,7 @@
                 v-model="logFilter.event_type"
                 :options="eventTypeOptions"
                 option-label="label"
-                option-value="value"
+                option-value="code"
                 placeholder="Tất cả sự kiện"
                 show-clear
               />
@@ -90,7 +90,7 @@
                 v-model="logFilter.status"
                 :options="statusOptions"
                 option-label="label"
-                option-value="value"
+                option-value="code"
                 placeholder="Tất cả trạng thái"
                 show-clear
               />
@@ -108,12 +108,14 @@
               @page="onLogPage"
             >
               <template #empty><div class="notif-empty">Chưa có lịch sử gửi email.</div></template>
-              <Column field="event_type" header="Sự kiện" style="width: 160px" />
+              <Column header="Sự kiện" style="width: 180px">
+                <template #body="{ data }">{{ data.event_type_label }}</template>
+              </Column>
               <Column field="recipient_email" header="Người nhận" />
               <Column field="subject" header="Tiêu đề" />
               <Column header="Trạng thái" style="width: 110px">
                 <template #body="{ data }">
-                  <Tag :value="data.status" :severity="logStatusSeverity(data.status)" rounded />
+                  <Tag :value="statusLabel(data.status)" :severity="statusSeverity(data.status)" rounded />
                 </template>
               </Column>
               <Column header="Thời gian" style="width: 160px">
@@ -194,7 +196,13 @@ import ToggleButton from 'primevue/togglebutton'
 import Toast from 'primevue/toast'
 import { useToast } from 'primevue/usetoast'
 
-import notificationService, { type NotifConfig, type NotifTemplate, type EmailLogListResponse } from '@/services/notificationService'
+import notificationService, {
+  type EmailLogListResponse,
+  type NotifConfig,
+  type NotifTemplate,
+  type NotificationEventOption,
+  type NotificationStatusOption,
+} from '@/services/notificationService'
 import { useAuthStore } from '@/stores/auth'
 
 const toast = useToast()
@@ -228,37 +236,21 @@ const logs = ref<EmailLogListResponse>({ items: [], total: 0, page: 1, page_size
 const logLoading = ref(false)
 const logFilter = reactive<{ event_type: string | null; status: string | null }>({ event_type: null, status: null })
 const logPage = ref(1)
-
-const eventTypeOptions = [
-  { label: 'Hợp đồng hết hạn', value: 'contract_expiry' },
-  { label: 'Thử việc kết thúc', value: 'probation_end' },
-  { label: 'Sinh nhật', value: 'birthday' },
-  { label: 'Chứng chỉ hết hạn', value: 'certificate_expiry' },
-  { label: 'Tồn phép hết hạn', value: 'carryover_expiry' },
-]
-
-const statusOptions = [
-  { label: 'Đã gửi', value: 'sent' },
-  { label: 'Thất bại', value: 'failed' },
-  { label: 'Bỏ qua', value: 'skipped' },
-]
-
-function logStatusSeverity(status: string) {
-  if (status === 'sent') return 'success'
-  if (status === 'failed') return 'danger'
-  return 'warn'
-}
-
-const EVENT_TYPE_LABELS: Record<string, string> = {
-  contract_expiry: 'Hợp đồng sắp hết hạn',
-  probation_end: 'Thử việc sắp kết thúc',
-  birthday: 'Sinh nhật nhân viên',
-  certificate_expiry: 'Chứng chỉ sắp hết hạn',
-  carryover_expiry: 'Tồn phép sắp hết hạn',
-}
+const eventTypeOptions = ref<NotificationEventOption[]>([])
+const statusOptions = ref<NotificationStatusOption[]>([])
+const eventTypeLabelMap = ref<Record<string, string>>({})
+const statusMetaMap = ref<Record<string, NotificationStatusOption>>({})
 
 function eventTypeLabel(code: string) {
-  return EVENT_TYPE_LABELS[code] ?? code
+  return eventTypeLabelMap.value[code] ?? code
+}
+
+function statusLabel(code: string) {
+  return statusMetaMap.value[code]?.label ?? code
+}
+
+function statusSeverity(code: string) {
+  return statusMetaMap.value[code]?.severity ?? 'secondary'
 }
 
 function wrapField(f: string) {
@@ -279,6 +271,14 @@ async function loadTemplates() {
   } finally {
     templatesLoading.value = false
   }
+}
+
+async function loadMeta() {
+  const res = await notificationService.getMeta()
+  eventTypeOptions.value = [...res.data.event_types].sort((a, b) => a.order - b.order)
+  statusOptions.value = [...res.data.statuses].sort((a, b) => a.order - b.order)
+  eventTypeLabelMap.value = Object.fromEntries(eventTypeOptions.value.map((item) => [item.code, item.label]))
+  statusMetaMap.value = Object.fromEntries(statusOptions.value.map((item) => [item.code, item]))
 }
 
 function openEdit(tpl: NotifTemplate) {
@@ -388,9 +388,10 @@ function onLogPage(event: { page: number }) {
 }
 
 onMounted(() => {
-  loadTemplates()
-  loadConfig()
-  loadLogs()
+  void loadMeta()
+  void loadTemplates()
+  void loadConfig()
+  void loadLogs()
 })
 </script>
 

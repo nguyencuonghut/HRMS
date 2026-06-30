@@ -25,8 +25,15 @@ export interface ExportJobRequest {
 export interface ExportJobResponse {
   id: string
   report_type: ExportReportType
+  report_type_label: string
+  report_type_order: number
   format: ExportFormat
+  format_label: string
+  format_order: number
   status: ExportStatus
+  status_label: string
+  status_order: number
+  status_severity: string
   filename: string | null
   file_size_bytes: number | null
   row_count: number | null
@@ -41,6 +48,9 @@ export interface ExportJobResponse {
 export interface ExportJobStatusResponse {
   id: string
   status: ExportStatus
+  status_label: string
+  status_order: number
+  status_severity: string
   progress_pct: number | null
   error_message: string | null
   download_url: string | null
@@ -58,7 +68,11 @@ export interface ReportTemplateResponse {
   name: string
   description: string | null
   report_type: ExportReportType
+  report_type_label: string
+  report_type_order: number
   format: ExportFormat
+  format_label: string
+  format_order: number
   filters: Record<string, unknown>
   is_default: boolean
   created_at: string
@@ -80,6 +94,31 @@ export interface ReportTemplateUpdate {
   filters?: Record<string, unknown>
   format?: ExportFormat
   is_default?: boolean
+}
+
+export interface ExportReportTypeOption {
+  code: ExportReportType
+  label: string
+  order: number
+}
+
+export interface ExportFormatOption {
+  code: ExportFormat
+  label: string
+  order: number
+}
+
+export interface ExportStatusOption {
+  code: ExportStatus
+  label: string
+  severity: string
+  order: number
+}
+
+export interface ExportMetaResponse {
+  report_types: ExportReportTypeOption[]
+  formats: ExportFormatOption[]
+  statuses: ExportStatusOption[]
 }
 
 function cleanParams<T extends object>(
@@ -110,6 +149,8 @@ function filenameFromDisposition(header?: string, fallback = 'bao_cao.xlsx') {
 const BASE = '/reports/export'
 
 export default {
+  getMeta: () =>
+    api.get<ExportMetaResponse>(`${BASE}/meta`),
   createJob: (payload: ExportJobRequest) =>
     api.post<ExportJobResponse>(BASE, payload),
 

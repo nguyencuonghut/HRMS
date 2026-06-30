@@ -5,9 +5,9 @@
         <label>Loại báo cáo</label>
         <Select
           v-model="draft.report_type"
-          :options="reportOptions"
+          :options="props.reportTypeOptions"
           option-label="label"
-          option-value="value"
+          option-value="code"
           @update:model-value="emitApplyType"
         />
       </div>
@@ -16,9 +16,9 @@
         <label>Định dạng</label>
         <Select
           v-model="draft.format"
-          :options="formatOptions"
+          :options="props.formatOptions"
           option-label="label"
-          option-value="value"
+          option-value="code"
         />
       </div>
 
@@ -202,7 +202,9 @@ import InputText from 'primevue/inputtext'
 import Select from 'primevue/select'
 
 import type {
+  ExportFormatOption,
   ExportFormat,
+  ExportReportTypeOption,
   ExportReportType,
 } from '@/services/exportService'
 import type { DepartmentOption, DepartmentRead } from '@/services/departmentService'
@@ -217,29 +219,13 @@ interface ExportDraft {
 const props = defineProps<{
   draft: ExportDraft
   departments: DepartmentRead[] | DepartmentOption[]
+  reportTypeOptions: ExportReportTypeOption[]
+  formatOptions: ExportFormatOption[]
 }>()
 
 const emit = defineEmits<{
   (e: 'report-type-change', value: ExportReportType): void
 }>()
-
-const reportOptions: { label: string; value: ExportReportType }[] = [
-  { label: 'Dashboard tổng quan', value: 'dashboard' },
-  { label: 'Nhân sự: Danh sách nhân viên', value: 'hr-employee-list' },
-  { label: 'Nhân sự: Biến động', value: 'hr-movement' },
-  { label: 'Nhân sự: Thâm niên', value: 'hr-tenure' },
-  { label: 'Nhân sự: Cơ cấu tổ chức', value: 'hr-org-structure' },
-  { label: 'Phân tích nghỉ phép', value: 'leaves' },
-  { label: 'Báo cáo bảo hiểm', value: 'insurance' },
-  { label: 'Báo cáo hợp đồng', value: 'contracts' },
-  { label: 'Báo cáo tuyển dụng', value: 'recruitment' },
-  { label: 'Báo cáo thử việc', value: 'probation' },
-]
-
-const formatOptions = [
-  { label: 'Excel (.xlsx)', value: 'xlsx' },
-  { label: 'PDF (.pdf)', value: 'pdf' },
-]
 
 const currentYear = new Date().getFullYear()
 const yearOptions = Array.from({ length: 6 }, (_, index) => currentYear - index).map((year) => ({
@@ -290,7 +276,7 @@ const contractStatusOptions = [
 ]
 
 const activeReportLabel = computed(
-  () => reportOptions.find((item) => item.value === props.draft.report_type)?.label ?? props.draft.report_type,
+  () => props.reportTypeOptions.find((item) => item.code === props.draft.report_type)?.label ?? props.draft.report_type,
 )
 
 const needsDateRange = computed(() =>

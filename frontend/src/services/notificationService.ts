@@ -3,6 +3,8 @@ import api from './api'
 export interface NotifTemplate {
   code: string
   event_type: string
+  event_type_label: string
+  event_type_order: number
   name: string
   subject: string
   body_html: string
@@ -15,6 +17,8 @@ export interface NotifTemplate {
 
 export interface NotifConfig {
   event_type: string
+  event_type_label: string
+  event_type_order: number
   is_enabled: boolean
   days_before: number[] | null
   extra_recipients: string[] | null
@@ -24,6 +28,8 @@ export interface EmailLogItem {
   id: number
   template_code: string | null
   event_type: string
+  event_type_label: string
+  event_type_order: number
   employee_id: number | null
   recipient_email: string
   recipient_name: string | null
@@ -41,9 +47,28 @@ export interface EmailLogListResponse {
   total_pages: number
 }
 
+export interface NotificationEventOption {
+  code: string
+  label: string
+  order: number
+}
+
+export interface NotificationStatusOption {
+  code: string
+  label: string
+  severity: string
+  order: number
+}
+
+export interface NotificationMetaResponse {
+  event_types: NotificationEventOption[]
+  statuses: NotificationStatusOption[]
+}
+
 const BASE = '/notifications'
 
 export default {
+  getMeta: () => api.get<NotificationMetaResponse>(`${BASE}/meta`),
   getTemplates: () => api.get<NotifTemplate[]>(`${BASE}/templates`),
   getTemplate: (code: string) => api.get<NotifTemplate>(`${BASE}/templates/${code}`),
   updateTemplate: (code: string, data: Partial<Pick<NotifTemplate, 'subject' | 'body_html' | 'is_active'>>) =>
