@@ -17,15 +17,15 @@
 
     <Tabs v-model:value="activeTab">
       <TabList>
-        <Tab value="rewards">Khen thưởng</Tab>
-        <Tab value="disciplines">Kỷ luật</Tab>
+        <Tab v-if="canViewRewards" value="rewards">Khen thưởng</Tab>
+        <Tab v-if="canViewDisciplines" value="disciplines">Kỷ luật</Tab>
       </TabList>
 
       <TabPanels>
-        <TabPanel value="rewards">
+        <TabPanel v-if="canViewRewards" value="rewards">
           <RewardListTab />
         </TabPanel>
-        <TabPanel value="disciplines">
+        <TabPanel v-if="canViewDisciplines" value="disciplines">
           <DisciplineListTab />
         </TabPanel>
       </TabPanels>
@@ -34,7 +34,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import Button from 'primevue/button'
 import Tab from 'primevue/tab'
@@ -49,5 +49,25 @@ import DisciplineListTab from './components/DisciplineListTab.vue'
 
 const router = useRouter()
 const permissionGate = usePermissionGate()
-const activeTab = ref('rewards')
+const canViewRewards = computed(() => permissionGate.canView('rewards'))
+const canViewDisciplines = computed(() => permissionGate.canView('disciplines'))
+const activeTab = ref(canViewRewards.value ? 'rewards' : 'disciplines')
+
+watch(
+  [canViewRewards, canViewDisciplines],
+  ([nextCanViewRewards, nextCanViewDisciplines]) => {
+    if (activeTab.value === 'rewards' && !nextCanViewRewards && nextCanViewDisciplines) {
+      activeTab.value = 'disciplines'
+      return
+    }
+    if (activeTab.value === 'disciplines' && !nextCanViewDisciplines && nextCanViewRewards) {
+      activeTab.value = 'rewards'
+      return
+    }
+    if (!nextCanViewRewards && !nextCanViewDisciplines) {
+      activeTab.value = 'rewards'
+    }
+  },
+  { immediate: true },
+)
 </script>

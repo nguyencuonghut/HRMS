@@ -706,7 +706,12 @@ async def lookup_certificates(keyword: Optional[str] = Query(None), certificate_
 
 
 @lookup_router.get("/lookups/leave-types", response_model=list[LeaveTypeRead])
-async def lookup_leave_types(keyword: Optional[str] = Query(None), limit: int = Query(20, ge=1, le=100), _: User = require_permission("catalog:view"), session: AsyncSession = Depends(get_session)):
+async def lookup_leave_types(
+    keyword: Optional[str] = Query(None),
+    limit: int = Query(20, ge=1, le=100),
+    _: User = require_permission("catalog:view", "leaves:view"),
+    session: AsyncSession = Depends(get_session),
+):
     return await other_business_catalog_service.lookup_leave_types(session, keyword=keyword, limit=limit)
 
 

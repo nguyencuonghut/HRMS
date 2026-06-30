@@ -14,6 +14,7 @@ LOOKUP = "/api/v1/lookups/leave-types"
 _ADMIN_EMAIL    = "admin@hrms.local"
 _ADMIN_PASSWORD = "Hrms@2026"
 _OFFICER_EMAIL  = "hrofficer@hrms.local"
+_LINE_MANAGER_EMAIL = "linemanager@hrms.local"
 _PREFIX         = "TEST_LT_"
 
 
@@ -248,6 +249,14 @@ def test_lookup_leave_types_returns_new_fields(client: TestClient):
     for field in ("count_public_holidays", "max_days_per_year", "max_consecutive_days",
                   "min_advance_days", "carryover_allowed", "carryover_cutoff_month"):
         assert field in first, f"Missing field: {field}"
+
+
+def test_line_manager_can_lookup_leave_types_for_leave_screens(client: TestClient):
+    """Line manager có leaves:view phải dùng được lookup leave types cho các màn Nghỉ phép."""
+    headers = _login(client, _LINE_MANAGER_EMAIL)
+    resp = client.get(LOOKUP, headers=headers)
+    assert resp.status_code == 200, resp.text
+    assert len(resp.json()) >= 1
 
 
 # ── RBAC ──────────────────────────────────────────────────────────────────────
