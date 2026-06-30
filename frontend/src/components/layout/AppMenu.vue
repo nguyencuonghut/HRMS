@@ -91,6 +91,7 @@ const openGroups = ref<Set<string>>(
 );
 const reminderBadge = ref(0);
 const canLoadReminderBadge = computed(() => permissionGate.canAccessRoute("/reminders"));
+const scopedOrgHiddenRoutes = new Set<string>(["/org/job-titles", "/org/history"]);
 
 onMounted(async () => {
   if (!canLoadReminderBadge.value) {
@@ -114,6 +115,9 @@ function toggleGroup(label: string) {
 }
 
 function canAccessChild(item: MenuChildItem): boolean {
+  if (permissionGate.isDepartmentScoped("org") && scopedOrgHiddenRoutes.has(item.to)) {
+    return false;
+  }
   if (!permissionGate.canAccess(item)) {
     return false;
   }

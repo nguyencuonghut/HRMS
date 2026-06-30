@@ -6,7 +6,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.v1.deps import require_permission
+from app.api.v1.deps import require_department_scope, require_permission
 from app.core.database import get_session
 from app.models.auth import User
 from app.schemas.dashboard import (
@@ -26,6 +26,7 @@ async def get_dashboard_summary(
     month: Optional[int] = Query(None, ge=1, le=12),
     department_id: Optional[int] = Query(None),
     _: User = require_permission("employees:view"),
+    allowed_department_ids: set[int] | None = require_department_scope("employees:view"),
     session: AsyncSession = Depends(get_session),
 ):
     return await dashboard_service.get_summary(
@@ -33,6 +34,7 @@ async def get_dashboard_summary(
         year=year,
         month=month,
         department_id=department_id,
+        allowed_department_ids=allowed_department_ids,
     )
 
 
@@ -40,9 +42,14 @@ async def get_dashboard_summary(
 async def get_dashboard_headcount_by_dept(
     department_id: Optional[int] = Query(None),
     _: User = require_permission("employees:view"),
+    allowed_department_ids: set[int] | None = require_department_scope("employees:view"),
     session: AsyncSession = Depends(get_session),
 ):
-    return await dashboard_service.get_headcount_by_dept(session, department_id=department_id)
+    return await dashboard_service.get_headcount_by_dept(
+        session,
+        department_id=department_id,
+        allowed_department_ids=allowed_department_ids,
+    )
 
 
 @router.get("/monthly-trend", response_model=MonthlyTrendReport, summary="Biến động nhân sự 12 tháng")
@@ -50,12 +57,14 @@ async def get_dashboard_monthly_trend(
     year: Optional[int] = Query(None, ge=2000, le=2100),
     department_id: Optional[int] = Query(None),
     _: User = require_permission("employees:view"),
+    allowed_department_ids: set[int] | None = require_department_scope("employees:view"),
     session: AsyncSession = Depends(get_session),
 ):
     return await dashboard_service.get_monthly_trend(
         session,
         year=year,
         department_id=department_id,
+        allowed_department_ids=allowed_department_ids,
     )
 
 
@@ -63,6 +72,11 @@ async def get_dashboard_monthly_trend(
 async def get_dashboard_structure(
     department_id: Optional[int] = Query(None),
     _: User = require_permission("employees:view"),
+    allowed_department_ids: set[int] | None = require_department_scope("employees:view"),
     session: AsyncSession = Depends(get_session),
 ):
-    return await dashboard_service.get_structure(session, department_id=department_id)
+    return await dashboard_service.get_structure(
+        session,
+        department_id=department_id,
+        allowed_department_ids=allowed_department_ids,
+    )

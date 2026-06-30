@@ -23,6 +23,7 @@ interface User {
   is_superuser: boolean
   roles: string[]
   permissions: string[]
+  department_scopes: Partial<Record<string, number[]>>
 }
 
 export const useAuthStore = defineStore('auth', () => {

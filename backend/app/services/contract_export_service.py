@@ -27,6 +27,7 @@ async def export_contracts_xlsx(
     department_id: Optional[int] = None,
     status: str = "active",
     days_ahead: Optional[int] = None,
+    allowed_department_ids: Optional[set[int]] = None,
 ) -> io.BytesIO:
     """Xuất danh sách hợp đồng gốc ra file Excel có định dạng màu sắc cảnh báo."""
     today = date.today()
@@ -61,6 +62,12 @@ async def export_contracts_xlsx(
         )
     )
 
+    if allowed_department_ids is not None:
+        if not allowed_department_ids:
+            rows = []
+        else:
+            stmt = stmt.where(EmployeeJobRecord.department_id.in_(sorted(allowed_department_ids)))
+
     if department_id is not None:
         stmt = stmt.where(EmployeeJobRecord.department_id == department_id)
 
@@ -87,7 +94,10 @@ async def export_contracts_xlsx(
     else:
         stmt = stmt.order_by(EmployeeContract.effective_from.desc(), EmployeeContract.id.asc())
 
-    rows = (await session.execute(stmt)).all()
+    if allowed_department_ids is not None and not allowed_department_ids:
+        rows = []
+    else:
+        rows = (await session.execute(stmt)).all()
 
     # Build display codes
     employees_list = [r.Employee for r in rows]

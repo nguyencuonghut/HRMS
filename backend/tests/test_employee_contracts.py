@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from app.core.config import settings
 from app.models.employee import Employee
 from app.models.salary import BhxhPositionGroup, BhxhPositionGroupMember, BhxhSenioritySetting
-from app.models.org import Department, JobPosition, JobTitle
+from app.models.org import Department, DepartmentJobPosition, JobPosition, JobTitle
 
 BASE_EMP = "/api/v1/employees"
 BASE_CON = "/api/v1/contracts"
@@ -165,7 +165,25 @@ async def _get_bhxh_group_member_context(code: str) -> tuple[BhxhPositionGroup, 
         )
         item = row.first()
         if item is not None:
-            return item
+            group, position = item
+            mapping_row = await s.execute(
+                select(DepartmentJobPosition).where(
+                    DepartmentJobPosition.department_id == position.department_id,
+                    DepartmentJobPosition.job_position_id == position.id,
+                    DepartmentJobPosition.is_active.is_(True),
+                )
+            )
+            if mapping_row.scalar_one_or_none() is None:
+                s.add(
+                    DepartmentJobPosition(
+                        department_id=position.department_id,
+                        job_position_id=position.id,
+                        is_active=True,
+                    )
+                )
+                await s.commit()
+                await s.refresh(position)
+            return group, position
 
         group_row = await s.execute(select(BhxhPositionGroup).where(BhxhPositionGroup.code == code))
         group = group_row.scalar_one()
@@ -191,6 +209,13 @@ async def _get_bhxh_group_member_context(code: str) -> tuple[BhxhPositionGroup, 
                 bhxh_position_group_id=group.id,
                 job_position_id=temp_position.id,
                 note=f"{_PREFIX}-{code}",
+            )
+        )
+        s.add(
+            DepartmentJobPosition(
+                department_id=dept.id,
+                job_position_id=temp_position.id,
+                is_active=True,
             )
         )
         await s.commit()

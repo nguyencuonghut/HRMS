@@ -34,6 +34,7 @@ async def get_summary(
     session: AsyncSession,
     *,
     department_id: Optional[int] = None,
+    allowed_department_ids: Optional[set[int]] = None,
 ) -> ContractSummaryOut:
     """Lấy dữ liệu KPI tổng quan về hợp đồng lao động gốc của nhân viên active."""
     today = date.today()
@@ -113,6 +114,25 @@ async def get_summary(
         Employee.is_active == True,
     )
 
+    if allowed_department_ids is not None:
+        if not allowed_department_ids:
+            return ContractSummaryOut(
+                total_active=0,
+                expiring_0_30=0,
+                expiring_31_60=0,
+                expiring_61_90=0,
+                already_expired=0,
+                renewal_rate=0.0,
+                as_of_date=today,
+            )
+        stmt = stmt.join(
+            EmployeeJobRecord,
+            and_(
+                EmployeeJobRecord.employee_id == Employee.id,
+                EmployeeJobRecord.is_current == True,
+            ),
+        ).where(EmployeeJobRecord.department_id.in_(sorted(allowed_department_ids)))
+
     if department_id is not None:
         stmt = stmt.join(
             EmployeeJobRecord,
@@ -165,6 +185,22 @@ async def get_summary(
         )
     )
 
+    if allowed_department_ids is not None:
+        renewed_stmt = renewed_stmt.join(
+            EmployeeJobRecord,
+            and_(
+                EmployeeJobRecord.employee_id == Employee.id,
+                EmployeeJobRecord.is_current == True,
+            ),
+        ).where(EmployeeJobRecord.department_id.in_(sorted(allowed_department_ids)))
+        expired_stmt = expired_stmt.join(
+            EmployeeJobRecord,
+            and_(
+                EmployeeJobRecord.employee_id == Employee.id,
+                EmployeeJobRecord.is_current == True,
+            ),
+        ).where(EmployeeJobRecord.department_id.in_(sorted(allowed_department_ids)))
+
     if department_id is not None:
         renewed_stmt = renewed_stmt.join(
             EmployeeJobRecord,
@@ -206,6 +242,7 @@ async def get_expiring(
     days_ahead: int = 90,
     department_id: Optional[int] = None,
     keyword: Optional[str] = None,
+    allowed_department_ids: Optional[set[int]] = None,
     page: int = 1,
     page_size: int = 50,
 ) -> ContractExpiringPage:
@@ -247,6 +284,11 @@ async def get_expiring(
             EmployeeContract.effective_to <= limit_date,
         )
     )
+
+    if allowed_department_ids is not None:
+        if not allowed_department_ids:
+            return ContractExpiringPage(items=[], total=0, page=page, page_size=page_size, days_ahead=days_ahead)
+        stmt = stmt.where(EmployeeJobRecord.department_id.in_(sorted(allowed_department_ids)))
 
     if department_id is not None:
         stmt = stmt.where(EmployeeJobRecord.department_id == department_id)
@@ -331,6 +373,7 @@ async def get_by_type(
     *,
     department_id: Optional[int] = None,
     year: Optional[int] = None,
+    allowed_department_ids: Optional[set[int]] = None,
 ) -> ContractByTypeOut:
     """Thống kê cơ cấu loại hợp đồng lao động gốc."""
     today = date.today()
@@ -350,6 +393,17 @@ async def get_by_type(
             Employee.is_active == True,
         )
     )
+
+    if allowed_department_ids is not None:
+        if not allowed_department_ids:
+            return ContractByTypeOut(items=[], total_contracts=0, department_id=department_id, year=year)
+        total_stmt = total_stmt.join(
+            EmployeeJobRecord,
+            and_(
+                EmployeeJobRecord.employee_id == Employee.id,
+                EmployeeJobRecord.is_current == True,
+            ),
+        ).where(EmployeeJobRecord.department_id.in_(sorted(allowed_department_ids)))
 
     if department_id is not None:
         total_stmt = total_stmt.join(
@@ -386,6 +440,15 @@ async def get_by_type(
             Employee.is_active == True,
         )
     )
+
+    if allowed_department_ids is not None:
+        stmt = stmt.join(
+            EmployeeJobRecord,
+            and_(
+                EmployeeJobRecord.employee_id == Employee.id,
+                EmployeeJobRecord.is_current == True,
+            ),
+        ).where(EmployeeJobRecord.department_id.in_(sorted(allowed_department_ids)))
 
     if department_id is not None:
         stmt = stmt.join(
@@ -440,6 +503,7 @@ async def get_expiry_forecast(
     session: AsyncSession,
     *,
     months_ahead: int = 12,
+    allowed_department_ids: Optional[set[int]] = None,
 ) -> ContractForecastOut:
     """Dự báo số lượng hợp đồng gốc hết hạn trong các tháng tiếp theo."""
     today = date.today()
@@ -469,6 +533,24 @@ async def get_expiry_forecast(
         .group_by(sa.text("month_trunc"))
         .order_by(sa.text("month_trunc"))
     )
+
+    if allowed_department_ids is not None:
+        if not allowed_department_ids:
+            months_list = [
+                ForecastMonthItem(
+                    year_month=(start_date + relativedelta(months=i)).strftime("%Y-%m"),
+                    expiring_count=0,
+                )
+                for i in range(months_ahead)
+            ]
+            return ContractForecastOut(months=months_list, months_ahead=months_ahead, total_expiring=0)
+        stmt = stmt.join(
+            EmployeeJobRecord,
+            and_(
+                EmployeeJobRecord.employee_id == Employee.id,
+                EmployeeJobRecord.is_current == True,
+            ),
+        ).where(EmployeeJobRecord.department_id.in_(sorted(allowed_department_ids)))
 
     rows = (await session.execute(stmt)).all()
 

@@ -11,7 +11,7 @@ from jose import JWTError
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.v1.deps import require_permission
+from app.api.v1.deps import require_employee_access
 from app.core.database import get_session
 from app.core.security import create_signed_token, decode_token
 from app.core.storage import delete_attachment, get_object_stream, save_contract_file
@@ -78,7 +78,7 @@ def _validate_preview_token(token: str, *, employee_id: int, contract_id: int) -
 @router.get("/{employee_id}/contracts", response_model=list[ContractRead], tags=[_TAG])
 async def list_contracts(
     employee_id: int,
-    _: User = require_permission("contracts:view"),
+    _: User = require_employee_access("contracts:view"),
     session: AsyncSession = Depends(get_session),
 ):
     return await employee_contract_service.get_contracts(session, employee_id)
@@ -88,7 +88,7 @@ async def list_contracts(
 async def create_contract(
     employee_id: int,
     payload: ContractCreate,
-    current_user: User = require_permission("contracts:create"),
+    current_user: User = require_employee_access("contracts:create"),
     session: AsyncSession = Depends(get_session),
 ):
     result = await employee_contract_service.create_contract(session, employee_id, payload, current_user.id)
@@ -109,7 +109,7 @@ async def create_contract(
 async def preview_contract_insurance_salary(
     employee_id: int,
     payload: ContractInsuranceSalaryPreviewInput,
-    _: User = require_permission("contracts:view"),
+    _: User = require_employee_access("contracts:view"),
     session: AsyncSession = Depends(get_session),
 ):
     from app.models.employee import Employee
@@ -124,7 +124,7 @@ async def preview_contract_insurance_salary(
 async def get_contract(
     employee_id: int,
     contract_id: int,
-    _: User = require_permission("contracts:view"),
+    _: User = require_employee_access("contracts:view"),
     session: AsyncSession = Depends(get_session),
 ):
     return await employee_contract_service.get_contract_detail(session, employee_id, contract_id)
@@ -135,7 +135,7 @@ async def update_contract(
     employee_id: int,
     contract_id: int,
     payload: ContractUpdate,
-    current_user: User = require_permission("contracts:edit"),
+    current_user: User = require_employee_access("contracts:edit"),
     session: AsyncSession = Depends(get_session),
 ):
     result = await employee_contract_service.update_contract(session, employee_id, contract_id, payload)
@@ -154,7 +154,7 @@ async def update_contract(
 async def terminate_contract(
     employee_id: int,
     contract_id: int,
-    current_user: User = require_permission("contracts:edit"),
+    current_user: User = require_employee_access("contracts:edit"),
     session: AsyncSession = Depends(get_session),
 ):
     result = await employee_contract_service.terminate_contract(session, employee_id, contract_id)
@@ -171,7 +171,7 @@ async def upload_contract_file(
     employee_id: int,
     contract_id: int,
     file: UploadFile = File(...),
-    current_user: User = require_permission("contracts:edit"),
+    current_user: User = require_employee_access("contracts:edit"),
     session: AsyncSession = Depends(get_session),
 ):
     ext = Path(file.filename or "").suffix.lower()
@@ -212,7 +212,7 @@ async def upload_contract_file(
 async def download_contract_file(
     employee_id: int,
     contract_id: int,
-    _: User = require_permission("contracts:view"),
+    _: User = require_employee_access("contracts:view"),
     session: AsyncSession = Depends(get_session),
 ):
     from app.models.employee_contract import EmployeeContract
@@ -238,7 +238,7 @@ async def download_contract_file(
 async def get_contract_preview_url(
     employee_id: int,
     contract_id: int,
-    _: User = require_permission("contracts:view"),
+    _: User = require_employee_access("contracts:view"),
     session: AsyncSession = Depends(get_session),
 ):
     from app.services.employee_contract_service import _get_contract_or_404
@@ -284,7 +284,7 @@ async def generate_contract(
     employee_id: int,
     contract_id: int,
     payload: GenerateContractBody,
-    current_user: User = require_permission("contracts:edit"),
+    current_user: User = require_employee_access("contracts:edit"),
     session: AsyncSession = Depends(get_session),
 ):
     from app.services.contract_generate_service import generate_contract_document
@@ -309,7 +309,7 @@ async def generate_contract(
 async def delete_contract_file(
     employee_id: int,
     contract_id: int,
-    current_user: User = require_permission("contracts:edit"),
+    current_user: User = require_employee_access("contracts:edit"),
     session: AsyncSession = Depends(get_session),
 ):
     c, old_path = await employee_contract_service.remove_contract_file(session, employee_id, contract_id)

@@ -21,6 +21,13 @@ BASE_LEAVE_ENT = "/api/v1/leave-entitlements"
 BASE_LEAVE_REC = "/api/v1/leave-records"
 BASE_KPI = "/api/v1/performance/kpi"
 BASE_REVIEWS = "/api/v1/performance/yearly-reviews"
+BASE_DASHBOARD = "/api/v1/reports/dashboard"
+BASE_HR_REPORTS = "/api/v1/reports/hr"
+BASE_JOB_TITLES = "/api/v1/job-titles"
+BASE_JOB_POSITIONS = "/api/v1/job-positions"
+BASE_ORG_HISTORY = "/api/v1/org-history"
+BASE_CONTRACTS = "/api/v1/contracts"
+BASE_CONTRACT_REPORTS = "/api/v1/reports/contracts"
 
 _ADMIN_EMAIL = "admin@hrms.local"
 _ADMIN_PASSWORD = "Hrms@2026"
@@ -56,6 +63,10 @@ async def cleanup():
             .all()
         )
         if employee_ids:
+            await s.execute(
+                text("DELETE FROM employee_contracts WHERE employee_id = ANY(:employee_ids)"),
+                {"employee_ids": employee_ids},
+            )
             await s.execute(
                 text("DELETE FROM leave_records WHERE employee_id = ANY(:employee_ids)"),
                 {"employee_ids": employee_ids},
@@ -102,6 +113,36 @@ async def cleanup():
             .scalars()
             .all()
         )
+        if dept_ids:
+            await s.execute(
+                text("DELETE FROM department_job_positions WHERE department_id = ANY(:dept_ids)"),
+                {"dept_ids": dept_ids},
+            )
+
+        position_ids = list(
+            (
+                await s.execute(
+                    text("SELECT id FROM job_positions WHERE code LIKE :prefix"),
+                    {"prefix": f"{_PREFIX}%"},
+                )
+            )
+            .scalars()
+            .all()
+        )
+        if position_ids:
+            await s.execute(
+                text("DELETE FROM department_job_positions WHERE job_position_id = ANY(:position_ids)"),
+                {"position_ids": position_ids},
+            )
+            await s.execute(
+                text("DELETE FROM job_position_attachments WHERE job_position_id = ANY(:position_ids)"),
+                {"position_ids": position_ids},
+            )
+            await s.execute(
+                text("DELETE FROM job_positions WHERE id = ANY(:position_ids)"),
+                {"position_ids": position_ids},
+            )
+
         if dept_ids:
             await s.execute(
                 text("DELETE FROM employee_job_records WHERE department_id = ANY(:dept_ids)"),
@@ -161,13 +202,33 @@ def _create_scoped_line_manager(
     *,
     department_ids: list[int],
 ) -> dict[str, str]:
-    email = f"{_PREFIX.lower()}lm@example.com"
+    return _create_scoped_role_user(
+        client,
+        admin_headers,
+        role_code="line_manager",
+        department_ids=department_ids,
+        email=f"{_PREFIX.lower()}lm@example.com",
+        full_name=f"{_PREFIX} Line Manager",
+        password="LineMgr@1234",
+    )
+
+
+def _create_scoped_role_user(
+    client: TestClient,
+    admin_headers: dict[str, str],
+    *,
+    role_code: str,
+    department_ids: list[int],
+    email: str,
+    full_name: str,
+    password: str,
+) -> dict[str, str]:
     user_resp = client.post(
         BASE_USERS,
         json={
             "email": email,
-            "full_name": f"{_PREFIX} Line Manager",
-            "password": "LineMgr@1234",
+            "full_name": full_name,
+            "password": password,
         },
         headers=admin_headers,
     )
@@ -176,19 +237,57 @@ def _create_scoped_line_manager(
 
     roles_resp = client.get(BASE_ROLES, headers=admin_headers)
     assert roles_resp.status_code == 200, roles_resp.text
-    line_manager_role = next(role for role in roles_resp.json() if role["code"] == "line_manager")
+    target_role = next(role for role in roles_resp.json() if role["code"] == role_code)
 
     assign_resp = client.post(
         f"{BASE_USERS}/{user['id']}/roles",
         json={
-            "role_id": line_manager_role["id"],
+            "role_id": target_role["id"],
             "scope_type": "department",
             "department_ids": department_ids,
         },
         headers=admin_headers,
     )
     assert assign_resp.status_code == 201, assign_resp.text
-    return _login(client, email, "LineMgr@1234")
+    return _login(client, email, password)
+
+
+def _get_first_contract_category_id() -> int:
+    import asyncio
+
+    async def _fetch() -> int:
+        async with _make_session()() as s:
+            result = await s.execute(text("SELECT id FROM contract_categories ORDER BY id ASC LIMIT 1"))
+            category_id = result.scalar_one_or_none()
+            assert category_id is not None, "Không tìm thấy contract category"
+            return int(category_id)
+
+    return asyncio.run(_fetch())
+
+
+def _create_contract(
+    client: TestClient,
+    headers: dict[str, str],
+    *,
+    employee_id: int,
+    contract_number: str,
+    effective_to: str | None = None,
+) -> dict:
+    resp = client.post(
+        f"{BASE_EMP}/{employee_id}/contracts",
+        json={
+            "contract_category_id": _get_first_contract_category_id(),
+            "contract_number": contract_number,
+            "signed_date": "2026-01-01",
+            "effective_from": "2026-01-01",
+            "effective_to": effective_to,
+            "insurance_salary_mode": "fixed_manual",
+            "insurance_salary_fixed_amount": "5000000",
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 201, resp.text
+    return resp.json()
 
 
 def _create_leave_entitlement(
@@ -227,6 +326,29 @@ def _create_leave_record(
             "leave_type_id": 1,
             "start_date": str(date(year, 6, 1)),
             "end_date": str(date(year, 6, 1)),
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 201, resp.text
+    return resp.json()
+
+
+def _create_job_position(
+    client: TestClient,
+    headers: dict[str, str],
+    *,
+    code: str,
+    name: str,
+    department_id: int,
+    assigned_department_ids: list[int] | None = None,
+) -> dict:
+    resp = client.post(
+        BASE_JOB_POSITIONS,
+        json={
+            "code": code,
+            "name": name,
+            "department_id": department_id,
+            "assigned_department_ids": assigned_department_ids or [department_id],
         },
         headers=headers,
     )
@@ -335,6 +457,14 @@ def test_scoped_line_manager_only_sees_assigned_departments_and_employees(client
     assert client.get(f"{BASE_EMP}/{visible_emp['id']}", headers=manager_headers).status_code == 200
     assert client.get(f"{BASE_EMP}/{hidden_emp['id']}", headers=manager_headers).status_code == 403
     assert client.get(f"{BASE_DEPT}/{outside['id']}", headers=manager_headers).status_code == 403
+
+    me_resp = client.get("/api/v1/auth/me", headers=manager_headers)
+    assert me_resp.status_code == 200, me_resp.text
+    me_payload = me_resp.json()
+    assert me_payload["department_scopes"]["org"] == sorted([root["id"], child["id"]])
+    assert me_payload["department_scopes"]["employees"] == sorted([root["id"], child["id"]])
+    assert me_payload["department_scopes"]["leaves"] == sorted([root["id"], child["id"]])
+    assert me_payload["department_scopes"]["performance"] == sorted([root["id"], child["id"]])
 
 
 def test_scoped_line_manager_nested_employee_view_is_blocked_outside_scope(client: TestClient):
@@ -549,3 +679,230 @@ def test_scoped_line_manager_can_create_kpi_and_review_within_scope(client: Test
         headers=manager_headers,
     )
     assert hidden_review.status_code == 403, hidden_review.text
+
+
+def test_scoped_line_manager_dashboard_and_hr_reports_are_limited_to_assigned_departments(client: TestClient):
+    admin_headers = _login(client)
+    root = _create_department(client, admin_headers, code=f"{_PREFIX}_DR", name=f"{_PREFIX} Dash Root")
+    child = _create_department(
+        client,
+        admin_headers,
+        code=f"{_PREFIX}_DC",
+        name=f"{_PREFIX} Dash Child",
+        parent_id=root["id"],
+    )
+    outside = _create_department(client, admin_headers, code=f"{_PREFIX}_DO", name=f"{_PREFIX} Dash Outside")
+
+    visible_emp = _create_employee(
+        client,
+        admin_headers,
+        suffix="010",
+        full_name=f"{_PREFIX} Dash Visible",
+        department_id=child["id"],
+    )
+    _create_employee(
+        client,
+        admin_headers,
+        suffix="011",
+        full_name=f"{_PREFIX} Dash Hidden",
+        department_id=outside["id"],
+    )
+
+    manager_headers = _create_scoped_line_manager(client, admin_headers, department_ids=[root["id"]])
+
+    dashboard_summary = client.get(f"{BASE_DASHBOARD}/summary", headers=manager_headers)
+    assert dashboard_summary.status_code == 200, dashboard_summary.text
+    assert dashboard_summary.json()["total_headcount"] == 1
+
+    headcount_by_dept = client.get(f"{BASE_DASHBOARD}/headcount-by-dept", headers=manager_headers)
+    assert headcount_by_dept.status_code == 200, headcount_by_dept.text
+    root_items = headcount_by_dept.json()
+    assert len(root_items) == 1
+    assert root_items[0]["department_id"] == root["id"]
+    assert root_items[0]["headcount"] == 1
+
+    headcount_by_root = client.get(
+        f"{BASE_DASHBOARD}/headcount-by-dept",
+        params={"department_id": root["id"]},
+        headers=manager_headers,
+    )
+    assert headcount_by_root.status_code == 200, headcount_by_root.text
+    listed_department_ids = {item["department_id"] for item in headcount_by_root.json()}
+    assert listed_department_ids == {child["id"]}
+
+    forbidden_department_filter = client.get(
+        f"{BASE_DASHBOARD}/summary",
+        params={"department_id": outside["id"]},
+        headers=manager_headers,
+    )
+    assert forbidden_department_filter.status_code == 403, forbidden_department_filter.text
+
+    employee_list = client.get(
+        f"{BASE_HR_REPORTS}/employee-list",
+        params={"department_id": root["id"]},
+        headers=manager_headers,
+    )
+    assert employee_list.status_code == 200, employee_list.text
+    employee_items = employee_list.json()["items"]
+    assert len(employee_items) == 1
+    assert employee_items[0]["id"] == visible_emp["id"]
+
+    hr_forbidden_department_filter = client.get(
+        f"{BASE_HR_REPORTS}/employee-list",
+        params={"department_id": outside["id"]},
+        headers=manager_headers,
+    )
+    assert hr_forbidden_department_filter.status_code == 403, hr_forbidden_department_filter.text
+
+
+def test_scoped_line_manager_org_module_is_limited_to_department_related_views(client: TestClient):
+    admin_headers = _login(client)
+    root = _create_department(client, admin_headers, code=f"{_PREFIX}_OR", name=f"{_PREFIX} Org Root")
+    child = _create_department(
+        client,
+        admin_headers,
+        code=f"{_PREFIX}_OC",
+        name=f"{_PREFIX} Org Child",
+        parent_id=root["id"],
+    )
+    outside = _create_department(client, admin_headers, code=f"{_PREFIX}_OX", name=f"{_PREFIX} Org Outside")
+
+    visible_position = _create_job_position(
+        client,
+        admin_headers,
+        code=f"{_PREFIX}_P1",
+        name=f"{_PREFIX} Position Visible",
+        department_id=root["id"],
+        assigned_department_ids=[root["id"], child["id"]],
+    )
+    hidden_position = _create_job_position(
+        client,
+        admin_headers,
+        code=f"{_PREFIX}_P2",
+        name=f"{_PREFIX} Position Hidden",
+        department_id=outside["id"],
+        assigned_department_ids=[outside["id"]],
+    )
+
+    manager_headers = _create_scoped_line_manager(client, admin_headers, department_ids=[root["id"]])
+
+    job_titles = client.get(BASE_JOB_TITLES, headers=manager_headers)
+    assert job_titles.status_code == 403, job_titles.text
+
+    org_history = client.get(BASE_ORG_HISTORY, headers=manager_headers)
+    assert org_history.status_code == 403, org_history.text
+
+    positions = client.get(BASE_JOB_POSITIONS, headers=manager_headers)
+    assert positions.status_code == 200, positions.text
+    position_ids = {item["id"] for item in positions.json()}
+    assert visible_position["id"] in position_ids
+    assert hidden_position["id"] not in position_ids
+
+    visible_position_detail = client.get(f"{BASE_JOB_POSITIONS}/{visible_position['id']}", headers=manager_headers)
+    assert visible_position_detail.status_code == 200, visible_position_detail.text
+
+    hidden_position_detail = client.get(f"{BASE_JOB_POSITIONS}/{hidden_position['id']}", headers=manager_headers)
+    assert hidden_position_detail.status_code == 403, hidden_position_detail.text
+
+
+def test_scoped_contract_user_only_sees_contracts_within_assigned_departments(client: TestClient):
+    admin_headers = _login(client)
+    root = _create_department(client, admin_headers, code=f"{_PREFIX}_CR", name=f"{_PREFIX} Contract Root")
+    child = _create_department(
+        client,
+        admin_headers,
+        code=f"{_PREFIX}_CC",
+        name=f"{_PREFIX} Contract Child",
+        parent_id=root["id"],
+    )
+    outside = _create_department(client, admin_headers, code=f"{_PREFIX}_CO", name=f"{_PREFIX} Contract Outside")
+
+    visible_emp = _create_employee(
+        client,
+        admin_headers,
+        suffix="012",
+        full_name=f"{_PREFIX} Contract Visible",
+        department_id=child["id"],
+    )
+    hidden_emp = _create_employee(
+        client,
+        admin_headers,
+        suffix="013",
+        full_name=f"{_PREFIX} Contract Hidden",
+        department_id=outside["id"],
+    )
+
+    visible_contract = _create_contract(
+        client,
+        admin_headers,
+        employee_id=visible_emp["id"],
+        contract_number=f"{_PREFIX}-CON-VISIBLE",
+        effective_to="2026-07-15",
+    )
+    _create_contract(
+        client,
+        admin_headers,
+        employee_id=hidden_emp["id"],
+        contract_number=f"{_PREFIX}-CON-HIDDEN",
+        effective_to="2026-07-20",
+    )
+
+    scoped_headers = _create_scoped_role_user(
+        client,
+        admin_headers,
+        role_code="hr_officer",
+        department_ids=[root["id"]],
+        email=f"{_PREFIX.lower()}contract@example.com",
+        full_name=f"{_PREFIX} Contract Scoped",
+        password="Contract@1234",
+    )
+
+    me_resp = client.get("/api/v1/auth/me", headers=scoped_headers)
+    assert me_resp.status_code == 200, me_resp.text
+    assert me_resp.json()["department_scopes"]["contracts"] == sorted([root["id"], child["id"]])
+
+    global_list = client.get(BASE_CONTRACTS, headers=scoped_headers)
+    assert global_list.status_code == 200, global_list.text
+    contract_numbers = {item["contract_number"] for item in global_list.json()["items"]}
+    assert f"{_PREFIX}-CON-VISIBLE" in contract_numbers
+    assert f"{_PREFIX}-CON-HIDDEN" not in contract_numbers
+
+    visible_list = client.get(
+        f"{BASE_EMP}/{visible_emp['id']}/contracts",
+        headers=scoped_headers,
+    )
+    assert visible_list.status_code == 200, visible_list.text
+
+    hidden_list = client.get(
+        f"{BASE_EMP}/{hidden_emp['id']}/contracts",
+        headers=scoped_headers,
+    )
+    assert hidden_list.status_code == 403, hidden_list.text
+
+    expiring_resp = client.get(
+        f"{BASE_CONTRACT_REPORTS}/expiring",
+        params={"days_ahead": 90},
+        headers=scoped_headers,
+    )
+    assert expiring_resp.status_code == 200, expiring_resp.text
+    expiring_numbers = {item["contract_number"] for item in expiring_resp.json()["items"]}
+    assert f"{_PREFIX}-CON-VISIBLE" in expiring_numbers
+    assert f"{_PREFIX}-CON-HIDDEN" not in expiring_numbers
+
+    history_visible = client.get(
+        f"{BASE_CONTRACT_REPORTS}/history",
+        params={"employee_id": visible_emp["id"]},
+        headers=scoped_headers,
+    )
+    assert history_visible.status_code == 200, history_visible.text
+    assert any(
+        item["contract_number"] == visible_contract["contract_number"]
+        for item in history_visible.json()["items"]
+    )
+
+    history_hidden = client.get(
+        f"{BASE_CONTRACT_REPORTS}/history",
+        params={"employee_id": hidden_emp["id"]},
+        headers=scoped_headers,
+    )
+    assert history_hidden.status_code == 403, history_hidden.text

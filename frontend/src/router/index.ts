@@ -534,6 +534,21 @@ router.beforeEach(async (to) => {
     return { name: "forbidden" };
   }
 
+  if (to.name === "org-department-detail") {
+    const departmentId = Number(to.params.id);
+    const scope = auth.user?.department_scopes?.org;
+    if (Array.isArray(scope) && Number.isFinite(departmentId) && !scope.includes(departmentId)) {
+      return { name: "forbidden" };
+    }
+  }
+
+  if (
+    Array.isArray(auth.user?.department_scopes?.org) &&
+    (to.name === "org-job-titles" || to.name === "org-history")
+  ) {
+    return { name: "forbidden" };
+  }
+
   // 4. Đã đăng nhập → không cho vào trang login
   if (to.name === "login" && auth.isAuthenticated) {
     return getDefaultAuthorizedRoute(auth);

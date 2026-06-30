@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Query, UploadFile, File, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.v1.deps import require_permission
+from app.api.v1.deps import require_department_scope, require_permission
 from app.core.database import get_session
 from app.core.storage import delete_attachment, get_object_stream, save_attachment
 from app.models.auth import User
@@ -30,6 +30,7 @@ async def list_job_positions(
     is_active:     Optional[bool] = Query(None, description="Lọc theo trạng thái"),
     search:        Optional[str]  = Query(None, description="Tìm theo mã hoặc tên"),
     _: User = require_permission("org:view", "insurance:view"),
+    allowed_department_ids: set[int] | None = require_department_scope("org:view"),
     session: AsyncSession = Depends(get_session),
 ):
     return await job_position_service.get_list(
@@ -37,6 +38,7 @@ async def list_job_positions(
         department_id=department_id,
         is_active=is_active,
         search=search,
+        allowed_department_ids=sorted(allowed_department_ids) if allowed_department_ids is not None else None,
     )
 
 
@@ -62,9 +64,14 @@ async def list_probation_legal_group_options(
 async def get_job_position(
     pos_id: int,
     _: User = require_permission("org:view"),
+    allowed_department_ids: set[int] | None = require_department_scope("org:view"),
     session: AsyncSession = Depends(get_session),
 ):
-    return await job_position_service.get_read_by_id(session, pos_id)
+    return await job_position_service.get_read_by_id(
+        session,
+        pos_id,
+        allowed_department_ids=sorted(allowed_department_ids) if allowed_department_ids is not None else None,
+    )
 
 
 @router.post("", response_model=JobPositionRead, status_code=status.HTTP_201_CREATED, summary="Tạo vị trí mới")
@@ -105,8 +112,14 @@ async def delete_job_position(
 async def get_job_position_employee_code_rule(
     pos_id: int,
     _: User = require_permission("org:view"),
+    allowed_department_ids: set[int] | None = require_department_scope("org:view"),
     session: AsyncSession = Depends(get_session),
 ):
+    await job_position_service.get_read_by_id(
+        session,
+        pos_id,
+        allowed_department_ids=sorted(allowed_department_ids) if allowed_department_ids is not None else None,
+    )
     return await employee_code_rule_service.get_job_position_rule(session, pos_id)
 
 
@@ -158,9 +171,14 @@ def _att_to_read(att: JobPositionAttachment, pos_id: int) -> AttachmentRead:
 async def list_attachments(
     pos_id: int,
     _: User = require_permission("org:view"),
+    allowed_department_ids: set[int] | None = require_department_scope("org:view"),
     session: AsyncSession = Depends(get_session),
 ):
-    await job_position_service.get_by_id(session, pos_id)  # 404 nếu không tồn tại
+    await job_position_service.get_read_by_id(
+        session,
+        pos_id,
+        allowed_department_ids=sorted(allowed_department_ids) if allowed_department_ids is not None else None,
+    )
     atts = await job_position_service.get_attachments(session, pos_id)
     return [_att_to_read(a, pos_id) for a in atts]
 
@@ -199,9 +217,15 @@ async def download_attachment(
     pos_id: int,
     att_id: int,
     _: User = require_permission("org:view"),
+    allowed_department_ids: set[int] | None = require_department_scope("org:view"),
     session: AsyncSession = Depends(get_session),
 ):
-    att = await job_position_service.get_attachment_by_id(session, pos_id, att_id)
+    att = await job_position_service.get_attachment_by_id(
+        session,
+        pos_id,
+        att_id,
+        allowed_department_ids=sorted(allowed_department_ids) if allowed_department_ids is not None else None,
+    )
     filename = att.file_name.encode("utf-8").decode("latin-1", errors="replace")
     return StreamingResponse(
         get_object_stream(att.file_path),

@@ -2,12 +2,12 @@ from datetime import date, timedelta
 from math import ceil
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.v1.deps import require_permission
+from app.api.v1.deps import require_department_scope, require_permission
 from app.core.database import get_session
 from app.models.auth import User
 from app.models.org import OrgChangeLog
@@ -32,8 +32,14 @@ async def list_org_history(
     page:        int            = Query(1, ge=1),
     page_size:   int            = Query(20, ge=1, le=100),
     _: User = require_permission("org:view"),
+    allowed_department_ids: set[int] | None = require_department_scope("org:view"),
     session: AsyncSession = Depends(get_session),
 ):
+    if allowed_department_ids is not None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Không có quyền truy cập lịch sử thay đổi cơ cấu tổ chức toàn công ty",
+        )
     base = select(OrgChangeLog)
 
     if entity_type:

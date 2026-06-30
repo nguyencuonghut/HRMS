@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from io import BytesIO
 from math import ceil
-from typing import Optional
+from typing import Optional, Sequence
 
 import sqlalchemy as sa
 from fastapi import HTTPException, status
@@ -239,6 +239,28 @@ async def _department_scope_ids(
         {"department_id": department_id},
     )
     return {int(row[0]) for row in rows.fetchall()}
+
+
+async def _effective_department_scope_ids(
+    session: AsyncSession,
+    *,
+    department_id: Optional[int],
+    allowed_department_ids: Optional[Sequence[int]],
+) -> Optional[set[int]]:
+    requested_scope_ids = await _department_scope_ids(session, department_id)
+    if allowed_department_ids is None:
+        return requested_scope_ids
+
+    allowed_scope_ids = {int(item) for item in allowed_department_ids}
+    if department_id is not None and department_id not in allowed_scope_ids:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Không có quyền truy cập dữ liệu phòng ban này",
+        )
+
+    if requested_scope_ids is None:
+        return allowed_scope_ids
+    return requested_scope_ids & allowed_scope_ids
 
 
 def _group_members(scope_ids: Optional[set[int]], direct_department_id: Optional[int]) -> bool:
@@ -496,11 +518,16 @@ async def get_employee_list(
     start_date_to: Optional[date] = None,
     tenure_min: Optional[int] = None,
     tenure_max: Optional[int] = None,
+    allowed_department_ids: Optional[Sequence[int]] = None,
 ) -> EmployeeListResponse:
     page = max(page, 1)
     page_size = max(page_size, 1)
 
-    scope_ids = await _department_scope_ids(session, department_id)
+    scope_ids = await _effective_department_scope_ids(
+        session,
+        department_id=department_id,
+        allowed_department_ids=allowed_department_ids,
+    )
     stmt = (
         select(
             Employee,
@@ -620,6 +647,7 @@ async def get_movement_report(
     end_date: date,
     group_by: str = "month",
     department_id: Optional[int] = None,
+    allowed_department_ids: Optional[Sequence[int]] = None,
 ) -> MovementReportResponse:
     if group_by not in {"month", "quarter", "year"}:
         raise ValueError("group_by must be month, quarter, or year")
@@ -627,7 +655,11 @@ async def get_movement_report(
         raise ValueError("end_date must be >= start_date")
 
     periods = _iter_periods(start_date, end_date, group_by)
-    scope_ids = await _department_scope_ids(session, department_id)
+    scope_ids = await _effective_department_scope_ids(
+        session,
+        department_id=department_id,
+        allowed_department_ids=allowed_department_ids,
+    )
     period_map = {
         period.start: {
             "period_label": _period_label(period.start, group_by),
@@ -732,8 +764,13 @@ async def get_tenure_report(
     session: AsyncSession,
     *,
     department_id: Optional[int] = None,
+    allowed_department_ids: Optional[Sequence[int]] = None,
 ) -> TenureReportResponse:
-    scope_ids = await _department_scope_ids(session, department_id)
+    scope_ids = await _effective_department_scope_ids(
+        session,
+        department_id=department_id,
+        allowed_department_ids=allowed_department_ids,
+    )
     department_name = await _department_name(session, department_id)
 
     stmt = (
@@ -805,8 +842,13 @@ async def get_org_structure(
     session: AsyncSession,
     *,
     department_id: Optional[int] = None,
+    allowed_department_ids: Optional[Sequence[int]] = None,
 ) -> OrgStructureResponse:
-    scope_ids = await _department_scope_ids(session, department_id)
+    scope_ids = await _effective_department_scope_ids(
+        session,
+        department_id=department_id,
+        allowed_department_ids=allowed_department_ids,
+    )
     dept_stmt = (
         select(Department.id, Department.name, Department.parent_id, Department.order_no)
         .where(Department.is_active == True)  # noqa: E712
@@ -911,6 +953,7 @@ async def get_older_worker_report(
     month: int,
     department_id: Optional[int] = None,
     gender: Optional[str] = None,
+    allowed_department_ids: Optional[Sequence[int]] = None,
 ) -> OlderWorkerReportResponse:
     normalized_gender = gender.strip().lower() if isinstance(gender, str) and gender.strip() else None
     if normalized_gender is not None and normalized_gender not in _OLDER_WORKER_SUPPORTED_GENDERS:
@@ -921,7 +964,11 @@ async def get_older_worker_report(
 
     as_of_date = _last_day_of_month(year, month)
     department_name = await _department_name(session, department_id)
-    scope_ids = await _department_scope_ids(session, department_id)
+    scope_ids = await _effective_department_scope_ids(
+        session,
+        department_id=department_id,
+        allowed_department_ids=allowed_department_ids,
+    )
     policy = await _resolve_retirement_age_policy(session, as_of_date=as_of_date)
     threshold_map = await _resolve_retirement_threshold_map(
         session,
@@ -1098,6 +1145,7 @@ async def export_movement_excel(
     end_date: date,
     group_by: str = "month",
     department_id: Optional[int] = None,
+    allowed_department_ids: Optional[Sequence[int]] = None,
 ) -> BytesIO:
     from openpyxl import Workbook
 
@@ -1107,6 +1155,7 @@ async def export_movement_excel(
         end_date=end_date,
         group_by=group_by,
         department_id=department_id,
+        allowed_department_ids=allowed_department_ids,
     )
     wb = Workbook()
     ws = wb.active
@@ -1144,6 +1193,7 @@ async def export_older_worker_excel(
     month: int,
     department_id: Optional[int] = None,
     gender: Optional[str] = None,
+    allowed_department_ids: Optional[Sequence[int]] = None,
 ) -> BytesIO:
     from openpyxl import Workbook
 
@@ -1153,6 +1203,7 @@ async def export_older_worker_excel(
         month=month,
         department_id=department_id,
         gender=gender,
+        allowed_department_ids=allowed_department_ids,
     )
     wb = Workbook()
     ws = wb.active
@@ -1195,10 +1246,15 @@ async def export_tenure_excel(
     session: AsyncSession,
     *,
     department_id: Optional[int] = None,
+    allowed_department_ids: Optional[Sequence[int]] = None,
 ) -> BytesIO:
     from openpyxl import Workbook
 
-    report = await get_tenure_report(session, department_id=department_id)
+    report = await get_tenure_report(
+        session,
+        department_id=department_id,
+        allowed_department_ids=allowed_department_ids,
+    )
     wb = Workbook()
     summary_ws = wb.active
     summary_ws.title = "Tổng hợp thâm niên"
@@ -1230,10 +1286,15 @@ async def export_org_structure_excel(
     session: AsyncSession,
     *,
     department_id: Optional[int] = None,
+    allowed_department_ids: Optional[Sequence[int]] = None,
 ) -> BytesIO:
     from openpyxl import Workbook
 
-    report = await get_org_structure(session, department_id=department_id)
+    report = await get_org_structure(
+        session,
+        department_id=department_id,
+        allowed_department_ids=allowed_department_ids,
+    )
     wb = Workbook()
     ws = wb.active
     ws.title = "Cơ cấu tổ chức"

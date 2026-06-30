@@ -6,6 +6,7 @@ from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional, Sequence
 
 import sqlalchemy as sa
+from fastapi import HTTPException, status
 from sqlalchemy import and_, case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -70,6 +71,28 @@ async def _department_scope_ids(
     return {row[0] for row in rows.fetchall()}
 
 
+async def _effective_department_scope_ids(
+    session: AsyncSession,
+    *,
+    department_id: Optional[int],
+    allowed_department_ids: Optional[Sequence[int]],
+) -> Optional[set[int]]:
+    requested_scope_ids = await _department_scope_ids(session, department_id)
+    if allowed_department_ids is None:
+        return requested_scope_ids
+
+    allowed_scope_ids = {int(department_id) for department_id in allowed_department_ids}
+    if department_id is not None and department_id not in allowed_scope_ids:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Không có quyền truy cập dữ liệu phòng ban này",
+        )
+
+    if requested_scope_ids is None:
+        return allowed_scope_ids
+    return requested_scope_ids & allowed_scope_ids
+
+
 def _active_employee_filters(department_ids: Optional[Sequence[int]]) -> list[sa.ColumnElement[bool]]:
     filters: list[sa.ColumnElement[bool]] = [
         Employee.is_active == True,  # noqa: E712
@@ -90,10 +113,15 @@ async def get_summary(
     year: Optional[int] = None,
     month: Optional[int] = None,
     department_id: Optional[int] = None,
+    allowed_department_ids: Optional[Sequence[int]] = None,
 ) -> DashboardSummary:
     year, month = _current_period(year, month)
     period_start = date(year, month, 1) if month is not None else date(year, 1, 1)
-    department_ids = await _department_scope_ids(session, department_id)
+    department_ids = await _effective_department_scope_ids(
+        session,
+        department_id=department_id,
+        allowed_department_ids=allowed_department_ids,
+    )
 
     total_stmt = (
         select(func.count(Employee.id.distinct()))
@@ -195,8 +223,13 @@ async def get_headcount_by_dept(
     session: AsyncSession,
     *,
     department_id: Optional[int] = None,
+    allowed_department_ids: Optional[Sequence[int]] = None,
 ) -> list[HeadcountByDeptItem]:
-    department_ids = await _department_scope_ids(session, department_id)
+    department_ids = await _effective_department_scope_ids(
+        session,
+        department_id=department_id,
+        allowed_department_ids=allowed_department_ids,
+    )
     stmt = (
         select(
             Department.id,
@@ -294,9 +327,14 @@ async def get_monthly_trend(
     *,
     year: Optional[int] = None,
     department_id: Optional[int] = None,
+    allowed_department_ids: Optional[Sequence[int]] = None,
 ) -> MonthlyTrendReport:
     report_year = year or date.today().year
-    department_ids = await _department_scope_ids(session, department_id)
+    department_ids = await _effective_department_scope_ids(
+        session,
+        department_id=department_id,
+        allowed_department_ids=allowed_department_ids,
+    )
 
     hires_stmt = (
         select(
@@ -375,8 +413,13 @@ async def get_structure(
     session: AsyncSession,
     *,
     department_id: Optional[int] = None,
+    allowed_department_ids: Optional[Sequence[int]] = None,
 ) -> StructureReport:
-    department_ids = await _department_scope_ids(session, department_id)
+    department_ids = await _effective_department_scope_ids(
+        session,
+        department_id=department_id,
+        allowed_department_ids=allowed_department_ids,
+    )
     base_filters = _active_employee_filters(department_ids)
 
     gender_stmt = (

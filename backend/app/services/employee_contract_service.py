@@ -8,7 +8,7 @@ from decimal import Decimal
 from typing import Optional
 
 from fastapi import HTTPException, status
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.catalog import ContractCategory
@@ -983,6 +983,7 @@ async def list_contracts_global(
     status: Optional[str] = None,
     category_id: Optional[int] = None,
     expiring_within: Optional[int] = None,   # số ngày
+    allowed_department_ids: Optional[set[int]] = None,
     page: int = 1,
     page_size: int = 25,
 ) -> ContractListPage:
@@ -1000,6 +1001,16 @@ async def list_contracts_global(
         .join(ContractCategory, ContractCategory.id == EmployeeContract.contract_category_id)
         .join(Employee, Employee.id == EmployeeContract.employee_id)
     )
+    if allowed_department_ids is not None:
+        if not allowed_department_ids:
+            return ContractListPage(items=[], total=0, page=page, page_size=page_size)
+        q = q.join(
+            EmployeeJobRecord,
+            and_(
+                EmployeeJobRecord.employee_id == Employee.id,
+                EmployeeJobRecord.is_current == True,  # noqa: E712
+            ),
+        ).where(EmployeeJobRecord.department_id.in_(sorted(allowed_department_ids)))
 
     if keyword:
         kw = f"%{keyword}%"

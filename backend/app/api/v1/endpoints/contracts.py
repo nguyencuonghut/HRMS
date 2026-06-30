@@ -5,11 +5,11 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.v1.deps import require_permission
+from app.api.v1.deps import require_department_scope, require_permission
 from app.core.database import get_session
 from app.models.auth import User
 from app.schemas.employee_contract import ContractListPage
-from app.services import employee_contract_service
+from app.services import access_scope_service, employee_contract_service
 
 router = APIRouter()
 
@@ -24,9 +24,17 @@ async def list_contracts_global(
     expiring_within:  Optional[int]  = Query(None, ge=1, le=365, description="HĐ hết hạn trong N ngày tới"),
     page:             int            = Query(1, ge=1),
     page_size:        int            = Query(25, ge=1, le=200),
-    _: User = require_permission("contracts:view"),
+    current_user: User = require_permission("contracts:view"),
+    allowed_department_ids: set[int] | None = require_department_scope(*access_scope_service.CONTRACT_SCOPE_PERMISSIONS),
     session: AsyncSession = Depends(get_session),
 ):
+    if employee_id is not None:
+        await access_scope_service.ensure_employee_access(
+            session,
+            current_user,
+            permission_codes=access_scope_service.CONTRACT_SCOPE_PERMISSIONS,
+            employee_id=employee_id,
+        )
     return await employee_contract_service.list_contracts_global(
         session,
         keyword=keyword,
@@ -35,6 +43,7 @@ async def list_contracts_global(
         status=status,
         category_id=category_id,
         expiring_within=expiring_within,
+        allowed_department_ids=allowed_department_ids,
         page=page,
         page_size=page_size,
     )

@@ -15,6 +15,7 @@ from app.models.leave_record import LeaveRecord
 from app.models.performance import EmployeeKpiMonthly, EmployeeYearlyReview
 
 EMPLOYEE_SCOPE_PERMISSIONS = ("employees:view", "employees:edit", "employees:delete")
+CONTRACT_SCOPE_PERMISSIONS = ("contracts:view", "contracts:create", "contracts:edit", "contracts:delete")
 LEAVE_SCOPE_PERMISSIONS = ("leaves:view", "leaves:create", "leaves:edit", "leaves:delete")
 PERFORMANCE_SCOPE_PERMISSIONS = (
     "performance:view",

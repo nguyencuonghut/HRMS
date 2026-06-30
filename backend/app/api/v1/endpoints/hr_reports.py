@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.v1.deps import require_permission
+from app.api.v1.deps import require_department_scope, require_permission
 from app.core.database import get_session
 from app.models.auth import User
 from app.schemas.hr_report import (
@@ -53,6 +53,7 @@ async def get_employee_list(
     tenure_min: Optional[int] = Query(None, ge=0),
     tenure_max: Optional[int] = Query(None, ge=0),
     _: User = require_permission("employees:view"),
+    allowed_department_ids: set[int] | None = require_department_scope("employees:view"),
     session: AsyncSession = Depends(get_session),
 ) -> EmployeeListResponse:
     return await hr_report_service.get_employee_list(
@@ -67,6 +68,7 @@ async def get_employee_list(
         start_date_to=start_date_to,
         tenure_min=tenure_min,
         tenure_max=tenure_max,
+        allowed_department_ids=allowed_department_ids,
     )
 
 
@@ -77,6 +79,7 @@ async def get_movement_report(
     group_by: GroupBy = Query(GroupBy.month),
     department_id: Optional[int] = Query(None),
     _: User = require_permission("employees:view"),
+    allowed_department_ids: set[int] | None = require_department_scope("employees:view"),
     session: AsyncSession = Depends(get_session),
 ) -> MovementReportResponse:
     if start_date > end_date:
@@ -90,6 +93,7 @@ async def get_movement_report(
         end_date=end_date,
         group_by=group_by.value,
         department_id=department_id,
+        allowed_department_ids=allowed_department_ids,
     )
 
 
@@ -97,18 +101,28 @@ async def get_movement_report(
 async def get_tenure_report(
     department_id: Optional[int] = Query(None),
     _: User = require_permission("employees:view"),
+    allowed_department_ids: set[int] | None = require_department_scope("employees:view"),
     session: AsyncSession = Depends(get_session),
 ) -> TenureReportResponse:
-    return await hr_report_service.get_tenure_report(session, department_id=department_id)
+    return await hr_report_service.get_tenure_report(
+        session,
+        department_id=department_id,
+        allowed_department_ids=allowed_department_ids,
+    )
 
 
 @router.get("/org-structure", response_model=OrgStructureResponse, summary="Cơ cấu tổ chức")
 async def get_org_structure(
     department_id: Optional[int] = Query(None),
     _: User = require_permission("employees:view"),
+    allowed_department_ids: set[int] | None = require_department_scope("employees:view"),
     session: AsyncSession = Depends(get_session),
 ) -> OrgStructureResponse:
-    return await hr_report_service.get_org_structure(session, department_id=department_id)
+    return await hr_report_service.get_org_structure(
+        session,
+        department_id=department_id,
+        allowed_department_ids=allowed_department_ids,
+    )
 
 
 @router.get(
@@ -122,6 +136,7 @@ async def get_older_worker_report(
     department_id: Optional[int] = Query(None),
     gender: Optional[str] = Query(None),
     _: User = require_permission("employees:view"),
+    allowed_department_ids: set[int] | None = require_department_scope("employees:view"),
     session: AsyncSession = Depends(get_session),
 ) -> OlderWorkerReportResponse:
     return await hr_report_service.get_older_worker_report(
@@ -130,6 +145,7 @@ async def get_older_worker_report(
         month=month,
         department_id=department_id,
         gender=gender,
+        allowed_department_ids=allowed_department_ids,
     )
 
 
@@ -152,6 +168,7 @@ async def export_hr_report(
     older_worker_month: Optional[int] = Query(None, alias="month", ge=1, le=12),
     group_by: GroupBy = Query(GroupBy.month),
     _: User = require_permission("employees:view"),
+    allowed_department_ids: set[int] | None = require_department_scope("employees:view"),
     session: AsyncSession = Depends(get_session),
 ) -> StreamingResponse:
     if type == ExportType.employee_list:
@@ -167,6 +184,7 @@ async def export_hr_report(
             start_date_to=start_date_to,
             tenure_min=tenure_min,
             tenure_max=tenure_max,
+            allowed_department_ids=allowed_department_ids,
         )
     elif type == ExportType.movement:
         if movement_start_date is None or movement_end_date is None:
@@ -185,9 +203,14 @@ async def export_hr_report(
             end_date=movement_end_date,
             group_by=group_by.value,
             department_id=department_id,
+            allowed_department_ids=allowed_department_ids,
         )
     elif type == ExportType.tenure:
-        buf = await hr_report_service.export_tenure_excel(session, department_id=department_id)
+        buf = await hr_report_service.export_tenure_excel(
+            session,
+            department_id=department_id,
+            allowed_department_ids=allowed_department_ids,
+        )
     elif type == ExportType.older_worker:
         if older_worker_year is None or older_worker_month is None:
             raise HTTPException(
@@ -200,9 +223,14 @@ async def export_hr_report(
             month=older_worker_month,
             department_id=department_id,
             gender=gender,
+            allowed_department_ids=allowed_department_ids,
         )
     else:
-        buf = await hr_report_service.export_org_structure_excel(session, department_id=department_id)
+        buf = await hr_report_service.export_org_structure_excel(
+            session,
+            department_id=department_id,
+            allowed_department_ids=allowed_department_ids,
+        )
 
     filename = f"bao_cao_nhan_su_{type.value}_{date.today().isoformat()}.xlsx"
     return StreamingResponse(

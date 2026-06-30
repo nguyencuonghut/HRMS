@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import HTTPException, status
-from sqlalchemy import func, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.employee import Employee
@@ -283,8 +283,42 @@ async def get_by_id(session: AsyncSession, pos_id: int) -> JobPosition:
     return pos
 
 
-async def get_read_by_id(session: AsyncSession, pos_id: int) -> JobPositionRead:
+async def _ensure_position_in_department_scope(
+    session: AsyncSession,
+    *,
+    pos_id: int,
+    allowed_department_ids: Optional[list[int]],
+) -> None:
+    if allowed_department_ids is None:
+        return
+
+    allowed_set = {int(item) for item in allowed_department_ids}
+    if not allowed_set:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            detail="Không có quyền truy cập vị trí công việc này",
+        )
+
+    mapped_department_ids = set(await _get_active_mapping_department_ids(session, pos_id=pos_id))
+    if not mapped_department_ids.intersection(allowed_set):
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            detail="Không có quyền truy cập vị trí công việc này",
+        )
+
+
+async def get_read_by_id(
+    session: AsyncSession,
+    pos_id: int,
+    *,
+    allowed_department_ids: Optional[list[int]] = None,
+) -> JobPositionRead:
     pos = await get_by_id(session, pos_id)
+    await _ensure_position_in_department_scope(
+        session,
+        pos_id=pos.id,
+        allowed_department_ids=allowed_department_ids,
+    )
     department = await session.get(Department, pos.department_id)
     assignments = await _get_assignments_by_position_ids(session, pos_ids=[pos.id])
     return _serialize_position_read(
@@ -299,6 +333,7 @@ async def get_list(
     department_id: Optional[int] = None,
     is_active:     Optional[bool] = None,
     search:        Optional[str]  = None,
+    allowed_department_ids: Optional[list[int]] = None,
 ) -> list[JobPositionListItem]:
     q = (
         select(
@@ -317,6 +352,14 @@ async def get_list(
             (DepartmentJobPosition.job_position_id == JobPosition.id)
             & (DepartmentJobPosition.is_active.is_(True)),
         ).where(DepartmentJobPosition.department_id == department_id)
+    elif allowed_department_ids is not None:
+        if not allowed_department_ids:
+            return []
+        q = q.join(
+            DepartmentJobPosition,
+            (DepartmentJobPosition.job_position_id == JobPosition.id)
+            & (DepartmentJobPosition.is_active.is_(True)),
+        ).where(DepartmentJobPosition.department_id.in_(allowed_department_ids))
     if is_active is not None:
         q = q.where(JobPosition.is_active == is_active)
     if search:
@@ -327,7 +370,7 @@ async def get_list(
         ))
 
     q = q.order_by(Department.name, JobPosition.name)
-    rows = (await session.execute(q)).all()
+    rows = (await session.execute(q)).unique().all()
     assignments = await _get_assignments_by_position_ids(
         session,
         pos_ids=[pos.id for pos, _, _ in rows],
@@ -524,7 +567,14 @@ async def get_attachment_by_id(
     session: AsyncSession,
     pos_id: int,
     att_id: int,
+    *,
+    allowed_department_ids: Optional[list[int]] = None,
 ) -> JobPositionAttachment:
+    await _ensure_position_in_department_scope(
+        session,
+        pos_id=pos_id,
+        allowed_department_ids=allowed_department_ids,
+    )
     r = await session.execute(
         select(JobPositionAttachment).where(
             JobPositionAttachment.id == att_id,

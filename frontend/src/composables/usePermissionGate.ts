@@ -76,6 +76,23 @@ export function usePermissionGate() {
     });
   }
 
+  function getDepartmentScope(module: PermissionModule): number[] | null {
+    if (!auth.user) return []
+    const scope = auth.user.department_scopes?.[module]
+    return Array.isArray(scope) ? scope : null
+  }
+
+  function isDepartmentScoped(module: PermissionModule): boolean {
+    return Array.isArray(auth.user?.department_scopes?.[module])
+  }
+
+  function canAccessDepartment(module: PermissionModule, departmentId: number | null | undefined): boolean {
+    if (!auth.user || !Number.isFinite(departmentId ?? NaN)) return false
+    const scope = getDepartmentScope(module)
+    if (scope === null) return true
+    return scope.includes(Number(departmentId))
+  }
+
   // Action-level helpers
   function canView(module: PermissionModule): boolean {
     return hasPermission(`${module}:view`);
@@ -101,6 +118,9 @@ export function usePermissionGate() {
     hasPermission,
     canAccess,
     canAccessRoute,
+    getDepartmentScope,
+    isDepartmentScoped,
+    canAccessDepartment,
     canView,
     canCreate,
     canEdit,

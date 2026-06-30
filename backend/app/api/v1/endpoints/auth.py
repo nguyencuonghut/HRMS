@@ -20,7 +20,7 @@ from app.core.security import (
 from app.core.config import settings
 from app.models.auth import User
 from app.schemas.user import validate_password_strength
-from app.services import auth_service
+from app.services import access_scope_service, auth_service
 
 router = APIRouter()
 
@@ -62,6 +62,7 @@ class UserMeResponse(BaseModel):
     is_superuser: bool
     roles: list[str]
     permissions: list[str]
+    department_scopes: dict[str, list[int]]
 
 
 class UserMeUpdate(BaseModel):
@@ -88,6 +89,32 @@ def _refresh_rate_limit_key(request: Request) -> str:
     if request.client:
         return f"ip:{request.client.host}"
     return "ip:unknown"
+
+
+_DEPARTMENT_SCOPED_MODULES = ("org", "employees", "contracts", "leaves", "performance")
+
+
+async def _build_department_scopes(
+    session: AsyncSession,
+    user: User,
+    permissions: list[str],
+) -> dict[str, list[int]]:
+    if user.is_superuser:
+        return {}
+
+    scopes: dict[str, list[int]] = {}
+    for module in _DEPARTMENT_SCOPED_MODULES:
+        module_permissions = [permission for permission in permissions if permission.startswith(f"{module}:")]
+        if not module_permissions:
+            continue
+        allowed_ids = await access_scope_service.get_allowed_department_ids(
+            session,
+            user,
+            permission_codes=module_permissions,
+        )
+        if allowed_ids is not None:
+            scopes[module] = sorted(allowed_ids)
+    return scopes
 
 
 # ── Endpoints ──────────────────────────────────────────────────────────────────
@@ -223,6 +250,7 @@ async def get_me(
         permissions = ["*"]
     else:
         permissions = sorted(await auth_service.get_user_permissions(session, current_user.id))
+    department_scopes = await _build_department_scopes(session, current_user, permissions)
 
     return UserMeResponse(
         id=current_user.id,
@@ -233,6 +261,7 @@ async def get_me(
         is_superuser=current_user.is_superuser,
         roles=roles,
         permissions=permissions,
+        department_scopes=department_scopes,
     )
 
 
@@ -310,6 +339,7 @@ async def update_me(
     from app.services.auth_service import get_user_roles, get_user_permissions
     roles = await get_user_roles(session, current_user.id)
     permissions = ["*"] if current_user.is_superuser else sorted(await get_user_permissions(session, current_user.id))
+    department_scopes = await _build_department_scopes(session, current_user, permissions)
     return UserMeResponse(
         id=current_user.id,
         email=current_user.email,
@@ -319,6 +349,7 @@ async def update_me(
         is_superuser=current_user.is_superuser,
         roles=roles,
         permissions=permissions,
+        department_scopes=department_scopes,
     )
 
 
