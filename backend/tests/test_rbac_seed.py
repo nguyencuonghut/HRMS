@@ -41,9 +41,9 @@ async def ensure_latest_rbac_seed():
 # ── Permissions ────────────────────────────────────────────────────────────────
 
 async def test_permissions_count():
-    """16 modules × 5 actions = 80 permissions."""
+    """17 modules × 5 actions = 85 permissions."""
     count = await _scalar("SELECT COUNT(*) FROM permissions")
-    assert count == 80
+    assert count == 85
 
 
 async def test_permission_code_format():
@@ -90,7 +90,7 @@ async def test_admin_has_all_permissions():
         JOIN roles r ON rp.role_id = r.id
         WHERE r.code = 'admin'
     """)
-    assert admin_count == 80
+    assert admin_count == 85
 
 
 async def test_hr_manager_has_org_full_except_export():
@@ -122,6 +122,26 @@ async def test_hr_manager_has_catalog_full():
         WHERE r.code = 'hr_manager' AND p.module = 'catalog'
     """)}
     assert perms == {"view", "create", "edit", "delete", "export"}
+
+
+async def test_hr_manager_has_settings_full():
+    perms = {r.action for r in await _rows("""
+        SELECT p.action FROM role_permissions rp
+        JOIN roles r ON rp.role_id = r.id
+        JOIN permissions p ON rp.permission_id = p.id
+        WHERE r.code = 'hr_manager' AND p.module = 'settings'
+    """)}
+    assert perms == {"view", "create", "edit", "delete", "export"}
+
+
+async def test_hr_officer_settings_has_no_delete():
+    perms = {r.action for r in await _rows("""
+        SELECT p.action FROM role_permissions rp
+        JOIN roles r ON rp.role_id = r.id
+        JOIN permissions p ON rp.permission_id = p.id
+        WHERE r.code = 'hr_officer' AND p.module = 'settings'
+    """)}
+    assert perms == {"view", "create", "edit"}
 
 
 async def test_hr_officer_catalog_has_no_delete():

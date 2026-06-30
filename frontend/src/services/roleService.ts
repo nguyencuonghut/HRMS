@@ -5,7 +5,11 @@ export interface PermissionRead {
   code:        string
   name:        string
   module:      string
+  module_label: string
+  module_order: number
   action:      string
+  action_label: string
+  action_order: number
   description: string | null
 }
 

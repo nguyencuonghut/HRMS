@@ -14,6 +14,8 @@ from app.services.notification_service import _render_template
 BASE = "/api/v1/notifications"
 _ADMIN_EMAIL = "admin@hrms.local"
 _ADMIN_PASSWORD = "Hrms@2026"
+_OFFICER_EMAIL = "hrofficer@hrms.local"
+_LINE_MANAGER_EMAIL = "linemanager@hrms.local"
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -22,6 +24,14 @@ def _bearer(client: TestClient) -> dict:
     token = client.post(
         "/api/v1/auth/login",
         json={"email": _ADMIN_EMAIL, "password": _ADMIN_PASSWORD},
+    ).json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}
+
+
+def _bearer_for(client: TestClient, email: str) -> dict:
+    token = client.post(
+        "/api/v1/auth/login",
+        json={"email": email, "password": _ADMIN_PASSWORD},
     ).json()["access_token"]
     return {"Authorization": f"Bearer {token}"}
 
@@ -49,6 +59,16 @@ def test_get_template_not_found(client: TestClient):
     assert resp.status_code == 404
 
 
+def test_settings_reader_can_list_templates(client: TestClient):
+    resp = client.get(f"{BASE}/templates", headers=_bearer_for(client, _OFFICER_EMAIL))
+    assert resp.status_code == 200
+
+
+def test_user_without_settings_permission_cannot_list_templates(client: TestClient):
+    resp = client.get(f"{BASE}/templates", headers=_bearer_for(client, _LINE_MANAGER_EMAIL))
+    assert resp.status_code == 403
+
+
 def test_update_template(client: TestClient):
     new_subject = "[TEST] Updated subject for contract_expiry_30d"
     resp = client.put(
@@ -65,6 +85,15 @@ def test_update_template(client: TestClient):
         json={"subject": "[HRMS] Hợp đồng {{employee_name}} sắp hết hạn"},
         headers=_bearer(client),
     )
+
+
+def test_user_without_settings_permission_cannot_update_template(client: TestClient):
+    resp = client.put(
+        f"{BASE}/templates/contract_expiry_30d",
+        json={"subject": "blocked"},
+        headers=_bearer_for(client, _LINE_MANAGER_EMAIL),
+    )
+    assert resp.status_code == 403
 
 
 def test_preview_template(client: TestClient):

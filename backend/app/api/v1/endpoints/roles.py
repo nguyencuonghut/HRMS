@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import require_permission
 from app.core.database import get_session
+from app.core.rbac_catalog import ACTION_LABELS, ACTION_ORDER, MODULE_LABELS, MODULE_ORDER
 from app.models.auth import User
 from app.schemas.role import (
     PermissionRead,
@@ -26,6 +27,21 @@ async def _get_or_404(session: AsyncSession, role_id: int):
     return role
 
 
+def _to_permission_read(permission) -> PermissionRead:
+    return PermissionRead(
+        id=permission.id,
+        code=permission.code,
+        name=permission.name,
+        module=permission.module,
+        module_label=MODULE_LABELS.get(permission.module, permission.module),
+        module_order=MODULE_ORDER.get(permission.module, 9_999),
+        action=permission.action,
+        action_label=ACTION_LABELS.get(permission.action, permission.action),
+        action_order=ACTION_ORDER.get(permission.action, 9_999),
+        description=permission.description,
+    )
+
+
 # ── GET /permissions ───────────────────────────────────────────────────────────
 
 @router.get("/permissions", response_model=list[PermissionRead], summary="Danh sách tất cả permissions")
@@ -33,7 +49,8 @@ async def list_permissions(
     _:       User         = require_permission("roles:view"),
     session: AsyncSession = Depends(get_session),
 ):
-    return await role_service.list_all_permissions(session)
+    permissions = await role_service.list_all_permissions(session)
+    return [_to_permission_read(permission) for permission in permissions]
 
 
 # ── GET /roles ─────────────────────────────────────────────────────────────────
@@ -88,7 +105,7 @@ async def get_role(
     role = await _get_or_404(session, role_id)
     perms = await role_service.get_permissions_for_role(session, role_id)
     result = RoleRead.model_validate(role)
-    result.permissions = [PermissionRead.model_validate(p) for p in perms]
+    result.permissions = [_to_permission_read(permission) for permission in perms]
     return result
 
 
@@ -114,7 +131,7 @@ async def update_role(
     await session.refresh(role)
     perms = await role_service.get_permissions_for_role(session, role_id)
     result = RoleRead.model_validate(role)
-    result.permissions = [PermissionRead.model_validate(p) for p in perms]
+    result.permissions = [_to_permission_read(permission) for permission in perms]
     return result
 
 
@@ -148,7 +165,7 @@ async def get_role_permissions(
 ):
     await _get_or_404(session, role_id)
     perms = await role_service.get_permissions_for_role(session, role_id)
-    return [PermissionRead.model_validate(p) for p in perms]
+    return [_to_permission_read(permission) for permission in perms]
 
 
 # ── PUT /roles/{id}/permissions ────────────────────────────────────────────────
@@ -169,4 +186,4 @@ async def replace_role_permissions(
         new_data={"permission_ids": payload.permission_ids},
     )
     await session.commit()
-    return [PermissionRead.model_validate(p) for p in perms]
+    return [_to_permission_read(permission) for permission in perms]

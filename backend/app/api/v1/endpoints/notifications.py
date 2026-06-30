@@ -33,7 +33,7 @@ router = APIRouter()
 
 @router.get("/templates", response_model=list[TemplateResponse])
 async def list_templates(
-    _: User = require_permission("employees:view"),
+    _: User = require_permission("settings:view"),
     session: AsyncSession = Depends(get_session),
 ) -> list[TemplateResponse]:
     rows = (await session.execute(select(NotificationTemplate).order_by(NotificationTemplate.id))).scalars().all()
@@ -43,7 +43,7 @@ async def list_templates(
 @router.get("/templates/{code}", response_model=TemplateResponse)
 async def get_template(
     code: str,
-    _: User = require_permission("employees:view"),
+    _: User = require_permission("settings:view"),
     session: AsyncSession = Depends(get_session),
 ) -> TemplateResponse:
     tpl = (
@@ -58,7 +58,7 @@ async def get_template(
 async def update_template(
     code: str,
     payload: TemplateUpdate,
-    _: User = require_permission("employees:edit"),
+    _: User = require_permission("settings:edit"),
     session: AsyncSession = Depends(get_session),
 ) -> TemplateResponse:
     tpl = (
@@ -85,7 +85,7 @@ async def update_template(
 async def preview_template(
     code: str,
     payload: PreviewRequest,
-    _: User = require_permission("employees:view"),
+    _: User = require_permission("settings:view"),
     session: AsyncSession = Depends(get_session),
 ) -> PreviewResponse:
     tpl = (
@@ -101,7 +101,7 @@ async def preview_template(
 
 @router.get("/config", response_model=list[ConfigResponse])
 async def list_config(
-    _: User = require_permission("employees:view"),
+    _: User = require_permission("settings:view"),
     session: AsyncSession = Depends(get_session),
 ) -> list[ConfigResponse]:
     rows = (await session.execute(select(NotifConfig).order_by(NotifConfig.id))).scalars().all()
@@ -112,7 +112,7 @@ async def list_config(
 async def update_config(
     event_type: str,
     payload: ConfigUpdate,
-    _: User = require_permission("employees:edit"),
+    _: User = require_permission("settings:edit"),
     session: AsyncSession = Depends(get_session),
 ) -> ConfigResponse:
     cfg = (
@@ -143,7 +143,7 @@ async def list_logs(
     to_date: Optional[date] = Query(default=None),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
-    _: User = require_permission("employees:view"),
+    _: User = require_permission("settings:view"),
     session: AsyncSession = Depends(get_session),
 ) -> LogListResponse:
     q = select(EmailLog)
@@ -182,7 +182,7 @@ async def list_logs(
 @router.post("/test-send")
 async def test_send(
     payload: TestSendRequest,
-    _: User = require_permission("employees:edit"),
+    _: User = require_permission("settings:edit"),
     session: AsyncSession = Depends(get_session),
 ) -> dict:
     ok = await notification_service.send_notification_email(

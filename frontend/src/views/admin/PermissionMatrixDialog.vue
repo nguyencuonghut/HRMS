@@ -19,17 +19,17 @@
           <thead>
             <tr>
               <th class="module-col">Module</th>
-              <th v-for="action in ACTIONS" :key="action.key" class="action-col">
+              <th v-for="action in actions" :key="action.key" class="action-col">
                 {{ action.label }}
               </th>
               <th class="action-col all-col">Tất cả</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="mod in MODULES" :key="mod.key">
+            <tr v-for="mod in modules" :key="mod.key">
               <td class="module-name">{{ mod.label }}</td>
               <td
-                v-for="action in ACTIONS"
+                v-for="action in actions"
                 :key="action.key"
                 class="check-cell"
               >
@@ -53,7 +53,7 @@
           <tfoot>
             <tr>
               <td class="module-name footer-label">Tất cả</td>
-              <td v-for="action in ACTIONS" :key="action.key" class="check-cell">
+              <td v-for="action in actions" :key="action.key" class="check-cell">
                 <Checkbox
                   :model-value="isColAll(action.key)"
                   :binary="true"
@@ -100,38 +100,22 @@ const toast   = useToast()
 const loading = ref(false)
 const saving  = ref(false)
 
-// ── Constants ──────────────────────────────────────────────────────────────────
-
-const MODULES = [
-  { key: 'org',         label: 'Cơ cấu tổ chức' },
-  { key: 'employees',   label: 'Nhân sự' },
-  { key: 'contracts',   label: 'Hợp đồng' },
-  { key: 'leaves',      label: 'Nghỉ phép' },
-  { key: 'insurance',   label: 'Bảo hiểm BHXH' },
-  { key: 'salary',      label: 'Lương BHXH' },
-  { key: 'rewards',     label: 'Khen thưởng' },
-  { key: 'training',    label: 'Đào tạo' },
-  { key: 'performance', label: 'Đánh giá KPI' },
-  { key: 'reports',     label: 'Báo cáo' },
-  { key: 'users',       label: 'Người dùng' },
-  { key: 'roles',       label: 'Vai trò' },
-  { key: 'audit_logs',  label: 'Nhật ký hệ thống' },
-]
-
-const ACTIONS = [
-  { key: 'view',   label: 'Xem' },
-  { key: 'create', label: 'Thêm' },
-  { key: 'edit',   label: 'Sửa' },
-  { key: 'delete', label: 'Xóa' },
-  { key: 'export', label: 'Xuất' },
-]
-
 // ── State ──────────────────────────────────────────────────────────────────────
 
 // permMap[module][action] = permission id (hay undefined nếu không tồn tại)
 const permMap    = ref<Record<string, Record<string, number>>>({})
 const selectedIds = ref<Set<number>>(new Set())
 const totalPerms  = ref(0)
+const moduleKeys = ref<string[]>([])
+const moduleMeta = ref<Record<string, { label: string; order: number }>>({})
+const actions = ref<Array<{ key: string; label: string; order: number }>>([])
+
+const modules = computed(() =>
+  moduleKeys.value.map((key) => ({
+    key,
+    label: moduleMeta.value[key]?.label ?? key,
+  })),
+)
 
 // ── Computed helpers ───────────────────────────────────────────────────────────
 
@@ -147,14 +131,14 @@ function isRowAll(mod: string): boolean {
 }
 
 function isColAll(action: string): boolean {
-  return MODULES.every(m => {
-    const id = permMap.value[m.key]?.[action]
+  return modules.value.every((mod) => {
+    const id = permMap.value[mod.key]?.[action]
     return id === undefined || selectedIds.value.has(id)
   })
 }
 
 const isAllChecked = computed(() =>
-  MODULES.every(m => isRowAll(m.key))
+  modules.value.every((mod) => isRowAll(mod.key))
 )
 
 // ── Toggle helpers ─────────────────────────────────────────────────────────────
@@ -182,7 +166,9 @@ function toggleRow(mod: string) {
 
 function toggleCol(action: string) {
   const set   = new Set(selectedIds.value)
-  const ids   = MODULES.map(m => permMap.value[m.key]?.[action]).filter((id): id is number => id !== undefined)
+  const ids   = modules.value
+    .map((mod) => permMap.value[mod.key]?.[action])
+    .filter((id): id is number => id !== undefined)
   const allOn = ids.every(id => set.has(id))
   for (const id of ids) {
     if (allOn) set.delete(id)
@@ -213,12 +199,36 @@ async function onShow() {
     ])
 
     const map: Record<string, Record<string, number>> = {}
+    const nextModuleMeta: Record<string, { label: string; order: number }> = {}
+    const nextActionMeta: Record<string, { label: string; order: number }> = {}
     let count = 0
     for (const p of allRes.data) {
       if (!map[p.module]) map[p.module] = {}
       map[p.module][p.action] = p.id
+      nextModuleMeta[p.module] = {
+        label: p.module_label,
+        order: p.module_order,
+      }
+      nextActionMeta[p.action] = {
+        label: p.action_label,
+        order: p.action_order,
+      }
       count++
     }
+    const availableModuleKeys = Object.keys(map)
+    moduleKeys.value = availableModuleKeys.sort((a, b) => {
+      const orderA = nextModuleMeta[a]?.order ?? Number.MAX_SAFE_INTEGER
+      const orderB = nextModuleMeta[b]?.order ?? Number.MAX_SAFE_INTEGER
+      if (orderA !== orderB) return orderA - orderB
+      return a.localeCompare(b)
+    })
+    actions.value = Object.entries(nextActionMeta)
+      .map(([key, meta]) => ({ key, label: meta.label, order: meta.order }))
+      .sort((a, b) => {
+        if (a.order !== b.order) return a.order - b.order
+        return a.key.localeCompare(b.key)
+      })
+    moduleMeta.value = nextModuleMeta
     permMap.value  = map
     totalPerms.value = count
 

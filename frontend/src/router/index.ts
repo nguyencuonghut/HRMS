@@ -507,13 +507,13 @@ const router = createRouter({
           path: "settings",
           name: "settings",
           component: () => import("@/views/settings/SettingsView.vue"),
-          meta: { title: "Cài đặt", permission: "employees:view" },
+          meta: { title: "Cài đặt", permission: "settings:view" },
         },
         {
           path: "settings/notifications",
           name: "notification-settings",
           component: () => import("@/views/settings/NotificationSettingsView.vue"),
-          meta: { title: "Cài đặt thông báo", permission: "employees:view" },
+          meta: { title: "Cài đặt thông báo", permission: "settings:view" },
         },
         // Quản trị hệ thống — yêu cầu permission tương ứng
         {

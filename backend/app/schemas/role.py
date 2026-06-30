@@ -45,10 +45,12 @@ class PermissionRead(BaseModel):
     code:        str
     name:        str
     module:      str
+    module_label: str
+    module_order: int
     action:      str
+    action_label: str
+    action_order: int
     description: Optional[str]
-
-    model_config = {"from_attributes": True}
 
 
 class RoleRead(BaseModel):

@@ -7,6 +7,7 @@ import { useAuthStore } from "@/stores/auth";
 export type PermissionModule =
   | "org"
   | "catalog"
+  | "settings"
   | "employees"
   | "contracts"
   | "leaves"

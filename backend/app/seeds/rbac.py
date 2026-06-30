@@ -8,37 +8,13 @@ Chạy trước: migration 0002 phải đã được apply.
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.rbac_catalog import ACTION_DEFS, MODULE_DEFS
 from app.core.security import hash_password
 
 
 # ── Cấu hình permissions ───────────────────────────────────────────────────────
-
-_MODULES = [
-    ("org",         "Cơ cấu tổ chức"),
-    ("catalog",     "Danh mục"),
-    ("employees",   "Nhân sự"),
-    ("contracts",   "Hợp đồng"),
-    ("leaves",      "Nghỉ phép"),
-    ("insurance",   "Bảo hiểm BHXH"),
-    ("salary",      "Lương BHXH"),
-    ("rewards",     "Khen thưởng & Kỷ luật"),
-    ("disciplines", "Kỷ luật"),
-    ("training",    "Đào tạo"),
-    ("recruitment", "Tuyển dụng"),
-    ("performance", "Đánh giá KPI"),
-    ("reports",     "Báo cáo"),
-    ("users",       "Tài khoản người dùng"),
-    ("roles",       "Vai trò & Quyền"),
-    ("audit_logs",  "Nhật ký hệ thống"),
-]
-
-_ACTIONS = [
-    ("view",   "Xem"),
-    ("create", "Thêm mới"),
-    ("edit",   "Chỉnh sửa"),
-    ("delete", "Xóa"),
-    ("export", "Xuất dữ liệu"),
-]
+_MODULES = MODULE_DEFS
+_ACTIONS = ACTION_DEFS
 
 # ── Cấu hình roles ─────────────────────────────────────────────────────────────
 
@@ -63,6 +39,7 @@ _ROLE_PERMS: dict[str, dict[str, set[str]]] = {
     "hr_manager": {
         "org":         {"view", "create", "edit", "delete"},
         "catalog":     _FULL,
+        "settings":    _FULL,
         "employees":   _FULL,
         "contracts":   _FULL,
         "leaves":      _FULL,
@@ -80,6 +57,7 @@ _ROLE_PERMS: dict[str, dict[str, set[str]]] = {
     "hr_officer": {
         "org":         _VCE,
         "catalog":     {"view", "create", "edit", "export"},
+        "settings":    _VCE,
         "employees":   {"view", "create", "edit", "export"},
         "contracts":   {"view", "create", "edit", "export"},
         "leaves":      _VCE,

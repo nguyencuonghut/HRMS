@@ -55,6 +55,7 @@
                 <template #body="{ data }">
                   <ToggleButton
                     v-model="data.is_enabled"
+                    :disabled="!auth.hasPermission('settings:edit')"
                     on-label="Bật" off-label="Tắt"
                     on-icon="pi pi-check" off-icon="pi pi-times"
                     @change="saveConfig(data)"
@@ -134,15 +135,15 @@
       <div v-if="editTpl" class="notif-edit-form">
         <div class="notif-edit-field">
           <label>Tiêu đề email</label>
-          <InputText v-model="editForm.subject" class="notif-full-width" />
+          <InputText v-model="editForm.subject" :disabled="!auth.hasPermission('settings:edit')" class="notif-full-width" />
         </div>
         <div class="notif-edit-field">
           <label>Nội dung HTML</label>
-          <Textarea v-model="editForm.body_html" rows="10" auto-resize class="notif-full-width notif-body-textarea" />
+          <Textarea v-model="editForm.body_html" :disabled="!auth.hasPermission('settings:edit')" rows="10" auto-resize class="notif-full-width notif-body-textarea" />
         </div>
         <div class="notif-edit-field notif-active-toggle">
           <label>Trạng thái</label>
-          <ToggleButton v-model="editForm.is_active" on-label="Đang bật" off-label="Tắt" on-icon="pi pi-check" off-icon="pi pi-times" />
+          <ToggleButton v-model="editForm.is_active" :disabled="!auth.hasPermission('settings:edit')" on-label="Đang bật" off-label="Tắt" on-icon="pi pi-check" off-icon="pi pi-times" />
         </div>
 
         <!-- Preview -->
@@ -154,8 +155,8 @@
 
       <template #footer>
         <Button label="Xem trước" icon="pi pi-eye" severity="secondary" outlined :loading="previewing" @click="doPreview" />
-        <Button label="Gửi test" icon="pi pi-send" severity="secondary" outlined @click="openTestSend" />
-        <Button label="Lưu" icon="pi pi-check" :loading="saving" @click="doSave" />
+        <Button v-can:edit="'settings'" label="Gửi test" icon="pi pi-send" severity="secondary" outlined @click="openTestSend" />
+        <Button v-can:edit="'settings'" label="Lưu" icon="pi pi-check" :loading="saving" @click="doSave" />
       </template>
     </Dialog>
 
@@ -167,7 +168,7 @@
       </div>
       <template #footer>
         <Button label="Hủy" text @click="testSendVisible = false" />
-        <Button label="Gửi" icon="pi pi-send" :loading="testSending" @click="doTestSend" />
+        <Button v-can:edit="'settings'" label="Gửi" icon="pi pi-send" :loading="testSending" @click="doTestSend" />
       </template>
     </Dialog>
   </div>
@@ -194,8 +195,10 @@ import Toast from 'primevue/toast'
 import { useToast } from 'primevue/usetoast'
 
 import notificationService, { type NotifConfig, type NotifTemplate, type EmailLogListResponse } from '@/services/notificationService'
+import { useAuthStore } from '@/stores/auth'
 
 const toast = useToast()
+const auth = useAuthStore()
 const { sanitizeHtml } = useSanitize()
 const activeTab = ref('templates')
 
