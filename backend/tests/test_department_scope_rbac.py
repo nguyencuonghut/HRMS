@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import date
 import uuid
 
@@ -28,6 +29,8 @@ BASE_JOB_POSITIONS = "/api/v1/job-positions"
 BASE_ORG_HISTORY = "/api/v1/org-history"
 BASE_CONTRACTS = "/api/v1/contracts"
 BASE_CONTRACT_REPORTS = "/api/v1/reports/contracts"
+BASE_REWARDS = "/api/v1/rewards"
+BASE_DISCIPLINES = "/api/v1/disciplines"
 
 _ADMIN_EMAIL = "admin@hrms.local"
 _ADMIN_PASSWORD = "Hrms@2026"
@@ -63,6 +66,14 @@ async def cleanup():
             .all()
         )
         if employee_ids:
+            await s.execute(
+                text("DELETE FROM employee_rewards WHERE employee_id = ANY(:employee_ids)"),
+                {"employee_ids": employee_ids},
+            )
+            await s.execute(
+                text("DELETE FROM employee_disciplines WHERE employee_id = ANY(:employee_ids)"),
+                {"employee_ids": employee_ids},
+            )
             await s.execute(
                 text("DELETE FROM employee_contracts WHERE employee_id = ANY(:employee_ids)"),
                 {"employee_ids": employee_ids},
@@ -196,6 +207,53 @@ def _create_employee(
     return resp.json()
 
 
+def _create_scope_fixture(
+    client: TestClient,
+    headers: dict[str, str],
+    *,
+    code_suffix: str,
+    visible_employee_suffix: str,
+    hidden_employee_suffix: str,
+    visible_name: str,
+    hidden_name: str,
+) -> dict:
+    root = _create_department(client, headers, code=f"{_PREFIX}_{code_suffix}R", name=f"{_PREFIX} {code_suffix} Root")
+    child = _create_department(
+        client,
+        headers,
+        code=f"{_PREFIX}_{code_suffix}C",
+        name=f"{_PREFIX} {code_suffix} Child",
+        parent_id=root["id"],
+    )
+    outside = _create_department(
+        client,
+        headers,
+        code=f"{_PREFIX}_{code_suffix}O",
+        name=f"{_PREFIX} {code_suffix} Outside",
+    )
+    visible_emp = _create_employee(
+        client,
+        headers,
+        suffix=visible_employee_suffix,
+        full_name=visible_name,
+        department_id=child["id"],
+    )
+    hidden_emp = _create_employee(
+        client,
+        headers,
+        suffix=hidden_employee_suffix,
+        full_name=hidden_name,
+        department_id=outside["id"],
+    )
+    return {
+        "root": root,
+        "child": child,
+        "outside": outside,
+        "visible_emp": visible_emp,
+        "hidden_emp": hidden_emp,
+    }
+
+
 def _create_scoped_line_manager(
     client: TestClient,
     admin_headers: dict[str, str],
@@ -261,6 +319,25 @@ def _get_first_contract_category_id() -> int:
             category_id = result.scalar_one_or_none()
             assert category_id is not None, "Không tìm thấy contract category"
             return int(category_id)
+
+    return asyncio.run(_fetch())
+
+
+def _get_first_reward_type_id() -> int:
+    import asyncio
+
+    async def _fetch() -> int:
+        async with _make_session()() as s:
+            result = await s.execute(
+                text(
+                    "SELECT id FROM reward_types "
+                    "WHERE is_active = TRUE AND is_monetary = FALSE "
+                    "ORDER BY id ASC LIMIT 1"
+                )
+            )
+            reward_type_id = result.scalar_one_or_none()
+            assert reward_type_id is not None, "Không tìm thấy reward type không tiền"
+            return int(reward_type_id)
 
     return asyncio.run(_fetch())
 
@@ -400,32 +477,79 @@ def _create_yearly_review(
     return resp.json()
 
 
+def _create_reward(
+    client: TestClient,
+    headers: dict[str, str],
+    *,
+    employee_id: int,
+    title: str,
+    reward_date: str,
+) -> dict:
+    import json
+
+    resp = client.post(
+        BASE_REWARDS,
+        data={
+            "body": json.dumps(
+                {
+                    "employee_id": employee_id,
+                    "reward_type_id": _get_first_reward_type_id(),
+                    "reward_date": reward_date,
+                    "title": title,
+                }
+            )
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 201, resp.text
+    return resp.json()
+
+
+def _create_discipline(
+    client: TestClient,
+    headers: dict[str, str],
+    *,
+    employee_id: int,
+    title: str,
+    effective_date: str,
+) -> dict:
+    import json
+
+    resp = client.post(
+        BASE_DISCIPLINES,
+        data={
+            "body": json.dumps(
+                {
+                    "employee_id": employee_id,
+                    "discipline_form": "khien_trach",
+                    "violation_date": effective_date,
+                    "effective_date": effective_date,
+                    "title": title,
+                }
+            )
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 201, resp.text
+    return resp.json()
+
+
 def test_scoped_line_manager_only_sees_assigned_departments_and_employees(client: TestClient):
     admin_headers = _login(client)
-    root = _create_department(client, admin_headers, code=f"{_PREFIX}_ROOT", name=f"{_PREFIX} Root")
-    child = _create_department(
+    fixture = _create_scope_fixture(
         client,
         admin_headers,
-        code=f"{_PREFIX}_CHILD",
-        name=f"{_PREFIX} Child",
-        parent_id=root["id"],
+        code_suffix="BASE",
+        visible_employee_suffix="001",
+        hidden_employee_suffix="002",
+        visible_name=f"{_PREFIX} Visible",
+        hidden_name=f"{_PREFIX} Hidden",
     )
-    outside = _create_department(client, admin_headers, code=f"{_PREFIX}_OUT", name=f"{_PREFIX} Outside")
-
-    visible_emp = _create_employee(
-        client,
-        admin_headers,
-        suffix="001",
-        full_name=f"{_PREFIX} Visible",
-        department_id=child["id"],
-    )
-    hidden_emp = _create_employee(
-        client,
-        admin_headers,
-        suffix="002",
-        full_name=f"{_PREFIX} Hidden",
-        department_id=outside["id"],
-    )
+    root = fixture["root"]
+    child = fixture["child"]
+    outside = fixture["outside"]
+    visible_emp = fixture["visible_emp"]
+    hidden_emp = fixture["hidden_emp"]
 
     manager_headers = _create_scoped_line_manager(
         client,
@@ -465,6 +589,9 @@ def test_scoped_line_manager_only_sees_assigned_departments_and_employees(client
     assert me_payload["department_scopes"]["employees"] == sorted([root["id"], child["id"]])
     assert me_payload["department_scopes"]["leaves"] == sorted([root["id"], child["id"]])
     assert me_payload["department_scopes"]["performance"] == sorted([root["id"], child["id"]])
+    assert me_payload["department_scopes"]["rewards"] == sorted([root["id"], child["id"]])
+    assert me_payload["department_scopes"]["disciplines"] == sorted([root["id"], child["id"]])
+    assert me_payload["department_scopes"]["reports"] == sorted([root["id"], child["id"]])
 
 
 def test_scoped_line_manager_nested_employee_view_is_blocked_outside_scope(client: TestClient):
@@ -803,6 +930,165 @@ def test_scoped_line_manager_org_module_is_limited_to_department_related_views(c
 
     hidden_position_detail = client.get(f"{BASE_JOB_POSITIONS}/{hidden_position['id']}", headers=manager_headers)
     assert hidden_position_detail.status_code == 403, hidden_position_detail.text
+
+
+def test_scoped_line_manager_rewards_disciplines_and_reports_are_limited_to_assigned_departments(client: TestClient):
+    admin_headers = _login(client)
+    fixture = _create_scope_fixture(
+        client,
+        admin_headers,
+        code_suffix="RD",
+        visible_employee_suffix="014",
+        hidden_employee_suffix="015",
+        visible_name=f"{_PREFIX} Reward Visible",
+        hidden_name=f"{_PREFIX} Reward Hidden",
+    )
+    root = fixture["root"]
+    visible_emp = fixture["visible_emp"]
+    hidden_emp = fixture["hidden_emp"]
+    outside = fixture["outside"]
+    report_date = "2099-06-15"
+
+    hidden_reward = _create_reward(
+        client,
+        admin_headers,
+        employee_id=hidden_emp["id"],
+        title=f"{_PREFIX} Hidden Reward",
+        reward_date=report_date,
+    )
+    hidden_discipline = _create_discipline(
+        client,
+        admin_headers,
+        employee_id=hidden_emp["id"],
+        title=f"{_PREFIX} Hidden Discipline",
+        effective_date=report_date,
+    )
+
+    manager_headers = _create_scoped_line_manager(client, admin_headers, department_ids=[root["id"]])
+
+    visible_reward_create = client.post(
+        BASE_REWARDS,
+        data={
+            "body": json.dumps(
+                {
+                    "employee_id": visible_emp["id"],
+                    "reward_type_id": _get_first_reward_type_id(),
+                    "reward_date": report_date,
+                    "title": f"{_PREFIX} Visible Reward",
+                }
+            )
+        },
+        headers=manager_headers,
+    )
+    assert visible_reward_create.status_code == 201, visible_reward_create.text
+    visible_reward = visible_reward_create.json()
+
+    hidden_reward_create = client.post(
+        BASE_REWARDS,
+        data={
+            "body": json.dumps(
+                {
+                    "employee_id": hidden_emp["id"],
+                    "reward_type_id": _get_first_reward_type_id(),
+                    "reward_date": report_date,
+                    "title": f"{_PREFIX} Blocked Reward",
+                }
+            )
+        },
+        headers=manager_headers,
+    )
+    assert hidden_reward_create.status_code == 403, hidden_reward_create.text
+
+    visible_discipline_create = client.post(
+        BASE_DISCIPLINES,
+        data={
+            "body": json.dumps(
+                {
+                    "employee_id": visible_emp["id"],
+                    "discipline_form": "khien_trach",
+                    "violation_date": report_date,
+                    "effective_date": report_date,
+                    "title": f"{_PREFIX} Visible Discipline",
+                }
+            )
+        },
+        headers=manager_headers,
+    )
+    assert visible_discipline_create.status_code == 201, visible_discipline_create.text
+    visible_discipline = visible_discipline_create.json()
+
+    hidden_discipline_create = client.post(
+        BASE_DISCIPLINES,
+        data={
+            "body": json.dumps(
+                {
+                    "employee_id": hidden_emp["id"],
+                    "discipline_form": "khien_trach",
+                    "violation_date": report_date,
+                    "effective_date": report_date,
+                    "title": f"{_PREFIX} Blocked Discipline",
+                }
+            )
+        },
+        headers=manager_headers,
+    )
+    assert hidden_discipline_create.status_code == 403, hidden_discipline_create.text
+
+    rewards_resp = client.get(
+        BASE_REWARDS,
+        params={"search": _PREFIX, "page_size": 100},
+        headers=manager_headers,
+    )
+    assert rewards_resp.status_code == 200, rewards_resp.text
+    reward_ids = {item["id"] for item in rewards_resp.json()["items"]}
+    assert visible_reward["id"] in reward_ids
+    assert hidden_reward["id"] not in reward_ids
+
+    disciplines_resp = client.get(
+        BASE_DISCIPLINES,
+        params={"search": _PREFIX, "page_size": 100},
+        headers=manager_headers,
+    )
+    assert disciplines_resp.status_code == 200, disciplines_resp.text
+    discipline_ids = {item["id"] for item in disciplines_resp.json()["items"]}
+    assert visible_discipline["id"] in discipline_ids
+    assert hidden_discipline["id"] not in discipline_ids
+
+    assert client.get(f"{BASE_REWARDS}/{visible_reward['id']}", headers=manager_headers).status_code == 200
+    assert client.get(f"{BASE_REWARDS}/{hidden_reward['id']}", headers=manager_headers).status_code == 403
+    assert client.get(f"{BASE_DISCIPLINES}/{visible_discipline['id']}", headers=manager_headers).status_code == 200
+    assert client.get(f"{BASE_DISCIPLINES}/{hidden_discipline['id']}", headers=manager_headers).status_code == 403
+    assert client.get(f"{BASE_EMP}/{hidden_emp['id']}/rewards", headers=manager_headers).status_code == 403
+    assert client.get(f"{BASE_EMP}/{hidden_emp['id']}/disciplines", headers=manager_headers).status_code == 403
+
+    summary_resp = client.get(
+        f"{BASE_REWARDS}/report/summary",
+        params={"from_date": "2099-01-01", "to_date": "2099-12-31"},
+        headers=manager_headers,
+    )
+    assert summary_resp.status_code == 200, summary_resp.text
+    summary_body = summary_resp.json()
+    assert summary_body["total_rewards"] == 1
+    assert summary_body["total_disciplines"] == 1
+    assert {item["employee_id"] for item in summary_body["reward_items"]} == {visible_emp["id"]}
+    assert {item["employee_id"] for item in summary_body["discipline_items"]} == {visible_emp["id"]}
+
+    forbidden_summary = client.get(
+        f"{BASE_REWARDS}/report/summary",
+        params={"from_date": "2099-01-01", "to_date": "2099-12-31", "department_id": outside["id"]},
+        headers=manager_headers,
+    )
+    assert forbidden_summary.status_code == 403, forbidden_summary.text
+
+    export_resp = client.get(
+        f"{BASE_REWARDS}/report/export",
+        params={"from_date": "2099-01-01", "to_date": "2099-12-31"},
+        headers=manager_headers,
+    )
+    assert export_resp.status_code == 200, export_resp.text
+    assert export_resp.headers["content-type"].startswith(
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
 
 
 def test_scoped_contract_user_only_sees_contracts_within_assigned_departments(client: TestClient):

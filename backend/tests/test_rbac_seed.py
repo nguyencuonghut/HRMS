@@ -181,7 +181,15 @@ async def test_line_manager_limited_modules():
         JOIN permissions p ON rp.permission_id = p.id
         WHERE r.code = 'line_manager'
     """)}
-    assert modules == {"org", "employees", "leaves", "performance"}
+    assert modules == {
+        "org",
+        "employees",
+        "leaves",
+        "performance",
+        "rewards",
+        "disciplines",
+        "reports",
+    }
 
 
 async def test_line_manager_cannot_delete_anything():

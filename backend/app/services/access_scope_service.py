@@ -10,9 +10,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.auth import Permission, Role, RolePermission, User, UserRole
 from app.models.employee import Employee
 from app.models.employee_job import EmployeeJobRecord
-from app.models.org import Department
 from app.models.leave_record import LeaveRecord
+from app.models.org import Department
 from app.models.performance import EmployeeKpiMonthly, EmployeeYearlyReview
+from app.models.reward import EmployeeReward
+from app.models.discipline import EmployeeDiscipline
 
 EMPLOYEE_SCOPE_PERMISSIONS = ("employees:view", "employees:edit", "employees:delete")
 CONTRACT_SCOPE_PERMISSIONS = ("contracts:view", "contracts:create", "contracts:edit", "contracts:delete")
@@ -23,6 +25,14 @@ PERFORMANCE_SCOPE_PERMISSIONS = (
     "performance:edit",
     "performance:delete",
 )
+REWARD_SCOPE_PERMISSIONS = ("rewards:view", "rewards:create", "rewards:edit", "rewards:delete")
+DISCIPLINE_SCOPE_PERMISSIONS = (
+    "disciplines:view",
+    "disciplines:create",
+    "disciplines:edit",
+    "disciplines:delete",
+)
+REPORT_SCOPE_PERMISSIONS = ("reports:view", "reports:export")
 
 
 async def _expand_department_scope(
@@ -55,6 +65,15 @@ async def _expand_department_scope(
         {"root_ids": root_ids},
     )
     return {int(row[0]) for row in rows.fetchall()}
+
+
+async def get_department_subtree_ids(
+    session: AsyncSession,
+    department_id: int | None,
+) -> set[int] | None:
+    if department_id is None:
+        return None
+    return await _expand_department_scope(session, [department_id])
 
 
 async def get_allowed_department_ids(
@@ -103,6 +122,28 @@ async def get_allowed_department_ids(
         return set()
 
     return await _expand_department_scope(session, scoped_root_ids)
+
+
+async def resolve_effective_department_scope_ids(
+    session: AsyncSession,
+    *,
+    department_id: int | None,
+    allowed_department_ids: Iterable[int] | None,
+) -> set[int] | None:
+    requested_scope_ids = await get_department_subtree_ids(session, department_id)
+    if allowed_department_ids is None:
+        return requested_scope_ids
+
+    allowed_scope_ids = {int(item) for item in allowed_department_ids}
+    if department_id is not None and department_id not in allowed_scope_ids:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Không có quyền truy cập dữ liệu phòng ban này",
+        )
+
+    if requested_scope_ids is None:
+        return allowed_scope_ids
+    return requested_scope_ids & allowed_scope_ids
 
 
 async def ensure_department_access(
@@ -261,6 +302,40 @@ async def ensure_yearly_review_access(
         employee_stmt=select(EmployeeYearlyReview.employee_id).where(EmployeeYearlyReview.id == review_id),
         not_found_detail="Không tìm thấy bản ghi đánh giá",
         forbidden_detail="Không có quyền truy cập dữ liệu đánh giá thuộc phòng ban này",
+    )
+
+
+async def ensure_reward_access(
+    session: AsyncSession,
+    user: User,
+    *,
+    permission_codes: Iterable[str] = REWARD_SCOPE_PERMISSIONS,
+    reward_id: int,
+) -> Optional[set[int]]:
+    return await _ensure_related_employee_access(
+        session,
+        user,
+        permission_codes=permission_codes,
+        employee_stmt=select(EmployeeReward.employee_id).where(EmployeeReward.id == reward_id),
+        not_found_detail="Không tìm thấy quyết định khen thưởng",
+        forbidden_detail="Không có quyền truy cập dữ liệu khen thưởng thuộc phòng ban này",
+    )
+
+
+async def ensure_discipline_access(
+    session: AsyncSession,
+    user: User,
+    *,
+    permission_codes: Iterable[str] = DISCIPLINE_SCOPE_PERMISSIONS,
+    discipline_id: int,
+) -> Optional[set[int]]:
+    return await _ensure_related_employee_access(
+        session,
+        user,
+        permission_codes=permission_codes,
+        employee_stmt=select(EmployeeDiscipline.employee_id).where(EmployeeDiscipline.id == discipline_id),
+        not_found_detail="Không tìm thấy quyết định kỷ luật",
+        forbidden_detail="Không có quyền truy cập dữ liệu kỷ luật thuộc phòng ban này",
     )
 
 

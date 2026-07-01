@@ -22,7 +22,7 @@ from app.schemas.reward_report import (
     RewardDisciplineSummary,
     RewardTypeStat,
 )
-from app.services import discipline_service, reward_service
+from app.services import access_scope_service, discipline_service, reward_service
 
 # Thứ tự cố định các hình thức kỷ luật
 _DISCIPLINE_FORM_ORDER = [
@@ -39,11 +39,18 @@ async def get_reward_discipline_report(
     from_date: date,
     to_date: date,
     department_id: Optional[int] = None,
+    allowed_department_ids: Optional[list[int] | set[int] | tuple[int, ...]] = None,
     reward_page: int = 1,
     reward_page_size: int = 20,
     discipline_page: int = 1,
     discipline_page_size: int = 20,
 ) -> RewardDisciplineReportPage:
+    scope_ids = await access_scope_service.resolve_effective_department_scope_ids(
+        session,
+        department_id=department_id,
+        allowed_department_ids=allowed_department_ids,
+    )
+
     # ── 1. Fetch department name nếu có filter ────────────────────────────────
     department_name: Optional[str] = None
     if department_id is not None:
@@ -71,8 +78,11 @@ async def get_reward_discipline_report(
         .where(EmployeeReward.reward_date <= to_date)
         .group_by(EmployeeReward.reward_type_id, RewardType.name, RewardType.is_monetary)
     )
-    if department_id is not None:
-        reward_type_stmt = reward_type_stmt.where(EmployeeJobRecord.department_id == department_id)
+    if scope_ids is not None:
+        if not scope_ids:
+            reward_type_stmt = reward_type_stmt.where(False)
+        else:
+            reward_type_stmt = reward_type_stmt.where(EmployeeJobRecord.department_id.in_(scope_ids))
 
     reward_type_rows = (await session.execute(reward_type_stmt)).all()
 
@@ -113,8 +123,11 @@ async def get_reward_discipline_report(
         .where(EmployeeReward.reward_date <= to_date)
         .group_by(EmployeeJobRecord.department_id, Department.name)
     )
-    if department_id is not None:
-        reward_dept_stmt = reward_dept_stmt.where(EmployeeJobRecord.department_id == department_id)
+    if scope_ids is not None:
+        if not scope_ids:
+            reward_dept_stmt = reward_dept_stmt.where(False)
+        else:
+            reward_dept_stmt = reward_dept_stmt.where(EmployeeJobRecord.department_id.in_(scope_ids))
 
     reward_dept_rows = (await session.execute(reward_dept_stmt)).all()
 
@@ -144,8 +157,11 @@ async def get_reward_discipline_report(
         .where(EmployeeDiscipline.effective_date <= to_date)
         .group_by(EmployeeDiscipline.discipline_form)
     )
-    if department_id is not None:
-        disc_form_stmt = disc_form_stmt.where(EmployeeJobRecord.department_id == department_id)
+    if scope_ids is not None:
+        if not scope_ids:
+            disc_form_stmt = disc_form_stmt.where(False)
+        else:
+            disc_form_stmt = disc_form_stmt.where(EmployeeJobRecord.department_id.in_(scope_ids))
 
     disc_form_rows = (await session.execute(disc_form_stmt)).all()
     disc_form_map: dict[str, int] = {row.discipline_form: row.cnt or 0 for row in disc_form_rows}
@@ -179,8 +195,11 @@ async def get_reward_discipline_report(
         .where(EmployeeDiscipline.effective_date <= to_date)
         .group_by(EmployeeJobRecord.department_id, Department.name)
     )
-    if department_id is not None:
-        disc_dept_stmt = disc_dept_stmt.where(EmployeeJobRecord.department_id == department_id)
+    if scope_ids is not None:
+        if not scope_ids:
+            disc_dept_stmt = disc_dept_stmt.where(False)
+        else:
+            disc_dept_stmt = disc_dept_stmt.where(EmployeeJobRecord.department_id.in_(scope_ids))
 
     disc_dept_rows = (await session.execute(disc_dept_stmt)).all()
     for row in disc_dept_rows:
@@ -208,6 +227,7 @@ async def get_reward_discipline_report(
         from_date=from_date,
         to_date=to_date,
         department_id=department_id,
+        allowed_department_ids=allowed_department_ids,
         page=reward_page,
         page_size=reward_page_size,
     )
@@ -216,6 +236,7 @@ async def get_reward_discipline_report(
         from_date=from_date,
         to_date=to_date,
         department_id=department_id,
+        allowed_department_ids=allowed_department_ids,
         page=discipline_page,
         page_size=discipline_page_size,
     )

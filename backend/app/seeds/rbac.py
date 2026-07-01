@@ -76,6 +76,9 @@ _ROLE_PERMS: dict[str, dict[str, set[str]]] = {
         "employees":   {"view"},
         "leaves":      _VCE,
         "performance": _VCE,
+        "rewards":     _VCE,
+        "disciplines": _VCE,
+        "reports":     _VIEW_EXPORT,
     },
 
     "finance": {

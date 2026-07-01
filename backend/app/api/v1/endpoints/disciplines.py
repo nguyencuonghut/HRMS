@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Reques
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.v1.deps import require_permission
+from app.api.v1.deps import require_department_scope, require_permission
 from app.core.database import get_session
 from app.core.storage import get_object_stream
 from app.models.auth import User
@@ -19,7 +19,7 @@ from app.schemas.discipline import (
     DisciplineRead,
     DisciplineUpdate,
 )
-from app.services import auth_service, discipline_service
+from app.services import access_scope_service, auth_service, discipline_service
 
 router = APIRouter()
 employee_history_router = APIRouter()
@@ -42,6 +42,7 @@ async def list_disciplines(
     page:             int            = Query(1, ge=1),
     page_size:        int            = Query(20, ge=1, le=200),
     _: User = require_permission("disciplines:view"),
+    allowed_department_ids: set[int] | None = require_department_scope("disciplines:view"),
     session: AsyncSession = Depends(get_session),
 ):
     return await discipline_service.list_disciplines(
@@ -49,6 +50,7 @@ async def list_disciplines(
         employee_id=employee_id,
         discipline_form=discipline_form,
         department_id=department_id,
+        allowed_department_ids=allowed_department_ids,
         from_date=from_date,
         to_date=to_date,
         search=search,
@@ -61,9 +63,15 @@ async def list_disciplines(
             summary="Chi tiết quyết định kỷ luật")
 async def get_discipline(
     discipline_id: int,
-    _: User = require_permission("disciplines:view"),
+    current_user: User = require_permission("disciplines:view"),
     session: AsyncSession = Depends(get_session),
 ):
+    await access_scope_service.ensure_discipline_access(
+        session,
+        current_user,
+        permission_codes=("disciplines:view",),
+        discipline_id=discipline_id,
+    )
     return await discipline_service.get_discipline(session, discipline_id)
 
 
@@ -84,6 +92,12 @@ async def create_discipline(
     except Exception as exc:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc))
 
+    await access_scope_service.ensure_employee_access(
+        session,
+        current_user,
+        permission_codes=("disciplines:create",),
+        employee_id=data.employee_id,
+    )
     result = await discipline_service.create_discipline(session, data, file or None, current_user.id)
     await auth_service.log_audit(
         session, current_user.id, "CREATE",
@@ -112,6 +126,12 @@ async def update_discipline(
     except Exception as exc:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc))
 
+    await access_scope_service.ensure_discipline_access(
+        session,
+        current_user,
+        permission_codes=("disciplines:edit",),
+        discipline_id=discipline_id,
+    )
     result = await discipline_service.update_discipline(session, discipline_id, data, file or None)
     await auth_service.log_audit(
         session, current_user.id, "UPDATE",
@@ -132,6 +152,12 @@ async def delete_discipline(
     current_user: User = require_permission("disciplines:delete"),
     session: AsyncSession = Depends(get_session),
 ):
+    await access_scope_service.ensure_discipline_access(
+        session,
+        current_user,
+        permission_codes=("disciplines:delete",),
+        discipline_id=discipline_id,
+    )
     await discipline_service.delete_discipline(session, discipline_id)
     await auth_service.log_audit(
         session, current_user.id, "DELETE",
@@ -147,9 +173,15 @@ async def delete_discipline(
 @router.get("/{discipline_id}/download", tags=[_TAG], summary="Tải file đính kèm")
 async def download_discipline_file(
     discipline_id: int,
-    _: User = require_permission("disciplines:view"),
+    current_user: User = require_permission("disciplines:view"),
     session: AsyncSession = Depends(get_session),
 ):
+    await access_scope_service.ensure_discipline_access(
+        session,
+        current_user,
+        permission_codes=("disciplines:view",),
+        discipline_id=discipline_id,
+    )
     from app.models.discipline import EmployeeDiscipline
     record = await session.get(EmployeeDiscipline, discipline_id)
     if not record:
@@ -173,7 +205,13 @@ async def download_discipline_file(
                               tags=[_TAG], summary="Lịch sử kỷ luật của nhân viên")
 async def get_employee_discipline_history(
     employee_id: int,
-    _: User = require_permission("disciplines:view"),
+    current_user: User = require_permission("disciplines:view"),
     session: AsyncSession = Depends(get_session),
 ):
+    await access_scope_service.ensure_employee_access(
+        session,
+        current_user,
+        permission_codes=("disciplines:view",),
+        employee_id=employee_id,
+    )
     return await discipline_service.get_employee_discipline_history(session, employee_id)

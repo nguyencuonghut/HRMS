@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Reques
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.v1.deps import require_permission
+from app.api.v1.deps import require_department_scope, require_permission
 from app.core.database import get_session
 from app.core.storage import get_object_stream
 from app.models.auth import User
@@ -24,7 +24,7 @@ from app.schemas.reward import (
     RewardUpdate,
 )
 from app.schemas.reward_report import RewardDisciplineReportPage
-from app.services import auth_service, reward_export_service, reward_report_service, reward_service
+from app.services import access_scope_service, auth_service, reward_export_service, reward_report_service, reward_service
 
 router = APIRouter()
 
@@ -111,6 +111,7 @@ async def list_rewards(
     page:           int            = Query(1, ge=1),
     page_size:      int            = Query(20, ge=1, le=200),
     _: User = require_permission("rewards:view"),
+    allowed_department_ids: set[int] | None = require_department_scope("rewards:view"),
     session: AsyncSession = Depends(get_session),
 ):
     return await reward_service.list_rewards(
@@ -118,6 +119,7 @@ async def list_rewards(
         employee_id=employee_id,
         reward_type_id=reward_type_id,
         department_id=department_id,
+        allowed_department_ids=allowed_department_ids,
         from_date=from_date,
         to_date=to_date,
         search=search,
@@ -139,14 +141,23 @@ async def get_report_summary(
     reward_page_size: int = Query(20, ge=1, le=200),
     discipline_page: int = Query(1, ge=1),
     discipline_page_size: int = Query(20, ge=1, le=200),
-    _: User = require_permission("rewards:view", "disciplines:view"),
+    current_user: User = require_permission("rewards:view", "disciplines:view"),
+    allowed_department_ids: set[int] | None = require_department_scope("rewards:view", "disciplines:view"),
     session: AsyncSession = Depends(get_session),
 ):
+    if department_id is not None:
+        await access_scope_service.ensure_department_access(
+            session,
+            current_user,
+            permission_codes=("rewards:view", "disciplines:view"),
+            department_id=department_id,
+        )
     return await reward_report_service.get_reward_discipline_report(
         session,
         from_date=from_date,
         to_date=to_date,
         department_id=department_id,
+        allowed_department_ids=None if department_id is not None else allowed_department_ids,
         reward_page=reward_page,
         reward_page_size=reward_page_size,
         discipline_page=discipline_page,
@@ -159,14 +170,23 @@ async def export_report_excel(
     from_date: _date = Query(...),
     to_date: _date = Query(...),
     department_id: Optional[int] = Query(None),
-    _: User = require_permission("rewards:view", "disciplines:view"),
+    current_user: User = require_permission("rewards:view", "disciplines:view"),
+    allowed_department_ids: set[int] | None = require_department_scope("rewards:view", "disciplines:view"),
     session: AsyncSession = Depends(get_session),
 ):
+    if department_id is not None:
+        await access_scope_service.ensure_department_access(
+            session,
+            current_user,
+            permission_codes=("rewards:view", "disciplines:view"),
+            department_id=department_id,
+        )
     content = await reward_export_service.export_reward_discipline_excel(
         session,
         from_date=from_date,
         to_date=to_date,
         department_id=department_id,
+        allowed_department_ids=None if department_id is not None else allowed_department_ids,
     )
     filename = f"khen_thuong_ky_luat_{from_date}_{to_date}.xlsx"
     return StreamingResponse(
@@ -180,9 +200,15 @@ async def export_report_excel(
             summary="Chi tiết quyết định khen thưởng")
 async def get_reward(
     reward_id: int,
-    _: User = require_permission("rewards:view"),
+    current_user: User = require_permission("rewards:view"),
     session: AsyncSession = Depends(get_session),
 ):
+    await access_scope_service.ensure_reward_access(
+        session,
+        current_user,
+        permission_codes=("rewards:view",),
+        reward_id=reward_id,
+    )
     return await reward_service.get_reward(session, reward_id)
 
 
@@ -201,6 +227,12 @@ async def create_reward(
     except Exception as exc:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc))
 
+    await access_scope_service.ensure_employee_access(
+        session,
+        current_user,
+        permission_codes=("rewards:create",),
+        employee_id=data.employee_id,
+    )
     result = await reward_service.create_reward(session, data, file or None, current_user.id)
     await auth_service.log_audit(
         session, current_user.id, "CREATE",
@@ -226,6 +258,12 @@ async def update_reward(
     except Exception as exc:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc))
 
+    await access_scope_service.ensure_reward_access(
+        session,
+        current_user,
+        permission_codes=("rewards:edit",),
+        reward_id=reward_id,
+    )
     result = await reward_service.update_reward(session, reward_id, data, file or None)
     await auth_service.log_audit(
         session, current_user.id, "UPDATE",
@@ -244,6 +282,12 @@ async def delete_reward(
     current_user: User = require_permission("rewards:delete"),
     session: AsyncSession = Depends(get_session),
 ):
+    await access_scope_service.ensure_reward_access(
+        session,
+        current_user,
+        permission_codes=("rewards:delete",),
+        reward_id=reward_id,
+    )
     await reward_service.delete_reward(session, reward_id)
     await auth_service.log_audit(
         session, current_user.id, "DELETE",
@@ -255,9 +299,15 @@ async def delete_reward(
 @router.get("/{reward_id}/download", tags=[_TAG], summary="Tải file đính kèm")
 async def download_reward_file(
     reward_id: int,
-    _: User = require_permission("rewards:view"),
+    current_user: User = require_permission("rewards:view"),
     session: AsyncSession = Depends(get_session),
 ):
+    await access_scope_service.ensure_reward_access(
+        session,
+        current_user,
+        permission_codes=("rewards:view",),
+        reward_id=reward_id,
+    )
     from app.services.reward_service import _get_reward_or_404
     record = await _get_reward_or_404(session, reward_id)
     if not record.file_path:
@@ -283,7 +333,13 @@ employee_history_router = APIRouter()
 )
 async def get_employee_rewards(
     employee_id: int,
-    _: User = require_permission("rewards:view"),
+    current_user: User = require_permission("rewards:view"),
     session: AsyncSession = Depends(get_session),
 ):
+    await access_scope_service.ensure_employee_access(
+        session,
+        current_user,
+        permission_codes=("rewards:view",),
+        employee_id=employee_id,
+    )
     return await reward_service.get_employee_reward_history(session, employee_id)

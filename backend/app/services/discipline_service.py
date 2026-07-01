@@ -27,7 +27,7 @@ from app.schemas.discipline import (
     DisciplineRead,
     DisciplineUpdate,
 )
-from app.services import employee_code_service
+from app.services import access_scope_service, employee_code_service
 from app.utils.employee_code_sql import sql_padded_employee_seq_expr
 
 logger = logging.getLogger(__name__)
@@ -117,12 +117,19 @@ async def list_disciplines(
     employee_id: Optional[int] = None,
     discipline_form: Optional[str] = None,
     department_id: Optional[int] = None,
+    allowed_department_ids: Optional[list[int] | set[int] | tuple[int, ...]] = None,
     from_date=None,
     to_date=None,
     search: Optional[str] = None,
     page: int = 1,
     page_size: int = 20,
 ) -> DisciplineListPage:
+    scope_ids = await access_scope_service.resolve_effective_department_scope_ids(
+        session,
+        department_id=department_id,
+        allowed_department_ids=allowed_department_ids,
+    )
+
     stmt = (
         select(EmployeeDiscipline)
         .join(Employee, Employee.id == EmployeeDiscipline.employee_id)
@@ -137,8 +144,11 @@ async def list_disciplines(
         stmt = stmt.where(EmployeeDiscipline.employee_id == employee_id)
     if discipline_form is not None:
         stmt = stmt.where(EmployeeDiscipline.discipline_form == discipline_form)
-    if department_id is not None:
-        stmt = stmt.where(EmployeeJobRecord.department_id == department_id)
+    if scope_ids is not None:
+        if not scope_ids:
+            stmt = stmt.where(False)
+        else:
+            stmt = stmt.where(EmployeeJobRecord.department_id.in_(scope_ids))
     if from_date is not None:
         stmt = stmt.where(EmployeeDiscipline.effective_date >= from_date)
     if to_date is not None:

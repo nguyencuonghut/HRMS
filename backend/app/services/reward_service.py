@@ -25,7 +25,7 @@ from app.schemas.reward import (
     RewardTypeUpdate,
     RewardUpdate,
 )
-from app.services import employee_code_service
+from app.services import access_scope_service, employee_code_service
 from app.utils.employee_code_sql import sql_padded_employee_seq_expr
 
 logger = logging.getLogger(__name__)
@@ -172,30 +172,40 @@ async def list_rewards(
     employee_id: Optional[int] = None,
     reward_type_id: Optional[int] = None,
     department_id: Optional[int] = None,
+    allowed_department_ids: Optional[list[int] | set[int] | tuple[int, ...]] = None,
     from_date=None,
     to_date=None,
     search: Optional[str] = None,
     page: int = 1,
     page_size: int = 20,
 ) -> RewardListPage:
+    scope_ids = await access_scope_service.resolve_effective_department_scope_ids(
+        session,
+        department_id=department_id,
+        allowed_department_ids=allowed_department_ids,
+    )
+
     # Base query — join EmployeeCodeSequence để có thể search theo mã NV
     stmt = (
         select(EmployeeReward)
         .join(Employee, Employee.id == EmployeeReward.employee_id)
         .join(EmployeeCodeSequence, EmployeeCodeSequence.id == Employee.employee_code_sequence_id)
+        .outerjoin(
+            EmployeeJobRecord,
+            (EmployeeJobRecord.employee_id == Employee.id)
+            & (EmployeeJobRecord.is_current == True),  # noqa: E712
+        )
     )
 
     if employee_id is not None:
         stmt = stmt.where(EmployeeReward.employee_id == employee_id)
     if reward_type_id is not None:
         stmt = stmt.where(EmployeeReward.reward_type_id == reward_type_id)
-    if department_id is not None:
-        dept_sub = (
-            select(EmployeeJobRecord.employee_id)
-            .where(EmployeeJobRecord.department_id == department_id)
-            .distinct()
-        )
-        stmt = stmt.where(EmployeeReward.employee_id.in_(dept_sub))
+    if scope_ids is not None:
+        if not scope_ids:
+            stmt = stmt.where(False)
+        else:
+            stmt = stmt.where(EmployeeJobRecord.department_id.in_(scope_ids))
     if from_date is not None:
         stmt = stmt.where(EmployeeReward.reward_date >= from_date)
     if to_date is not None:

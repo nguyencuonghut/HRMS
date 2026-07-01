@@ -91,7 +91,16 @@ def _refresh_rate_limit_key(request: Request) -> str:
     return "ip:unknown"
 
 
-_DEPARTMENT_SCOPED_MODULES = ("org", "employees", "contracts", "leaves", "performance")
+_DEPARTMENT_SCOPED_MODULES = (
+    "org",
+    "employees",
+    "contracts",
+    "leaves",
+    "performance",
+    "rewards",
+    "disciplines",
+    "reports",
+)
 
 
 async def _build_department_scopes(

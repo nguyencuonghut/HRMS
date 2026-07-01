@@ -44,6 +44,7 @@ async def export_reward_discipline_excel(
     from_date: date,
     to_date: date,
     department_id: Optional[int] = None,
+    allowed_department_ids: Optional[list[int] | set[int] | tuple[int, ...]] = None,
     company_name: str = "CÔNG TY TNHH HỒNG HÀ",
 ) -> bytes:
     # Fetch ALL records (no pagination)
@@ -52,6 +53,7 @@ async def export_reward_discipline_excel(
         from_date=from_date,
         to_date=to_date,
         department_id=department_id,
+        allowed_department_ids=allowed_department_ids,
         page=1,
         page_size=10000,
     )
@@ -60,6 +62,7 @@ async def export_reward_discipline_excel(
         from_date=from_date,
         to_date=to_date,
         department_id=department_id,
+        allowed_department_ids=allowed_department_ids,
         page=1,
         page_size=10000,
     )
