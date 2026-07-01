@@ -17,6 +17,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.core.config import settings
+from app.core.security import hash_password
 
 BASE = "/api/v1/rewards/report"
 _ADMIN_EMAIL = "admin@hrms.local"
@@ -46,6 +47,14 @@ def _admin(client: TestClient) -> dict:
     token = client.post(
         "/api/v1/auth/login",
         json={"email": _ADMIN_EMAIL, "password": _ADMIN_PASSWORD},
+    ).json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}
+
+
+def _login(client: TestClient, email: str, password: str) -> dict:
+    token = client.post(
+        "/api/v1/auth/login",
+        json={"email": email, "password": password},
     ).json()["access_token"]
     return {"Authorization": f"Bearer {token}"}
 
@@ -118,6 +127,59 @@ def _get_summary(client: TestClient, h: dict, from_date: str = _FROM,
     r = client.get(f"{BASE}/summary", params=params, headers=h)
     assert r.status_code == 200, f"Expected 200, got {r.status_code}: {r.text}"
     return r.json()
+
+
+async def _create_disciplines_report_viewer() -> tuple[str, str]:
+    email = f"disciplines_report_{uuid.uuid4().hex[:8]}@hrms.local"
+    password = "Hrms@2026"
+    role_code = f"disciplines_report_{uuid.uuid4().hex[:8]}"
+
+    async with _make_session()() as s:
+        await s.execute(
+            text("""
+                INSERT INTO roles (code, name, description, is_system, created_at)
+                VALUES (:code, :name, :description, false, now())
+            """),
+            {
+                "code": role_code,
+                "name": f"Disciplines report {role_code}",
+                "description": "Test role for reward/discipline report",
+            },
+        )
+        await s.execute(
+            text("""
+                INSERT INTO users (email, full_name, hashed_password, is_active, is_superuser, created_at)
+                VALUES (:email, :full_name, :hashed_password, true, false, now())
+            """),
+            {
+                "email": email,
+                "full_name": "Disciplines Report Viewer",
+                "hashed_password": hash_password(password),
+            },
+        )
+        await s.execute(
+            text("""
+                INSERT INTO user_roles (user_id, role_id)
+                SELECT u.id, r.id
+                FROM users u, roles r
+                WHERE u.email = :email AND r.code = :role_code
+            """),
+            {"email": email, "role_code": role_code},
+        )
+        await s.execute(
+            text("""
+                INSERT INTO role_permissions (role_id, permission_id)
+                SELECT r.id, p.id
+                FROM roles r
+                JOIN permissions p ON p.code IN ('reports:view', 'disciplines:view')
+                WHERE r.code = :role_code
+                ON CONFLICT DO NOTHING
+            """),
+            {"role_code": role_code},
+        )
+        await s.commit()
+
+    return email, password
 
 
 # ── TestRewardDisciplineReport ─────────────────────────────────────────────────
@@ -261,6 +323,18 @@ class TestRewardDisciplineReport:
         """Không có auth header → 401."""
         r = client.get(f"{BASE}/summary", params={"from_date": _FROM, "to_date": _TO})
         assert r.status_code == 401
+
+    @pytest.mark.asyncio
+    async def test_summary_accepts_disciplines_view_with_reports_view(self, client: TestClient):
+        email, password = await _create_disciplines_report_viewer()
+        headers = _login(client, email, password)
+
+        response = client.get(
+            f"{BASE}/summary",
+            params={"from_date": _FROM, "to_date": _TO},
+            headers=headers,
+        )
+        assert response.status_code == 200, response.text
 
 
 # ── TestRewardDisciplineExport ─────────────────────────────────────────────────

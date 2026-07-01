@@ -63,6 +63,15 @@ def test_permissions_format(client: TestClient):
         assert action == p["action"]
 
 
+def test_permissions_module_labels_are_distinct_for_rewards_and_disciplines(client: TestClient):
+    perms = client.get(PERM_BASE, headers=_admin(client)).json()
+    reward_view = next(p for p in perms if p["code"] == "rewards:view")
+    discipline_view = next(p for p in perms if p["code"] == "disciplines:view")
+
+    assert reward_view["module_label"] == "Khen thưởng"
+    assert discipline_view["module_label"] == "Kỷ luật"
+
+
 # ── GET /roles ─────────────────────────────────────────────────────────────────
 
 def test_list_roles_admin_200(client: TestClient):

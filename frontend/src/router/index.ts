@@ -183,7 +183,10 @@ const router = createRouter({
           path: "rewards",
           name: "rewards",
           component: () => import("@/views/rewards/RewardsView.vue"),
-          meta: { title: "Khen thưởng & Kỷ luật", permission: "rewards:view" },
+          meta: {
+            title: "Khen thưởng & Kỷ luật",
+            anyPermissions: ["rewards:view", "disciplines:view"],
+          },
         },
         // Đào tạo
         {
@@ -300,6 +303,7 @@ const router = createRouter({
               "recruitment:view",
               "training:view",
               "rewards:view",
+              "disciplines:view",
               "performance:view",
               "reports:view",
             ],
@@ -412,7 +416,7 @@ const router = createRouter({
           meta: {
             title: "Báo cáo khen thưởng & kỷ luật",
             permission: "reports:view",
-            anyPermissions: ["rewards:view"],
+            anyPermissions: ["rewards:view", "disciplines:view"],
           },
         },
         {

@@ -26,6 +26,7 @@ export function getDefaultAuthorizedRoute(auth: AuthStore): RouteLocationRaw {
         "recruitment:view",
         "training:view",
         "rewards:view",
+        "disciplines:view",
         "performance:view",
         "reports:view",
       ],
@@ -39,7 +40,7 @@ export function getDefaultAuthorizedRoute(auth: AuthStore): RouteLocationRaw {
     { name: "performance", permission: "performance:view" },
     { name: "jr-list", permission: "recruitment:view" },
     { name: "training", permission: "training:view" },
-    { name: "rewards", permission: "rewards:view" },
+    { name: "rewards", anyPermissions: ["rewards:view", "disciplines:view"] },
   ];
 
   const firstAllowed = candidates.find((candidate) => {

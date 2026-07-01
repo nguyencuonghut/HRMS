@@ -138,7 +138,10 @@ async def seed_permissions(session: AsyncSession) -> int:
                 text("""
                     INSERT INTO permissions (code, name, module, action)
                     VALUES (:code, :name, :module, :action)
-                    ON CONFLICT (code) DO NOTHING
+                    ON CONFLICT (code) DO UPDATE SET
+                        name = EXCLUDED.name,
+                        module = EXCLUDED.module,
+                        action = EXCLUDED.action
                 """),
                 {
                     "code":   f"{module}:{action}",

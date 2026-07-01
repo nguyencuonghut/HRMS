@@ -139,7 +139,7 @@ async def get_report_summary(
     reward_page_size: int = Query(20, ge=1, le=200),
     discipline_page: int = Query(1, ge=1),
     discipline_page_size: int = Query(20, ge=1, le=200),
-    _: User = require_permission("rewards:view"),
+    _: User = require_permission("rewards:view", "disciplines:view"),
     session: AsyncSession = Depends(get_session),
 ):
     return await reward_report_service.get_reward_discipline_report(
@@ -159,7 +159,7 @@ async def export_report_excel(
     from_date: _date = Query(...),
     to_date: _date = Query(...),
     department_id: Optional[int] = Query(None),
-    _: User = require_permission("rewards:view"),
+    _: User = require_permission("rewards:view", "disciplines:view"),
     session: AsyncSession = Depends(get_session),
 ):
     content = await reward_export_service.export_reward_discipline_excel(

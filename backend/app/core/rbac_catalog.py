@@ -11,7 +11,7 @@ MODULE_DEFS: list[tuple[str, str]] = [
     ("leaves", "Nghỉ phép"),
     ("insurance", "Bảo hiểm BHXH"),
     ("salary", "Lương BHXH"),
-    ("rewards", "Khen thưởng & Kỷ luật"),
+    ("rewards", "Khen thưởng"),
     ("disciplines", "Kỷ luật"),
     ("training", "Đào tạo"),
     ("recruitment", "Tuyển dụng"),
