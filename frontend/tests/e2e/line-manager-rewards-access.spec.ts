@@ -17,7 +17,7 @@ async function login(page: Page) {
   await page.waitForLoadState("networkidle");
 }
 
-test("line manager can open rewards page without forbidden redirect when lacking disciplines:view", async ({ page }) => {
+test("line manager can open rewards page with both reward and discipline tabs", async ({ page }) => {
   const trackedResponses: Array<{ url: string; status: number }> = [];
   page.on("response", (response) => {
     const url = response.url();
@@ -39,12 +39,13 @@ test("line manager can open rewards page without forbidden redirect when lacking
   await expect(page).toHaveURL(/\/rewards$/);
   await expect(page.getByRole("heading", { name: "Khen thưởng & Kỷ luật" })).toBeVisible();
   await expect(page.getByRole("tab", { name: "Khen thưởng" })).toBeVisible();
-  await expect(page.getByRole("tab", { name: "Kỷ luật" })).toHaveCount(0);
+  await expect(page.getByRole("tab", { name: "Kỷ luật" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Xem báo cáo khen thưởng & kỷ luật" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Không có quyền truy cập" })).toHaveCount(0);
 
   expect(
-    trackedResponses.filter((item) => item.url.includes("/api/v1/disciplines")),
-    "Rewards page should not query disciplines API when user lacks disciplines:view",
-  ).toHaveLength(0);
+    trackedResponses.some((item) => item.url.includes("/api/v1/rewards")),
+    `Rewards page did not load rewards API: ${JSON.stringify(trackedResponses)}`,
+  ).toBeTruthy();
   expect(trackedResponses.every((item) => item.status < 400)).toBeTruthy();
 });

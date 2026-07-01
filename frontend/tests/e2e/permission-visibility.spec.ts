@@ -24,6 +24,7 @@ test.describe("Permission visibility", () => {
     const nav = page.locator("nav");
     await expect(nav.locator('a[href="/employees"]')).toBeVisible();
     await expect(nav.locator('a[href="/performance"]')).toBeVisible();
+    await expect(nav.locator('a[href="/rewards"]')).toBeVisible();
 
     await nav.locator(".menu-toggle", { hasText: "Nghỉ phép" }).click();
     await expect(nav.locator('a[href="/leaves"]')).toBeVisible();
@@ -45,13 +46,15 @@ test.describe("Permission visibility", () => {
     await expect(main.getByRole("link", { name: /Báo cáo nhân sự/i })).toBeVisible();
     await expect(main.getByRole("link", { name: /Thử việc & onboarding/i })).toBeVisible();
     await expect(main.getByRole("link", { name: /Báo cáo nghỉ phép/i })).toBeVisible();
+    await expect(main.getByRole("link", { name: /Khen thưởng & kỷ luật/i })).toBeVisible();
     await expect(main.getByRole("link", { name: /Báo cáo hiệu suất \/ KPI/i })).toBeVisible();
+    await expect(main.getByRole("link", { name: /Xuất báo cáo/i })).toBeVisible();
 
     await expect(main.getByRole("link", { name: /Bảo hiểm/i })).toHaveCount(0);
     await expect(main.getByRole("link", { name: /Báo cáo hợp đồng/i })).toHaveCount(0);
     await expect(main.getByRole("link", { name: /Báo cáo tuyển dụng/i })).toHaveCount(0);
+    await expect(main.getByRole("link", { name: /Báo cáo checklist hồ sơ lao động/i })).toHaveCount(0);
     await expect(main.getByRole("link", { name: /Báo cáo đào tạo/i })).toHaveCount(0);
-    await expect(main.getByRole("link", { name: /Khen thưởng & Kỷ luật/i })).toHaveCount(0);
   });
 
   test("line manager cannot open guarded contracts route directly", async ({ page }) => {
@@ -60,5 +63,33 @@ test.describe("Permission visibility", () => {
     await page.goto("/contracts");
     await page.waitForURL("**/forbidden");
     await expect(page.getByRole("heading", { name: "Không có quyền truy cập" })).toBeVisible();
+  });
+
+  test("line manager is redirected to forbidden for hidden module routes", async ({ page }) => {
+    await login(page);
+
+    const hiddenRoutes = [
+      "/catalog",
+      "/settings",
+      "/contracts",
+      "/insurance",
+      "/salary",
+      "/training",
+      "/recruitment/jr",
+      "/admin/users",
+      "/admin/roles",
+      "/admin/audit-logs",
+      "/reports/contracts",
+      "/reports/insurance",
+      "/reports/recruitment",
+      "/reports/employee-document-checklist",
+      "/reports/training",
+    ] as const;
+
+    for (const route of hiddenRoutes) {
+      await page.goto(route);
+      await page.waitForURL("**/forbidden");
+      await expect(page.getByRole("heading", { name: "Không có quyền truy cập" })).toBeVisible();
+    }
   });
 });
