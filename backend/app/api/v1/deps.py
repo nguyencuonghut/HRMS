@@ -72,6 +72,29 @@ def require_permission(*perms: str):
     return Depends(_dependency)
 
 
+def require_all_permissions(*perms: str):
+    """Trả Depends kiểm tra user có đầy đủ tất cả permission được liệt kê.
+
+    is_superuser bypass mọi permission check.
+    """
+
+    async def _dependency(
+        user: User = Depends(get_current_active_user),
+        session: AsyncSession = Depends(get_session),
+    ) -> User:
+        if user.is_superuser:
+            return user
+        user_perms = await auth_service.get_user_permissions(session, user.id)
+        if not all(permission in user_perms for permission in perms):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Không có quyền thực hiện thao tác này",
+            )
+        return user
+
+    return Depends(_dependency)
+
+
 def require_department_scope(*perms: str):
     async def _dependency(
         user: User = require_permission(*perms),

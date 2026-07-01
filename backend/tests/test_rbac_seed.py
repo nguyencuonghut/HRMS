@@ -202,6 +202,28 @@ async def test_line_manager_cannot_delete_anything():
     assert count == 0
 
 
+async def test_line_manager_exact_actions_per_module():
+    rows = await _rows("""
+        SELECT p.module, array_agg(p.action ORDER BY p.action) AS actions
+        FROM role_permissions rp
+        JOIN roles r ON rp.role_id = r.id
+        JOIN permissions p ON rp.permission_id = p.id
+        WHERE r.code = 'line_manager'
+        GROUP BY p.module
+        ORDER BY p.module
+    """)
+    actual = {row.module: list(row.actions) for row in rows}
+    assert actual == {
+        "disciplines": ["create", "edit", "view"],
+        "employees": ["view"],
+        "leaves": ["create", "edit", "view"],
+        "org": ["view"],
+        "performance": ["create", "edit", "view"],
+        "reports": ["export", "view"],
+        "rewards": ["create", "edit", "view"],
+    }
+
+
 async def test_finance_only_insurance_salary_reports():
     modules = {r.module for r in await _rows("""
         SELECT DISTINCT p.module FROM role_permissions rp

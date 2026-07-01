@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Reques
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.v1.deps import require_department_scope, require_permission
+from app.api.v1.deps import require_all_permissions, require_department_scope, require_permission
 from app.core.database import get_session
 from app.core.storage import get_object_stream
 from app.models.auth import User
@@ -141,23 +141,30 @@ async def get_report_summary(
     reward_page_size: int = Query(20, ge=1, le=200),
     discipline_page: int = Query(1, ge=1),
     discipline_page_size: int = Query(20, ge=1, le=200),
-    current_user: User = require_permission("rewards:view", "disciplines:view"),
-    allowed_department_ids: set[int] | None = require_department_scope("rewards:view", "disciplines:view"),
+    current_user: User = require_all_permissions("reports:view", "rewards:view", "disciplines:view"),
     session: AsyncSession = Depends(get_session),
 ):
-    if department_id is not None:
-        await access_scope_service.ensure_department_access(
-            session,
-            current_user,
-            permission_codes=("rewards:view", "disciplines:view"),
-            department_id=department_id,
+    allowed_department_ids = await access_scope_service.intersect_allowed_department_ids(
+        session,
+        current_user,
+        permission_groups=(
+            ("reports:view",),
+            ("rewards:view",),
+            ("disciplines:view",),
+        ),
+        department_id=department_id,
+    )
+    if allowed_department_ids is not None and not allowed_department_ids:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Không có quyền truy cập dữ liệu phòng ban này",
         )
     return await reward_report_service.get_reward_discipline_report(
         session,
         from_date=from_date,
         to_date=to_date,
         department_id=department_id,
-        allowed_department_ids=None if department_id is not None else allowed_department_ids,
+        allowed_department_ids=allowed_department_ids,
         reward_page=reward_page,
         reward_page_size=reward_page_size,
         discipline_page=discipline_page,
@@ -170,23 +177,30 @@ async def export_report_excel(
     from_date: _date = Query(...),
     to_date: _date = Query(...),
     department_id: Optional[int] = Query(None),
-    current_user: User = require_permission("rewards:view", "disciplines:view"),
-    allowed_department_ids: set[int] | None = require_department_scope("rewards:view", "disciplines:view"),
+    current_user: User = require_all_permissions("reports:export", "rewards:view", "disciplines:view"),
     session: AsyncSession = Depends(get_session),
 ):
-    if department_id is not None:
-        await access_scope_service.ensure_department_access(
-            session,
-            current_user,
-            permission_codes=("rewards:view", "disciplines:view"),
-            department_id=department_id,
+    allowed_department_ids = await access_scope_service.intersect_allowed_department_ids(
+        session,
+        current_user,
+        permission_groups=(
+            ("reports:export",),
+            ("rewards:view",),
+            ("disciplines:view",),
+        ),
+        department_id=department_id,
+    )
+    if allowed_department_ids is not None and not allowed_department_ids:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Không có quyền truy cập dữ liệu phòng ban này",
         )
     content = await reward_export_service.export_reward_discipline_excel(
         session,
         from_date=from_date,
         to_date=to_date,
         department_id=department_id,
-        allowed_department_ids=None if department_id is not None else allowed_department_ids,
+        allowed_department_ids=allowed_department_ids,
     )
     filename = f"khen_thuong_ky_luat_{from_date}_{to_date}.xlsx"
     return StreamingResponse(

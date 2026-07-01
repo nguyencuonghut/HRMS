@@ -146,6 +146,40 @@ async def resolve_effective_department_scope_ids(
     return requested_scope_ids & allowed_scope_ids
 
 
+async def intersect_allowed_department_ids(
+    session: AsyncSession,
+    user: User,
+    *,
+    permission_groups: Iterable[Iterable[str]],
+    department_id: int | None = None,
+) -> set[int] | None:
+    requested_scope_ids = await get_department_subtree_ids(session, department_id)
+
+    effective_scope_ids: set[int] | None = None
+    for permission_codes in permission_groups:
+        allowed_ids = await get_allowed_department_ids(
+            session,
+            user,
+            permission_codes=permission_codes,
+        )
+        scoped_ids = allowed_ids
+        if requested_scope_ids is not None:
+            if scoped_ids is None:
+                scoped_ids = set(requested_scope_ids)
+            else:
+                scoped_ids = set(scoped_ids) & requested_scope_ids
+
+        if effective_scope_ids is None:
+            effective_scope_ids = None if scoped_ids is None else set(scoped_ids)
+            continue
+
+        if scoped_ids is None:
+            continue
+        effective_scope_ids &= set(scoped_ids)
+
+    return effective_scope_ids
+
+
 async def ensure_department_access(
     session: AsyncSession,
     user: User,

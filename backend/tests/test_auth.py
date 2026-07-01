@@ -162,8 +162,13 @@ def test_me_line_manager_limited_permissions(client: TestClient):
     resp = client.get(f"{BASE}/me", headers=headers)
     body = resp.json()
     assert "org:view" in body["permissions"]
+    assert "leaves:create" in body["permissions"]
+    assert "performance:edit" in body["permissions"]
+    assert "rewards:create" in body["permissions"]
     assert "rewards:view" in body["permissions"]
+    assert "disciplines:create" in body["permissions"]
     assert "disciplines:view" in body["permissions"]
+    assert "reports:view" in body["permissions"]
     assert "reports:export" in body["permissions"]
     assert "employees:delete" not in body["permissions"]
     assert "users:view" not in body["permissions"]

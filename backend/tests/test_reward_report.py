@@ -69,6 +69,32 @@ async def _get_active_employee() -> dict:
         return {"id": row[0], "name": row[1]}
 
 
+async def _get_two_active_employees_in_distinct_departments() -> tuple[dict, dict]:
+    async with _make_session()() as s:
+        rows = (
+            await s.execute(
+                text("""
+                    SELECT e.id, e.full_name, ejr.department_id
+                    FROM employees e
+                    JOIN employee_job_records ejr
+                      ON ejr.employee_id = e.id
+                     AND ejr.is_current = true
+                    WHERE e.status != 'resigned'
+                    ORDER BY ejr.department_id, e.id
+                """)
+            )
+        ).fetchall()
+    first = None
+    for row in rows:
+        current = {"id": row[0], "name": row[1], "department_id": row[2]}
+        if first is None:
+            first = current
+            continue
+        if current["department_id"] != first["department_id"]:
+            return first, current
+    raise AssertionError("Không tìm thấy 2 nhân viên active ở 2 phòng ban khác nhau")
+
+
 async def _get_active_reward_type() -> dict:
     """Trả về loại khen thưởng có tiền (is_monetary=true)."""
     async with _make_session()() as s:
@@ -129,8 +155,8 @@ def _get_summary(client: TestClient, h: dict, from_date: str = _FROM,
     return r.json()
 
 
-async def _create_disciplines_report_viewer() -> tuple[str, str]:
-    email = f"disciplines_report_{uuid.uuid4().hex[:8]}@hrms.local"
+async def _create_combined_report_viewer() -> tuple[str, str]:
+    email = f"combined_report_{uuid.uuid4().hex[:8]}@hrms.local"
     password = "Hrms@2026"
     role_code = f"disciplines_report_{uuid.uuid4().hex[:8]}"
 
@@ -142,7 +168,7 @@ async def _create_disciplines_report_viewer() -> tuple[str, str]:
             """),
             {
                 "code": role_code,
-                "name": f"Disciplines report {role_code}",
+                "name": f"Combined report {role_code}",
                 "description": "Test role for reward/discipline report",
             },
         )
@@ -153,7 +179,7 @@ async def _create_disciplines_report_viewer() -> tuple[str, str]:
             """),
             {
                 "email": email,
-                "full_name": "Disciplines Report Viewer",
+                "full_name": "Combined Report Viewer",
                 "hashed_password": hash_password(password),
             },
         )
@@ -171,11 +197,95 @@ async def _create_disciplines_report_viewer() -> tuple[str, str]:
                 INSERT INTO role_permissions (role_id, permission_id)
                 SELECT r.id, p.id
                 FROM roles r
-                JOIN permissions p ON p.code IN ('reports:view', 'disciplines:view')
+                JOIN permissions p ON p.code IN ('reports:view', 'rewards:view', 'disciplines:view')
                 WHERE r.code = :role_code
                 ON CONFLICT DO NOTHING
             """),
             {"role_code": role_code},
+        )
+        await s.commit()
+
+    return email, password
+
+
+async def _create_scoped_reward_report_user(
+    *,
+    scope_a_department_id: int,
+    scope_b_department_id: int,
+) -> tuple[str, str]:
+    email = f"scoped_reward_report_{uuid.uuid4().hex[:8]}@hrms.local"
+    password = "Hrms@2026"
+    rewards_role_code = f"rw_scope_{uuid.uuid4().hex[:8]}"
+    disciplines_role_code = f"dc_scope_{uuid.uuid4().hex[:8]}"
+
+    async with _make_session()() as s:
+        await s.execute(
+            text("""
+                INSERT INTO roles (code, name, description, is_system, created_at)
+                VALUES
+                    (:rewards_code, :rewards_name, :rewards_desc, false, now()),
+                    (:disciplines_code, :disciplines_name, :disciplines_desc, false, now())
+            """),
+            {
+                "rewards_code": rewards_role_code,
+                "rewards_name": f"Rewards scoped {rewards_role_code}",
+                "rewards_desc": "Scoped rewards/report viewer",
+                "disciplines_code": disciplines_role_code,
+                "disciplines_name": f"Disciplines scoped {disciplines_role_code}",
+                "disciplines_desc": "Scoped disciplines/report viewer",
+            },
+        )
+        await s.execute(
+            text("""
+                INSERT INTO users (email, full_name, hashed_password, is_active, is_superuser, created_at)
+                VALUES (:email, :full_name, :hashed_password, true, false, now())
+            """),
+            {
+                "email": email,
+                "full_name": "Scoped Reward Report Viewer",
+                "hashed_password": hash_password(password),
+            },
+        )
+        await s.execute(
+            text("""
+                INSERT INTO role_permissions (role_id, permission_id)
+                SELECT r.id, p.id
+                FROM roles r
+                JOIN permissions p ON (
+                    (r.code = :rewards_code AND p.code IN ('reports:view', 'reports:export', 'rewards:view'))
+                    OR
+                    (r.code = :disciplines_code AND p.code IN ('reports:view', 'reports:export', 'disciplines:view'))
+                )
+                WHERE r.code = :rewards_code OR r.code = :disciplines_code
+                ON CONFLICT DO NOTHING
+            """),
+            {"rewards_code": rewards_role_code, "disciplines_code": disciplines_role_code},
+        )
+        await s.execute(
+            text("""
+                INSERT INTO user_roles (user_id, role_id, scope_type, department_ids)
+                SELECT u.id, r.id, 'department', :department_ids
+                FROM users u, roles r
+                WHERE u.email = :email AND r.code = :role_code
+            """),
+            {
+                "email": email,
+                "role_code": rewards_role_code,
+                "department_ids": [scope_a_department_id],
+            },
+        )
+        await s.execute(
+            text("""
+                INSERT INTO user_roles (user_id, role_id, scope_type, department_ids)
+                SELECT u.id, r.id, 'department', :department_ids
+                FROM users u, roles r
+                WHERE u.email = :email AND r.code = :role_code
+            """),
+            {
+                "email": email,
+                "role_code": disciplines_role_code,
+                "department_ids": [scope_b_department_id],
+            },
         )
         await s.commit()
 
@@ -325,8 +435,8 @@ class TestRewardDisciplineReport:
         assert r.status_code == 401
 
     @pytest.mark.asyncio
-    async def test_summary_accepts_disciplines_view_with_reports_view(self, client: TestClient):
-        email, password = await _create_disciplines_report_viewer()
+    async def test_summary_accepts_combined_report_viewer(self, client: TestClient):
+        email, password = await _create_combined_report_viewer()
         headers = _login(client, email, password)
 
         response = client.get(
@@ -335,6 +445,81 @@ class TestRewardDisciplineReport:
             headers=headers,
         )
         assert response.status_code == 200, response.text
+
+    @pytest.mark.asyncio
+    async def test_summary_requires_reports_view_even_when_domain_views_exist(self, client: TestClient):
+        async with _make_session()() as s:
+            role_code = f"no_reports_{uuid.uuid4().hex[:8]}"
+            email = f"{role_code}@hrms.local"
+            password = "Hrms@2026"
+            await s.execute(
+                text("""
+                    INSERT INTO roles (code, name, description, is_system, created_at)
+                    VALUES (:code, :name, :description, false, now())
+                """),
+                {"code": role_code, "name": role_code, "description": "No reports permission"},
+            )
+            await s.execute(
+                text("""
+                    INSERT INTO users (email, full_name, hashed_password, is_active, is_superuser, created_at)
+                    VALUES (:email, :full_name, :hashed_password, true, false, now())
+                """),
+                {
+                    "email": email,
+                    "full_name": "No Reports Viewer",
+                    "hashed_password": hash_password(password),
+                },
+            )
+            await s.execute(
+                text("""
+                    INSERT INTO user_roles (user_id, role_id)
+                    SELECT u.id, r.id
+                    FROM users u, roles r
+                    WHERE u.email = :email AND r.code = :role_code
+                """),
+                {"email": email, "role_code": role_code},
+            )
+            await s.execute(
+                text("""
+                    INSERT INTO role_permissions (role_id, permission_id)
+                    SELECT r.id, p.id
+                    FROM roles r
+                    JOIN permissions p ON p.code IN ('rewards:view', 'disciplines:view')
+                    WHERE r.code = :role_code
+                    ON CONFLICT DO NOTHING
+                """),
+                {"role_code": role_code},
+            )
+            await s.commit()
+
+        headers = _login(client, email, password)
+        response = client.get(
+            f"{BASE}/summary",
+            params={"from_date": _FROM, "to_date": _TO},
+            headers=headers,
+        )
+        assert response.status_code == 403, response.text
+
+    @pytest.mark.asyncio
+    async def test_summary_does_not_union_scopes_across_rewards_and_disciplines_roles(self, client: TestClient):
+        emp_a, emp_b = await _get_two_active_employees_in_distinct_departments()
+        rt = await _get_non_monetary_reward_type()
+        admin_headers = _admin(client)
+
+        _create_reward(client, admin_headers, emp_a["id"], rt["id"], _IN_RANGE)
+        _create_discipline(client, admin_headers, emp_b["id"], _IN_RANGE)
+
+        email, password = await _create_scoped_reward_report_user(
+            scope_a_department_id=emp_a["department_id"],
+            scope_b_department_id=emp_b["department_id"],
+        )
+        headers = _login(client, email, password)
+        response = client.get(
+            f"{BASE}/summary",
+            params={"from_date": _FROM, "to_date": _TO},
+            headers=headers,
+        )
+        assert response.status_code == 403, response.text
 
 
 # ── TestRewardDisciplineExport ─────────────────────────────────────────────────
@@ -375,6 +560,13 @@ class TestRewardDisciplineExport:
         r = self._get_export(client, h)
         wb = openpyxl.load_workbook(io.BytesIO(r.content))
         assert "Kỷ luật" in wb.sheetnames
+
+    @pytest.mark.asyncio
+    async def test_export_requires_reports_export(self, client: TestClient):
+        email, password = await _create_combined_report_viewer()
+        headers = _login(client, email, password)
+        response = self._get_export(client, headers)
+        assert response.status_code == 403, response.text
 
     @pytest.mark.asyncio
     async def test_reward_sheet_correct_row_count(self, client: TestClient):

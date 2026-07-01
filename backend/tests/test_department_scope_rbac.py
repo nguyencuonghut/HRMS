@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import json
 from datetime import date
+import io
 import uuid
 
+import openpyxl
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import delete, select, text
@@ -1089,6 +1091,21 @@ def test_scoped_line_manager_rewards_disciplines_and_reports_are_limited_to_assi
     assert export_resp.headers["content-type"].startswith(
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
+    workbook = openpyxl.load_workbook(io.BytesIO(export_resp.content))
+    reward_rows = [
+        row[2]
+        for row in workbook["Khen thưởng"].iter_rows(min_row=5, values_only=True)
+        if row[0] not in (None, "TỔNG CỘNG")
+    ]
+    discipline_rows = [
+        row[2]
+        for row in workbook["Kỷ luật"].iter_rows(min_row=5, values_only=True)
+        if row[0] not in (None, "TỔNG CỘNG")
+    ]
+    assert visible_emp["full_name"] in reward_rows
+    assert hidden_emp["full_name"] not in reward_rows
+    assert visible_emp["full_name"] in discipline_rows
+    assert hidden_emp["full_name"] not in discipline_rows
 
 
 def test_scoped_contract_user_only_sees_contracts_within_assigned_departments(client: TestClient):
