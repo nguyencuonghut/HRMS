@@ -236,7 +236,11 @@ async def seed_users(session: AsyncSession) -> int:
             text("""
                 INSERT INTO users (email, full_name, hashed_password, is_active, is_superuser)
                 VALUES (:email, :full_name, :hashed_password, true, :is_superuser)
-                ON CONFLICT (email) DO NOTHING
+                ON CONFLICT (email) DO UPDATE SET
+                    full_name = EXCLUDED.full_name,
+                    hashed_password = EXCLUDED.hashed_password,
+                    is_active = EXCLUDED.is_active,
+                    is_superuser = EXCLUDED.is_superuser
             """),
             {
                 "email":           u["email"],

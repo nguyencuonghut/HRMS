@@ -28,17 +28,28 @@ _IP_COUNTER = count(50)
 
 @pytest.fixture()
 async def reset_officer_password():
-    """Reset mật khẩu hrofficer về giá trị ban đầu trước mỗi test dùng fixture này."""
+    """Reset mật khẩu hrofficer trước và sau test để không rò rỉ state sang file khác."""
     engine = create_async_engine(settings.DATABASE_URL, connect_args={"ssl": False})
     Session = async_sessionmaker(engine, expire_on_commit=False)
+    reset_stmt = text("UPDATE users SET hashed_password = :hp WHERE email = :email")
+
     async with Session() as s:
         await s.execute(
-            text("UPDATE users SET hashed_password = :hp WHERE email = :email"),
+            reset_stmt,
             {"hp": hash_password(_ADMIN_PASSWORD), "email": _OFFICER_EMAIL},
         )
         await s.commit()
-    await engine.dispose()
-    yield
+
+    try:
+        yield
+    finally:
+        async with Session() as s:
+            await s.execute(
+                reset_stmt,
+                {"hp": hash_password(_ADMIN_PASSWORD), "email": _OFFICER_EMAIL},
+            )
+            await s.commit()
+        await engine.dispose()
 
 
 @pytest.fixture(autouse=True)

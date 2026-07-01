@@ -4,6 +4,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.core.config import settings
+from app.core.security import hash_password, verify_password
 from app.seeds import rbac
 
 
@@ -332,3 +333,30 @@ async def test_line_manager_seed_has_department_scope():
         """, department_id=row.department_ids[0])
     )[0]
     assert dept_row.code == "KS"
+
+
+async def test_seed_users_repairs_existing_seed_identity_state():
+    async with _make_session()() as s:
+        await s.execute(
+            text("""
+                UPDATE users
+                SET full_name = 'Broken Officer',
+                    hashed_password = :hp,
+                    is_active = false
+                WHERE email = 'hrofficer@hrms.local'
+            """),
+            {"hp": hash_password("BrokenPass@2026")},
+        )
+        await s.commit()
+
+        await rbac.run(s)
+
+    rows = await _rows("""
+        SELECT full_name, hashed_password, is_active
+        FROM users
+        WHERE email = 'hrofficer@hrms.local'
+    """)
+    row = rows[0]
+    assert row.full_name == "Nhân viên HR"
+    assert row.is_active is True
+    assert verify_password("Hrms@2026", row.hashed_password)
