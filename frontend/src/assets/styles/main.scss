@@ -23,6 +23,7 @@
   --l-text-muted:     #6b7280;
   --l-shadow:         0 2px 12px rgba(0,0,0,.06), 0 0 2px rgba(0,0,0,.04);
   --l-shadow-lg:      0 4px 24px rgba(0,0,0,.10);
+  --hh-card-content-padding: 1rem;
 
   // Menu (light sidebar = white)
   --m-text:           #374151;
@@ -321,6 +322,10 @@ $topbar-height: 4rem;
   border: 1px solid var(--p-content-border-color);
   border-radius: 10px;
   overflow: hidden;
+}
+
+.card-content-padding {
+  padding: var(--hh-card-content-padding);
 }
 
 // ── DataTable empty state ──────────────────────────────────────────

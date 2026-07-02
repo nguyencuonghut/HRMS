@@ -149,7 +149,7 @@
 }
 
 .training-report-card {
-  padding: 1rem 1.25rem;
+  padding: var(--hh-card-content-padding);
   border-radius: 8px;
   background: var(--p-surface-0);
   border: 1px solid var(--p-surface-200);

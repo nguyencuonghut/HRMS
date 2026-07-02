@@ -22,7 +22,7 @@
       <TabPanels>
         <TabPanel value="quick">
           <div class="export-center-grid">
-            <div class="card export-main-card">
+            <div class="card export-main-card card-content-padding">
               <div class="export-section-header">
                 <div>
                   <h3 class="section-title">Tạo export</h3>
@@ -66,7 +66,7 @@
               </div>
             </div>
 
-            <div class="card export-side-card">
+            <div class="card export-side-card card-content-padding">
               <div class="export-section-header">
                 <div>
                   <h3 class="section-title">Trạng thái hiện tại</h3>
@@ -121,7 +121,7 @@
         </TabPanel>
 
         <TabPanel value="history">
-          <div class="card export-history-card">
+          <div class="card export-history-card card-content-padding">
             <div class="export-section-header">
               <div>
                 <h3 class="section-title">Lịch sử xuất</h3>
@@ -206,7 +206,7 @@
         </TabPanel>
 
         <TabPanel value="templates">
-          <div class="card export-template-card">
+          <div class="card export-template-card card-content-padding">
             <div class="export-section-header">
               <div>
                 <h3 class="section-title">Mẫu báo cáo</h3>
@@ -1077,7 +1077,7 @@ onMounted(async () => {
 }
 
 .bhxh-filter-card {
-  padding: 1rem 1.25rem;
+  padding: var(--hh-card-content-padding);
   border: 1px solid var(--l-border);
   background: var(--l-surface);
 }
@@ -1102,7 +1102,7 @@ onMounted(async () => {
 }
 
 .bhxh-form-card {
-  padding: 1rem 1.25rem;
+  padding: var(--hh-card-content-padding);
   border: 1px solid var(--l-border);
   background: var(--l-surface);
   display: flex;

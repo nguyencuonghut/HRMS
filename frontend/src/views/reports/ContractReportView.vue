@@ -828,7 +828,7 @@ onUnmounted(() => {
 }
 
 .contract-filter-card {
-  padding: 1rem;
+  padding: var(--hh-card-content-padding);
   border: 1px solid var(--l-border);
   background: var(--l-surface);
   box-shadow: var(--l-shadow);
@@ -881,7 +881,7 @@ onUnmounted(() => {
 }
 
 .contract-kpi-card {
-  padding: 1rem;
+  padding: var(--hh-card-content-padding);
   border: 1px solid var(--l-border);
   border-radius: 1rem;
   background: var(--l-surface);

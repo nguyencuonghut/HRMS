@@ -987,7 +987,7 @@ html.dark-mode .dashboard-error {
 .dashboard-kpi-card {
   display: flex;
   gap: 0.875rem;
-  padding: 1rem;
+  padding: var(--hh-card-content-padding);
   border: 1px solid var(--l-border);
   border-radius: 12px;
   background-color: var(--dashboard-base-bg);
@@ -1052,7 +1052,7 @@ html.dark-mode .dashboard-error {
 }
 
 .dashboard-card {
-  padding: 1rem;
+  padding: var(--hh-card-content-padding);
   background-color: var(--dashboard-base-bg);
   border: 1px solid var(--l-border);
   border-radius: 0.5rem;

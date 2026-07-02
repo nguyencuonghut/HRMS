@@ -462,7 +462,7 @@ onUnmounted(() => {
 }
 
 .hr-filter-card {
-  padding: 1rem;
+  padding: var(--hh-card-content-padding);
   border: 1px solid var(--l-border);
   background: var(--l-surface);
   box-shadow: var(--l-shadow);

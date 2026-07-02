@@ -89,7 +89,7 @@
 
     <!-- Bảng theo khóa học -->
     <template v-if="summary">
-      <div class="card" style="margin-bottom: 1rem">
+      <div class="card card-content-padding" style="margin-bottom: 1rem">
         <div class="training-report-section-title">Theo khóa học</div>
         <DataTable
           :value="summary.by_course"
@@ -135,7 +135,7 @@
       </div>
 
       <!-- Bảng theo phòng ban -->
-      <div class="card" style="margin-bottom: 1rem">
+      <div class="card card-content-padding" style="margin-bottom: 1rem">
         <div class="training-report-section-title">Theo phòng ban</div>
         <DataTable
           :value="summary.by_department"
@@ -180,7 +180,7 @@
       </div>
 
       <!-- Sub-section: NV chưa HT bắt buộc -->
-      <div class="card">
+      <div class="card card-content-padding">
         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem">
           <div class="training-report-section-title" style="margin-bottom: 0">
             Nhân viên chưa hoàn thành đào tạo bắt buộc
