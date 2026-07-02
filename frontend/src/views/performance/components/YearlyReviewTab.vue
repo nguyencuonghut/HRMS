@@ -58,6 +58,7 @@
       />
 
       <Button
+        v-can:create="'performance'"
         label="Lưu đánh giá"
         icon="pi pi-plus"
         class="ml-auto"
@@ -135,24 +136,28 @@
         <Column header="" style="width: 160px; text-align: right">
           <template #body="{ data }: { data: YearlyReviewRead }">
             <Button
+              v-can:create="'rewards'"
               icon="pi pi-trophy"
               text rounded size="small" severity="warn"
               v-tooltip.top="'Tạo khen thưởng'"
               @click="openRewardDialog(data)"
             />
             <Button
+              v-can:create="'training'"
               icon="pi pi-graduation-cap"
               text rounded size="small" severity="info"
               v-tooltip.top="'Đề xuất đào tạo'"
               @click="openTrainingDialog(data)"
             />
             <Button
+              v-can:edit="'performance'"
               icon="pi pi-pencil"
               text rounded size="small" severity="secondary"
               v-tooltip.top="'Sửa'"
               @click="openEdit(data)"
             />
             <Button
+              v-can:delete="'performance'"
               icon="pi pi-trash"
               text rounded size="small" severity="danger"
               v-tooltip.top="'Xóa'"
@@ -272,7 +277,7 @@
 
       <template #footer>
         <Button label="Hủy" severity="secondary" text :disabled="saving" @click="showDialog = false" />
-        <Button :label="editingId ? 'Lưu thay đổi' : 'Lưu'" :loading="saving" @click="submit" />
+        <Button v-can="editingId ? 'performance:edit' : 'performance:create'" :label="editingId ? 'Lưu thay đổi' : 'Lưu'" :loading="saving" @click="submit" />
       </template>
     </Dialog>
     <!-- Dialog: Tạo khen thưởng từ đánh giá -->
@@ -345,7 +350,7 @@
       </div>
       <template #footer>
         <Button label="Hủy" severity="secondary" text :disabled="rewardSaving" @click="showRewardDialog = false" />
-        <Button label="Tạo khen thưởng" icon="pi pi-trophy" :loading="rewardSaving" @click="submitReward" />
+        <Button v-can:create="'rewards'" label="Tạo khen thưởng" icon="pi pi-trophy" :loading="rewardSaving" @click="submitReward" />
       </template>
     </Dialog>
 
@@ -409,7 +414,7 @@
       </div>
       <template #footer>
         <Button label="Hủy" severity="secondary" text :disabled="trainingSaving" @click="showTrainingDialog = false" />
-        <Button label="Đề xuất đào tạo" icon="pi pi-graduation-cap" :loading="trainingSaving" @click="submitTraining" />
+        <Button v-can:create="'training'" label="Đề xuất đào tạo" icon="pi pi-graduation-cap" :loading="trainingSaving" @click="submitTraining" />
       </template>
     </Dialog>
   </div>
@@ -440,9 +445,11 @@ import departmentService, { type DepartmentRead } from '@/services/departmentSer
 import employeeService, { type EmployeeLookupItem } from '@/services/employeeService'
 import rewardService, { type RewardTypeRead } from '@/services/rewardService'
 import trainingService, { type CourseRead, type PlanRead } from '@/services/trainingService'
+import { useAuthStore } from '@/stores/auth'
 
 const confirm = useConfirm()
 const toast   = useToast()
+const auth    = useAuthStore()
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
@@ -806,18 +813,35 @@ async function submitTraining() {
 
 onMounted(async () => {
   try {
-    const [deptsRes, empsRes, rewardTypesRes, coursesRes, plansRes] = await Promise.all([
+    const promises: Promise<any>[] = [
       departmentService.getList(true),
       employeeService.lookup({ limit: 500 }),
-      rewardService.listTypes(),
-      trainingService.listCourses({ page_size: 500, is_active: true }),
-      trainingService.listPlans({ page_size: 200 }),
-    ])
+    ]
+
+    const hasRewardsView = auth.hasPermission('rewards:view')
+    const hasTrainingView = auth.hasPermission('training:view')
+
+    if (hasRewardsView) {
+      promises.push(rewardService.listTypes())
+    } else {
+      promises.push(Promise.resolve({ data: [] }))
+    }
+
+    if (hasTrainingView) {
+      promises.push(trainingService.listCourses({ page_size: 500, is_active: true }))
+      promises.push(trainingService.listPlans({ page_size: 200 }))
+    } else {
+      promises.push(Promise.resolve({ data: { items: [] } }))
+      promises.push(Promise.resolve({ data: { items: [] } }))
+    }
+
+    const [deptsRes, empsRes, rewardTypesRes, coursesRes, plansRes] = await Promise.all(promises)
+
     departments.value  = deptsRes.data
     employees.value    = empsRes.data
-    rewardTypes.value  = rewardTypesRes.data.filter((t: RewardTypeRead) => t.is_active)
-    courses.value      = coursesRes.data.items
-    trainingPlans.value = plansRes.data.items
+    rewardTypes.value  = rewardTypesRes.data ? rewardTypesRes.data.filter((t: RewardTypeRead) => t.is_active) : []
+    courses.value      = coursesRes.data?.items ?? []
+    trainingPlans.value = plansRes.data?.items ?? []
   } catch {
     toast.add({ severity: 'error', summary: 'Lỗi khởi tạo', detail: 'Không thể tải danh mục dữ liệu', life: 5000 })
   }
