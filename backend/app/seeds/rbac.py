@@ -50,6 +50,7 @@ _ROLE_PERMS: dict[str, dict[str, set[str]]] = {
         "training":    _FULL,
         "recruitment": _FULL,
         "performance": _FULL,
+        "data_import": _FULL,
         "reports":     _VIEW_EXPORT,
         "audit_logs":  {"view"},
     },
@@ -68,6 +69,7 @@ _ROLE_PERMS: dict[str, dict[str, set[str]]] = {
         "training":    _VCE,
         "recruitment": _VCE,
         "performance": _VCE,
+        "data_import": _VCE,
         "reports":     _VIEW_EXPORT,
     },
 
@@ -84,6 +86,7 @@ _ROLE_PERMS: dict[str, dict[str, set[str]]] = {
     "finance": {
         "insurance": _FULL,
         "salary":    _FULL,
+        "data_import": _VCE,
         "reports":   _VIEW_EXPORT,
     },
 }

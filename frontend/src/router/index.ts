@@ -441,13 +441,7 @@ const router = createRouter({
           component: () => import("@/views/data/DataImportView.vue"),
           meta: {
             title: "Nhập dữ liệu",
-            anyPermissions: [
-              "org:edit",
-              "employees:edit",
-              "leaves:edit",
-              "contracts:edit",
-              "insurance:edit",
-            ],
+            permission: "data_import:view",
           },
         },
         // Danh mục

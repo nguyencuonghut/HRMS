@@ -324,13 +324,7 @@ const menu: MenuItem[] = [
     to: "/data/import",
     label: "Nhập dữ liệu",
     icon: "pi-upload",
-    anyPermissions: [
-      "org:edit",
-      "employees:edit",
-      "leaves:edit",
-      "contracts:edit",
-      "insurance:edit",
-    ],
+    permission: "data_import:view",
   },
   { section: true, label: "Hệ thống" },
   {

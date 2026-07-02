@@ -16,6 +16,7 @@ MODULE_DEFS: list[tuple[str, str]] = [
     ("training", "Đào tạo"),
     ("recruitment", "Tuyển dụng"),
     ("performance", "Đánh giá KPI"),
+    ("data_import", "Nhập dữ liệu"),
     ("reports", "Báo cáo"),
     ("users", "Tài khoản người dùng"),
     ("roles", "Vai trò & Quyền"),
