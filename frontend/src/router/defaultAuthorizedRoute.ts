@@ -31,7 +31,7 @@ export function getDefaultAuthorizedRoute(auth: AuthStore): RouteLocationRaw {
         "reports:view",
       ],
     },
-    { name: "insurance-analytics", permission: "insurance:view" },
+    { name: "insurance", permission: "insurance:view" },
     { name: "salary", permission: "insurance:view" },
     { name: "export-center", permission: "reports:view" },
     { name: "employees", permission: "employees:view" },
@@ -41,6 +41,8 @@ export function getDefaultAuthorizedRoute(auth: AuthStore): RouteLocationRaw {
     { name: "jr-list", permission: "recruitment:view" },
     { name: "training", permission: "training:view" },
     { name: "rewards", anyPermissions: ["rewards:view", "disciplines:view"] },
+    { name: "catalog", permission: "catalog:view" },
+    { name: "settings", permission: "settings:view" },
   ];
 
   const firstAllowed = candidates.find((candidate) => {
