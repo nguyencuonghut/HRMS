@@ -229,8 +229,11 @@ class EmployeeRead(BaseModel):
     date_of_birth: date
     gender: str
     nationality_id: int
+    nationality_name: Optional[str] = None
     ethnicity_id: Optional[int]
+    ethnicity_name: Optional[str] = None
     religion_id: Optional[int]
+    religion_name: Optional[str] = None
     id_number: str
     id_issued_on: date
     id_issued_by: str

@@ -196,7 +196,10 @@ export interface RelativeUpdate {
 export interface EmployeeRead extends EmployeeListItem {
   last_name: string
   first_name: string
+  nationality_name: string | null
+  ethnicity_name: string | null
   religion_id: number | null
+  religion_name: string | null
   id_issued_on: string
   id_issued_by: string
   id_expires_on: string | null

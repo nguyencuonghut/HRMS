@@ -8,7 +8,7 @@ from sqlalchemy import false, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.encryption import hash_sensitive
-from app.models.catalog import AdministrativeUnit
+from app.models.catalog import AdministrativeUnit, Ethnicity, Nationality, Religion
 from app.models.employee import Employee, EmployeeAddress, EmployeeBankAccount
 from app.models.employee_code import EmployeeCodeSequence
 from app.models.employee_job import EmployeeJobRecord
@@ -619,10 +619,29 @@ async def build_employee_read_data(
     skills = await employee_education_service.get_employee_skills(session, emp.id)
     certificates = await employee_education_service.get_employee_certificates(session, emp.id)
     languages = await employee_education_service.get_employee_languages(session, emp.id)
+    nationality_name = None
+    ethnicity_name = None
+    religion_name = None
+
+    if emp.nationality_id:
+        nationality_name = await session.scalar(
+            select(Nationality.name).where(Nationality.id == emp.nationality_id)
+        )
+    if emp.ethnicity_id:
+        ethnicity_name = await session.scalar(
+            select(Ethnicity.name).where(Ethnicity.id == emp.ethnicity_id)
+        )
+    if emp.religion_id:
+        religion_name = await session.scalar(
+            select(Religion.name).where(Religion.id == emp.religion_id)
+        )
     return {
         "addresses": await enrich_addresses(session, addresses),
         "bank_accounts": bank_accounts,
         "display_code": await employee_code_service.build_employee_display_code(session, emp),
+        "nationality_name": nationality_name,
+        "ethnicity_name": ethnicity_name,
+        "religion_name": religion_name,
         "current_job": current_job,
         "relatives": relatives,
         "education_histories": education_histories,

@@ -306,11 +306,13 @@ import employeeService, { type JobRecordRead } from '@/services/employeeService'
 import departmentService from '@/services/departmentService'
 import jobTitleService, { type JobTitleRead } from '@/services/jobTitleService'
 import jobPositionService, { type JobPositionListItem } from '@/services/jobPositionService'
+import { usePermissionGate } from '@/composables/usePermissionGate'
 
 const props = defineProps<{ employeeId: number; isNew: boolean }>()
 const emit  = defineEmits<{ (e: 'refresh'): void }>()
 
 const toast = useToast()
+const permissionGate = usePermissionGate()
 
 // ── State ──────────────────────────────────────────────────────────────────────
 const loading   = ref(false)
@@ -325,6 +327,7 @@ const transferFilteredPositions = ref<JobPositionListItem[]>([])
 // ── Computed ───────────────────────────────────────────────────────────────────
 const currentJob = computed(() => records.value.find(r => r.is_current) ?? null)
 const historyRecords = computed(() => records.value.filter(r => !r.is_current))
+const canLoadJobTitles = computed(() => permissionGate.canView('org') && !permissionGate.isDepartmentScoped('org'))
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 function formatDate(iso: string | null | undefined): string {
@@ -362,12 +365,16 @@ async function loadRecords() {
 }
 
 async function loadCatalogs() {
-  const [depts, titles] = await Promise.all([
-    departmentService.getList(true),
-    jobTitleService.getList(true),
-  ])
-  departments.value  = depts.data
-  jobTitles.value    = titles.data
+  const depts = await departmentService.getList(true)
+  departments.value = depts.data
+
+  if (!canLoadJobTitles.value) {
+    jobTitles.value = []
+    return
+  }
+
+  const titles = await jobTitleService.getList(true)
+  jobTitles.value = titles.data
 }
 
 async function loadPositionsForDepartment(departmentId: number | null) {

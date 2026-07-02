@@ -120,18 +120,36 @@
 
               <div class="field">
                 <label>Quốc tịch <span class="req">*</span></label>
-                <NationalitySelect v-model="form.nationality_id" :disabled="viewOnly" />
+                <InputText
+                  v-if="viewOnly && !canUseCatalogFields"
+                  :model-value="employee?.nationality_name ?? '—'"
+                  class="w-full"
+                  disabled
+                />
+                <NationalitySelect v-else v-model="form.nationality_id" :disabled="viewOnly" />
                 <small v-if="errors.nationality_id" class="error-msg">{{ errors.nationality_id }}</small>
               </div>
 
               <div class="field">
                 <label>Dân tộc</label>
-                <EthnicitySelect v-model="form.ethnicity_id" :disabled="viewOnly" />
+                <InputText
+                  v-if="viewOnly && !canUseCatalogFields"
+                  :model-value="employee?.ethnicity_name ?? '—'"
+                  class="w-full"
+                  disabled
+                />
+                <EthnicitySelect v-else v-model="form.ethnicity_id" :disabled="viewOnly" />
               </div>
 
               <div class="field">
                 <label>Tôn giáo</label>
-                <ReligionSelect v-model="form.religion_id" :disabled="viewOnly" />
+                <InputText
+                  v-if="viewOnly && !canUseCatalogFields"
+                  :model-value="employee?.religion_name ?? '—'"
+                  class="w-full"
+                  disabled
+                />
+                <ReligionSelect v-else v-model="form.religion_id" :disabled="viewOnly" />
               </div>
 
               <div class="field">
@@ -417,7 +435,7 @@
           <!-- ── TAB: Công việc ──────────────────────────────────────────── -->
           <TabPanel v-if="showEmployeeSubTabs" value="job">
             <JobRecordTab
-              v-if="!isNew && employeeId"
+              v-if="!isNew && employeeId && activeTab === 'job'"
               :employee-id="employeeId"
               :is-new="isNew"
               @refresh="loadEmployee"
@@ -427,7 +445,7 @@
           <!-- ── TAB: Người thân ─────────────────────────────────────────── -->
           <TabPanel v-if="showEmployeeSubTabs" value="relatives">
             <RelativesTab
-              v-if="!isNew && employeeId"
+              v-if="!isNew && employeeId && activeTab === 'relatives'"
               :employee-id="employeeId"
               @refresh="loadEmployee"
             />
@@ -436,7 +454,7 @@
           <!-- ── TAB: Học vấn & Kinh nghiệm ───────────────────────────────── -->
           <TabPanel v-if="showEmployeeSubTabs" value="education">
             <EducationTab
-              v-if="!isNew && employeeId"
+              v-if="!isNew && employeeId && activeTab === 'education'"
               :employee-id="employeeId"
               @refresh="loadEmployee"
             />
@@ -445,7 +463,7 @@
           <!-- ── TAB: Tệp đính kèm hồ sơ ──────────────────────────────────── -->
           <TabPanel v-if="showEmployeeSubTabs" value="attachments">
             <AttachmentsTab
-              v-if="!isNew && employeeId"
+              v-if="!isNew && employeeId && activeTab === 'attachments'"
               :employee-id="employeeId"
             />
           </TabPanel>
@@ -453,7 +471,7 @@
           <!-- ── TAB: Hợp đồng lao động ──────────────────────────────────── -->
           <TabPanel v-if="showContractsTab" value="contracts">
             <ContractTab
-              v-if="!isNew && employeeId"
+              v-if="!isNew && employeeId && activeTab === 'contracts'"
               :employee-id="employeeId"
               @refresh="handleContractRefresh"
             />
@@ -462,7 +480,7 @@
           <!-- ── TAB: Bảo hiểm ───────────────────────────────────────────── -->
           <TabPanel v-if="showInsuranceTab" value="insurance">
             <InsuranceTab
-              v-if="!isNew && employeeId"
+              v-if="!isNew && employeeId && activeTab === 'insurance'"
               :key="insuranceRefreshTick"
               :employee-id="employeeId"
               @refresh="loadEmployee"
@@ -472,19 +490,19 @@
           <!-- ── TAB: Đánh giá KPI ───────────────────────────────────────── -->
           <TabPanel v-if="showKpiTab" value="kpi">
             <KpiHistoryTab
-              v-if="!isNew && employeeId"
+              v-if="!isNew && employeeId && activeTab === 'kpi'"
               :employee-id="employeeId"
             />
           </TabPanel>
 
           <!-- ── TAB: Checklist hồ sơ pháp lý (13.6) ────────────────────── -->
           <TabPanel v-if="showLegalChecklistTab" value="legal">
-            <DocumentChecklistTab v-if="!isNew && employeeId" :employee-id="employeeId" />
+            <DocumentChecklistTab v-if="!isNew && employeeId && activeTab === 'legal'" :employee-id="employeeId" />
           </TabPanel>
 
           <!-- ── TAB: Thử việc (14.2) ────────────────────────────────────── -->
           <TabPanel v-if="showProbationTab" value="probation">
-            <ProbationTab v-if="!isNew && employeeId" :employee-id="employeeId" />
+            <ProbationTab v-if="!isNew && employeeId && activeTab === 'probation'" :employee-id="employeeId" />
           </TabPanel>
         </TabPanels>
       </Tabs>
@@ -615,6 +633,8 @@ const errors     = ref<Record<string, string>>({})
 
 const viewOnly = computed(() => !isNew.value && !editing.value)
 const canEditEmployees = computed(() => permissionGate.canEdit('employees'))
+const canUseCatalogFields = computed(() => permissionGate.canView('catalog'))
+const canLoadJobTitles = computed(() => permissionGate.canView('org') && !permissionGate.isDepartmentScoped('org'))
 const showEmployeeSubTabs = computed(() => !isNew.value)
 const showContractsTab = computed(() => !isNew.value && permissionGate.canView('contracts'))
 const showInsuranceTab = computed(() => !isNew.value && permissionGate.canView('insurance'))
@@ -782,11 +802,15 @@ async function loadAddresses() {
 }
 
 async function loadCatalogs() {
-  const [deptResp, titleResp] = await Promise.all([
-    departmentService.getList(true),
-    jobTitleService.getList(true),
-  ])
+  const deptResp = await departmentService.getList(true)
   departments.value = deptResp.data
+
+  if (!canLoadJobTitles.value) {
+    jobTitles.value = []
+    return
+  }
+
+  const titleResp = await jobTitleService.getList(true)
   jobTitles.value = titleResp.data
 }
 

@@ -59,7 +59,9 @@
 
     <div class="card">
       <DataTable
+        :key="tableRenderKey"
         :value="items"
+        dataKey="id"
         :loading="loading"
         responsive-layout="scroll"
         :paginator="true"
@@ -72,7 +74,6 @@
         row-hover
         @page="onPage"
         @update:rows="onRowsChange"
-        @row-click="onRowClick"
       >
         <template #paginatorstart>
           <span class="paginator-info" v-if="total > 0">
@@ -90,7 +91,12 @@
 
         <Column field="full_name" header="Họ và tên" style="min-width: 180px">
           <template #body="{ data }">
-            <span class="name-cell">{{ data.full_name }}</span>
+            <RouterLink
+              :to="`/employees/${data.id}`"
+              class="name-cell name-cell-button"
+            >
+              {{ data.full_name }}
+            </RouterLink>
           </template>
         </Column>
 
@@ -134,13 +140,13 @@
         <Column header="" style="width: 90px">
           <template #body="{ data }">
             <div class="action-cell" @click.stop>
-              <Button
-                icon="pi pi-eye"
-                severity="secondary"
-                text rounded size="small"
+              <RouterLink
+                :to="`/employees/${data.id}`"
+                class="p-button p-component p-button-icon-only p-button-secondary p-button-rounded p-button-text p-button-sm"
                 v-tooltip.top="'Xem hồ sơ'"
-                @click="router.push(`/employees/${data.id}`)"
-              />
+              >
+                <span class="p-button-icon pi pi-eye" />
+              </RouterLink>
               <Button
                 v-can:delete="'employees'"
                 v-if="data.is_active"
@@ -159,8 +165,8 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, onMounted, ref } from 'vue'
+import { RouterLink, useRouter } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
 import { useConfirm } from 'primevue/useconfirm'
 import Button from 'primevue/button'
@@ -189,6 +195,17 @@ const pageSize     = ref(25)
 const keyword      = ref('')
 const filterStatus = ref<string | null>(null)
 const filterActive = ref<boolean | null>(null)
+
+const tableRenderKey = computed(() =>
+  [
+    page.value,
+    pageSize.value,
+    keyword.value,
+    filterStatus.value ?? 'all-status',
+    filterActive.value === null ? 'all-active' : String(filterActive.value),
+    items.value.map((item) => item.id).join(','),
+  ].join('|'),
+)
 
 // ── Options ────────────────────────────────────────────────────────────────────
 const statusOptions = [
@@ -319,10 +336,6 @@ function onRowsChange(rows: number) {
   loadData()
 }
 
-function onRowClick(event: { data: EmployeeListItem }) {
-  router.push(`/employees/${event.data.id}`)
-}
-
 // ── Deactivate ─────────────────────────────────────────────────────────────────
 function confirmDeactivate(emp: EmployeeListItem) {
   confirm.require({
@@ -360,3 +373,19 @@ async function doExport() {
 
 onMounted(loadData)
 </script>
+
+<style scoped>
+.name-cell-button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.name-cell-button:hover {
+  text-decoration: underline;
+}
+</style>

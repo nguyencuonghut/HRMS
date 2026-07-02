@@ -696,6 +696,32 @@ Việc làm:
   - thử truy cập record ngoài scope bằng URL trực tiếp nếu có id
   - thử action mutate/report/export nếu role được phép
 
+Trạng thái hiện tại:
+
+- Đã verify xong bằng browser harness runtime với dữ liệu thật:
+  - `employees`:
+    - list chỉ trả và chỉ hiển thị nhân sự trong scope
+    - mở được hồ sơ nhân sự trong scope
+    - truy cập URL trực tiếp tới nhân sự ngoài scope bị chặn và chuyển `forbidden`
+  - `rewards`:
+    - vào được màn nghiệp vụ KT/KL
+    - dialog tạo quyết định chỉ cho chọn nhân sự trong scope
+    - tạo được quyết định khen thưởng cho nhân sự trong scope
+    - tìm lại được quyết định vừa tạo trên list
+  - `reports` từ flow KT/KL:
+    - mở được báo cáo
+    - report chỉ chứa quyết định trong scope
+    - export Excel thành công với `content-type = application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`
+
+- Root cause FE đã được sửa trong quá trình verify:
+  - list nhân viên sau khi filter hiển thị đúng row nhưng click mở sai hồ sơ
+  - đã đổi từ `row-click` sang link điều hướng tường minh trên tên nhân sự / action xem hồ sơ để loại bỏ bind sai sau filter
+
+- Còn một blocker môi trường test:
+  - spec Playwright chính thức trong `frontend/tests/e2e/line-manager-browser-loops.spec.ts` đã được cập nhật theo seam mới
+  - nhưng chưa chạy được trực tiếp từ `frontend` vì `frontend/node_modules` hiện là thư mục root-owned trên filesystem cục bộ, làm hỏng `npm install` và package resolution của `@playwright/test`
+  - đây là blocker của môi trường verify, không phải failure của logic ứng dụng trong Slice 4
+
 ### Slice 5 — Regression pack cho go-live
 
 Mục tiêu:

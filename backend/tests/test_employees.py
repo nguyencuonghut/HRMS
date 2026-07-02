@@ -101,6 +101,20 @@ def _get_nationality_id(client: TestClient, headers: dict) -> int:
     return vn["id"] if vn else 1
 
 
+def _get_ethnicity_id(client: TestClient, headers: dict) -> int:
+    resp = client.get("/api/v1/ethnicities", headers=headers)
+    items = resp.json().get("items", resp.json())
+    kinh = next((x for x in items if x["code"] == "KINH"), None)
+    return kinh["id"] if kinh else items[0]["id"]
+
+
+def _get_religion_id(client: TestClient, headers: dict) -> int:
+    resp = client.get("/api/v1/religions", headers=headers)
+    items = resp.json().get("items", resp.json())
+    none_value = next((x for x in items if x["code"] == "NONE"), None)
+    return none_value["id"] if none_value else items[0]["id"]
+
+
 def _get_department(client: TestClient, headers: dict, code: str = "HC") -> dict:
     resp = client.get("/api/v1/departments", headers=headers)
     payload = resp.json()
@@ -357,12 +371,18 @@ def test_create_employee_rejects_job_position_department_mismatch(client: TestCl
 
 def test_get_employee_detail(client: TestClient):
     headers = _admin(client)
-    created = client.post(BASE, json=_valid_payload("TEST999000051"), headers=headers).json()
+    payload = _valid_payload("TEST999000051")
+    payload["ethnicity_id"] = _get_ethnicity_id(client, headers)
+    payload["religion_id"] = _get_religion_id(client, headers)
+    created = client.post(BASE, json=payload, headers=headers).json()
     resp = client.get(f"{BASE}/{created['id']}", headers=headers)
     assert resp.status_code == 200
     data = resp.json()
     assert data["id"] == created["id"]
     assert data["display_code"] == created["display_code"]
+    assert data["nationality_name"]
+    assert data["ethnicity_name"]
+    assert data["religion_name"]
     assert "addresses" in data
     assert "bank_accounts" in data
 
