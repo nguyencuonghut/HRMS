@@ -735,6 +735,34 @@ Việc làm:
   - frontend Playwright suite cho line manager
 - đưa vào checklist trước release
 
+Trạng thái hiện tại:
+
+- Đã thêm command smoke ở repo:
+  - backend: `make test-line-manager-backend`
+  - frontend: `make test-line-manager-frontend`
+- Đã thêm npm script frontend:
+  - `npm run test:e2e:line-manager`
+- Pack frontend hiện gom:
+  - `line-manager-*.spec.ts`
+  - `permission-visibility.spec.ts`
+  - `permission-action-visibility.spec.ts`
+  - `report-route-map.spec.ts`
+  - `settings-permissions.spec.ts`
+- Pack backend hiện gom:
+  - `test_rbac_seed.py`
+  - `test_auth.py`
+  - `test_department_scope_rbac.py`
+  - `test_permission_boundaries_org_reports.py`
+  - `test_contract_reports.py`
+  - `test_users.py`
+- Đã verify backend smoke pack chạy pass:
+  - `make test-line-manager-backend`
+
+Lưu ý môi trường hiện tại:
+
+- command frontend chính thức vẫn phụ thuộc việc `frontend/node_modules` không bị root-owned
+- trên máy hiện tại, logic browser đã được verify bằng Playwright runner ở môi trường `/tmp/hrms-playwright-verify`, nhưng command repo `make test-line-manager-frontend` chưa thể chạy cho tới khi dọn quyền thư mục dependencies
+
 ## Các quyết định đã chốt trước khi viết full assertion
 
 1. scope phòng ban của `line_manager` luôn bao gồm toàn bộ con/cháu trong subtree

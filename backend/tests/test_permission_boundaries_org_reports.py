@@ -13,11 +13,11 @@ def _bearer(client: TestClient, email: str) -> dict:
     return {"Authorization": f"Bearer {token}"}
 
 
-def test_line_manager_can_view_org_but_cannot_edit_job_titles(client: TestClient):
+def test_line_manager_cannot_access_shared_job_titles_catalog(client: TestClient):
     headers = _bearer(client, "linemanager@hrms.local")
 
     list_resp = client.get("/api/v1/job-titles", headers=headers)
-    assert list_resp.status_code == 200, list_resp.text
+    assert list_resp.status_code == 403, list_resp.text
 
     create_resp = client.post(
         "/api/v1/job-titles",
@@ -27,10 +27,10 @@ def test_line_manager_can_view_org_but_cannot_edit_job_titles(client: TestClient
     assert create_resp.status_code == 403, create_resp.text
 
 
-def test_line_manager_can_view_org_history(client: TestClient):
+def test_line_manager_cannot_access_company_wide_org_history(client: TestClient):
     headers = _bearer(client, "linemanager@hrms.local")
     resp = client.get("/api/v1/org-history", headers=headers)
-    assert resp.status_code == 200, resp.text
+    assert resp.status_code == 403, resp.text
 
 
 def test_line_manager_can_view_onboarding_list_but_cannot_create_task_template(client: TestClient):
@@ -69,5 +69,4 @@ def test_finance_can_view_job_positions_for_insurance_config(client: TestClient)
     headers = _bearer(client, "finance@hrms.local")
     resp = client.get("/api/v1/job-positions", headers=headers)
     assert resp.status_code == 200, resp.text
-
 

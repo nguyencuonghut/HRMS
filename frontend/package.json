@@ -10,7 +10,8 @@
     "lint": "eslint . --fix",
     "format": "prettier --write src/",
     "test:e2e": "playwright test",
-    "test:e2e:dashboard": "playwright test tests/e2e/dashboard-overview.spec.ts"
+    "test:e2e:dashboard": "playwright test tests/e2e/dashboard-overview.spec.ts",
+    "test:e2e:line-manager": "playwright test tests/e2e/line-manager-*.spec.ts tests/e2e/permission-visibility.spec.ts tests/e2e/permission-action-visibility.spec.ts tests/e2e/report-route-map.spec.ts tests/e2e/settings-permissions.spec.ts"
   },
   "dependencies": {
     "@fontsource/be-vietnam-pro": "^5.0.0",

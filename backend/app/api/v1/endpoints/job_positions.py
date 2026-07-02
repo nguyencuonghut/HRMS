@@ -30,7 +30,7 @@ async def list_job_positions(
     is_active:     Optional[bool] = Query(None, description="Lọc theo trạng thái"),
     search:        Optional[str]  = Query(None, description="Tìm theo mã hoặc tên"),
     _: User = require_permission("org:view", "insurance:view"),
-    allowed_department_ids: set[int] | None = require_department_scope("org:view"),
+    allowed_department_ids: set[int] | None = require_department_scope("org:view", "insurance:view"),
     session: AsyncSession = Depends(get_session),
 ):
     return await job_position_service.get_list(

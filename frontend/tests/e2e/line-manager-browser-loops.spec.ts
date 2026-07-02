@@ -158,16 +158,18 @@ test("line manager rewards browser loop scopes create dialog and can create in-s
     await expect(page.locator(".p-datatable")).not.toContainText(outsideEmployee!.full_name);
 
     await page.getByRole("button", { name: "Thêm quyết định" }).click();
-    await expect(page.getByRole("dialog")).toBeVisible();
+    const rewardDialog = page.locator(".p-dialog").filter({ hasText: "Thêm quyết định khen thưởng" }).first();
+    await expect(rewardDialog).toBeVisible();
 
     const employeeSelect = page.getByPlaceholder("Chọn nhân viên...");
     await employeeSelect.click();
-    await expect(page.getByText(inScopeEmployee.full_name, { exact: false })).toBeVisible();
-    await expect(page.getByText(outsideEmployee!.full_name, { exact: false })).toHaveCount(0);
-    await page.getByText(inScopeEmployee.full_name, { exact: false }).first().click();
+    const visibleOptions = page.locator(".p-select-overlay:visible [role='option']");
+    await expect(visibleOptions.filter({ hasText: inScopeEmployee.full_name }).first()).toBeVisible();
+    await expect(visibleOptions.filter({ hasText: outsideEmployee!.full_name })).toHaveCount(0);
+    await visibleOptions.filter({ hasText: inScopeEmployee.full_name }).first().click();
 
     await page.getByPlaceholder("Chọn loại...").click();
-    await page.getByText(selectedRewardType.name, { exact: false }).first().click();
+    await page.locator(".p-select-overlay:visible [role='option']").filter({ hasText: selectedRewardType.name }).first().click();
 
     await page.getByPlaceholder("VD: Khen thưởng tháng 05/2026").fill(rewardTitle);
     await page.getByPlaceholder("VD: 01/QĐ-2026").fill(decisionNumber);
@@ -176,9 +178,9 @@ test("line manager rewards browser loop scopes create dialog and can create in-s
     }
 
     const createResponsePromise = page.waitForResponse((response) => {
-      return response.url().endsWith("/api/v1/rewards") && response.request().method() === "POST" && response.status() === 200;
+      return response.url().endsWith("/api/v1/rewards") && response.request().method() === "POST" && response.status() === 201;
     });
-    await page.getByRole("button", { name: "Thêm" }).click();
+    await rewardDialog.getByRole("button", { name: "Thêm", exact: true }).click();
     const createResponse = await createResponsePromise;
     const createdReward = await createResponse.json();
     createdRewardId = createdReward.id as number;
@@ -186,7 +188,7 @@ test("line manager rewards browser loop scopes create dialog and can create in-s
 
     await expect(page.getByText("Quyết định khen thưởng đã được tạo")).toBeVisible();
 
-    const rewardSearch = page.getByPlaceholder("Tìm mã NV, tên, số QĐ...");
+    const rewardSearch = page.getByPlaceholder("Tìm mã NV, tên, số QĐ...").first();
     const rewardsReloadResponse = page.waitForResponse((response) => {
       return response.url().includes("/api/v1/rewards?") && response.status() === 200;
     });
@@ -195,7 +197,7 @@ test("line manager rewards browser loop scopes create dialog and can create in-s
     await rewardsReloadResponse;
     await page.waitForLoadState("networkidle");
 
-    const rewardTable = page.locator(".p-datatable");
+    const rewardTable = page.locator(".p-datatable").first();
     await expect(rewardTable).toContainText(decisionNumber);
     await expect(rewardTable).toContainText(inScopeEmployee.full_name);
 

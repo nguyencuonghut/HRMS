@@ -5,6 +5,7 @@
 .PHONY: help \
         migrate migrate-down migrate-refresh migrate-history migrate-status migrate-new \
         seed seed-required seed-bootstrap seed-bootstrap-admin seed-local-users seed-sample \
+        test-line-manager-backend test-line-manager-frontend \
         db-reset db-shell \
         logs logs-be logs-fe shell-be restart-be
 
@@ -31,6 +32,8 @@ help:
 	@echo "    make seed-sample       Seed full dev/test data"
 	@echo ""
 	@echo "  Dev:"
+	@echo "    make test-line-manager-backend  Chạy pack backend authz/scope cho role line_manager"
+	@echo "    make test-line-manager-frontend Chạy pack Playwright line_manager trên frontend"
 	@echo "    make logs              Theo dõi log tất cả service"
 	@echo "    make logs-be           Theo dõi log backend"
 	@echo "    make logs-fe           Theo dõi log frontend"
@@ -88,6 +91,22 @@ seed-sample:
 	docker compose exec backend python -m app.seeds --sample
 
 
+# ─── Regression packs ────────────────────────────────────────────────────────
+
+test-line-manager-backend:
+	docker compose exec backend pytest \
+		tests/test_rbac_seed.py \
+		tests/test_auth.py \
+		tests/test_department_scope_rbac.py \
+		tests/test_permission_boundaries_org_reports.py \
+		tests/test_contract_reports.py \
+		tests/test_users.py \
+		-q --tb=short --no-header
+
+test-line-manager-frontend:
+	cd frontend && npm run test:e2e:line-manager
+
+
 # ─── Database shell ──────────────────────────────────────────────────────────
 
 db-shell:
@@ -126,4 +145,3 @@ test-docker:
 	ls -la /var/run/docker.sock || true
 	@echo "=== Docker Service Status on Host ==="
 	systemctl status docker || true
-
