@@ -578,6 +578,9 @@ router.beforeEach(async (to) => {
 
   const anyPermissions = to.meta.anyPermissions;
   if (anyPermissions && !anyPermissions.some((permission) => auth.hasPermission(permission))) {
+    if (to.name === "dashboard-overview") {
+      return getDefaultAuthorizedRoute(auth);
+    }
     return { name: "forbidden" };
   }
 
