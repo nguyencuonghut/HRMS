@@ -42,6 +42,13 @@ def normalize_bhxh_code(value: Optional[str]) -> Optional[str]:
     return stripped or None
 
 
+def normalize_optional_insurance_code(value: Optional[str]) -> Optional[str]:
+    if value is None:
+        return None
+    stripped = value.strip()
+    return stripped or None
+
+
 def derive_participation_status(employee_status: str) -> str:
     return "stopped" if employee_status == "resigned" else "active"
 
@@ -180,6 +187,9 @@ async def _build_list_item(
             department_name=department_name,
             job_title_name=job_title_name,
             bhxh_code=None,
+            health_care_insurance_code=None,
+            health_care_family_participation=None,
+            accident_insurance_code=None,
             bhyt_initial_clinic_name=None,
             company_bhxh_joined_date=None,
             participation_status="active",
@@ -208,6 +218,9 @@ async def _build_list_item(
         department_name=department_name,
         job_title_name=job_title_name,
         bhxh_code=profile.bhxh_code,
+        health_care_insurance_code=profile.health_care_insurance_code,
+        health_care_family_participation=profile.health_care_family_participation,
+        accident_insurance_code=profile.accident_insurance_code,
         bhyt_initial_clinic_name=profile.bhyt_initial_clinic_name,
         company_bhxh_joined_date=profile.company_bhxh_joined_date,
         participation_status=profile.participation_status,
@@ -575,6 +588,9 @@ async def get_insurance_profile_detail(
         department_name=dept_name,
         job_title_name=jt_name,
         bhxh_code=profile.bhxh_code,
+        health_care_insurance_code=profile.health_care_insurance_code,
+        health_care_family_participation=profile.health_care_family_participation,
+        accident_insurance_code=profile.accident_insurance_code,
         bhyt_initial_clinic_name=profile.bhyt_initial_clinic_name,
         bhyt_initial_clinic_code=profile.bhyt_initial_clinic_code,
         company_bhxh_joined_date=profile.company_bhxh_joined_date,
@@ -634,6 +650,13 @@ async def upsert_insurance_profile(
 
     # Update profile fields
     profile.bhxh_code = normalize_bhxh_code(payload.bhxh_code)
+    profile.health_care_insurance_code = normalize_optional_insurance_code(
+        payload.health_care_insurance_code
+    )
+    profile.health_care_family_participation = payload.health_care_family_participation
+    profile.accident_insurance_code = normalize_optional_insurance_code(
+        payload.accident_insurance_code
+    )
     profile.bhyt_initial_clinic_name = payload.bhyt_initial_clinic_name
     profile.bhyt_initial_clinic_code = payload.bhyt_initial_clinic_code
     profile.company_bhxh_joined_date = payload.company_bhxh_joined_date

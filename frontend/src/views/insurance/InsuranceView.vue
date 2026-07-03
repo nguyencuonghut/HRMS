@@ -121,6 +121,26 @@
             <span v-else class="text-muted">—</span>
           </template>
         </Column>
+        <Column field="health_care_insurance_code" header="Mã BH CSSK" style="min-width: 130px">
+          <template #body="{ data }">
+            <span v-if="data.health_care_insurance_code" class="ins-code">{{ data.health_care_insurance_code }}</span>
+            <span v-else class="text-muted">—</span>
+          </template>
+        </Column>
+        <Column field="health_care_family_participation" header="Người thân CSSK" style="min-width: 120px">
+          <template #body="{ data }">
+            <span v-if="data.health_care_insurance_code">
+              {{ data.health_care_family_participation ? 'Có' : 'Không' }}
+            </span>
+            <span v-else class="text-muted">—</span>
+          </template>
+        </Column>
+        <Column field="accident_insurance_code" header="Mã BH tai nạn" style="min-width: 130px">
+          <template #body="{ data }">
+            <span v-if="data.accident_insurance_code" class="ins-code">{{ data.accident_insurance_code }}</span>
+            <span v-else class="text-muted">—</span>
+          </template>
+        </Column>
         <Column field="bhyt_initial_clinic_name" header="Nơi KCB ban đầu" style="min-width: 160px">
           <template #body="{ data }">{{ data.bhyt_initial_clinic_name ?? '—' }}</template>
         </Column>
@@ -183,9 +203,37 @@
                   <InputText v-model="form.bhxh_code" placeholder="Nhập mã BHXH..." class="w-full" />
                 </div>
                 <div class="field">
+                  <label>Mã BH chăm sóc sức khỏe</label>
+                  <InputText v-model="form.health_care_insurance_code" placeholder="Nhập mã BH CSSK..." class="w-full" />
+                </div>
+              </div>
+
+              <div class="field-row">
+                <div class="field">
+                  <label class="ins-toggle-label">
+                    <Checkbox
+                      v-model="form.health_care_family_participation"
+                      :binary="true"
+                      :disabled="!form.health_care_insurance_code"
+                    />
+                    Người thân tham gia cùng
+                  </label>
+                  <small v-if="!form.health_care_insurance_code" class="text-muted">
+                    Nhập mã BH CSSK trước khi chọn.
+                  </small>
+                </div>
+                <div class="field">
+                  <label>Mã BH tai nạn</label>
+                  <InputText v-model="form.accident_insurance_code" placeholder="Nhập mã BH tai nạn..." class="w-full" />
+                </div>
+              </div>
+
+              <div class="field-row">
+                <div class="field">
                   <label>Nơi KCB ban đầu</label>
                   <BhytClinicSelect v-model="form.bhyt_initial_clinic" />
                 </div>
+                <div class="field" />
               </div>
 
               <div class="field-row">
@@ -365,8 +413,8 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import Button from 'primevue/button'
-import Column from 'primevue/column'
 import Checkbox from 'primevue/checkbox'
+import Column from 'primevue/column'
 import DataTable from 'primevue/datatable'
 import DatePicker from 'primevue/datepicker'
 import Dialog from 'primevue/dialog'
@@ -554,6 +602,9 @@ const detail        = ref<EmployeeInsuranceProfileRead | null>(null)
 
 interface FormState {
   bhxh_code: string | null
+  health_care_insurance_code: string | null
+  health_care_family_participation: boolean
+  accident_insurance_code: string | null
   bhyt_initial_clinic: BhytClinicRead | null
   company_bhxh_joined_date_obj: Date | null
   status_effective_from_obj: Date | null
@@ -566,6 +617,9 @@ interface FormState {
 
 const form = ref<FormState>({
   bhxh_code: null,
+  health_care_insurance_code: null,
+  health_care_family_participation: false,
+  accident_insurance_code: null,
   bhyt_initial_clinic: null,
   company_bhxh_joined_date_obj: null,
   status_effective_from_obj: null,
@@ -589,6 +643,9 @@ async function openEdit(item: EmployeeInsuranceListItem) {
     const d = res.data
     form.value = {
       bhxh_code:               d.bhxh_code,
+      health_care_insurance_code: d.health_care_insurance_code,
+      health_care_family_participation: d.health_care_family_participation ?? false,
+      accident_insurance_code: d.accident_insurance_code,
       bhyt_initial_clinic:     d.bhyt_initial_clinic_code
         ? { id: 0, code: d.bhyt_initial_clinic_code, name: d.bhyt_initial_clinic_name ?? '', province_code: null, province_name: null }
         : null,
@@ -653,6 +710,11 @@ async function submitForm() {
   try {
     const payload = {
       bhxh_code:                form.value.bhxh_code || null,
+      health_care_insurance_code: form.value.health_care_insurance_code || null,
+      health_care_family_participation: form.value.health_care_insurance_code
+        ? form.value.health_care_family_participation
+        : null,
+      accident_insurance_code: form.value.accident_insurance_code || null,
       bhyt_initial_clinic_name: form.value.bhyt_initial_clinic?.name || null,
       bhyt_initial_clinic_code: form.value.bhyt_initial_clinic?.code || null,
       company_bhxh_joined_date: toIsoDate(form.value.company_bhxh_joined_date_obj),

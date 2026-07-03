@@ -42,6 +42,23 @@
             <span class="info-value">{{ profile.bhxh_code || '—' }}</span>
           </div>
           <div class="info-row">
+            <span class="info-label">Mã BH chăm sóc sức khỏe</span>
+            <span class="info-value">{{ profile.health_care_insurance_code || '—' }}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Người thân tham gia CSSK</span>
+            <span class="info-value">
+              <template v-if="profile.health_care_insurance_code">
+                {{ profile.health_care_family_participation ? 'Có' : 'Không' }}
+              </template>
+              <span v-else class="text-muted">—</span>
+            </span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Mã BH tai nạn</span>
+            <span class="info-value">{{ profile.accident_insurance_code || '—' }}</span>
+          </div>
+          <div class="info-row">
             <span class="info-label">Nơi KCB ban đầu</span>
             <span class="info-value">{{ profile.bhyt_initial_clinic_name || '—' }}</span>
           </div>
@@ -115,9 +132,37 @@
             <InputText v-model="form.bhxh_code" class="w-full" placeholder="Nhập mã BHXH..." />
           </div>
           <div class="field">
+            <label>Mã BH chăm sóc sức khỏe</label>
+            <InputText v-model="form.health_care_insurance_code" class="w-full" placeholder="Nhập mã BH CSSK..." />
+          </div>
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label class="ins-toggle-label">
+              <Checkbox
+                v-model="form.health_care_family_participation"
+                :binary="true"
+                :disabled="!form.health_care_insurance_code"
+              />
+              Người thân tham gia cùng
+            </label>
+            <small v-if="!form.health_care_insurance_code" class="text-muted">
+              Nhập mã BH CSSK trước khi chọn.
+            </small>
+          </div>
+          <div class="field">
+            <label>Mã BH tai nạn</label>
+            <InputText v-model="form.accident_insurance_code" class="w-full" placeholder="Nhập mã BH tai nạn..." />
+          </div>
+        </div>
+
+        <div class="field-row">
+          <div class="field">
             <label>Nơi KCB ban đầu</label>
             <BhytClinicSelect v-model="form.bhyt_initial_clinic" />
           </div>
+          <div class="field" />
         </div>
 
         <div class="field-row">
@@ -208,6 +253,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import Button from 'primevue/button'
+import Checkbox from 'primevue/checkbox'
 import DatePicker from 'primevue/datepicker'
 import InputNumber from 'primevue/inputnumber'
 import InputText from 'primevue/inputtext'
@@ -229,6 +275,9 @@ const profile = ref<EmployeeInsuranceProfileRead | null>(null)
 
 interface FormState {
   bhxh_code: string | null
+  health_care_insurance_code: string | null
+  health_care_family_participation: boolean
+  accident_insurance_code: string | null
   bhyt_initial_clinic: BhytClinicRead | null
   company_bhxh_joined_date_obj: Date | null
   status_effective_from_obj: Date | null
@@ -240,6 +289,9 @@ interface FormState {
 
 const form = ref<FormState>({
   bhxh_code: null,
+  health_care_insurance_code: null,
+  health_care_family_participation: false,
+  accident_insurance_code: null,
   bhyt_initial_clinic: null,
   company_bhxh_joined_date_obj: null,
   status_effective_from_obj: null,
@@ -330,6 +382,9 @@ function startEdit() {
   const p = profile.value
   form.value = {
     bhxh_code:                    p.bhxh_code,
+    health_care_insurance_code:   p.health_care_insurance_code,
+    health_care_family_participation: p.health_care_family_participation ?? false,
+    accident_insurance_code:      p.accident_insurance_code,
     bhyt_initial_clinic:          p.bhyt_initial_clinic_code
       ? { id: 0, code: p.bhyt_initial_clinic_code, name: p.bhyt_initial_clinic_name ?? '', province_code: null, province_name: null }
       : null,
@@ -352,6 +407,11 @@ async function save() {
   try {
     await insuranceService.updateEmployeeProfile(props.employeeId, {
       bhxh_code:                form.value.bhxh_code || null,
+      health_care_insurance_code: form.value.health_care_insurance_code || null,
+      health_care_family_participation: form.value.health_care_insurance_code
+        ? form.value.health_care_family_participation
+        : null,
+      accident_insurance_code: form.value.accident_insurance_code || null,
       bhyt_initial_clinic_name: form.value.bhyt_initial_clinic?.name || null,
       bhyt_initial_clinic_code: form.value.bhyt_initial_clinic?.code || null,
       company_bhxh_joined_date: toIsoDate(form.value.company_bhxh_joined_date_obj),

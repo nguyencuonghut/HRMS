@@ -37,6 +37,9 @@ class ControlEmployeeSeed:
     bhxh_group_code: str | None
     insurance_grade_no: int | None
     insurance_fixed_amount: Decimal | None
+    health_care_insurance_code: str | None
+    health_care_family_participation: bool | None
+    accident_insurance_code: str | None
     probation_salary: Decimal
     official_salary: Decimal
     reward_type_code: str
@@ -61,6 +64,9 @@ CONTROL_EMPLOYEES: list[ControlEmployeeSeed] = [
         bhxh_group_code="PROD_MANAGER",
         insurance_grade_no=4,
         insurance_fixed_amount=None,
+        health_care_insurance_code="CSK-KS-00014",
+        health_care_family_participation=True,
+        accident_insurance_code="TNLD-KS-00014",
         probation_salary=Decimal("13500000"),
         official_salary=Decimal("16800000"),
         reward_type_code="SAMPLE_KS_MONETARY",
@@ -83,6 +89,9 @@ CONTROL_EMPLOYEES: list[ControlEmployeeSeed] = [
         bhxh_group_code="SUPERVISOR",
         insurance_grade_no=3,
         insurance_fixed_amount=None,
+        health_care_insurance_code="CSK-KS-00015",
+        health_care_family_participation=False,
+        accident_insurance_code=None,
         probation_salary=Decimal("10200000"),
         official_salary=Decimal("12800000"),
         reward_type_code="SAMPLE_KS_NON_MONEY",
@@ -105,6 +114,9 @@ CONTROL_EMPLOYEES: list[ControlEmployeeSeed] = [
         bhxh_group_code=None,
         insurance_grade_no=None,
         insurance_fixed_amount=Decimal("9200000"),
+        health_care_insurance_code=None,
+        health_care_family_participation=None,
+        accident_insurance_code="TNLD-KS-00016",
         probation_salary=Decimal("8200000"),
         official_salary=Decimal("9400000"),
         reward_type_code="SAMPLE_KS_NON_MONEY",
@@ -127,6 +139,9 @@ CONTROL_EMPLOYEES: list[ControlEmployeeSeed] = [
         bhxh_group_code="TECH_SPECIALIST",
         insurance_grade_no=2,
         insurance_fixed_amount=None,
+        health_care_insurance_code="CSK-KS-00017",
+        health_care_family_participation=True,
+        accident_insurance_code="TNLD-KS-00017",
         probation_salary=Decimal("11800000"),
         official_salary=Decimal("14500000"),
         reward_type_code="SAMPLE_KS_MONETARY",
@@ -149,6 +164,9 @@ CONTROL_EMPLOYEES: list[ControlEmployeeSeed] = [
         bhxh_group_code=None,
         insurance_grade_no=None,
         insurance_fixed_amount=Decimal("7600000"),
+        health_care_insurance_code=None,
+        health_care_family_participation=None,
+        accident_insurance_code=None,
         probation_salary=Decimal("7200000"),
         official_salary=Decimal("8300000"),
         reward_type_code="SAMPLE_KS_NON_MONEY",
@@ -481,6 +499,9 @@ async def _ensure_insurance_profile_and_change(
             """
             UPDATE employee_insurance_profiles
             SET bhxh_code = :bhxh_code,
+                health_care_insurance_code = :health_care_insurance_code,
+                health_care_family_participation = :health_care_family_participation,
+                accident_insurance_code = :accident_insurance_code,
                 bhyt_initial_clinic_name = :clinic_name,
                 bhyt_initial_clinic_code = :clinic_code,
                 company_bhxh_joined_date = :joined_date,
@@ -492,6 +513,9 @@ async def _ensure_insurance_profile_and_change(
             WHERE employee_id = :employee_id
               AND (
                   bhxh_code IS DISTINCT FROM :bhxh_code OR
+                  health_care_insurance_code IS DISTINCT FROM :health_care_insurance_code OR
+                  health_care_family_participation IS DISTINCT FROM :health_care_family_participation OR
+                  accident_insurance_code IS DISTINCT FROM :accident_insurance_code OR
                   bhyt_initial_clinic_name IS DISTINCT FROM :clinic_name OR
                   bhyt_initial_clinic_code IS DISTINCT FROM :clinic_code OR
                   company_bhxh_joined_date IS DISTINCT FROM :joined_date OR
@@ -505,6 +529,9 @@ async def _ensure_insurance_profile_and_change(
         {
             "employee_id": employee_id,
             "bhxh_code": f"BHXH{employee.employee_seq:06d}",
+            "health_care_insurance_code": employee.health_care_insurance_code,
+            "health_care_family_participation": employee.health_care_family_participation,
+            "accident_insurance_code": employee.accident_insurance_code,
             "clinic_name": "BVĐK Tỉnh Đắk Lắk",
             "clinic_code": f"DKL{employee.employee_seq:03d}",
             "joined_date": employee.join_date,

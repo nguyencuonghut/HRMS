@@ -53,6 +53,9 @@ async def _reset_profile(employee_id: int) -> None:
                 UPDATE employee_insurance_profiles
                 SET bhxh_code = NULL,
                     bhyt_initial_clinic_name = NULL,
+                    health_care_insurance_code = NULL,
+                    health_care_family_participation = NULL,
+                    accident_insurance_code = NULL,
                     company_bhxh_joined_date = NULL,
                     participation_status = 'active',
                     status_effective_from = NULL,
@@ -111,6 +114,9 @@ def test_list_item_has_required_fields(client: TestClient):
         "participation_status", "insurance_basis_source",
         "has_component_overrides", "employer_pays_on_behalf",
         "contributions",
+        "health_care_insurance_code",
+        "health_care_family_participation",
+        "accident_insurance_code",
     ]:
         assert field in item, f"Thiếu field: {field}"
 
@@ -239,6 +245,34 @@ async def test_upsert_sets_clinic_and_joined_date(client: TestClient, emp_id: in
     body = resp.json()
     assert body["bhyt_initial_clinic_name"] == "Bệnh viện Bạch Mai"
     assert body["company_bhxh_joined_date"] == "2023-01-01"
+
+
+@pytest.mark.asyncio
+async def test_upsert_roundtrips_extended_insurance_codes(client: TestClient, emp_id: int):
+    headers = _admin(client)
+    resp = client.put(
+        f"{BASE}/employees/{emp_id}",
+        json={
+            "participation_status": "active",
+            "insurance_basis_source": "contract",
+            "health_care_insurance_code": "CSK-000123",
+            "health_care_family_participation": True,
+            "accident_insurance_code": "TNLĐ-778899",
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["health_care_insurance_code"] == "CSK-000123"
+    assert body["health_care_family_participation"] is True
+    assert body["accident_insurance_code"] == "TNLĐ-778899"
+
+    detail = client.get(f"{BASE}/employees/{emp_id}", headers=headers)
+    assert detail.status_code == 200, detail.text
+    detail_body = detail.json()
+    assert detail_body["health_care_insurance_code"] == "CSK-000123"
+    assert detail_body["health_care_family_participation"] is True
+    assert detail_body["accident_insurance_code"] == "TNLĐ-778899"
 
 
 @pytest.mark.asyncio

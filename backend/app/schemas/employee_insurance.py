@@ -30,6 +30,9 @@ class EmployeeInsuranceListItem(BaseModel):
     job_title_name: Optional[str]
 
     bhxh_code: Optional[str]
+    health_care_insurance_code: Optional[str]
+    health_care_family_participation: Optional[bool]
+    accident_insurance_code: Optional[str]
     bhyt_initial_clinic_name: Optional[str]
     bhyt_initial_clinic_code: Optional[str] = None
     company_bhxh_joined_date: Optional[date]
@@ -76,6 +79,9 @@ class EmployeeInsuranceComponentOverrideInput(BaseModel):
 
 class EmployeeInsuranceProfileBase(BaseModel):
     bhxh_code: Optional[str] = Field(None, max_length=20)
+    health_care_insurance_code: Optional[str] = Field(None, max_length=50)
+    health_care_family_participation: Optional[bool] = None
+    accident_insurance_code: Optional[str] = Field(None, max_length=50)
     bhyt_initial_clinic_name: Optional[str] = Field(None, max_length=255)
     bhyt_initial_clinic_code: Optional[str] = Field(None, max_length=20)
     company_bhxh_joined_date: Optional[date] = None
@@ -107,6 +113,9 @@ class EmployeeInsuranceProfileRead(BaseModel):
     job_title_name: Optional[str]
 
     bhxh_code: Optional[str]
+    health_care_insurance_code: Optional[str]
+    health_care_family_participation: Optional[bool]
+    accident_insurance_code: Optional[str]
     bhyt_initial_clinic_name: Optional[str]
     bhyt_initial_clinic_code: Optional[str]
     company_bhxh_joined_date: Optional[date]

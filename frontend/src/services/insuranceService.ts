@@ -292,6 +292,9 @@ export interface EmployeeInsuranceListItem {
   department_name: string | null
   job_title_name: string | null
   bhxh_code: string | null
+  health_care_insurance_code: string | null
+  health_care_family_participation: boolean | null
+  accident_insurance_code: string | null
   bhyt_initial_clinic_name: string | null
   bhyt_initial_clinic_code: string | null
   company_bhxh_joined_date: string | null
@@ -334,6 +337,9 @@ export interface EmployeeInsuranceComponentOverrideInput {
 
 export interface EmployeeInsuranceProfileUpdate {
   bhxh_code?: string | null
+  health_care_insurance_code?: string | null
+  health_care_family_participation?: boolean | null
+  accident_insurance_code?: string | null
   bhyt_initial_clinic_name?: string | null
   bhyt_initial_clinic_code?: string | null
   company_bhxh_joined_date?: string | null
