@@ -66,6 +66,7 @@
           <Tab v-if="showEmployeeSubTabs" value="bank" :disabled="isNew">Tài khoản ngân hàng</Tab>
           <Tab v-if="showEmployeeSubTabs" value="job" :disabled="isNew">Công việc</Tab>
           <Tab v-if="showEmployeeSubTabs" value="relatives" :disabled="isNew">Người thân</Tab>
+          <Tab v-if="showEmployeeSubTabs" value="assets" :disabled="isNew">Tài sản cấp phát</Tab>
           <Tab v-if="showEmployeeSubTabs" value="education" :disabled="isNew">Học vấn & KN</Tab>
           <Tab v-if="showEmployeeSubTabs" value="attachments" :disabled="isNew">Tệp đính kèm hồ sơ</Tab>
           <Tab v-if="showContractsTab" value="contracts" :disabled="isNew">Hợp đồng</Tab>
@@ -451,6 +452,15 @@
             />
           </TabPanel>
 
+          <!-- ── TAB: Tài sản cấp phát ───────────────────────────────────── -->
+          <TabPanel v-if="showEmployeeSubTabs" value="assets">
+            <AssetTab
+              v-if="!isNew && employeeId && activeTab === 'assets'"
+              :employee-id="employeeId"
+            />
+          </TabPanel>
+
+
           <!-- ── TAB: Học vấn & Kinh nghiệm ───────────────────────────────── -->
           <TabPanel v-if="showEmployeeSubTabs" value="education">
             <EducationTab
@@ -581,6 +591,7 @@ import BankSelect from '@/components/catalog/BankSelect.vue'
 import AddressEditor from './AddressEditor.vue'
 import JobRecordTab from './JobRecordTab.vue'
 import RelativesTab from './RelativesTab.vue'
+import AssetTab from './AssetTab.vue'
 import EducationTab from './EducationTab.vue'
 import AttachmentsTab from './AttachmentsTab.vue'
 import ContractTab from './ContractTab.vue'

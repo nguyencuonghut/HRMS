@@ -92,3 +92,5 @@ from app.models.recruitment import HeadcountPlan, JobRequisition, RecruitmentBud
 from app.models.onboarding import OnboardingTask, OnboardingChecklist, OnboardingChecklistItem  # noqa: F401
 from app.models.probation import ProbationEvaluation  # noqa: F401
 from app.models.export import ExportJob, ReportTemplate  # noqa: F401
+from app.models.employee_asset import EmployeeAsset  # noqa: F401
+

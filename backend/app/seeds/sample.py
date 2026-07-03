@@ -22,6 +22,7 @@ from app.seeds import (
     employee_relatives as relatives_seed,
     employees as employees_seed,
     other_business_catalog,
+    employee_assets as assets_seed,
 )
 from app.services.employee_insurance_service import (
     ensure_employee_insurance_profile,
@@ -58,8 +59,11 @@ async def run(session: AsyncSession) -> None:
     await session.flush()
     relatives_added = await relatives_seed.seed_sample_relatives(session)
     print(f"  [sample] Người thân mẫu:    +{relatives_added} dòng")
+    assets_added = await assets_seed.seed_sample_assets(session)
+    print(f"  [sample] Tài sản cấp phát:  +{assets_added} dòng")
     edu_counts = await education_seed.seed_sample_education(session)
     await session.commit()
+
 
     print(f"  [sample] Trường học:        +{institutions_added} upsert")
     print(f"  [sample] Chuyên ngành:      +{majors_added} upsert")
@@ -69,6 +73,7 @@ async def run(session: AsyncSession) -> None:
     print(f"  [sample] Placeholder mẫu:   +{placeholders_added} upsert")
     print(f"  [sample] Nhân viên mẫu:     +{emps_added} dòng")
     print(f"  [sample] Hồ sơ BHXH:        +{insurance_profiles_added} dòng")
+    print(f"  [sample] Tài sản cấp phát:  +{assets_added} dòng")
     print(f"  [sample] Bản ghi công việc: +{job_records_added} dòng")
     print(f"  [sample] HĐ KS/KSNB/IT:     +{control_branch_counts['contracts']} dòng")
     print(f"  [sample] BHXH KS/KSNB/IT:   +{control_branch_counts['insurance_change_events']} biến động")

@@ -194,6 +194,55 @@ export interface RelativeUpdate {
   note?: string | null
 }
 
+// ── Assets ───────────────────────────────────────────────────────────────────
+export type AssetType = 'pc' | 'laptop' | 'projector' | 'phone_sim' | 'other'
+export type AssetStatus = 'allocated' | 'returned' | 'lost' | 'damaged'
+
+export const ASSET_TYPE_LABELS: Record<AssetType, string> = {
+  pc: 'PC để bàn',
+  laptop: 'Laptop',
+  projector: 'Máy chiếu',
+  phone_sim: 'Sim điện thoại',
+  other: 'Tài sản khác',
+}
+
+export const ASSET_STATUS_LABELS: Record<AssetStatus, string> = {
+  allocated: 'Đang sử dụng',
+  returned: 'Đã thu hồi',
+  lost: 'Mất',
+  damaged: 'Hỏng',
+}
+
+export interface EmployeeAssetRead {
+  id: number
+  employee_id: number
+  asset_name: string
+  asset_type: AssetType
+  handover_date: string
+  return_date: string | null
+  status: AssetStatus
+  note: string | null
+  created_at: string
+  updated_at: string | null
+}
+
+export interface AssetCreate {
+  asset_name: string
+  asset_type: AssetType
+  handover_date: string
+  status?: AssetStatus
+  note?: string | null
+}
+
+export interface AssetUpdate {
+  asset_name?: string
+  asset_type?: AssetType
+  handover_date?: string
+  return_date?: string | null
+  status?: AssetStatus
+  note?: string | null
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface EmployeeRead extends EmployeeListItem {
@@ -665,6 +714,19 @@ export default {
 
   deleteRelative: (id: number, relId: number) =>
     api.delete(`${BASE}/${id}/relatives/${relId}`),
+
+  // Assets
+  getAssets: (id: number) =>
+    api.get<EmployeeAssetRead[]>(`${BASE}/${id}/assets`),
+
+  createAsset: (id: number, data: AssetCreate) =>
+    api.post<EmployeeAssetRead>(`${BASE}/${id}/assets`, data),
+
+  updateAsset: (id: number, assetId: number, data: AssetUpdate) =>
+    api.put<EmployeeAssetRead>(`${BASE}/${id}/assets/${assetId}`, data),
+
+  deleteAsset: (id: number, assetId: number) =>
+    api.delete(`${BASE}/${id}/assets/${assetId}`),
 
   // Education histories (3.4)
   getEducationHistories: (id: number) =>

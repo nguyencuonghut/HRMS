@@ -46,6 +46,9 @@ from app.schemas.employee import (
     EmployeeLanguageRead,
     EmployeeLanguageCreate,
     EmployeeLanguageUpdate,
+    EmployeeAssetRead,
+    AssetCreate,
+    AssetUpdate,
 )
 from app.schemas.employee_attachment import (
     EmployeeAttachmentRead,
@@ -61,6 +64,7 @@ from app.services import (
     employee_job_service,
     employee_relative_service,
     employee_service,
+    employee_asset_service,
 )
 from app.services.document_checklist_service import ChecklistItemRead, ChecklistItemUpdate
 from app.core.storage import delete_attachment, get_object_stream, save_employee_attachment
@@ -1361,3 +1365,89 @@ async def add_checklist_item(
     )
     await session.commit()
     return result
+
+
+# ── Employee Assets ───────────────────────────────────────────────────────────
+
+@router.get(
+    "/{employee_id}/assets",
+    response_model=list[EmployeeAssetRead],
+    summary="Danh sách tài sản cấp phát",
+)
+async def get_assets(
+    employee_id: int,
+    _: User = require_employee_access("employees:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    await employee_service._get_or_404(session, employee_id)
+    return await employee_asset_service.get_assets(session, employee_id)
+
+
+@router.post(
+    "/{employee_id}/assets",
+    response_model=EmployeeAssetRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Cấp phát tài sản mới",
+)
+async def create_asset(
+    employee_id: int,
+    payload: AssetCreate,
+    current_user: User = require_employee_access("employees:edit"),
+    session: AsyncSession = Depends(get_session),
+):
+    await employee_service._get_or_404(session, employee_id)
+    asset = await employee_asset_service.create_asset(session, employee_id, payload)
+    await auth_service.log_audit(
+        session, current_user.id, "CREATE_ASSET",
+        entity_type="employee_asset", entity_id=employee_id,
+        new_data=payload.model_dump(),
+    )
+    await session.commit()
+    await session.refresh(asset)
+    return asset
+
+
+@router.put(
+    "/{employee_id}/assets/{asset_id}",
+    response_model=EmployeeAssetRead,
+    summary="Cập nhật thông tin cấp phát/thu hồi tài sản",
+)
+async def update_asset(
+    employee_id: int,
+    asset_id: int,
+    payload: AssetUpdate,
+    current_user: User = require_employee_access("employees:edit"),
+    session: AsyncSession = Depends(get_session),
+):
+    await employee_service._get_or_404(session, employee_id)
+    asset = await employee_asset_service.update_asset(session, employee_id, asset_id, payload)
+    await auth_service.log_audit(
+        session, current_user.id, "UPDATE_ASSET",
+        entity_type="employee_asset", entity_id=employee_id,
+        new_data={"asset_id": asset_id, **payload.model_dump(exclude_unset=True)},
+    )
+    await session.commit()
+    await session.refresh(asset)
+    return asset
+
+
+@router.delete(
+    "/{employee_id}/assets/{asset_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Xóa bản ghi cấp phát tài sản",
+)
+async def delete_asset(
+    employee_id: int,
+    asset_id: int,
+    current_user: User = require_employee_access("employees:edit"),
+    session: AsyncSession = Depends(get_session),
+):
+    await employee_service._get_or_404(session, employee_id)
+    await employee_asset_service.delete_asset(session, employee_id, asset_id)
+    await auth_service.log_audit(
+        session, current_user.id, "DELETE_ASSET",
+        entity_type="employee_asset", entity_id=employee_id,
+        new_data={"asset_id": asset_id},
+    )
+    await session.commit()
+

@@ -568,5 +568,42 @@ class EmployeeLanguageRead(BaseModel):
     model_config = {"from_attributes": True}
 
 
+AssetType = Literal["pc", "laptop", "projector", "phone_sim", "other"]
+AssetStatus = Literal["allocated", "returned", "lost", "damaged"]
+
+
+class EmployeeAssetRead(BaseModel):
+    id: int
+    employee_id: int
+    asset_name: str
+    asset_type: str
+    handover_date: date
+    return_date: Optional[date]
+    status: str
+    note: Optional[str]
+    created_at: datetime
+    updated_at: Optional[datetime]
+
+    model_config = {"from_attributes": True}
+
+
+class AssetCreate(BaseModel):
+    asset_name: str = Field(..., max_length=200)
+    asset_type: AssetType
+    handover_date: date
+    status: AssetStatus = "allocated"
+    note: Optional[str] = None
+
+
+class AssetUpdate(BaseModel):
+    asset_name: Optional[str] = Field(None, max_length=200)
+    asset_type: Optional[AssetType] = None
+    handover_date: Optional[date] = None
+    return_date: Optional[date] = None
+    status: Optional[AssetStatus] = None
+    note: Optional[str] = None
+
+
 # Giải quyết forward references
 EmployeeRead.model_rebuild()
+
