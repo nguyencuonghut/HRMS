@@ -7,12 +7,41 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.employee_insurance import EmployeeInsuranceProfile
 from app.models.employee_relative import EmployeeRelative
 from app.schemas.employee import RelativeCreate, RelativeUpdate
 
 
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+async def _employee_allows_family_health_care(
+    session: AsyncSession,
+    employee_id: int,
+) -> bool:
+    profile = (
+        await session.execute(
+            select(EmployeeInsuranceProfile).where(
+                EmployeeInsuranceProfile.employee_id == employee_id
+            )
+        )
+    ).scalar_one_or_none()
+    return bool(profile and profile.health_care_family_participation)
+
+
+async def _validate_health_care_participation(
+    session: AsyncSession,
+    employee_id: int,
+    participates_in_health_care_insurance: bool,
+) -> None:
+    if not participates_in_health_care_insurance:
+        return
+    if not await _employee_allows_family_health_care(session, employee_id):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail="Employee chưa bật tham gia CSSK cho người thân, nên không thể chọn CSSK cho người thân này",
+        )
 
 
 async def get_relatives(
@@ -36,6 +65,11 @@ async def create_relative(
     employee_id: int,
     payload: RelativeCreate,
 ) -> EmployeeRelative:
+    await _validate_health_care_participation(
+        session,
+        employee_id,
+        payload.participates_in_health_care_insurance,
+    )
     rel = EmployeeRelative(
         employee_id=employee_id,
         full_name=payload.full_name,
@@ -43,6 +77,7 @@ async def create_relative(
         date_of_birth=payload.date_of_birth,
         occupation=payload.occupation,
         phone_number=payload.phone_number,
+        participates_in_health_care_insurance=payload.participates_in_health_care_insurance,
         is_emergency_contact=payload.is_emergency_contact,
         note=payload.note,
         created_at=_utcnow(),
@@ -67,6 +102,12 @@ async def update_relative(
     payload: RelativeUpdate,
 ) -> EmployeeRelative:
     rel = await _get_relative_or_404(session, employee_id, relative_id)
+    if payload.participates_in_health_care_insurance is not None:
+        await _validate_health_care_participation(
+            session,
+            employee_id,
+            payload.participates_in_health_care_insurance,
+        )
     for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(rel, field, value)
     rel.updated_at = _utcnow()

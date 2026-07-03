@@ -35,6 +35,12 @@ def upgrade() -> None:
         sa.Column("date_of_birth", sa.Date(), nullable=True),
         sa.Column("occupation", sa.String(length=200), nullable=True),
         sa.Column("phone_number", sa.String(length=20), nullable=True),
+        sa.Column(
+            "participates_in_health_care_insurance",
+            sa.Boolean(),
+            nullable=False,
+            server_default="FALSE",
+        ),
 
         # ── Liên hệ khẩn cấp ─────────────────────────────────────────
         sa.Column(

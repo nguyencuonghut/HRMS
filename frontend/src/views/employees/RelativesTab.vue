@@ -55,6 +55,14 @@
         <Column header="SĐT" style="width:130px">
           <template #body="{ data }">{{ data.phone_number ?? '—' }}</template>
         </Column>
+        <Column header="CSSK" style="width:120px">
+          <template #body="{ data }">
+            <Tag
+              :value="data.participates_in_health_care_insurance ? 'Tham gia' : 'Không'"
+              :severity="data.participates_in_health_care_insurance ? 'success' : 'secondary'"
+            />
+          </template>
+        </Column>
         <Column header="" style="width:40px">
           <template #body="{ data }">
             <Tag v-if="data.is_emergency_contact" value="LH khẩn" severity="warn" />
@@ -112,6 +120,18 @@
         <div class="field">
           <label>Số điện thoại</label>
           <InputText v-model="form.phone_number" class="w-full" />
+        </div>
+
+        <div class="field col-full">
+          <div class="switch-panel">
+            <div class="switch-row">
+              <ToggleSwitch v-model="form.participates_in_health_care_insurance" />
+              <label>Tham gia CSSK</label>
+            </div>
+            <small class="muted-text">
+              Chỉ bật khi nhân viên đã đăng ký “Tham gia CSSK cho người thân” ở tab Bảo hiểm.
+            </small>
+          </div>
         </div>
 
         <div class="field col-full">
@@ -224,6 +244,7 @@ const form = ref({
   date_of_birth:        null as Date | null,
   occupation:           '',
   phone_number:         '',
+  participates_in_health_care_insurance: false,
   is_emergency_contact: false,
   note:                 '',
 })
@@ -231,7 +252,8 @@ const form = ref({
 function resetForm() {
   form.value = {
     full_name: '', relationship_type: null, date_of_birth: null,
-    occupation: '', phone_number: '', is_emergency_contact: false, note: '',
+    occupation: '', phone_number: '', participates_in_health_care_insurance: false,
+    is_emergency_contact: false, note: '',
   }
   errors.value = {}
 }
@@ -251,6 +273,7 @@ function openEdit(rel: EmployeeRelativeRead) {
     date_of_birth:        rel.date_of_birth ? new Date(rel.date_of_birth) : null,
     occupation:           rel.occupation ?? '',
     phone_number:         rel.phone_number ?? '',
+    participates_in_health_care_insurance: rel.participates_in_health_care_insurance,
     is_emergency_contact: rel.is_emergency_contact,
     note:                 rel.note ?? '',
   }
@@ -274,6 +297,7 @@ async function submit() {
       date_of_birth:        toIso(form.value.date_of_birth),
       occupation:           form.value.occupation.trim() || null,
       phone_number:         form.value.phone_number.trim() || null,
+      participates_in_health_care_insurance: form.value.participates_in_health_care_insurance,
       is_emergency_contact: form.value.is_emergency_contact,
       note:                 form.value.note.trim() || null,
     }
@@ -315,3 +339,19 @@ function confirmDelete(rel: EmployeeRelativeRead) {
   })
 }
 </script>
+
+<style scoped>
+.switch-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--p-content-border-color);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--p-surface-0) 84%, transparent);
+}
+
+html.dark-mode .switch-panel {
+  background: color-mix(in srgb, var(--p-surface-800) 88%, transparent);
+}
+</style>

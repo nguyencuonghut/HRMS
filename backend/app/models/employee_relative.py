@@ -34,6 +34,7 @@ class EmployeeRelative(SQLModel, table=True):
     date_of_birth: Optional[date] = Field(default=None)
     occupation: Optional[str] = Field(default=None, max_length=200)
     phone_number: Optional[str] = Field(default=None, max_length=20)
+    participates_in_health_care_insurance: bool = Field(default=False)
 
     # ── Liên hệ khẩn cấp ─────────────────────────────────────────────
     is_emergency_contact: bool = Field(default=False)

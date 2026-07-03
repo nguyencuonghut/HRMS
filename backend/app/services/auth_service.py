@@ -7,6 +7,7 @@ from typing import Optional
 
 import redis.asyncio as redis
 from fastapi import HTTPException, status
+from fastapi.encoders import jsonable_encoder
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -170,14 +171,16 @@ async def log_audit(
     ip_address: Optional[str] = None,
     user_agent: Optional[str] = None,
 ) -> None:
+    serialized_old_data = jsonable_encoder(old_data) if old_data is not None else None
+    serialized_new_data = jsonable_encoder(new_data) if new_data is not None else None
     session.add(AuditLog(
         user_id=user_id,
         action=action,
         entity_type=entity_type,
         entity_id=entity_id,
         entity_name=entity_name,
-        old_data=old_data,
-        new_data=new_data,
+        old_data=serialized_old_data,
+        new_data=serialized_new_data,
         ip_address=ip_address,
         user_agent=user_agent,
     ))

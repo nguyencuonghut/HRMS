@@ -381,6 +381,7 @@ class EmployeeRelativeRead(BaseModel):
     date_of_birth: Optional[date]
     occupation: Optional[str]
     phone_number: Optional[str]
+    participates_in_health_care_insurance: bool
     is_emergency_contact: bool
     note: Optional[str]
     created_at: datetime
@@ -395,6 +396,7 @@ class RelativeCreate(BaseModel):
     date_of_birth: Optional[date] = None
     occupation: Optional[str] = None
     phone_number: Optional[str] = None
+    participates_in_health_care_insurance: bool = False
     is_emergency_contact: bool = False
     note: Optional[str] = None
 
@@ -405,6 +407,7 @@ class RelativeUpdate(BaseModel):
     date_of_birth: Optional[date] = None
     occupation: Optional[str] = None
     phone_number: Optional[str] = None
+    participates_in_health_care_insurance: Optional[bool] = None
     is_emergency_contact: Optional[bool] = None
     note: Optional[str] = None
 

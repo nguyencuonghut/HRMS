@@ -165,6 +165,7 @@ export interface EmployeeRelativeRead {
   date_of_birth: string | null
   occupation: string | null
   phone_number: string | null
+  participates_in_health_care_insurance: boolean
   is_emergency_contact: boolean
   note: string | null
   created_at: string
@@ -177,6 +178,7 @@ export interface RelativeCreate {
   date_of_birth?: string | null
   occupation?: string | null
   phone_number?: string | null
+  participates_in_health_care_insurance?: boolean
   is_emergency_contact?: boolean
   note?: string | null
 }
@@ -187,6 +189,7 @@ export interface RelativeUpdate {
   date_of_birth?: string | null
   occupation?: string | null
   phone_number?: string | null
+  participates_in_health_care_insurance?: boolean
   is_emergency_contact?: boolean
   note?: string | null
 }

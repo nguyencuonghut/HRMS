@@ -276,6 +276,50 @@ async def test_upsert_roundtrips_extended_insurance_codes(client: TestClient, em
 
 
 @pytest.mark.asyncio
+async def test_disabling_family_health_care_clears_relative_flags(client: TestClient, emp_id: int):
+    headers = _admin(client)
+    enable_resp = client.put(
+        f"{BASE}/employees/{emp_id}",
+        json={
+            "participation_status": "active",
+            "insurance_basis_source": "contract",
+            "health_care_insurance_code": "CSSK-CLEAR-001",
+            "health_care_family_participation": True,
+        },
+        headers=headers,
+    )
+    assert enable_resp.status_code == 200, enable_resp.text
+
+    rel_resp = client.post(
+        f"/api/v1/employees/{emp_id}/relatives",
+        json={
+            "full_name": "Con tham gia CSSK",
+            "relationship_type": "con",
+            "participates_in_health_care_insurance": True,
+        },
+        headers=headers,
+    )
+    assert rel_resp.status_code == 201, rel_resp.text
+    assert rel_resp.json()["participates_in_health_care_insurance"] is True
+
+    disable_resp = client.put(
+        f"{BASE}/employees/{emp_id}",
+        json={
+            "participation_status": "active",
+            "insurance_basis_source": "contract",
+            "health_care_insurance_code": "CSSK-CLEAR-001",
+            "health_care_family_participation": False,
+        },
+        headers=headers,
+    )
+    assert disable_resp.status_code == 200, disable_resp.text
+
+    relatives = client.get(f"/api/v1/employees/{emp_id}/relatives", headers=headers)
+    assert relatives.status_code == 200, relatives.text
+    assert relatives.json()[0]["participates_in_health_care_insurance"] is False
+
+
+@pytest.mark.asyncio
 async def test_upsert_stopped_requires_effective_from(client: TestClient, emp_id: int):
     headers = _admin(client)
     resp = client.put(

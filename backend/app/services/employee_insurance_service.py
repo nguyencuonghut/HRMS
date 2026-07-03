@@ -15,6 +15,7 @@ from app.models.employee_insurance import (
     EmployeeInsuranceProfile,
 )
 from app.models.employee_job import EmployeeJobRecord
+from app.models.employee_relative import EmployeeRelative
 from app.models.insurance import (
     InsuranceContributionComponent,
     InsurancePolicyComponentRate,
@@ -670,6 +671,13 @@ async def upsert_insurance_profile(
         else None
     )
     profile.updated_at = _utcnow()
+
+    if not payload.health_care_family_participation:
+        relative_rows = await session.execute(
+            select(EmployeeRelative).where(EmployeeRelative.employee_id == employee_id)
+        )
+        for relative in relative_rows.scalars().all():
+            relative.participates_in_health_care_insurance = False
 
     # Also sync bhxh_code to employees table for compatibility
     employee.bhxh_code = profile.bhxh_code
