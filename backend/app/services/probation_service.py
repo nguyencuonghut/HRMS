@@ -766,6 +766,8 @@ async def _execute_failed_workflow(
     # Gán resigned_date nếu có field (kiểm tra gracefully)
     if hasattr(emp, "resigned_date"):
         emp.resigned_date = ev.evaluation_date
+    emp.resigned_reason_type = "5"
+    emp.resigned_reason_note = "Không đạt đánh giá thử việc"
     session.add(emp)
 
     session.add(AuditLog(

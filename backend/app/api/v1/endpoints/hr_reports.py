@@ -52,6 +52,7 @@ async def get_employee_list(
     start_date_to: Optional[date] = Query(None),
     tenure_min: Optional[int] = Query(None, ge=0),
     tenure_max: Optional[int] = Query(None, ge=0),
+    resigned_reason_type: Optional[str] = Query(None),
     _: User = require_permission("employees:view"),
     allowed_department_ids: set[int] | None = require_department_scope("employees:view"),
     session: AsyncSession = Depends(get_session),
@@ -68,6 +69,7 @@ async def get_employee_list(
         start_date_to=start_date_to,
         tenure_min=tenure_min,
         tenure_max=tenure_max,
+        resigned_reason_type=resigned_reason_type,
         allowed_department_ids=allowed_department_ids,
     )
 
@@ -162,6 +164,7 @@ async def export_hr_report(
     start_date_to: Optional[date] = Query(None),
     tenure_min: Optional[int] = Query(None, ge=0),
     tenure_max: Optional[int] = Query(None, ge=0),
+    resigned_reason_type: Optional[str] = Query(None),
     movement_start_date: Optional[date] = Query(None, alias="start_date"),
     movement_end_date: Optional[date] = Query(None, alias="end_date"),
     older_worker_year: Optional[int] = Query(None, alias="year", ge=1900, le=2500),
@@ -184,6 +187,7 @@ async def export_hr_report(
             start_date_to=start_date_to,
             tenure_min=tenure_min,
             tenure_max=tenure_max,
+            resigned_reason_type=resigned_reason_type,
             allowed_department_ids=allowed_department_ids,
         )
     elif type == ExportType.movement:

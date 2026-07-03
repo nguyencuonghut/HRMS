@@ -229,6 +229,8 @@ SAMPLE_EMPLOYEES = [
         "start_date": "2023-06-01",
         "status": "resigned",
         "resigned_date": "2025-12-31",
+        "resigned_reason_type": "2",
+        "resigned_reason_note": "Tìm kiếm cơ hội thu nhập tốt hơn",
         "bank_account_number": "0010234001234",
         "bank_code": "VCB",
         "account_name": "TRINH THI KIM",
@@ -416,6 +418,7 @@ async def seed_sample_employees(session: AsyncSession) -> int:
                     id_number, id_number_hash, id_issued_on, id_issued_by,
                     phone_number, personal_email, personal_tax_code,
                     status, start_date, resigned_date,
+                    resigned_reason_type, resigned_reason_note,
                     is_active, created_at
                 )
                 SELECT
@@ -428,6 +431,7 @@ async def seed_sample_employees(session: AsyncSession) -> int:
                     :id_number, :id_number_hash, :id_issued_on, :id_issued_by,
                     :phone_number, :personal_email, :personal_tax_code,
                     :status, :start_date, :resigned_date,
+                    :resigned_reason_type, :resigned_reason_note,
                     true, now()
                 ON CONFLICT (id_number_hash) DO NOTHING
             """),
@@ -452,6 +456,8 @@ async def seed_sample_employees(session: AsyncSession) -> int:
                 "status": emp["status"],
                 "start_date": _d(emp["start_date"]),
                 "resigned_date": _d(emp.get("resigned_date")),
+                "resigned_reason_type": emp.get("resigned_reason_type"),
+                "resigned_reason_note": emp.get("resigned_reason_note"),
             },
         )
         added += result.rowcount

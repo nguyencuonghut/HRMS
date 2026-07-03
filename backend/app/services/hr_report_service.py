@@ -518,6 +518,7 @@ async def get_employee_list(
     start_date_to: Optional[date] = None,
     tenure_min: Optional[int] = None,
     tenure_max: Optional[int] = None,
+    resigned_reason_type: Optional[str] = None,
     allowed_department_ids: Optional[Sequence[int]] = None,
 ) -> EmployeeListResponse:
     page = max(page, 1)
@@ -575,6 +576,8 @@ async def get_employee_list(
         filters.append(Employee.status == status)
     if gender:
         filters.append(Employee.gender == gender)
+    if resigned_reason_type:
+        filters.append(Employee.resigned_reason_type == resigned_reason_type)
     if document_kind:
         if document_kind == "probation":
             filters.append(ContractCategory.business_group == "probation")
@@ -619,6 +622,8 @@ async def get_employee_list(
             status=employee.status,
             start_date=employee.start_date,
             resigned_date=employee.resigned_date,
+            resigned_reason_type=employee.resigned_reason_type,
+            resigned_reason_note=employee.resigned_reason_note,
             is_active=employee.is_active,
             department_id=dept_id,
             department_name=dept_name,
@@ -1112,6 +1117,8 @@ async def export_employee_list_excel(
             "Trạng thái",
             "Ngày vào làm",
             "Ngày nghỉ việc",
+            "Lý do nghỉ việc",
+            "Chi tiết lý do",
             "Phòng ban",
             "Chức danh",
             "Loại hợp đồng",
@@ -1119,6 +1126,14 @@ async def export_employee_list_excel(
             "Thâm niên",
         ]
     )
+    reason_labels = {
+        "1": "Không hài lòng với quản lý trực tiếp",
+        "2": "Không hài lòng về thu nhập",
+        "3": "Không phù hợp với môi trường, văn hóa công ty",
+        "4": "Không thích công việc được giao",
+        "5": "Nghỉ việc do kết quả công việc yếu, vi phạm kỷ luật",
+        "6": "Khác",
+    }
     for item in report.items:
         ws.append(
             [
@@ -1128,6 +1143,8 @@ async def export_employee_list_excel(
                 item.status,
                 item.start_date.isoformat(),
                 item.resigned_date.isoformat() if item.resigned_date else "",
+                reason_labels.get(item.resigned_reason_type or "", ""),
+                item.resigned_reason_note or "",
                 item.department_name or "",
                 item.job_title_name or "",
                 item.contract_category_name or "",

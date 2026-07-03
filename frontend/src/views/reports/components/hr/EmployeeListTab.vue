@@ -54,6 +54,17 @@
             show-clear
           />
         </div>
+        <div class="hr-field" v-if="filters.status === 'resigned'">
+          <label>Lý do nghỉ việc</label>
+          <Select
+            v-model="filters.resigned_reason_type"
+            :options="resignedReasonOptions"
+            option-label="label"
+            option-value="value"
+            placeholder="Tất cả lý do nghỉ"
+            show-clear
+          />
+        </div>
         <div class="hr-field">
           <label>Giới tính</label>
           <Select
@@ -122,6 +133,17 @@
             option-label="label"
             option-value="value"
             placeholder="Tất cả trạng thái"
+            show-clear
+          />
+        </div>
+        <div class="hr-field" v-if="filters.status === 'resigned'">
+          <label>Lý do nghỉ việc</label>
+          <Select
+            v-model="filters.resigned_reason_type"
+            :options="resignedReasonOptions"
+            option-label="label"
+            option-value="value"
+            placeholder="Tất cả lý do nghỉ"
             show-clear
           />
         </div>
@@ -252,6 +274,7 @@ import { useToast } from 'primevue/usetoast'
 import departmentService, { type DepartmentRead } from '@/services/departmentService'
 import hrReportService from '@/services/hrReportService'
 import type { HrEmployeeListItem } from '@/types/hr_report.types'
+import { RESIGNED_REASON_OPTIONS } from '@/services/employeeService'
 
 const toast = useToast()
 
@@ -271,6 +294,7 @@ const filters = reactive({
   document_kind: null as string | null,
   tenure_min: null as number | null,
   tenure_max: null as number | null,
+  resigned_reason_type: null as string | null,
 })
 
 const pageState = reactive({
@@ -288,6 +312,11 @@ const statusOptions = [
   { label: 'Chính thức', value: 'official' },
   { label: 'Nghỉ dài hạn', value: 'long_leave' },
   { label: 'Đã nghỉ việc', value: 'resigned' },
+]
+
+const resignedReasonOptions = [
+  { label: 'Tất cả lý do nghỉ', value: null },
+  ...RESIGNED_REASON_OPTIONS,
 ]
 
 const genderOptions = [
@@ -365,6 +394,7 @@ function buildParams(page = pageState.page) {
     start_date_to: toApiDate(startDateTo.value),
     tenure_min: filters.tenure_min,
     tenure_max: filters.tenure_max,
+    resigned_reason_type: filters.status === 'resigned' ? filters.resigned_reason_type : null,
   }
 }
 

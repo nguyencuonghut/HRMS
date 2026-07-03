@@ -141,6 +141,7 @@ async def list_employees_page(
     keyword: Optional[str] = None,
     status: Optional[str] = None,
     is_active: Optional[bool] = None,
+    resigned_reason_type: Optional[str] = None,
     allowed_department_ids: Optional[Sequence[int]] = None,
     page: int = 1,
     page_size: int = 20,
@@ -150,6 +151,8 @@ async def list_employees_page(
         filters.append(Employee.is_active == is_active)
     if status:
         filters.append(Employee.status == status)
+    if resigned_reason_type:
+        filters.append(Employee.resigned_reason_type == resigned_reason_type)
     if keyword:
         norm = normalize_text(keyword)
         filters.append(

@@ -7,6 +7,20 @@ export type GenderType = 'male' | 'female' | 'other'
 export type StatusType = 'probation' | 'official' | 'long_leave' | 'resigned'
 export type AddressType = 'permanent' | 'contact'
 
+export const RESIGNED_REASON_LABELS: Record<string, string> = {
+  '1': 'Không hài lòng với quản lý trực tiếp',
+  '2': 'Không hài lòng về thu nhập',
+  '3': 'Không phù hợp với môi trường, văn hóa công ty',
+  '4': 'Không thích công việc được giao',
+  '5': 'Nghỉ việc do kết quả công việc yếu, vi phạm kỷ luật',
+  '6': 'Khác',
+}
+
+export const RESIGNED_REASON_OPTIONS = Object.entries(RESIGNED_REASON_LABELS).map(([value, label]) => ({
+  value,
+  label,
+}))
+
 export interface EmployeeListItem {
   id: number
   employee_seq: number
@@ -22,6 +36,8 @@ export interface EmployeeListItem {
   status: StatusType
   start_date: string
   resigned_date: string | null
+  resigned_reason_type: string | null
+  resigned_reason_note: string | null
   is_active: boolean
   created_at: string
   updated_at: string | null
@@ -313,6 +329,8 @@ export interface EmployeeCreate {
   status?: StatusType
   start_date: string
   resigned_date?: string | null
+  resigned_reason_type?: string | null
+  resigned_reason_note?: string | null
   initial_department_id?: number | null
   initial_job_title_id?: number | null
   initial_job_position_id?: number | null
@@ -349,6 +367,8 @@ export interface EmployeeUpdate {
   status?: StatusType
   start_date?: string
   resigned_date?: string | null
+  resigned_reason_type?: string | null
+  resigned_reason_note?: string | null
   is_active?: boolean
 }
 
@@ -655,6 +675,7 @@ export default {
     keyword?: string
     status?: string
     is_active?: boolean
+    resigned_reason_type?: string
     page?: number
     page_size?: number
   }) => api.get<EmployeeListPage>(BASE, { params }),
@@ -824,7 +845,7 @@ export default {
       headers: { 'Content-Type': 'multipart/form-data' },
     }),
 
-  exportEmployees: (params?: { keyword?: string; status?: string; is_active?: boolean }) => {
+  exportEmployees: (params?: { keyword?: string; status?: string; is_active?: boolean; resigned_reason_type?: string }) => {
     const today = toLocalIso(new Date()).replace(/-/g, '')
     return downloadBlob(`${BASE}/export`, `danh_sach_nhan_vien_${today}.xlsx`, params as Record<string, unknown>)
   },

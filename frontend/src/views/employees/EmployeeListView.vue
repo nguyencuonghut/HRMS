@@ -30,6 +30,18 @@
         @change="onFilterChange"
       />
       <Select
+        v-if="filterStatus === 'resigned'"
+        v-model="filterResignedReason"
+        :options="resignedReasonOptions"
+        option-label="label"
+        option-value="value"
+        filter
+        placeholder="Lý do nghỉ việc..."
+        class="toolbar-filter"
+        :show-clear="true"
+        @change="onFilterChange"
+      />
+      <Select
         v-model="filterActive"
         :options="activeOptions"
         option-label="label"
@@ -178,7 +190,7 @@ import InputText from 'primevue/inputtext'
 import Select from 'primevue/select'
 import Tag from 'primevue/tag'
 
-import employeeService, { type EmployeeListItem } from '@/services/employeeService'
+import employeeService, { type EmployeeListItem, RESIGNED_REASON_OPTIONS } from '@/services/employeeService'
 
 const router  = useRouter()
 const toast   = useToast()
@@ -194,6 +206,7 @@ const page         = ref(1)
 const pageSize     = ref(25)
 const keyword      = ref('')
 const filterStatus = ref<string | null>(null)
+const filterResignedReason = ref<string | null>(null)
 const filterActive = ref<boolean | null>(null)
 
 const tableRenderKey = computed(() =>
@@ -202,6 +215,7 @@ const tableRenderKey = computed(() =>
     pageSize.value,
     keyword.value,
     filterStatus.value ?? 'all-status',
+    filterResignedReason.value ?? 'all-reason',
     filterActive.value === null ? 'all-active' : String(filterActive.value),
     items.value.map((item) => item.id).join(','),
   ].join('|'),
@@ -220,6 +234,11 @@ const activeOptions = [
   { label: 'Tất cả', value: null },
   { label: 'Đang làm việc',  value: true },
   { label: 'Đã rời công ty', value: false },
+]
+
+const resignedReasonOptions = [
+  { label: 'Tất cả lý do nghỉ', value: null },
+  ...RESIGNED_REASON_OPTIONS,
 ]
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -304,6 +323,7 @@ async function loadData() {
       keyword:   keyword.value || undefined,
       status:    filterStatus.value ?? undefined,
       is_active: filterActive.value ?? undefined,
+      resigned_reason_type: (filterStatus.value === 'resigned' && filterResignedReason.value) ? filterResignedReason.value : undefined,
       page:      page.value,
       page_size: pageSize.value,
     })
@@ -363,6 +383,7 @@ async function doExport() {
       keyword:   keyword.value || undefined,
       status:    filterStatus.value ?? undefined,
       is_active: filterActive.value ?? undefined,
+      resigned_reason_type: (filterStatus.value === 'resigned' && filterResignedReason.value) ? filterResignedReason.value : undefined,
     })
   } catch (e) {
     toast.add({ severity: 'error', summary: 'Lỗi export', detail: apiError(e), life: 4000 })

@@ -97,6 +97,8 @@ class Employee(SQLModel, table=True):
     status: str = Field(default="probation", max_length=20)
     start_date: date
     resigned_date: Optional[date] = Field(default=None)
+    resigned_reason_type: Optional[str] = Field(default=None, max_length=50)
+    resigned_reason_note: Optional[str] = Field(default=None, sa_column=Column(sa.Text(), nullable=True))
 
     # ── Liên kết tài khoản hệ thống (1-1, nullable) ──────────────────────
     # Không thêm FK ở đây để tránh circular dependency (users ↔ employees).

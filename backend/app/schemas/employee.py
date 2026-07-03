@@ -123,6 +123,8 @@ class EmployeeCreate(BaseModel):
     status: StatusType = "probation"
     start_date: date
     resigned_date: Optional[date] = None
+    resigned_reason_type: Optional[str] = Field(None, max_length=50)
+    resigned_reason_note: Optional[str] = None
 
     user_id: Optional[int] = None
     initial_department_id: Optional[int] = None
@@ -179,6 +181,8 @@ class EmployeeUpdate(BaseModel):
     status: Optional[StatusType] = None
     start_date: Optional[date] = None
     resigned_date: Optional[date] = None
+    resigned_reason_type: Optional[str] = Field(None, max_length=50)
+    resigned_reason_note: Optional[str] = None
 
     user_id: Optional[int] = None
     is_active: Optional[bool] = None
@@ -207,6 +211,8 @@ class EmployeeListItem(BaseModel):
     status: str
     start_date: date
     resigned_date: Optional[date]
+    resigned_reason_type: Optional[str] = None
+    resigned_reason_note: Optional[str] = None
     is_active: bool
     created_at: datetime
     updated_at: Optional[datetime]
@@ -252,6 +258,8 @@ class EmployeeRead(BaseModel):
     status: str
     start_date: date
     resigned_date: Optional[date]
+    resigned_reason_type: Optional[str] = None
+    resigned_reason_note: Optional[str] = None
     user_id: Optional[int]
     is_active: bool
     created_at: datetime

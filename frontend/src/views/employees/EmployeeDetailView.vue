@@ -177,6 +177,34 @@
                 <DatePicker v-model="form.resigned_date_date" class="w-full" dateFormat="dd/mm/yy" :disabled="viewOnly" />
               </div>
 
+              <div class="field" v-if="form.status === 'resigned'">
+                <label>Lý do nghỉ việc</label>
+                <Select
+                  v-model="form.resigned_reason_type"
+                  :options="resignedReasonOptions"
+                  option-label="label"
+                  option-value="value"
+                  class="w-full"
+                  placeholder="Chọn lý do..."
+                  :disabled="viewOnly"
+                  :show-clear="true"
+                />
+              </div>
+
+              <div class="field col-full" v-if="form.status === 'resigned' && form.resigned_reason_type === '6'">
+                <label>Chi tiết lý do khác <span class="req">*</span></label>
+                <Textarea
+                  v-model="form.resigned_reason_note"
+                  class="w-full"
+                  rows="2"
+                  placeholder="Điền chi tiết lý do nghỉ việc khác..."
+                  style="min-height: 80px"
+                  :disabled="viewOnly"
+                  :invalid="!!errors.resigned_reason_note"
+                />
+                <small v-if="errors.resigned_reason_note" class="error-msg">{{ errors.resigned_reason_note }}</small>
+              </div>
+
               <template v-if="isNew">
                 <div class="field-sep col-full">
                   <label class="section-label">Công việc hiện hành khi tạo mới</label>
@@ -582,6 +610,7 @@ import TabPanel from 'primevue/tabpanel'
 import TabPanels from 'primevue/tabpanels'
 import Tabs from 'primevue/tabs'
 import Tag from 'primevue/tag'
+import Textarea from 'primevue/textarea'
 import ToggleSwitch from 'primevue/toggleswitch'
 
 import NationalitySelect from '@/components/catalog/NationalitySelect.vue'
@@ -610,6 +639,7 @@ import employeeService, {
   type EmployeeBankAccountRead,
   type GenderType,
   type StatusType,
+  RESIGNED_REASON_OPTIONS,
 } from '@/services/employeeService'
 
 const route   = useRoute()
@@ -678,6 +708,8 @@ const form = ref({
   status: 'probation' as StatusType,
   start_date_date: null as Date | null,
   resigned_date_date: null as Date | null,
+  resigned_reason_type: null as string | null,
+  resigned_reason_note: '',
   initial_department_id: null as number | null,
   initial_job_title_id: null as number | null,
   initial_job_position_id: null as number | null,
@@ -700,6 +732,8 @@ const form = ref({
 
 const hasPassport   = ref(false)
 const hasWorkPermit = ref(false)
+
+const resignedReasonOptions = RESIGNED_REASON_OPTIONS
 
 // ── Options ────────────────────────────────────────────────────────────────────
 const genderOptions = [
@@ -765,6 +799,8 @@ function fillForm(emp: EmployeeRead) {
     status: emp.status as StatusType,
     start_date_date: toDate(emp.start_date),
     resigned_date_date: toDate(emp.resigned_date),
+    resigned_reason_type: emp.resigned_reason_type,
+    resigned_reason_note: emp.resigned_reason_note || '',
     initial_department_id: null,
     initial_job_title_id: null,
     initial_job_position_id: null,
@@ -876,6 +912,9 @@ function validate(): boolean {
   if (!form.value.start_date_date) errors.value.start_date = 'Ngày vào làm không được để trống'
   if (isNew.value && !form.value.initial_department_id) errors.value.initial_department_id = 'Chọn phòng ban hiện hành'
   if (isNew.value && !form.value.initial_job_effective_from_date) errors.value.initial_job_effective_from = 'Chọn ngày hiệu lực công việc'
+  if (form.value.status === 'resigned' && form.value.resigned_reason_type === '6' && !form.value.resigned_reason_note.trim()) {
+    errors.value.resigned_reason_note = 'Vui lòng điền chi tiết lý do khác'
+  }
   return Object.keys(errors.value).length === 0
 }
 
@@ -906,6 +945,8 @@ async function save() {
       status: form.value.status,
       start_date: toIso(form.value.start_date_date)!,
       resigned_date: form.value.status === 'resigned' ? toIso(form.value.resigned_date_date) : null,
+      resigned_reason_type: form.value.status === 'resigned' ? form.value.resigned_reason_type : null,
+      resigned_reason_note: (form.value.status === 'resigned' && form.value.resigned_reason_type === '6') ? form.value.resigned_reason_note.trim() : null,
       initial_department_id: isNew.value ? form.value.initial_department_id : undefined,
       initial_job_title_id: isNew.value ? form.value.initial_job_title_id : undefined,
       initial_job_position_id: isNew.value ? form.value.initial_job_position_id : undefined,

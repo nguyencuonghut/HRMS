@@ -9,6 +9,7 @@ export interface HrEmployeeListParams {
   start_date_to?: string | null
   tenure_min?: number | null
   tenure_max?: number | null
+  resigned_reason_type?: string | null
 }
 
 export interface HrEmployeeListItem {
@@ -20,6 +21,8 @@ export interface HrEmployeeListItem {
   status: string
   start_date: string
   resigned_date: string | null
+  resigned_reason_type: string | null
+  resigned_reason_note: string | null
   is_active: boolean
   department_id: number | null
   department_name: string | null

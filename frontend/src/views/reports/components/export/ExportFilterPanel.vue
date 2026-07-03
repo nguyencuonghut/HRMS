@@ -77,6 +77,17 @@
             show-clear
           />
         </div>
+        <div class="export-field" v-if="draft.filters.status === 'resigned'">
+          <label>Lý do nghỉ việc</label>
+          <Select
+            v-model="draft.filters.resigned_reason_type"
+            :options="resignedReasonOptions"
+            option-label="label"
+            option-value="value"
+            placeholder="Tất cả lý do nghỉ"
+            show-clear
+          />
+        </div>
         <div class="export-field">
           <label>Giới tính</label>
           <Select
@@ -208,6 +219,7 @@ import type {
   ExportReportType,
 } from '@/services/exportService'
 import type { DepartmentOption, DepartmentRead } from '@/services/departmentService'
+import { RESIGNED_REASON_OPTIONS } from '@/services/employeeService'
 
 interface ExportDraft {
   report_type: ExportReportType
@@ -250,6 +262,11 @@ const employeeStatusOptions = [
   { label: 'Chính thức', value: 'official' },
   { label: 'Nghỉ dài hạn', value: 'long_leave' },
   { label: 'Đã nghỉ việc', value: 'resigned' },
+]
+
+const resignedReasonOptions = [
+  { label: 'Tất cả lý do nghỉ', value: null },
+  ...RESIGNED_REASON_OPTIONS,
 ]
 
 const genderOptions = [
