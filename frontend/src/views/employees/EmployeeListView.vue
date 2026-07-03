@@ -25,6 +25,8 @@
         :options="statusOptions"
         option-label="label"
         option-value="value"
+        placeholder="Tất cả trạng thái"
+        show-clear
         filter
         class="toolbar-filter"
         @change="onFilterChange"
@@ -46,6 +48,8 @@
         :options="activeOptions"
         option-label="label"
         option-value="value"
+        placeholder="Trạng thái hoạt động"
+        show-clear
         filter
         class="toolbar-filter"
         @change="onFilterChange"
@@ -223,7 +227,6 @@ const tableRenderKey = computed(() =>
 
 // ── Options ────────────────────────────────────────────────────────────────────
 const statusOptions = [
-  { label: 'Tất cả trạng thái', value: null },
   { label: 'Thử việc',          value: 'probation' },
   { label: 'Chính thức',        value: 'official' },
   { label: 'Nghỉ dài hạn',      value: 'long_leave' },
@@ -231,7 +234,6 @@ const statusOptions = [
 ]
 
 const activeOptions = [
-  { label: 'Tất cả', value: null },
   { label: 'Đang làm việc',  value: true },
   { label: 'Đã rời công ty', value: false },
 ]

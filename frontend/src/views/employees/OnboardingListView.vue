@@ -14,7 +14,8 @@
         :options="statusOptions"
         option-label="label"
         option-value="value"
-        placeholder="Trạng thái"
+        placeholder="Tất cả trạng thái"
+        show-clear
         class="toolbar-filter"
         @change="loadList"
       />
@@ -190,7 +191,6 @@ const showCreateDialog = ref(false)
 const departments = ref<DepartmentOption[]>([])
 
 const statusOptions = [
-  { label: 'Tất cả', value: null },
   { label: 'Đang thực hiện', value: 'in_progress' },
   { label: 'Hoàn thành', value: 'completed' },
   { label: 'Đã hủy', value: 'cancelled' },

@@ -46,6 +46,8 @@
               :options="activeOptions"
               option-label="label"
               option-value="value"
+              placeholder="Tất cả trạng thái"
+              show-clear
               filter
               class="toolbar-filter"
             />
@@ -130,6 +132,8 @@
               :options="activeOptions"
               option-label="label"
               option-value="value"
+              placeholder="Tất cả trạng thái"
+              show-clear
               filter
               class="toolbar-filter"
             />
@@ -138,6 +142,8 @@
               :options="unitTypeOptions"
               option-label="label"
               option-value="value"
+              placeholder="Tất cả loại đơn vị"
+              show-clear
               filter
               class="toolbar-filter"
             />
@@ -477,13 +483,11 @@ const systemOptions = [
 ]
 
 const activeOptions = [
-  { value: null, label: 'Tất cả trạng thái' },
   { value: true, label: 'Đang hoạt động' },
   { value: false, label: 'Đã khóa' },
 ]
 
 const unitTypeOptions = [
-  { value: null, label: 'Tất cả loại đơn vị' },
   { value: 'province', label: 'Tỉnh/Thành phố' },
   { value: 'district', label: 'Quận/Huyện' },
   { value: 'ward', label: 'Xã/Phường' },

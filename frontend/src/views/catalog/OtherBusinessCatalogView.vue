@@ -103,8 +103,8 @@
         <TabPanels>
           <TabPanel value="contracts">
             <div class="toolbar">
-              <Select v-model="contractCategoryState.isActive" :options="activeFilterOptions" option-label="label" option-value="value" filter class="toolbar-filter" @change="loadContractCategories" />
-              <Select v-model="contractCategoryState.documentKind" :options="documentKindOptions" option-label="label" option-value="value" filter class="toolbar-filter" @change="loadContractCategories" />
+              <Select v-model="contractCategoryState.isActive" :options="activeFilterOptions" option-label="label" option-value="value" placeholder="Tất cả trạng thái" show-clear filter class="toolbar-filter" @change="loadContractCategories" />
+              <Select v-model="contractCategoryState.documentKind" :options="documentKindOptions" option-label="label" option-value="value" placeholder="Tất cả nhóm" show-clear filter class="toolbar-filter" @change="loadContractCategories" />
               <IconField class="toolbar-search">
                 <InputIcon class="pi pi-search" />
                 <InputText v-model="contractCategoryState.keyword" class="w-full" placeholder="Tìm theo mã hoặc tên loại hợp đồng..." @input="debounce(loadContractCategories)" />
@@ -182,7 +182,7 @@
 
           <TabPanel value="banks">
             <div class="toolbar">
-              <Select v-model="bankState.isActive" :options="activeFilterOptions" option-label="label" option-value="value" filter class="toolbar-filter" @change="loadBanks" />
+              <Select v-model="bankState.isActive" :options="activeFilterOptions" option-label="label" option-value="value" placeholder="Tất cả trạng thái" show-clear filter class="toolbar-filter" @change="loadBanks" />
               <IconField class="toolbar-search">
                 <InputIcon class="pi pi-search" />
                 <InputText v-model="bankState.keyword" class="w-full" placeholder="Tìm theo tên, mã, short name, BIN..." @input="debounce(loadBanks)" />
@@ -243,7 +243,7 @@
 
           <TabPanel value="leaves">
             <div class="toolbar">
-              <Select v-model="leaveTypeState.isActive" :options="activeFilterOptions" option-label="label" option-value="value" filter class="toolbar-filter" @change="loadLeaveTypes" />
+              <Select v-model="leaveTypeState.isActive" :options="activeFilterOptions" option-label="label" option-value="value" placeholder="Tất cả trạng thái" show-clear filter class="toolbar-filter" @change="loadLeaveTypes" />
               <IconField class="toolbar-search">
                 <InputIcon class="pi pi-search" />
                 <InputText v-model="leaveTypeState.keyword" class="w-full" placeholder="Tìm loại nghỉ phép..." @input="debounce(loadLeaveTypes)" />
@@ -278,8 +278,8 @@
 
           <TabPanel value="templates">
             <div class="toolbar">
-              <Select v-model="templateState.isActive" :options="activeFilterOptions" option-label="label" option-value="value" filter class="toolbar-filter" @change="loadTemplates" />
-              <Select v-model="templateState.documentKind" :options="documentKindOptions" option-label="label" option-value="value" filter class="toolbar-filter" @change="loadTemplates" />
+              <Select v-model="templateState.isActive" :options="activeFilterOptions" option-label="label" option-value="value" placeholder="Tất cả trạng thái" show-clear filter class="toolbar-filter" @change="loadTemplates" />
+              <Select v-model="templateState.documentKind" :options="documentKindOptions" option-label="label" option-value="value" placeholder="Tất cả nhóm" show-clear filter class="toolbar-filter" @change="loadTemplates" />
               <IconField class="toolbar-search">
                 <InputIcon class="pi pi-search" />
                 <InputText v-model="templateState.keyword" class="w-full" placeholder="Tìm mẫu hợp đồng/phụ lục..." @input="debounce(loadTemplates)" />
@@ -363,8 +363,8 @@
 
           <TabPanel value="documentChecklist">
             <div class="toolbar">
-              <Select v-model="documentChecklistTypeState.isActive" :options="activeFilterOptions" option-label="label" option-value="value" filter class="toolbar-filter" @change="loadDocumentChecklistTypes" />
-              <Select v-model="documentChecklistTypeState.appliesTo" :options="documentChecklistAppliesToFilterOptions" option-label="label" option-value="value" filter class="toolbar-filter" @change="loadDocumentChecklistTypes" />
+              <Select v-model="documentChecklistTypeState.isActive" :options="activeFilterOptions" option-label="label" option-value="value" placeholder="Tất cả trạng thái" show-clear filter class="toolbar-filter" @change="loadDocumentChecklistTypes" />
+              <Select v-model="documentChecklistTypeState.appliesTo" :options="documentChecklistAppliesToOptions" option-label="label" option-value="value" placeholder="Tất cả đối tượng" show-clear filter class="toolbar-filter" @change="loadDocumentChecklistTypes" />
               <IconField class="toolbar-search">
                 <InputIcon class="pi pi-search" />
                 <InputText v-model="documentChecklistTypeState.keyword" class="w-full" placeholder="Tìm loại checklist hồ sơ..." @input="debounce(loadDocumentChecklistTypes)" />
@@ -438,7 +438,7 @@
           <div v-if="!editingContractCategory" class="field"><label>Mã <span class="req">*</span></label><InputText v-model="contractCategoryForm.code" class="w-full" /></div>
           <div class="field"><label>Tên <span class="req">*</span></label><InputText v-model="contractCategoryForm.name" class="w-full" /></div>
           <div class="field-row">
-            <div class="field"><label>Nhóm tài liệu</label><Select v-model="contractCategoryForm.document_kind" :options="documentKindOptions.slice(1)" option-label="label" option-value="value" filter class="w-full" /></div>
+            <div class="field"><label>Nhóm tài liệu</label><Select v-model="contractCategoryForm.document_kind" :options="documentKindOptions" option-label="label" option-value="value" filter class="w-full" /></div>
             <div class="field"><label>Loại pháp lý</label><Select v-model="contractCategoryForm.legal_contract_type" :options="legalTypeOptions" option-label="label" option-value="value" filter class="w-full" show-clear /></div>
           </div>
           <div class="field-row">
@@ -559,7 +559,7 @@
           <div class="field"><label>Tên mẫu <span class="req">*</span></label><InputText v-model="templateForm.name" class="w-full" /></div>
           <div class="field-row">
             <div class="field"><label>Loại hợp đồng <span class="req">*</span></label><Select v-model="templateForm.contract_category_id" :options="contractCategoryLookup" option-label="name" option-value="id" filter class="w-full" /></div>
-            <div class="field"><label>Nhóm tài liệu</label><Select v-model="templateForm.document_kind" :options="documentKindOptions.slice(1)" option-label="label" option-value="value" filter class="w-full" /></div>
+            <div class="field"><label>Nhóm tài liệu</label><Select v-model="templateForm.document_kind" :options="documentKindOptions" option-label="label" option-value="value" filter class="w-full" /></div>
           </div>
           <div class="field">
             <label>File mẫu DOCX</label>
@@ -788,12 +788,10 @@ const templateHealthItems = ref<ContractTemplateHealthRead[]>([])
 const documentChecklistAppliesToOptions = ref<DocumentChecklistAppliesToOption[]>([])
 
 const activeFilterOptions = [
-  { label: 'Tất cả trạng thái', value: null },
   { label: 'Đang hoạt động', value: true },
   { label: 'Đã khóa', value: false },
 ]
 const documentKindOptions = [
-  { label: 'Tất cả nhóm', value: null },
   { label: 'Hợp đồng lao động', value: 'labor_contract' },
   { label: 'Phụ lục hợp đồng', value: 'contract_appendix' },
 ]
@@ -806,10 +804,6 @@ const expiryPolicyOptions = [
   { label: 'Ngày cố định', value: 'fixed_date' },
   { label: 'Theo số tháng sau ngày cấp', value: 'months_after_issue' },
 ]
-const documentChecklistAppliesToFilterOptions = computed(() => [
-  { label: 'Tất cả đối tượng', value: null },
-  ...documentChecklistAppliesToOptions.value,
-])
 const placeholderScopeOptions = [
   { label: 'Nhân viên', value: 'employee' },
   { label: 'Tổ chức', value: 'organization' },

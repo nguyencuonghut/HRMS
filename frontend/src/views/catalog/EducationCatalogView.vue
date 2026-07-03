@@ -118,6 +118,8 @@
                 :options="activeFilterOptions"
                 option-label="label"
                 option-value="value"
+                placeholder="Tất cả trạng thái"
+                show-clear
                 filter
                 class="toolbar-filter"
                 @change="handleLevelFilterChange"
@@ -197,6 +199,8 @@
                 :options="activeFilterOptions"
                 option-label="label"
                 option-value="value"
+                placeholder="Tất cả trạng thái"
+                show-clear
                 filter
                 class="toolbar-filter"
                 @change="handleInstitutionFilterChange"
@@ -206,6 +210,8 @@
                 :options="institutionTypeOptions"
                 option-label="label"
                 option-value="value"
+                placeholder="Tất cả loại trường"
+                show-clear
                 filter
                 class="toolbar-filter"
                 @change="handleInstitutionFilterChange"
@@ -308,6 +314,8 @@
                 :options="activeFilterOptions"
                 option-label="label"
                 option-value="value"
+                placeholder="Tất cả trạng thái"
+                show-clear
                 filter
                 class="toolbar-filter"
                 @change="handleMajorFilterChange"
@@ -317,6 +325,8 @@
                 :options="majorGroupOptions"
                 option-label="label"
                 option-value="value"
+                placeholder="Tất cả nhóm"
+                show-clear
                 filter
                 class="toolbar-filter"
                 @change="handleMajorFilterChange"
@@ -679,13 +689,11 @@ let institutionSearchTimer: ReturnType<typeof setTimeout> | undefined
 let majorSearchTimer: ReturnType<typeof setTimeout> | undefined
 
 const activeFilterOptions = [
-  { label: 'Tất cả trạng thái', value: null },
   { label: 'Đang hoạt động', value: true },
   { label: 'Đã khóa', value: false },
 ]
 
 const institutionTypeOptions = [
-  { label: 'Tất cả loại trường', value: null },
   { label: 'Đại học', value: 'university' },
   { label: 'Cao đẳng', value: 'college' },
   { label: 'Nghề / trung cấp', value: 'vocational' },
@@ -694,7 +702,6 @@ const institutionTypeOptions = [
 ]
 
 const majorGroupOptions = [
-  { label: 'Tất cả nhóm', value: null },
   { label: 'Nông nghiệp', value: 'agriculture' },
   { label: 'Chăn nuôi', value: 'animal_science' },
   { label: 'Nuôi trồng thủy sản', value: 'aquaculture' },

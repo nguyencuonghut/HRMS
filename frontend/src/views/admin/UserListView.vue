@@ -16,6 +16,8 @@
         :options="activeOptions"
         option-label="label"
         option-value="value"
+        placeholder="Tất cả trạng thái"
+        show-clear
         filter
         class="toolbar-filter"
         @change="loadData"
@@ -233,7 +235,6 @@ const resetting    = ref(false)
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 const activeOptions = [
-  { label: 'Tất cả trạng thái', value: null },
   { label: 'Đang hoạt động',    value: true },
   { label: 'Đã khóa',           value: false },
 ]

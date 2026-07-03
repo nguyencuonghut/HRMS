@@ -27,6 +27,8 @@
         :options="activeFilterOptions"
         option-label="label"
         option-value="value"
+        placeholder="Tất cả trạng thái"
+        show-clear
         filter
         class="toolbar-filter-sm"
         @change="loadData"
@@ -36,6 +38,8 @@
         :options="probationConfiguredOptions"
         option-label="label"
         option-value="value"
+        placeholder="Tất cả nhóm thử việc"
+        show-clear
         class="toolbar-filter"
       />
       <IconField class="toolbar-search">
@@ -466,13 +470,11 @@ const errors = ref<Partial<Record<keyof FormState, string>>>({})
 // ── Constants ──────────────────────────────────────────────────────────────────
 
 const activeFilterOptions = [
-  { label: 'Tất cả trạng thái', value: null },
   { label: 'Đang hoạt động',    value: true },
   { label: 'Đã khóa',           value: false },
 ]
 
 const probationConfiguredOptions = [
-  { label: 'Tất cả nhóm thử việc', value: null },
   { label: 'Đã cấu hình', value: true },
   { label: 'Chưa cấu hình', value: false },
 ]
