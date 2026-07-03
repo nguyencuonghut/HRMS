@@ -23,6 +23,7 @@ from app.models.catalog import (
     Religion,
     Skill,
 )
+from app.models.recruitment import DocumentChecklistType
 from app.services.contract_template_docx import (
     DOCX_MIME,
     SUPPORTED_TEMPLATE_FIELDS,
@@ -38,6 +39,12 @@ def _utcnow() -> datetime:
 
 def _normalize(value: str) -> str:
     return normalize_text(value)
+
+
+DOCUMENT_CHECKLIST_APPLIES_TO_OPTIONS = [
+    {"value": "all", "label": "Tất cả người lao động"},
+    {"value": "foreign_worker", "label": "Chỉ lao động nước ngoài"},
+]
 
 
 async def _assert_unique_code_name(
@@ -534,6 +541,113 @@ async def lookup_leave_types(session: AsyncSession, *, keyword: Optional[str] = 
         ], 3600)
         return rows
     return await _lookup_basic(session, model=LeaveType, keyword=keyword, is_active=is_active, limit=limit, order_by=[LeaveType.name])
+
+
+async def get_document_checklist_type_by_id(session: AsyncSession, row_id: int) -> DocumentChecklistType:
+    return await _get_row_by_id(session, DocumentChecklistType, row_id, "Không tìm thấy loại checklist hồ sơ")
+
+
+async def list_document_checklist_types_page(
+    session: AsyncSession,
+    *,
+    keyword: Optional[str] = None,
+    applies_to: Optional[str] = None,
+    is_active: Optional[bool] = None,
+    page: int = 1,
+    page_size: int = 20,
+) -> dict:
+    filters = []
+    if applies_to:
+        filters.append(DocumentChecklistType.applies_to == applies_to)
+    if is_active is not None:
+        filters.append(DocumentChecklistType.is_active == is_active)
+    if keyword:
+        needle = f"%{keyword.strip()}%"
+        filters.append(
+            or_(
+                DocumentChecklistType.name.ilike(needle),
+                DocumentChecklistType.code.ilike(needle),
+            )
+        )
+    count_query = select(func.count()).select_from(DocumentChecklistType)
+    item_query = select(DocumentChecklistType)
+    if filters:
+        count_query = count_query.where(*filters)
+        item_query = item_query.where(*filters)
+    item_query = item_query.order_by(DocumentChecklistType.sort_order, DocumentChecklistType.name)
+    total = (await session.execute(count_query)).scalar_one()
+    items = list(
+        (
+            await session.execute(
+                item_query.offset((page - 1) * page_size).limit(page_size)
+            )
+        ).scalars().all()
+    )
+    return {"items": items, "total": total, "page": page, "page_size": page_size}
+
+
+async def create_document_checklist_type(session: AsyncSession, data) -> DocumentChecklistType:
+    existing_code = (
+        await session.execute(
+            select(DocumentChecklistType).where(DocumentChecklistType.code == data.code)
+        )
+    ).scalar_one_or_none()
+    if existing_code:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail=f"Mã checklist hồ sơ '{data.code}' đã tồn tại")
+    existing_name = (
+        await session.execute(
+            select(DocumentChecklistType).where(func.lower(DocumentChecklistType.name) == data.name.lower())
+        )
+    ).scalar_one_or_none()
+    if existing_name:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail=f"Tên checklist hồ sơ '{data.name}' đã tồn tại")
+    row = DocumentChecklistType(
+        code=data.code,
+        name=data.name,
+        description=data.description,
+        is_required=data.is_required,
+        has_expiry=data.has_expiry,
+        applies_to=data.applies_to,
+        sort_order=data.sort_order,
+        is_active=data.is_active,
+    )
+    session.add(row)
+    await session.flush()
+    return row
+
+
+async def update_document_checklist_type(session: AsyncSession, row_id: int, data) -> DocumentChecklistType:
+    row = await get_document_checklist_type_by_id(session, row_id)
+    provided = data.model_fields_set
+    new_name = data.name if "name" in provided and data.name is not None else row.name
+    existing_name = (
+        await session.execute(
+            select(DocumentChecklistType).where(
+                func.lower(DocumentChecklistType.name) == new_name.lower(),
+                DocumentChecklistType.id != row.id,
+            )
+        )
+    ).scalar_one_or_none()
+    if existing_name:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail=f"Tên checklist hồ sơ '{new_name}' đã tồn tại")
+    if "name" in provided and data.name is not None:
+        row.name = data.name
+    for field in ("description", "is_required", "has_expiry", "applies_to", "sort_order", "is_active"):
+        if field in provided:
+            setattr(row, field, getattr(data, field))
+    await session.flush()
+    return row
+
+
+async def soft_delete_document_checklist_type(session: AsyncSession, row_id: int) -> dict:
+    row = await get_document_checklist_type_by_id(session, row_id)
+    row.is_active = False
+    await session.flush()
+    return {"message": f"Đã khóa loại checklist hồ sơ '{row.name}'"}
+
+
+def list_document_checklist_applies_to_options() -> list[dict[str, str]]:
+    return DOCUMENT_CHECKLIST_APPLIES_TO_OPTIONS.copy()
 
 
 async def _invalidate_leave_type_cache() -> None:

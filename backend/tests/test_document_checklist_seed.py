@@ -39,6 +39,7 @@ async def test_required_document_checklist_seed_reconciles_active_catalog():
         ("don_xin_viec", "Đơn xin việc", True, False, "all", 6, True),
         ("bang_cap", "Bằng cấp", True, False, "all", 7, True),
         ("ly_lich_tu_phap", "Giấy xác nhận dân sự", True, True, "all", 8, True),
+        ("cam_ket_bao_mat_thong_tin", "Cam kết bảo mật thông tin", True, False, "all", 9, True),
     ]
     active_rows = [row for row in actual if row[-1] is True]
     assert active_rows == expected_active

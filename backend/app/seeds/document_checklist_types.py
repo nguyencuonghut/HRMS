@@ -85,6 +85,15 @@ DEFAULT_DOCUMENT_CHECKLIST_TYPES = [
         "applies_to": "all",
         "sort_order": 8,
     },
+    {
+        "code": "cam_ket_bao_mat_thong_tin",
+        "name": "Cam kết bảo mật thông tin",
+        "description": "Cam kết bảo mật thông tin, tài liệu và dữ liệu nội bộ của công ty",
+        "is_required": True,
+        "has_expiry": False,
+        "applies_to": "all",
+        "sort_order": 9,
+    },
 ]
 
 

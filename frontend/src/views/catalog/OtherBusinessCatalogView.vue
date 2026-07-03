@@ -33,6 +33,7 @@
             <li>Danh mục nhân thân cho hồ sơ nhân sự</li>
             <li>Loại nghỉ phép và ngân hàng cho vận hành HR</li>
             <li>Kỹ năng, chứng chỉ cho hồ sơ năng lực</li>
+            <li>Checklist hồ sơ pháp lý để HR chủ động thay đổi về sau</li>
             <li>Metadata mẫu hợp đồng/phụ lục cho phase auto-fill</li>
           </ul>
         </article>
@@ -93,6 +94,7 @@
               <Tab value="banks">Ngân hàng</Tab>
               <Tab value="competency">Kỹ năng & chứng chỉ</Tab>
               <Tab value="leaves">Loại nghỉ phép</Tab>
+              <Tab value="documentChecklist">Checklist hồ sơ</Tab>
               <Tab value="templates">Mẫu hợp đồng</Tab>
             </TabList>
           </div>
@@ -358,6 +360,66 @@
               </Column>
             </DataTable>
           </TabPanel>
+
+          <TabPanel value="documentChecklist">
+            <div class="toolbar">
+              <Select v-model="documentChecklistTypeState.isActive" :options="activeFilterOptions" option-label="label" option-value="value" filter class="toolbar-filter" @change="loadDocumentChecklistTypes" />
+              <Select v-model="documentChecklistTypeState.appliesTo" :options="documentChecklistAppliesToFilterOptions" option-label="label" option-value="value" filter class="toolbar-filter" @change="loadDocumentChecklistTypes" />
+              <IconField class="toolbar-search">
+                <InputIcon class="pi pi-search" />
+                <InputText v-model="documentChecklistTypeState.keyword" class="w-full" placeholder="Tìm loại checklist hồ sơ..." @input="debounce(loadDocumentChecklistTypes)" />
+              </IconField>
+              <Button v-can:create="'catalog'" icon="pi pi-plus" severity="secondary" text rounded @click="openCreateDocumentChecklistType" />
+              <Button icon="pi pi-refresh" severity="secondary" text rounded :loading="documentChecklistTypeState.loading" @click="loadDocumentChecklistTypes" />
+            </div>
+            <DataTable
+              :value="documentChecklistTypeState.items"
+              :loading="documentChecklistTypeState.loading"
+              stripedRows
+              paginator
+              lazy
+              responsive-layout="scroll"
+              :rows="documentChecklistTypeState.pageSize"
+              :first="(documentChecklistTypeState.page - 1) * documentChecklistTypeState.pageSize"
+              :total-records="documentChecklistTypeState.total"
+              :rows-per-page-options="[10,20,50]"
+              paginator-template="RowsPerPageDropdown FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport"
+              current-page-report-template="Hiển thị từ {first} đến {last} trên tổng số {totalRecords} dòng"
+              @page="onPage(documentChecklistTypeState, $event, loadDocumentChecklistTypes)"
+            >
+              <template #empty><div class="empty-state"><i class="pi pi-inbox" /><span>Không có dữ liệu checklist hồ sơ</span></div></template>
+              <Column field="name" header="Tên loại hồ sơ" style="min-width: 260px">
+                <template #body="{ data }">
+                  <div class="stacked-cell">
+                    <strong>{{ data.name }}</strong>
+                    <small>{{ data.description || '—' }}</small>
+                  </div>
+                </template>
+              </Column>
+              <Column field="code" header="Mã" style="width: 220px" />
+              <Column field="applies_to" header="Áp dụng cho" style="width: 180px">
+                <template #body="{ data }">{{ documentChecklistAppliesToLabel(data.applies_to) }}</template>
+              </Column>
+              <Column field="sort_order" header="Thứ tự" style="width: 100px" />
+              <Column field="is_required" header="Bắt buộc" style="width: 120px">
+                <template #body="{ data }"><Tag :value="data.is_required ? 'Có' : 'Không'" :severity="data.is_required ? 'success' : 'contrast'" /></template>
+              </Column>
+              <Column field="has_expiry" header="Có hạn" style="width: 120px">
+                <template #body="{ data }"><Tag :value="data.has_expiry ? 'Có' : 'Không'" :severity="data.has_expiry ? 'warning' : 'contrast'" /></template>
+              </Column>
+              <Column field="is_active" header="Trạng thái" style="width: 120px">
+                <template #body="{ data }"><Tag :value="data.is_active ? 'Hoạt động' : 'Đã khóa'" :severity="data.is_active ? 'success' : 'danger'" /></template>
+              </Column>
+              <Column header="" style="width: 110px">
+                <template #body="{ data }">
+                  <div class="action-cell">
+                    <Button v-can:edit="'catalog'" icon="pi pi-pencil" text rounded size="small" @click="openEditDocumentChecklistType(data)" />
+                    <Button v-can:delete="'catalog'" icon="pi pi-trash" severity="danger" text rounded size="small" @click="confirmDelete('documentChecklistType', data)" />
+                  </div>
+                </template>
+              </Column>
+            </DataTable>
+          </TabPanel>
         </TabPanels>
       </Tabs>
     </div>
@@ -475,6 +537,21 @@
           </div>
           <div class="field"><label>Mô tả</label><Textarea v-model="leaveTypeForm.description" rows="2" class="w-full" auto-resize /></div>
           <div v-if="editingLeaveType" class="field field-switch"><label>Trạng thái</label><div class="switch-row"><ToggleSwitch v-model="leaveTypeForm.is_active" /><span :class="leaveTypeForm.is_active ? 'active-label' : 'inactive-label'">{{ leaveTypeForm.is_active ? 'Hoạt động' : 'Đã khóa' }}</span></div></div>
+        </template>
+
+        <template v-else-if="dialogKind === 'documentChecklistType'">
+          <div v-if="!editingDocumentChecklistType" class="field"><label>Mã <span class="req">*</span></label><InputText v-model="documentChecklistTypeForm.code" class="w-full" /></div>
+          <div class="field"><label>Tên <span class="req">*</span></label><InputText v-model="documentChecklistTypeForm.name" class="w-full" /></div>
+          <div class="field-row">
+            <div class="field"><label>Áp dụng cho</label><Select v-model="documentChecklistTypeForm.applies_to" :options="documentChecklistAppliesToOptions" option-label="label" option-value="value" filter class="w-full" /></div>
+            <div class="field"><label>Thứ tự</label><InputNumber v-model="documentChecklistTypeForm.sort_order" :min="0" :max-fraction-digits="0" class="w-full" /></div>
+          </div>
+          <div class="checkbox-grid">
+            <label class="check-item"><Checkbox v-model="documentChecklistTypeForm.is_required" binary /><span>Bắt buộc</span></label>
+            <label class="check-item"><Checkbox v-model="documentChecklistTypeForm.has_expiry" binary /><span>Có ngày hết hạn</span></label>
+          </div>
+          <div class="field"><label>Mô tả</label><Textarea v-model="documentChecklistTypeForm.description" rows="3" class="w-full" auto-resize /></div>
+          <div v-if="editingDocumentChecklistType" class="field field-switch"><label>Trạng thái</label><div class="switch-row"><ToggleSwitch v-model="documentChecklistTypeForm.is_active" /><span :class="documentChecklistTypeForm.is_active ? 'active-label' : 'inactive-label'">{{ documentChecklistTypeForm.is_active ? 'Hoạt động' : 'Đã khóa' }}</span></div></div>
         </template>
 
         <template v-else-if="dialogKind === 'template'">
@@ -649,6 +726,8 @@ import otherBusinessCatalogService, {
   type BankRead,
   type CertificateRead,
   type ContractCategoryRead,
+  type DocumentChecklistAppliesToOption,
+  type DocumentChecklistTypeRead,
   type ContractTemplateFieldRegistryRead,
   type ContractTemplateDocxInspectionRead,
   type ContractTemplateHealthRead,
@@ -661,8 +740,8 @@ import otherBusinessCatalogService, {
   type SkillRead,
 } from '@/services/otherBusinessCatalogService'
 
-type ActiveTab = 'contracts' | 'identity' | 'banks' | 'competency' | 'leaves' | 'templates'
-type DialogKind = 'contractCategory' | 'identity' | 'bank' | 'skill' | 'certificate' | 'leaveType' | 'template'
+type ActiveTab = 'contracts' | 'identity' | 'banks' | 'competency' | 'leaves' | 'documentChecklist' | 'templates'
+type DialogKind = 'contractCategory' | 'identity' | 'bank' | 'skill' | 'certificate' | 'leaveType' | 'documentChecklistType' | 'template'
 type IdentityKind = 'nationality' | 'ethnicity' | 'religion'
 type PlaceholderRow = ContractTemplatePlaceholderWrite & { field_registry_token: string | null }
 type PlaceholderFieldOption = ContractTemplateFieldRegistryRead & { display_label: string }
@@ -701,9 +780,12 @@ const bankState = ref(makeListState<BankRead>())
 const skillState = ref(makeListState<SkillRead>())
 const certificateState = ref(makeListState<CertificateRead>())
 const leaveTypeState = ref(makeListState<LeaveTypeRead>())
+const documentChecklistTypeState = ref(makeListState<DocumentChecklistTypeRead>() as ListState<DocumentChecklistTypeRead> & { appliesTo: 'all' | 'foreign_worker' | null })
+documentChecklistTypeState.value.appliesTo = null
 const templateState = ref(makeListState<ContractTemplateRead>() as ListState<ContractTemplateRead> & { documentKind: string | null })
 templateState.value.documentKind = null
 const templateHealthItems = ref<ContractTemplateHealthRead[]>([])
+const documentChecklistAppliesToOptions = ref<DocumentChecklistAppliesToOption[]>([])
 
 const activeFilterOptions = [
   { label: 'Tất cả trạng thái', value: null },
@@ -724,6 +806,10 @@ const expiryPolicyOptions = [
   { label: 'Ngày cố định', value: 'fixed_date' },
   { label: 'Theo số tháng sau ngày cấp', value: 'months_after_issue' },
 ]
+const documentChecklistAppliesToFilterOptions = computed(() => [
+  { label: 'Tất cả đối tượng', value: null },
+  ...documentChecklistAppliesToOptions.value,
+])
 const placeholderScopeOptions = [
   { label: 'Nhân viên', value: 'employee' },
   { label: 'Tổ chức', value: 'organization' },
@@ -819,6 +905,17 @@ const leaveTypeForm = ref({
   carryover_allowed: false,
   carryover_cutoff_month: 3,
 })
+const editingDocumentChecklistType = ref<DocumentChecklistTypeRead | null>(null)
+const documentChecklistTypeForm = ref({
+  code: '',
+  name: '',
+  description: '',
+  is_required: true,
+  has_expiry: false,
+  applies_to: 'all' as 'all' | 'foreign_worker',
+  sort_order: 0,
+  is_active: true,
+})
 
 const editingTemplate = ref<ContractTemplateRead | null>(null)
 const templateForm = ref({
@@ -895,6 +992,7 @@ const activeTabLabel = computed(() => ({
   banks: 'Ngân hàng',
   competency: 'Kỹ năng & chứng chỉ',
   leaves: 'Loại nghỉ phép',
+  documentChecklist: 'Checklist hồ sơ',
   templates: 'Mẫu hợp đồng',
 }[activeTab.value]))
 
@@ -904,6 +1002,7 @@ const activeHeadline = computed(() => ({
   banks: 'Ngân hàng dùng cho thông tin thanh toán nhân viên',
   competency: 'Kỹ năng và chứng chỉ phục vụ hồ sơ năng lực',
   leaves: 'Loại nghỉ phép và quy tắc nhân sự nền',
+  documentChecklist: 'Checklist hồ sơ pháp lý và điều kiện áp dụng',
   templates: 'Metadata mẫu hợp đồng/phụ lục cho phase auto-fill',
 }[activeTab.value]))
 
@@ -913,6 +1012,7 @@ const activeSubline = computed(() => ({
   banks: 'Dùng chung cho tài khoản ngân hàng nhân viên và các mẫu biểu nghiệp vụ.',
   competency: 'Chuẩn hóa kỹ năng/chứng chỉ cho đào tạo, đánh giá và hồ sơ nhân sự.',
   leaves: 'Làm nền cho module nghỉ phép và quy tắc hiển thị trên báo cáo HR.',
+  documentChecklist: 'Cho phép HR đổi loại giấy tờ, tính bắt buộc và phạm vi áp dụng ngay trên UI.',
   templates: 'Khai báo tên file, version, loại hợp đồng và placeholder cần render về sau.',
 }[activeTab.value]))
 
@@ -922,6 +1022,7 @@ const primaryCreateLabel = computed(() => ({
   banks: 'Thêm ngân hàng',
   competency: 'Thêm kỹ năng',
   leaves: 'Thêm loại nghỉ',
+  documentChecklist: 'Thêm checklist hồ sơ',
   templates: 'Thêm mẫu hợp đồng',
 }[activeTab.value]))
 
@@ -933,6 +1034,7 @@ const editingMode = computed(() => {
     case 'skill': return !!editingSkill.value
     case 'certificate': return !!editingCertificate.value
     case 'leaveType': return !!editingLeaveType.value
+    case 'documentChecklistType': return !!editingDocumentChecklistType.value
     case 'template': return !!editingTemplate.value
   }
 })
@@ -944,10 +1046,11 @@ const dialogHeader = computed(() => {
   if (dialogKind.value === 'skill') return editingSkill.value ? 'Chỉnh sửa kỹ năng' : 'Thêm kỹ năng'
   if (dialogKind.value === 'certificate') return editingCertificate.value ? 'Chỉnh sửa chứng chỉ' : 'Thêm chứng chỉ'
   if (dialogKind.value === 'leaveType') return editingLeaveType.value ? 'Chỉnh sửa loại nghỉ phép' : 'Thêm loại nghỉ phép'
+  if (dialogKind.value === 'documentChecklistType') return editingDocumentChecklistType.value ? 'Chỉnh sửa checklist hồ sơ' : 'Thêm checklist hồ sơ'
   return editingTemplate.value ? 'Chỉnh sửa mẫu hợp đồng' : 'Thêm mẫu hợp đồng'
 })
 
-const dialogWidth = computed(() => ['template', 'contractCategory', 'certificate', 'leaveType'].includes(dialogKind.value) ? '720px' : '580px')
+const dialogWidth = computed(() => ['template', 'contractCategory', 'certificate', 'leaveType', 'documentChecklistType'].includes(dialogKind.value) ? '720px' : '580px')
 
 function identityTypeLabel(kind: IdentityKind) {
   return kind === 'nationality' ? 'quốc tịch' : kind === 'ethnicity' ? 'dân tộc' : 'tôn giáo'
@@ -957,6 +1060,9 @@ function documentKindLabel(value: string | null) {
 }
 function legalTypeLabel(value: string | null) {
   return legalTypeOptions.find((item) => item.value === value)?.label ?? '—'
+}
+function documentChecklistAppliesToLabel(value: string | null) {
+  return documentChecklistAppliesToOptions.value.find((item) => item.value === value)?.label ?? value ?? '—'
 }
 function formatNumber(value: number) {
   return new Intl.NumberFormat('vi-VN').format(value)
@@ -1033,6 +1139,25 @@ async function loadLeaveTypes() {
     Object.assign(leaveTypeState.value, { items: res.data.items, total: res.data.total, page: res.data.page, pageSize: res.data.page_size })
   } catch (e) { errorBanner.value = apiError(e) } finally { leaveTypeState.value.loading = false }
 }
+async function loadDocumentChecklistAppliesToOptions() {
+  try {
+    const res = await otherBusinessCatalogService.getDocumentChecklistAppliesToOptions()
+    documentChecklistAppliesToOptions.value = res.data
+  } catch (e) { errorBanner.value = apiError(e) }
+}
+async function loadDocumentChecklistTypes() {
+  documentChecklistTypeState.value.loading = true
+  try {
+    const res = await otherBusinessCatalogService.getDocumentChecklistTypes({
+      keyword: documentChecklistTypeState.value.keyword || null,
+      is_active: documentChecklistTypeState.value.isActive,
+      applies_to: documentChecklistTypeState.value.appliesTo,
+      page: documentChecklistTypeState.value.page,
+      page_size: documentChecklistTypeState.value.pageSize,
+    })
+    Object.assign(documentChecklistTypeState.value, { items: res.data.items, total: res.data.total, page: res.data.page, pageSize: res.data.page_size })
+  } catch (e) { errorBanner.value = apiError(e) } finally { documentChecklistTypeState.value.loading = false }
+}
 async function loadTemplates() {
   templateState.value.loading = true
   try {
@@ -1077,6 +1202,19 @@ function resetLeaveTypeForm() {
     carryover_allowed: false, carryover_cutoff_month: 3,
   }
 }
+function resetDocumentChecklistTypeForm() {
+  editingDocumentChecklistType.value = null
+  documentChecklistTypeForm.value = {
+    code: '',
+    name: '',
+    description: '',
+    is_required: true,
+    has_expiry: false,
+    applies_to: 'all',
+    sort_order: 0,
+    is_active: true,
+  }
+}
 function resetTemplateForm() {
   editingTemplate.value = null
   selectedTemplateFile.value = null
@@ -1089,6 +1227,7 @@ function openCreateForActiveTab() {
   if (activeTab.value === 'banks') return openCreateBank()
   if (activeTab.value === 'competency') return openCreateSkill()
   if (activeTab.value === 'leaves') return openCreateLeaveType()
+  if (activeTab.value === 'documentChecklist') return openCreateDocumentChecklistType()
   return openCreateTemplate()
 }
 function openCreateContractCategory() { dialogKind.value = 'contractCategory'; resetContractCategoryForm(); dialogVisible.value = true }
@@ -1116,6 +1255,22 @@ function openEditLeaveType(row: LeaveTypeRead) {
     min_advance_days: row.min_advance_days,
     carryover_allowed: row.carryover_allowed,
     carryover_cutoff_month: row.carryover_cutoff_month,
+  }
+  dialogVisible.value = true
+}
+function openCreateDocumentChecklistType() { dialogKind.value = 'documentChecklistType'; resetDocumentChecklistTypeForm(); dialogVisible.value = true }
+function openEditDocumentChecklistType(row: DocumentChecklistTypeRead) {
+  dialogKind.value = 'documentChecklistType'
+  editingDocumentChecklistType.value = row
+  documentChecklistTypeForm.value = {
+    code: row.code,
+    name: row.name,
+    description: row.description || '',
+    is_required: row.is_required,
+    has_expiry: row.has_expiry,
+    applies_to: row.applies_to,
+    sort_order: row.sort_order,
+    is_active: row.is_active,
   }
   dialogVisible.value = true
 }
@@ -1193,6 +1348,29 @@ async function submitActiveDialog() {
         ...leaveRuleFields,
       })
       await loadLeaveTypes()
+    } else if (dialogKind.value === 'documentChecklistType') {
+      if (editingDocumentChecklistType.value) {
+        await otherBusinessCatalogService.updateDocumentChecklistType(editingDocumentChecklistType.value.id, {
+          name: documentChecklistTypeForm.value.name,
+          description: documentChecklistTypeForm.value.description || null,
+          is_required: documentChecklistTypeForm.value.is_required,
+          has_expiry: documentChecklistTypeForm.value.has_expiry,
+          applies_to: documentChecklistTypeForm.value.applies_to,
+          sort_order: documentChecklistTypeForm.value.sort_order,
+          is_active: documentChecklistTypeForm.value.is_active,
+        })
+      } else {
+        await otherBusinessCatalogService.createDocumentChecklistType({
+          code: documentChecklistTypeForm.value.code,
+          name: documentChecklistTypeForm.value.name,
+          description: documentChecklistTypeForm.value.description || null,
+          is_required: documentChecklistTypeForm.value.is_required,
+          has_expiry: documentChecklistTypeForm.value.has_expiry,
+          applies_to: documentChecklistTypeForm.value.applies_to,
+          sort_order: documentChecklistTypeForm.value.sort_order,
+        })
+      }
+      await loadDocumentChecklistTypes()
     } else {
       if (!templateForm.value.contract_category_id) throw new Error('Chọn loại hợp đồng trước khi lưu mẫu')
       let templateRow: ContractTemplateRead
@@ -1346,6 +1524,7 @@ function confirmDelete(kind: string, row: { id: number; name: string }) {
         else if (kind === 'skill') await otherBusinessCatalogService.deleteSkill(row.id)
         else if (kind === 'certificate') await otherBusinessCatalogService.deleteCertificate(row.id)
         else if (kind === 'leaveType') await otherBusinessCatalogService.deleteLeaveType(row.id)
+        else if (kind === 'documentChecklistType') await otherBusinessCatalogService.deleteDocumentChecklistType(row.id)
         else if (kind === 'template') await otherBusinessCatalogService.deleteContractTemplate(row.id)
 
         if (kind === 'contractCategory') await loadContractCategories()
@@ -1356,6 +1535,7 @@ function confirmDelete(kind: string, row: { id: number; name: string }) {
         else if (kind === 'skill') await loadSkills()
         else if (kind === 'certificate') await loadCertificates()
         else if (kind === 'leaveType') await loadLeaveTypes()
+        else if (kind === 'documentChecklistType') await loadDocumentChecklistTypes()
         else if (kind === 'template') await loadTemplates()
         toast.add({ severity: 'success', summary: 'Đã khóa dữ liệu', detail: row.name, life: 2500 })
       } catch (e) {
@@ -1439,6 +1619,8 @@ onMounted(async () => {
     loadSkills(),
     loadCertificates(),
     loadLeaveTypes(),
+    loadDocumentChecklistAppliesToOptions(),
+    loadDocumentChecklistTypes(),
     loadTemplates(),
     loadContractTemplateFieldRegistry(),
     loadContractCategoryLookup(),

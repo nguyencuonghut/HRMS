@@ -23,6 +23,11 @@ from app.schemas.catalog import (
     ContractCategoryListPage,
     ContractCategoryRead,
     ContractCategoryUpdate,
+    DocumentChecklistAppliesToOption,
+    DocumentChecklistTypeCreate,
+    DocumentChecklistTypeListPage,
+    DocumentChecklistTypeRead,
+    DocumentChecklistTypeUpdate,
     ContractTemplateCreate,
     ContractTemplateDocxInspectionRead,
     ContractTemplateFieldRegistryRead,
@@ -68,6 +73,7 @@ bank_router = APIRouter()
 skill_router = APIRouter()
 certificate_router = APIRouter()
 leave_type_router = APIRouter()
+document_checklist_type_router = APIRouter()
 contract_template_router = APIRouter()
 lookup_router = APIRouter()
 
@@ -462,6 +468,145 @@ async def delete_leave_type(row_id: int, request: Request, current_user: User = 
     result = await other_business_catalog_service.soft_delete_leave_type(session, row_id)
     ip, ua = _request_meta(request)
     await auth_service.log_audit(session, current_user.id, "DELETE", entity_type="leave_type", entity_id=row.id, entity_name=row.name, old_data={"is_active": True}, new_data={"is_active": False}, ip_address=ip, user_agent=ua)
+    await session.commit()
+    return result
+
+
+@document_checklist_type_router.get("/options/applies-to", response_model=list[DocumentChecklistAppliesToOption])
+async def list_document_checklist_applies_to_options(
+    _: User = require_permission("catalog:view"),
+):
+    return other_business_catalog_service.list_document_checklist_applies_to_options()
+
+
+@document_checklist_type_router.get("", response_model=DocumentChecklistTypeListPage)
+async def list_document_checklist_types(
+    keyword: Optional[str] = Query(None),
+    applies_to: Optional[str] = Query(None),
+    is_active: Optional[bool] = Query(None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=200),
+    _: User = require_permission("catalog:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await other_business_catalog_service.list_document_checklist_types_page(
+        session,
+        keyword=keyword,
+        applies_to=applies_to,
+        is_active=is_active,
+        page=page,
+        page_size=page_size,
+    )
+
+
+@document_checklist_type_router.post("", response_model=DocumentChecklistTypeRead, status_code=status.HTTP_201_CREATED)
+async def create_document_checklist_type(
+    body: DocumentChecklistTypeCreate,
+    request: Request,
+    current_user: User = require_permission("catalog:create"),
+    session: AsyncSession = Depends(get_session),
+):
+    row = await other_business_catalog_service.create_document_checklist_type(session, body)
+    ip, ua = _request_meta(request)
+    await auth_service.log_audit(
+        session,
+        current_user.id,
+        "CREATE",
+        entity_type="document_checklist_type",
+        entity_id=row.id,
+        entity_name=row.name,
+        new_data={
+            "code": row.code,
+            "is_required": row.is_required,
+            "has_expiry": row.has_expiry,
+            "applies_to": row.applies_to,
+            "sort_order": row.sort_order,
+            "is_active": row.is_active,
+        },
+        ip_address=ip,
+        user_agent=ua,
+    )
+    await session.commit()
+    await session.refresh(row)
+    return row
+
+
+@document_checklist_type_router.get("/{row_id}", response_model=DocumentChecklistTypeRead)
+async def get_document_checklist_type(
+    row_id: int,
+    _: User = require_permission("catalog:view"),
+    session: AsyncSession = Depends(get_session),
+):
+    return await other_business_catalog_service.get_document_checklist_type_by_id(session, row_id)
+
+
+@document_checklist_type_router.put("/{row_id}", response_model=DocumentChecklistTypeRead)
+async def update_document_checklist_type(
+    row_id: int,
+    body: DocumentChecklistTypeUpdate,
+    request: Request,
+    current_user: User = require_permission("catalog:edit"),
+    session: AsyncSession = Depends(get_session),
+):
+    existing = await other_business_catalog_service.get_document_checklist_type_by_id(session, row_id)
+    old_data = {
+        "name": existing.name,
+        "description": existing.description,
+        "is_required": existing.is_required,
+        "has_expiry": existing.has_expiry,
+        "applies_to": existing.applies_to,
+        "sort_order": existing.sort_order,
+        "is_active": existing.is_active,
+    }
+    row = await other_business_catalog_service.update_document_checklist_type(session, row_id, body)
+    ip, ua = _request_meta(request)
+    await auth_service.log_audit(
+        session,
+        current_user.id,
+        "UPDATE",
+        entity_type="document_checklist_type",
+        entity_id=row.id,
+        entity_name=row.name,
+        old_data=old_data,
+        new_data={
+            "name": row.name,
+            "description": row.description,
+            "is_required": row.is_required,
+            "has_expiry": row.has_expiry,
+            "applies_to": row.applies_to,
+            "sort_order": row.sort_order,
+            "is_active": row.is_active,
+        },
+        ip_address=ip,
+        user_agent=ua,
+    )
+    await session.commit()
+    await session.refresh(row)
+    return row
+
+
+@document_checklist_type_router.delete("/{row_id}")
+async def delete_document_checklist_type(
+    row_id: int,
+    request: Request,
+    current_user: User = require_permission("catalog:delete"),
+    session: AsyncSession = Depends(get_session),
+):
+    row = await other_business_catalog_service.get_document_checklist_type_by_id(session, row_id)
+    result = await other_business_catalog_service.soft_delete_document_checklist_type(session, row_id)
+    ip, ua = _request_meta(request)
+    await auth_service.log_audit(
+        session,
+        current_user.id,
+        "DELETE",
+        entity_type="document_checklist_type",
+        entity_id=row.id,
+        entity_name=row.name,
+        old_data={"is_active": True},
+        new_data={"is_active": False},
+        ip_address=ip,
+        user_agent=ua,
+    )
     await session.commit()
     return result
 

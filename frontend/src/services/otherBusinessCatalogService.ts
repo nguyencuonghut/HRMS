@@ -260,6 +260,46 @@ export interface LeaveTypeUpdate {
   carryover_cutoff_month?: number
 }
 
+export interface DocumentChecklistTypeRead {
+  id: number
+  code: string
+  name: string
+  description: string | null
+  is_required: boolean
+  has_expiry: boolean
+  applies_to: 'all' | 'foreign_worker'
+  sort_order: number
+  is_active: boolean
+  created_at: string
+  updated_at: string | null
+}
+
+export interface DocumentChecklistTypeCreate {
+  code: string
+  name: string
+  description?: string | null
+  is_required?: boolean
+  has_expiry?: boolean
+  applies_to?: 'all' | 'foreign_worker'
+  sort_order?: number
+  is_active?: boolean
+}
+
+export interface DocumentChecklistTypeUpdate {
+  name?: string
+  description?: string | null
+  is_required?: boolean
+  has_expiry?: boolean
+  applies_to?: 'all' | 'foreign_worker'
+  sort_order?: number
+  is_active?: boolean
+}
+
+export interface DocumentChecklistAppliesToOption {
+  value: 'all' | 'foreign_worker'
+  label: string
+}
+
 export interface ContractTemplateRead {
   id: number
   code: string
@@ -454,6 +494,11 @@ export default {
   updateLeaveType: (id: number, data: LeaveTypeUpdate) => api.put<LeaveTypeRead>(`/leave-types/${id}`, data),
   deleteLeaveType: (id: number) => api.delete<{ message: string }>(`/leave-types/${id}`),
   lookupLeaveTypes: (params?: Record<string, unknown>) => api.get<LeaveTypeRead[]>('/lookups/leave-types', { params }),
+  getDocumentChecklistTypes: (params?: Record<string, unknown>) => api.get<Page<DocumentChecklistTypeRead>>('/document-checklist-types', { params }),
+  createDocumentChecklistType: (data: DocumentChecklistTypeCreate) => api.post<DocumentChecklistTypeRead>('/document-checklist-types', data),
+  updateDocumentChecklistType: (id: number, data: DocumentChecklistTypeUpdate) => api.put<DocumentChecklistTypeRead>(`/document-checklist-types/${id}`, data),
+  deleteDocumentChecklistType: (id: number) => api.delete<{ message: string }>(`/document-checklist-types/${id}`),
+  getDocumentChecklistAppliesToOptions: () => api.get<DocumentChecklistAppliesToOption[]>('/document-checklist-types/options/applies-to'),
 
   getContractTemplates: (params?: Record<string, unknown>) => api.get<Page<ContractTemplateRead>>('/contract-templates', { params }),
   createContractTemplate: (data: ContractTemplateCreate) => api.post<ContractTemplateRead>('/contract-templates', data),

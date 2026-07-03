@@ -9,6 +9,7 @@ CONTRACT_CATEGORY_BASE = "/api/v1/contract-categories"
 BANK_BASE = "/api/v1/banks"
 SKILL_BASE = "/api/v1/skills"
 LEAVE_TYPE_BASE = "/api/v1/leave-types"
+DOCUMENT_CHECKLIST_TYPE_BASE = "/api/v1/document-checklist-types"
 TEMPLATE_BASE = "/api/v1/contract-templates"
 LOOKUP_SKILLS = "/api/v1/lookups/skills"
 
@@ -41,6 +42,7 @@ async def _cleanup_test_rows():
         await s.execute(text("DELETE FROM contract_templates WHERE code LIKE 'test_template_%'"))
         await s.execute(text("DELETE FROM banks WHERE code LIKE 'TEST_BANK_%'"))
         await s.execute(text("DELETE FROM leave_types WHERE code LIKE 'TEST_LEAVE_%'"))
+        await s.execute(text("DELETE FROM document_checklist_types WHERE code LIKE 'test_docchk_%'"))
         await s.commit()
 
 
@@ -126,6 +128,63 @@ def test_delete_leave_type_soft_deactivate(client: TestClient):
     assert deleted.status_code == 200, deleted.text
 
     detail = client.get(f"{LEAVE_TYPE_BASE}/{row_id}", headers=_admin(client))
+    assert detail.status_code == 200, detail.text
+    assert detail.json()["is_active"] is False
+
+
+def test_create_and_update_document_checklist_type_success(client: TestClient):
+    options = client.get(f"{DOCUMENT_CHECKLIST_TYPE_BASE}/options/applies-to", headers=_admin(client))
+    assert options.status_code == 200, options.text
+    assert options.json() == [
+        {"value": "all", "label": "Tất cả người lao động"},
+        {"value": "foreign_worker", "label": "Chỉ lao động nước ngoài"},
+    ]
+
+    created = client.post(
+        DOCUMENT_CHECKLIST_TYPE_BASE,
+        json={
+            "code": "test_docchk_confidentiality",
+            "name": "Checklist test bảo mật",
+            "description": "Mô tả test",
+            "is_required": True,
+            "has_expiry": False,
+            "applies_to": "foreign_worker",
+            "sort_order": 99,
+        },
+        headers=_admin(client),
+    )
+    assert created.status_code == 201, created.text
+    row = created.json()
+    assert row["code"] == "test_docchk_confidentiality"
+    assert row["applies_to"] == "foreign_worker"
+
+    listed = client.get(
+        DOCUMENT_CHECKLIST_TYPE_BASE,
+        params={"applies_to": "foreign_worker", "keyword": "bảo mật"},
+        headers=_admin(client),
+    )
+    assert listed.status_code == 200, listed.text
+    assert any(item["id"] == row["id"] for item in listed.json()["items"])
+
+    updated = client.put(
+        f"{DOCUMENT_CHECKLIST_TYPE_BASE}/{row['id']}",
+        json={
+            "name": "Checklist test bảo mật updated",
+            "applies_to": "all",
+            "has_expiry": True,
+            "is_active": True,
+        },
+        headers=_admin(client),
+    )
+    assert updated.status_code == 200, updated.text
+    assert updated.json()["name"] == "Checklist test bảo mật updated"
+    assert updated.json()["applies_to"] == "all"
+    assert updated.json()["has_expiry"] is True
+
+    deleted = client.delete(f"{DOCUMENT_CHECKLIST_TYPE_BASE}/{row['id']}", headers=_admin(client))
+    assert deleted.status_code == 200, deleted.text
+
+    detail = client.get(f"{DOCUMENT_CHECKLIST_TYPE_BASE}/{row['id']}", headers=_admin(client))
     assert detail.status_code == 200, detail.text
     assert detail.json()["is_active"] is False
 

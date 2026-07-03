@@ -58,6 +58,7 @@ router.include_router(other_business_catalog.bank_router, prefix="/banks", tags=
 router.include_router(other_business_catalog.skill_router, prefix="/skills", tags=["Danh mục nghiệp vụ khác"])
 router.include_router(other_business_catalog.certificate_router, prefix="/certificates", tags=["Danh mục nghiệp vụ khác"])
 router.include_router(other_business_catalog.leave_type_router, prefix="/leave-types", tags=["Danh mục nghiệp vụ khác"])
+router.include_router(other_business_catalog.document_checklist_type_router, prefix="/document-checklist-types", tags=["Danh mục nghiệp vụ khác"])
 router.include_router(other_business_catalog.contract_template_router, prefix="/contract-templates", tags=["Danh mục nghiệp vụ khác"])
 router.include_router(employee_code_sequences.router, prefix="/employee-code-sequences", tags=["Mã nhân viên"])
 router.include_router(other_business_catalog.lookup_router, tags=["Danh mục nghiệp vụ khác"])

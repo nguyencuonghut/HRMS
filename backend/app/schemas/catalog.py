@@ -771,6 +771,71 @@ class LeaveTypeListPage(BaseModel):
     page_size: int
 
 
+DocumentChecklistAppliesTo = Literal["all", "foreign_worker"]
+
+
+class DocumentChecklistTypeCreate(BaseModel):
+    code: str = Field(..., max_length=100)
+    name: str = Field(..., max_length=255)
+    description: Optional[str] = None
+    is_required: bool = True
+    has_expiry: bool = False
+    applies_to: DocumentChecklistAppliesTo = "all"
+    sort_order: int = Field(0, ge=0, le=9999)
+    is_active: bool = True
+
+    @field_validator("code")
+    @classmethod
+    def _normalize_document_checklist_code(cls, v: str) -> str:
+        return v.strip().lower()
+
+    @field_validator("name", "description")
+    @classmethod
+    def _strip_document_checklist_text(cls, v: Optional[str]) -> Optional[str]:
+        return v.strip() if v else v
+
+
+class DocumentChecklistTypeUpdate(BaseModel):
+    name: Optional[str] = Field(None, max_length=255)
+    description: Optional[str] = None
+    is_required: Optional[bool] = None
+    has_expiry: Optional[bool] = None
+    applies_to: Optional[DocumentChecklistAppliesTo] = None
+    sort_order: Optional[int] = Field(None, ge=0, le=9999)
+    is_active: Optional[bool] = None
+
+    @field_validator("name", "description")
+    @classmethod
+    def _strip_document_checklist_update_text(cls, v: Optional[str]) -> Optional[str]:
+        return v.strip() if v else v
+
+
+class DocumentChecklistTypeRead(BaseModel):
+    id: int
+    code: str
+    name: str
+    description: Optional[str]
+    is_required: bool
+    has_expiry: bool
+    applies_to: DocumentChecklistAppliesTo
+    sort_order: int
+    is_active: bool
+
+    model_config = {"from_attributes": True}
+
+
+class DocumentChecklistTypeListPage(BaseModel):
+    items: list[DocumentChecklistTypeRead]
+    total: int
+    page: int
+    page_size: int
+
+
+class DocumentChecklistAppliesToOption(BaseModel):
+    value: DocumentChecklistAppliesTo
+    label: str
+
+
 class ContractTemplateCreate(BaseModel):
     code: str = Field(..., max_length=50)
     name: str = Field(..., max_length=255)
