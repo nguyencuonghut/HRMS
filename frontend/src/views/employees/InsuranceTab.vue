@@ -132,28 +132,37 @@
             <InputText v-model="form.bhxh_code" class="w-full" placeholder="Nhập mã BHXH..." />
           </div>
           <div class="field">
-            <label>Mã BH chăm sóc sức khỏe</label>
-            <InputText v-model="form.health_care_insurance_code" class="w-full" placeholder="Nhập mã BH CSSK..." />
+            <label>Mã BH tai nạn</label>
+            <InputText v-model="form.accident_insurance_code" class="w-full" placeholder="Nhập mã BH tai nạn..." />
           </div>
         </div>
 
         <div class="field-row">
           <div class="field">
-            <label class="ins-toggle-label">
-              <Checkbox
-                v-model="form.health_care_family_participation"
-                :binary="true"
-                :disabled="!form.health_care_insurance_code"
-              />
-              Người thân tham gia cùng
-            </label>
-            <small v-if="!form.health_care_insurance_code" class="text-muted">
-              Nhập mã BH CSSK trước khi chọn.
-            </small>
+            <label>Mã BH chăm sóc sức khỏe</label>
+            <InputText v-model="form.health_care_insurance_code" class="w-full" placeholder="Nhập mã BH CSSK..." />
           </div>
           <div class="field">
-            <label>Mã BH tai nạn</label>
-            <InputText v-model="form.accident_insurance_code" class="w-full" placeholder="Nhập mã BH tai nạn..." />
+            <label>Tham gia CSSK cho người thân</label>
+            <div class="ins-checkbox-panel" :class="{ 'is-disabled': !form.health_care_insurance_code }">
+              <div class="ins-checkbox-row">
+                <label class="ins-toggle-label">
+                  <Checkbox
+                    v-model="form.health_care_family_participation"
+                    :binary="true"
+                    :disabled="!form.health_care_insurance_code"
+                  />
+                  Người thân tham gia cùng
+                </label>
+                <small class="text-muted">
+                  {{
+                    form.health_care_insurance_code
+                      ? 'Bật khi hợp đồng CSSK có đăng ký thêm người thân.'
+                      : 'Nhập mã BH CSSK trước khi chọn.'
+                  }}
+                </small>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -162,10 +171,6 @@
             <label>Nơi KCB ban đầu</label>
             <BhytClinicSelect v-model="form.bhyt_initial_clinic" />
           </div>
-          <div class="field" />
-        </div>
-
-        <div class="field-row">
           <div class="field">
             <label>Ngày tham gia tại công ty</label>
             <DatePicker
@@ -433,3 +438,59 @@ async function save() {
   }
 }
 </script>
+
+<style scoped>
+.ins-checkbox-panel {
+  display: flex;
+  justify-content: center;
+  min-height: 42px;
+  padding: 0.65rem 1rem;
+  border: 1px solid var(--p-content-border-color);
+  border-radius: var(--p-border-radius-md);
+  background: color-mix(in srgb, var(--p-content-background) 92%, var(--p-primary-color) 8%);
+}
+
+.ins-checkbox-panel.is-disabled {
+  background: color-mix(in srgb, var(--p-content-background) 96%, var(--p-surface-500) 4%);
+}
+
+.ins-checkbox-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  width: 100%;
+}
+
+.ins-toggle-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-weight: 500;
+  color: var(--p-text-color);
+  flex: 0 1 auto;
+}
+
+.ins-checkbox-panel small {
+  line-height: 1.4;
+  flex: 1 1 auto;
+  margin-left: auto;
+  text-align: right;
+}
+
+@media (max-width: 960px) {
+  .ins-checkbox-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .ins-checkbox-panel {
+    min-height: unset;
+  }
+
+  .ins-checkbox-panel small {
+    margin-left: 0;
+    text-align: left;
+  }
+}
+</style>
