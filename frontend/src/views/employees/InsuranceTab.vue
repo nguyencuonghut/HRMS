@@ -7,125 +7,144 @@
     </div>
 
     <template v-else-if="profile">
-      <!-- Summary header -->
-      <div class="ins-tab-header">
-        <div class="ins-tab-meta">
-          <Tag
-            :value="statusLabel(profile.participation_status)"
-            :severity="statusSeverity(profile.participation_status)"
-          />
-          <span v-if="profile.policy_version_name" class="ins-tab-policy">
-            Policy: <strong>{{ profile.policy_version_name }}</strong>
-          </span>
-        </div>
-        <div class="ins-tab-actions">
-          <Button
-            v-can:edit="'insurance'"
-            v-if="!editing"
-            label="Chỉnh sửa"
-            icon="pi pi-pencil"
-            severity="secondary"
-            @click="startEdit"
-          />
-          <template v-else>
-            <Button label="Hủy" severity="secondary" text :disabled="saving" @click="cancelEdit" />
-            <Button v-can:edit="'insurance'" label="Lưu" icon="pi pi-save" :loading="saving" @click="save" />
-          </template>
-        </div>
-      </div>
-
       <!-- Read mode -->
       <template v-if="!editing">
-        <div class="ins-tab-info-grid">
-          <div class="info-row">
-            <span class="info-label">Mã số BHXH</span>
-            <span class="info-value">{{ profile.bhxh_code || '—' }}</span>
-          </div>
-          <div class="info-row">
-            <span class="info-label">Mã BH chăm sóc sức khỏe</span>
-            <span class="info-value">{{ profile.health_care_insurance_code || '—' }}</span>
-          </div>
-          <div class="info-row">
-            <span class="info-label">Người thân tham gia CSSK</span>
-            <span class="info-value">
-              <template v-if="profile.health_care_insurance_code">
-                {{ profile.health_care_family_participation ? 'Có' : 'Không' }}
-              </template>
-              <span v-else class="text-muted">—</span>
-            </span>
-          </div>
-          <div class="info-row">
-            <span class="info-label">Mã BH tai nạn</span>
-            <span class="info-value">{{ profile.accident_insurance_code || '—' }}</span>
-          </div>
-          <div class="info-row">
-            <span class="info-label">Nơi KCB ban đầu</span>
-            <span class="info-value">{{ profile.bhyt_initial_clinic_name || '—' }}</span>
-          </div>
-          <div class="info-row">
-            <span class="info-label">Ngày tham gia tại công ty</span>
-            <span class="info-value">{{ formatDate(profile.company_bhxh_joined_date) }}</span>
-          </div>
-          <div class="info-row">
-            <span class="info-label">Nền tính BHXH</span>
-            <span class="info-value">
-              <template v-if="profile.insurance_basis_amount">
-                {{ formatCurrency(profile.insurance_basis_amount) }}
-                <small class="ins-basis-source">({{ basisSourceLabel(profile.insurance_basis_source) }})</small>
-              </template>
-              <span v-else class="text-muted">Chưa xác định</span>
-            </span>
-          </div>
-          <div v-if="profile.contract_number" class="info-row">
-            <span class="info-label">Hợp đồng hiện hành</span>
-            <span class="info-value">{{ profile.contract_number }}</span>
-          </div>
-          <div v-if="profile.status_note" class="info-row">
-            <span class="info-label">Ghi chú trạng thái</span>
-            <span class="info-value">{{ profile.status_note }}</span>
-          </div>
-        </div>
-
-        <!-- Contributions snapshot -->
-        <div v-if="profile.contributions.length > 0" class="ins-tab-contribs">
-          <h4 class="ins-tab-section-title">Mức đóng theo policy</h4>
-          <div class="ins-tab-contrib-table">
-            <div class="ins-contrib-head">
-              <span>Khoản đóng</span>
-              <span>NLĐ</span>
-              <span>NSDLĐ</span>
-              <span>Cách tính</span>
+        <div class="section-stack">
+          <div class="section-card">
+            <div class="section-header">
+              <div class="ins-tab-meta">
+                <span class="section-title">Hồ sơ bảo hiểm</span>
+                <Tag
+                  :value="statusLabel(profile.participation_status)"
+                  :severity="statusSeverity(profile.participation_status)"
+                />
+                <span v-if="profile.policy_version_name" class="ins-tab-policy">
+                  Policy: <strong>{{ profile.policy_version_name }}</strong>
+                </span>
+              </div>
+              <div class="section-actions">
+                <Button
+                  v-can:edit="'insurance'"
+                  label="Chỉnh sửa"
+                  icon="pi pi-pencil"
+                  severity="secondary"
+                  outlined
+                  size="small"
+                  @click="startEdit"
+                />
+              </div>
             </div>
-            <div
-              v-for="c in profile.contributions"
-              :key="c.component_code"
-              class="ins-contrib-row"
-            >
-              <span class="ins-contrib-name">{{ c.component_name }}</span>
-              <span>{{ formatContribAmount(c.employee_amount, c.employee_rate_percent) }}</span>
-              <span>{{ formatContribAmount(c.employer_amount, c.employer_rate_percent) }}</span>
-              <span>
-                <Tag
-                  v-if="c.calc_mode === 'fixed_amount'"
-                  value="Cố định"
-                  severity="warn"
-                  class="ins-calc-tag"
-                />
-                <span v-else class="text-muted" style="font-size: 0.82rem">Theo policy</span>
-                <Tag
-                  v-if="c.employer_advances_employee_part"
-                  value="Nộp hộ"
-                  severity="info"
-                  class="ins-calc-tag"
-                />
-              </span>
+
+            <div class="info-grid">
+              <div class="info-row">
+                <span class="info-label">Mã số BHXH</span>
+                <span class="info-value">{{ profile.bhxh_code || '—' }}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Mã BH chăm sóc sức khỏe</span>
+                <span class="info-value">{{ profile.health_care_insurance_code || '—' }}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Người thân tham gia CSSK</span>
+                <span class="info-value">
+                  <template v-if="profile.health_care_insurance_code">
+                    {{ profile.health_care_family_participation ? 'Có' : 'Không' }}
+                  </template>
+                  <span v-else class="text-muted">—</span>
+                </span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Mã BH tai nạn</span>
+                <span class="info-value">{{ profile.accident_insurance_code || '—' }}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Nơi KCB ban đầu</span>
+                <span class="info-value">{{ profile.bhyt_initial_clinic_name || '—' }}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Ngày tham gia tại công ty</span>
+                <span class="info-value">{{ formatDate(profile.company_bhxh_joined_date) }}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Nền tính BHXH</span>
+                <span class="info-value">
+                  <template v-if="profile.insurance_basis_amount">
+                    {{ formatCurrency(profile.insurance_basis_amount) }}
+                    <small class="ins-basis-source">({{ basisSourceLabel(profile.insurance_basis_source) }})</small>
+                  </template>
+                  <span v-else class="text-muted">Chưa xác định</span>
+                </span>
+              </div>
+              <div v-if="profile.contract_number" class="info-row">
+                <span class="info-label">Hợp đồng hiện hành</span>
+                <span class="info-value">{{ profile.contract_number }}</span>
+              </div>
+              <div v-if="profile.status_note" class="info-row">
+                <span class="info-label">Ghi chú trạng thái</span>
+                <span class="info-value muted-text">{{ profile.status_note }}</span>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="profile.contributions.length > 0" class="section-card ins-tab-contribs">
+            <div class="section-header">
+              <span class="section-title">Mức đóng theo policy</span>
+            </div>
+
+            <div class="ins-tab-contrib-table">
+              <div class="ins-contrib-head">
+                <span>Khoản đóng</span>
+                <span>NLĐ</span>
+                <span>NSDLĐ</span>
+                <span>Cách tính</span>
+              </div>
+              <div
+                v-for="c in profile.contributions"
+                :key="c.component_code"
+                class="ins-contrib-row"
+              >
+                <span class="ins-contrib-name">{{ c.component_name }}</span>
+                <span>{{ formatContribAmount(c.employee_amount, c.employee_rate_percent) }}</span>
+                <span>{{ formatContribAmount(c.employer_amount, c.employer_rate_percent) }}</span>
+                <span>
+                  <Tag
+                    v-if="c.calc_mode === 'fixed_amount'"
+                    value="Cố định"
+                    severity="warn"
+                    class="ins-calc-tag"
+                  />
+                  <span v-else class="text-muted" style="font-size: 0.82rem">Theo policy</span>
+                  <Tag
+                    v-if="c.employer_advances_employee_part"
+                    value="Nộp hộ"
+                    severity="info"
+                    class="ins-calc-tag"
+                  />
+                </span>
+              </div>
             </div>
           </div>
         </div>
       </template>
 
+      <div v-else class="ins-tab-edit">
+        <div class="ins-tab-header">
+          <div class="ins-tab-meta">
+            <Tag
+              :value="statusLabel(profile.participation_status)"
+              :severity="statusSeverity(profile.participation_status)"
+            />
+            <span v-if="profile.policy_version_name" class="ins-tab-policy">
+              Policy: <strong>{{ profile.policy_version_name }}</strong>
+            </span>
+          </div>
+          <div class="ins-tab-actions">
+            <Button label="Hủy" severity="secondary" text :disabled="saving" @click="cancelEdit" />
+            <Button v-can:edit="'insurance'" label="Lưu" icon="pi pi-save" :loading="saving" @click="save" />
+          </div>
+        </div>
+
       <!-- Edit mode -->
-      <template v-else>
         <div class="field-row">
           <div class="field">
             <label>Mã số BHXH</label>
@@ -244,7 +263,7 @@
             </div>
           </div>
         </div>
-      </template>
+      </div>
     </template>
 
     <!-- No profile -->
