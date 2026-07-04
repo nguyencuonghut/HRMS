@@ -23,6 +23,7 @@ from app.seeds import (
     employees as employees_seed,
     other_business_catalog,
     employee_assets as assets_seed,
+    employee_contracts as contracts_seed,
 )
 from app.services.employee_insurance_service import (
     ensure_employee_insurance_profile,
@@ -99,6 +100,8 @@ async def run(session: AsyncSession) -> None:
     await session.flush()
     insurance_profiles_added = await _seed_sample_employee_insurance_profiles(session)
     await session.flush()
+    contracts_added = await contracts_seed.seed_sample_contracts(session)
+    await session.flush()
     job_records_added = await job_records_seed.seed_sample_job_records(session)
     await session.flush()
     control_branch_counts = await control_branch_sample.seed_control_branch_employee_domain_data(session)
@@ -119,6 +122,7 @@ async def run(session: AsyncSession) -> None:
     print(f"  [sample] Placeholder mẫu:   +{placeholders_added} upsert")
     print(f"  [sample] Nhân viên mẫu:     +{emps_added} dòng")
     print(f"  [sample] Hồ sơ BHXH:        +{insurance_profiles_added} dòng")
+    print(f"  [sample] Hợp đồng mẫu:      +{contracts_added} dòng")
     print(f"  [sample] Tài sản cấp phát:  +{assets_added} dòng")
     print(f"  [sample] Bản ghi công việc: +{job_records_added} dòng")
     print(f"  [sample] Địa chỉ KS/KSNB/IT: +{control_branch_counts['employee_addresses']} dòng")
