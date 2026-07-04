@@ -138,7 +138,53 @@
             title="Không có dữ liệu"
             subtitle="Chưa có dữ liệu giới tính trong phạm vi lọc."
           />
-          <PieSummaryChart v-else :items="structure.gender" />
+          <PieSummaryChart
+            v-else
+            :items="structure.gender"
+            aria-label="Cơ cấu giới tính"
+          />
+        </div>
+
+        <div class="card dashboard-card">
+          <div class="dashboard-structure-head">Trong tỉnh / ngoài tỉnh</div>
+          <div v-if="loading" class="dashboard-chart-skeleton">
+            <Skeleton height="260px" border-radius="12px" />
+          </div>
+          <EmptyState
+            v-else-if="structure.residence_province.length === 0"
+            title="Không có dữ liệu"
+            subtitle="Chưa có dữ liệu nơi cư trú trong phạm vi lọc."
+          />
+          <PieSummaryChart
+            v-else
+            :items="structure.residence_province"
+            aria-label="Cơ cấu nơi cư trú"
+            :palette="[
+              'var(--dashboard-residence-in-province)',
+              'var(--dashboard-residence-out-province)',
+            ]"
+          />
+        </div>
+
+        <div class="card dashboard-card">
+          <div class="dashboard-structure-head">Loại hợp đồng lao động</div>
+          <div v-if="loading" class="dashboard-chart-skeleton">
+            <Skeleton height="260px" border-radius="12px" />
+          </div>
+          <EmptyState
+            v-else-if="structure.contract_type.length === 0"
+            title="Không có dữ liệu"
+            subtitle="Chưa có dữ liệu hợp đồng trong phạm vi lọc."
+          />
+          <PieSummaryChart
+            v-else
+            :items="structure.contract_type"
+            aria-label="Cơ cấu loại hợp đồng lao động"
+            :palette="[
+              'var(--dashboard-contract-definite)',
+              'var(--dashboard-contract-indefinite)',
+            ]"
+          />
         </div>
 
         <div class="card dashboard-card">
@@ -222,10 +268,10 @@ import Skeleton from "primevue/skeleton";
 import dashboardService, {
   type DashboardFilterParams,
   type DashboardSummary,
-  type GenderStructureItem,
   type HeadcountByDepartmentItem,
   type MonthlyTrendItem,
   type MonthlyTrendReport,
+  type PieStructureItem,
   type StructureMetricItem,
   type StructureReport,
 } from "@/services/dashboardService";
@@ -255,6 +301,8 @@ const monthlyTrend = ref<MonthlyTrendReport>({
 });
 const structure = ref<StructureReport>({
   gender: [],
+  residence_province: [],
+  contract_type: [],
   age_group: [],
   education_level: [],
   tenure_group: [],
@@ -568,7 +616,15 @@ const HeadcountHierarchyChart = defineComponent({
 const PieSummaryChart = defineComponent({
   name: "DashboardPieSummaryChart",
   props: {
-    items: { type: Array as PropType<GenderStructureItem[]>, required: true },
+    items: { type: Array as PropType<PieStructureItem[]>, required: true },
+    palette: {
+      type: Array as PropType<string[]>,
+      default: () => [],
+    },
+    ariaLabel: {
+      type: String,
+      default: "Biểu đồ cơ cấu",
+    },
   },
   setup(props) {
     const fallbackColors = [
@@ -581,6 +637,7 @@ const PieSummaryChart = defineComponent({
     );
 
     function genderColor(label: string, index: number): string {
+      if (props.palette[index]) return props.palette[index];
       const normalized = label.trim().toLowerCase();
       if (normalized === "nam") return "var(--dashboard-gender-male)";
       if (normalized === "nữ" || normalized === "nu") return "var(--dashboard-gender-female)";
@@ -616,7 +673,7 @@ const PieSummaryChart = defineComponent({
           {
             viewBox: "0 0 42 42",
             class: "pie-summary-chart",
-            "aria-label": "Cơ cấu giới tính",
+            "aria-label": props.ariaLabel,
           },
           [
             h("circle", {
@@ -831,6 +888,8 @@ async function loadDashboard() {
     };
     structure.value = {
       gender: [],
+      residence_province: [],
+      contract_type: [],
       age_group: [],
       education_level: [],
       tenure_group: [],
@@ -881,6 +940,10 @@ onMounted(async () => {
   --dashboard-resigned-color: #dc2626;
   --dashboard-gender-male: #2563eb;
   --dashboard-gender-female: #f97316;
+  --dashboard-residence-in-province: #16a34a;
+  --dashboard-residence-out-province: #f97316;
+  --dashboard-contract-definite: #8b5cf6;
+  --dashboard-contract-indefinite: #06b6d4;
   --dashboard-pie-1: #14b8a6;
   --dashboard-pie-2: #38bdf8;
   --dashboard-pie-3: #f59e0b;
@@ -916,6 +979,10 @@ html.dark-mode .dashboard-view {
   --dashboard-resigned-color: #f87171;
   --dashboard-gender-male: #60a5fa;
   --dashboard-gender-female: #fb7185;
+  --dashboard-residence-in-province: #4ade80;
+  --dashboard-residence-out-province: #fdba74;
+  --dashboard-contract-definite: #c4b5fd;
+  --dashboard-contract-indefinite: #67e8f9;
   --dashboard-pie-1: #5eead4;
   --dashboard-pie-2: #7dd3fc;
   --dashboard-pie-3: #fcd34d;

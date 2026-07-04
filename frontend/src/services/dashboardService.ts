@@ -46,8 +46,14 @@ export interface GenderStructureItem extends StructureMetricItem {
   percentage: number;
 }
 
+export interface PieStructureItem extends StructureMetricItem {
+  percentage: number;
+}
+
 export interface StructureReport {
-  gender: GenderStructureItem[];
+  gender: PieStructureItem[];
+  residence_province: PieStructureItem[];
+  contract_type: PieStructureItem[];
   age_group: StructureMetricItem[];
   education_level: StructureMetricItem[];
   tenure_group: StructureMetricItem[];

@@ -54,6 +54,34 @@ async def _seed_dashboard_data() -> dict[str, int]:
         education_ids = (await s.execute(text("SELECT id FROM education_levels ORDER BY id LIMIT 2"))).scalars().all()
         sequence_id = (await s.execute(text("SELECT id FROM employee_code_sequences ORDER BY id LIMIT 1"))).scalar_one()
         max_seq = (await s.execute(text("SELECT COALESCE(MAX(employee_seq), 0) FROM employees"))).scalar_one()
+        ninh_binh_province_id = (await s.execute(text("""
+            SELECT id
+            FROM administrative_units
+            WHERE unit_type = 'province'
+              AND normalized_name IN ('ninh binh', 'tinh ninh binh')
+              AND is_active = TRUE
+            ORDER BY id
+            LIMIT 1
+        """))).scalar_one()
+        ninh_binh_ward_id = (await s.execute(text("""
+            SELECT id
+            FROM administrative_units
+            WHERE unit_type = 'ward'
+              AND province_code = (
+                  SELECT code
+                  FROM administrative_units
+                  WHERE id = :province_id
+              )
+              AND is_active = TRUE
+            ORDER BY id
+            LIMIT 1
+        """), {"province_id": ninh_binh_province_id})).scalar_one()
+        labor_indefinite_category_id = (await s.execute(text("""
+            SELECT id FROM contract_categories WHERE code = 'labor_indefinite'
+        """))).scalar_one()
+        labor_definite_category_id = (await s.execute(text("""
+            SELECT id FROM contract_categories WHERE code = 'labor_definite'
+        """))).scalar_one()
 
         dept_a = (await s.execute(text("""
             INSERT INTO departments (code, name, short_name, dept_type, order_no, is_active, created_at)
@@ -216,6 +244,117 @@ async def _seed_dashboard_data() -> dict[str, int]:
                     "education_level_id": employee["education_id"],
                 })
 
+            if idx == 1:
+                await s.execute(text("""
+                    INSERT INTO employee_addresses (
+                        employee_id, address_type, new_province_unit_id, new_ward_unit_id,
+                        new_address_line, full_address_text, created_at, updated_at
+                    ) VALUES (
+                        :employee_id, 'permanent', :province_id, NULL,
+                        'Xóm test trong tỉnh', 'Xóm test trong tỉnh, Tỉnh Ninh Bình', NOW(), NOW()
+                    )
+                """), {
+                    "employee_id": employee_id,
+                    "province_id": ninh_binh_province_id,
+                })
+                await s.execute(text("""
+                    INSERT INTO employee_contracts (
+                        employee_id, parent_contract_id, contract_category_id, document_kind,
+                        contract_number, signed_date, effective_from, effective_to,
+                        insurance_salary, insurance_salary_mode, status, created_at, updated_at
+                    ) VALUES (
+                        :employee_id, NULL, :category_id, 'labor_contract',
+                        :contract_number, :signed_date, :effective_from, NULL,
+                        NULL, 'fixed_manual', 'active', NOW(), NOW()
+                    )
+                """), {
+                    "employee_id": employee_id,
+                    "category_id": labor_indefinite_category_id,
+                    "contract_number": f"{_PREFIX}-LABOR-IND-{idx}",
+                    "signed_date": employee["start_date"],
+                    "effective_from": employee["start_date"],
+                })
+            elif idx == 2:
+                await s.execute(text("""
+                    INSERT INTO employee_addresses (
+                        employee_id, address_type, new_province_unit_id, new_ward_unit_id,
+                        new_address_line, full_address_text, created_at, updated_at
+                    ) VALUES (
+                        :employee_id, 'permanent', NULL, NULL,
+                        NULL, 'Số 9 phố test, Hà Nội', NOW(), NOW()
+                    )
+                """), {
+                    "employee_id": employee_id,
+                })
+                await s.execute(text("""
+                    INSERT INTO employee_contracts (
+                        employee_id, parent_contract_id, contract_category_id, document_kind,
+                        contract_number, signed_date, effective_from, effective_to,
+                        insurance_salary, insurance_salary_mode, status, created_at, updated_at
+                    ) VALUES (
+                        :employee_id, NULL, :category_id, 'labor_contract',
+                        :contract_number, :signed_date, :effective_from, :effective_to,
+                        NULL, 'fixed_manual', 'active', NOW(), NOW()
+                    )
+                """), {
+                    "employee_id": employee_id,
+                    "category_id": labor_definite_category_id,
+                    "contract_number": f"{_PREFIX}-LABOR-DEF-{idx}",
+                    "signed_date": employee["start_date"],
+                    "effective_from": employee["start_date"],
+                    "effective_to": date(today.year + 1, 12, 31),
+                })
+            elif idx == 3:
+                await s.execute(text("""
+                    INSERT INTO employee_contracts (
+                        employee_id, parent_contract_id, contract_category_id, document_kind,
+                        contract_number, signed_date, effective_from, effective_to,
+                        insurance_salary, insurance_salary_mode, status, created_at, updated_at
+                    ) VALUES (
+                        :employee_id, NULL, :category_id, 'labor_contract',
+                        :contract_number, :signed_date, :effective_from, :effective_to,
+                        NULL, 'fixed_manual', 'expired', NOW(), NOW()
+                    )
+                """), {
+                    "employee_id": employee_id,
+                    "category_id": labor_definite_category_id,
+                    "contract_number": f"{_PREFIX}-LABOR-OLD-{idx}",
+                    "signed_date": employee["start_date"],
+                    "effective_from": employee["start_date"],
+                    "effective_to": date(today.year - 1, 12, 31),
+                })
+            elif idx == 4:
+                await s.execute(text("""
+                    INSERT INTO employee_addresses (
+                        employee_id, address_type, new_province_unit_id, new_ward_unit_id,
+                        new_address_line, full_address_text, created_at, updated_at
+                    ) VALUES (
+                        :employee_id, 'permanent', NULL, :ward_id,
+                        'Tổ 2 test', NULL, NOW(), NOW()
+                    )
+                """), {
+                    "employee_id": employee_id,
+                    "ward_id": ninh_binh_ward_id,
+                })
+                await s.execute(text("""
+                    INSERT INTO employee_contracts (
+                        employee_id, parent_contract_id, contract_category_id, document_kind,
+                        contract_number, signed_date, effective_from, effective_to,
+                        insurance_salary, insurance_salary_mode, status, created_at, updated_at
+                    ) VALUES (
+                        :employee_id, NULL, :category_id, 'labor_contract',
+                        :contract_number, :signed_date, :effective_from, :effective_to,
+                        NULL, 'fixed_manual', 'active', NOW(), NOW()
+                    )
+                """), {
+                    "employee_id": employee_id,
+                    "category_id": labor_definite_category_id,
+                    "contract_number": f"{_PREFIX}-LABOR-DEF-{idx}",
+                    "signed_date": employee["start_date"],
+                    "effective_from": employee["start_date"],
+                    "effective_to": date(today.year + 2, 6, 30),
+                })
+
         await s.commit()
     await engine.dispose()
     return {
@@ -373,6 +512,12 @@ def test_structure_groups_gender_and_missing_education(client: TestClient):
     assert genders["Nam"]["count"] == 1
     assert genders["Nữ"]["count"] == 1
     assert "Khác" not in genders
+    province_scope = {item["label"]: item["count"] for item in body["residence_province"]}
+    assert province_scope["Trong tỉnh (Ninh Bình)"] == 1
+    assert province_scope["Ngoài tỉnh"] == 1
+    contract_type = {item["label"]: item["count"] for item in body["contract_type"]}
+    assert contract_type["Xác định thời hạn"] == 1
+    assert contract_type["Không xác định thời hạn"] == 1
     assert len(body["age_group"]) >= 2
     assert len(body["tenure_group"]) >= 2
 
@@ -381,6 +526,10 @@ def test_structure_groups_gender_and_missing_education(client: TestClient):
     other_body = other_resp.json()
     other_genders = {item["label"]: item for item in other_body["gender"]}
     assert other_genders["Khác"]["count"] == 1
+    other_province_scope = {item["label"]: item["count"] for item in other_body["residence_province"]}
+    assert other_province_scope["Trong tỉnh (Ninh Bình)"] == 1
+    other_contract_type = {item["label"]: item["count"] for item in other_body["contract_type"]}
+    assert other_contract_type["Xác định thời hạn"] == 1
     education = {item["label"]: item["count"] for item in other_body["education_level"]}
     assert education["Chưa cập nhật"] == 1
 

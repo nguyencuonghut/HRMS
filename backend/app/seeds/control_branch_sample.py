@@ -20,7 +20,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.salary import BhxhPositionGroup
 from app.schemas.employee_contract import ContractCreate
+from app.services.administrative_import_service import normalize_text
 from app.services.employee_contract_service import create_contract
+from app.utils.contract_status import effective_contract_status
 
 
 @dataclass(frozen=True)
@@ -48,6 +50,10 @@ class ControlEmployeeSeed:
     discipline_title: str
     training_course_code: str
     recruitment_channel_code: str
+    residence_source: str
+    residence_province_name: str | None
+    residence_address_line: str | None
+    residence_full_address_text: str | None
 
 
 CONTROL_EMPLOYEES: list[ControlEmployeeSeed] = [
@@ -75,6 +81,10 @@ CONTROL_EMPLOYEES: list[ControlEmployeeSeed] = [
         discipline_title="Nhắc nhở quy trình phê duyệt chứng từ",
         training_course_code="SAMPLE_KS_AUDIT",
         recruitment_channel_code="SAMPLE_KS_REFERRAL",
+        residence_source="new_province",
+        residence_province_name="Ninh Bình",
+        residence_address_line="Xóm 2, xã Gia Vân",
+        residence_full_address_text="Xóm 2, xã Gia Vân, tỉnh Ninh Bình",
     ),
     ControlEmployeeSeed(
         id_number="079091555555",
@@ -100,6 +110,10 @@ CONTROL_EMPLOYEES: list[ControlEmployeeSeed] = [
         discipline_title="Nhắc nhở chậm cập nhật checklist kiểm soát",
         training_course_code="SAMPLE_KS_COMPLIANCE",
         recruitment_channel_code="SAMPLE_KS_TOPCV",
+        residence_source="new_ward",
+        residence_province_name="Ninh Bình",
+        residence_address_line="Tổ dân phố 5",
+        residence_full_address_text="Tổ dân phố 5, tỉnh Ninh Bình",
     ),
     ControlEmployeeSeed(
         id_number="079093666666",
@@ -125,6 +139,10 @@ CONTROL_EMPLOYEES: list[ControlEmployeeSeed] = [
         discipline_title="Nhắc nhở lưu hồ sơ kiểm tra chưa đúng mẫu",
         training_course_code="SAMPLE_KS_COMPLIANCE",
         recruitment_channel_code="SAMPLE_KS_TOPCV",
+        residence_source="full_text",
+        residence_province_name=None,
+        residence_address_line=None,
+        residence_full_address_text="Số 12 phố Huế, Hai Bà Trưng, Hà Nội",
     ),
     ControlEmployeeSeed(
         id_number="079094777777",
@@ -150,6 +168,10 @@ CONTROL_EMPLOYEES: list[ControlEmployeeSeed] = [
         discipline_title="Nhắc nhở chậm đóng ticket bảo trì",
         training_course_code="SAMPLE_KS_ITSEC",
         recruitment_channel_code="SAMPLE_KS_REFERRAL",
+        residence_source="full_text",
+        residence_province_name=None,
+        residence_address_line=None,
+        residence_full_address_text="45 Nguyễn Tất Thành, Buôn Ma Thuột, Đắk Lắk",
     ),
     ControlEmployeeSeed(
         id_number="079096888888",
@@ -175,6 +197,10 @@ CONTROL_EMPLOYEES: list[ControlEmployeeSeed] = [
         discipline_title="Nhắc nhở bàn giao ca trực chưa đầy đủ",
         training_course_code="SAMPLE_KS_ITSEC",
         recruitment_channel_code="SAMPLE_KS_INTERNAL",
+        residence_source="new_province",
+        residence_province_name="Ninh Bình",
+        residence_address_line="Thôn Đông, xã Yên Mạc",
+        residence_full_address_text="Thôn Đông, xã Yên Mạc, tỉnh Ninh Bình",
     ),
 ]
 
@@ -237,6 +263,47 @@ async def _get_bhxh_group_id(session: AsyncSession, code: str) -> int:
     row = await _fetchone(session, "SELECT id FROM bhxh_position_groups WHERE code = :code", code=code)
     if not row:
         raise RuntimeError(f"Không tìm thấy nhóm vị trí BHXH '{code}'")
+    return row[0]
+
+
+async def _get_new_province_id(session: AsyncSession, province_name: str) -> int:
+    normalized_name = normalize_text(province_name)
+    row = await _fetchone(
+        session,
+        """
+        SELECT id
+        FROM administrative_units
+        WHERE unit_type = 'province'
+          AND normalized_name IN (:normalized_name, :prefixed_normalized_name)
+          AND is_active = TRUE
+        ORDER BY id
+        LIMIT 1
+        """,
+        normalized_name=normalized_name,
+        prefixed_normalized_name=f"tinh {normalized_name}",
+    )
+    if not row:
+        raise RuntimeError(f"Không tìm thấy tỉnh hệ mới '{province_name}'")
+    return row[0]
+
+
+async def _get_any_ward_in_province(session: AsyncSession, province_id: int) -> int:
+    row = await _fetchone(
+        session,
+        """
+        SELECT ward.id
+        FROM administrative_units ward
+        JOIN administrative_units province ON province.code = ward.province_code
+        WHERE ward.unit_type = 'ward'
+          AND ward.is_active = TRUE
+          AND province.id = :province_id
+        ORDER BY ward.id
+        LIMIT 1
+        """,
+        province_id=province_id,
+    )
+    if not row:
+        raise RuntimeError(f"Không tìm thấy ward hệ mới cho province_id={province_id}")
     return row[0]
 
 
@@ -442,26 +509,93 @@ async def _ensure_contract_for_employee(
     created_by_id: int,
 ) -> int:
     contract_number = f"KS-SAMPLE-{employee.employee_seq:03d}"
-    exists = await _scalar(
+    desired_effective_to = (
+        None
+        if employee.contract_category_code == "labor_indefinite"
+        else max(
+            employee.join_date.replace(year=employee.join_date.year + 3),
+            date(date.today().year + 1, 12, 31),
+        )
+    )
+    desired_status = effective_contract_status("active", desired_effective_to)
+    existing_contract = await _fetchone(
         session,
-        "SELECT COUNT(*) FROM employee_contracts WHERE contract_number = :contract_number",
+        """
+        SELECT id, contract_category_id, effective_to, status,
+               insurance_salary_mode, bhxh_position_group_id, insurance_salary_grade_no,
+               bhxh_seniority_start_date, insurance_salary_fixed_amount, insurance_salary, notes
+        FROM employee_contracts
+        WHERE contract_number = :contract_number
+        """,
         contract_number=contract_number,
     )
-    if exists:
-        return 0
+    desired_category_id = await _get_contract_category_id(session, employee.contract_category_code)
+    desired_group_id = (
+        await _get_bhxh_group_id(session, employee.bhxh_group_code)
+        if employee.bhxh_group_code
+        else None
+    )
+    if existing_contract:
+        result = await session.execute(
+            text(
+                """
+                UPDATE employee_contracts
+                SET contract_category_id = :contract_category_id,
+                    signed_date = :signed_date,
+                    effective_from = :effective_from,
+                    effective_to = :effective_to,
+                    insurance_salary_mode = :insurance_salary_mode,
+                    bhxh_position_group_id = :bhxh_position_group_id,
+                    insurance_salary_grade_no = :insurance_salary_grade_no,
+                    bhxh_seniority_start_date = :bhxh_seniority_start_date,
+                    insurance_salary_fixed_amount = :insurance_salary_fixed_amount,
+                    insurance_salary = :insurance_salary,
+                    status = :status,
+                    notes = :notes,
+                    updated_at = NOW()
+                WHERE id = :contract_id
+                  AND (
+                      contract_category_id IS DISTINCT FROM :contract_category_id OR
+                      signed_date IS DISTINCT FROM :signed_date OR
+                      effective_from IS DISTINCT FROM :effective_from OR
+                      effective_to IS DISTINCT FROM :effective_to OR
+                      insurance_salary_mode IS DISTINCT FROM :insurance_salary_mode OR
+                      bhxh_position_group_id IS DISTINCT FROM :bhxh_position_group_id OR
+                      insurance_salary_grade_no IS DISTINCT FROM :insurance_salary_grade_no OR
+                      bhxh_seniority_start_date IS DISTINCT FROM :bhxh_seniority_start_date OR
+                      insurance_salary_fixed_amount IS DISTINCT FROM :insurance_salary_fixed_amount OR
+                      insurance_salary IS DISTINCT FROM :insurance_salary OR
+                      status IS DISTINCT FROM :status OR
+                      notes IS DISTINCT FROM :notes
+                  )
+                """
+            ),
+            {
+                "contract_id": existing_contract[0],
+                "contract_category_id": desired_category_id,
+                "signed_date": employee.join_date,
+                "effective_from": employee.join_date,
+                "effective_to": desired_effective_to,
+                "insurance_salary_mode": employee.insurance_mode,
+                "bhxh_position_group_id": desired_group_id,
+                "insurance_salary_grade_no": employee.insurance_grade_no,
+                "bhxh_seniority_start_date": employee.join_date,
+                "insurance_salary_fixed_amount": employee.insurance_fixed_amount,
+                "insurance_salary": employee.insurance_fixed_amount,
+                "status": desired_status,
+                "notes": "Hợp đồng mẫu nhánh Kiểm soát",
+            },
+        )
+        return result.rowcount
 
     payload = ContractCreate(
-        contract_category_id=await _get_contract_category_id(session, employee.contract_category_code),
+        contract_category_id=desired_category_id,
         contract_number=contract_number,
         signed_date=employee.join_date,
         effective_from=employee.join_date,
-        effective_to=None if employee.contract_category_code == "labor_indefinite" else employee.join_date.replace(year=employee.join_date.year + 3),
+        effective_to=desired_effective_to,
         insurance_salary_mode=employee.insurance_mode,
-        bhxh_position_group_id=(
-            await _get_bhxh_group_id(session, employee.bhxh_group_code)
-            if employee.bhxh_group_code
-            else None
-        ),
+        bhxh_position_group_id=desired_group_id,
         insurance_salary_grade_no=employee.insurance_grade_no,
         bhxh_seniority_start_date=employee.join_date,
         insurance_salary_fixed_amount=employee.insurance_fixed_amount,
@@ -470,6 +604,71 @@ async def _ensure_contract_for_employee(
     )
     await create_contract(session, employee_id, payload, created_by=created_by_id)
     return 1
+
+
+async def _ensure_permanent_address(
+    session: AsyncSession,
+    employee_id: int,
+    employee: ControlEmployeeSeed,
+) -> int:
+    province_id = None
+    ward_id = None
+    if employee.residence_source in {"new_province", "new_ward"}:
+        if not employee.residence_province_name:
+            raise RuntimeError(f"Thiếu residence_province_name cho {employee.full_name}")
+        province_id = await _get_new_province_id(
+            session,
+            employee.residence_province_name,
+        )
+        if employee.residence_source == "new_ward":
+            ward_id = await _get_any_ward_in_province(session, province_id)
+
+    result = await session.execute(
+        text(
+            """
+            INSERT INTO employee_addresses (
+                employee_id, address_type,
+                new_province_unit_id, new_district_unit_id, new_ward_unit_id, new_address_line,
+                old_province_unit_id, old_district_unit_id, old_ward_unit_id, old_address_line,
+                full_address_text, created_at, updated_at
+            )
+            VALUES (
+                :employee_id, 'permanent',
+                :new_province_unit_id, NULL, :new_ward_unit_id, :new_address_line,
+                NULL, NULL, NULL, NULL,
+                :full_address_text, NOW(), NOW()
+            )
+            ON CONFLICT (employee_id, address_type) DO UPDATE
+            SET new_province_unit_id = EXCLUDED.new_province_unit_id,
+                new_district_unit_id = EXCLUDED.new_district_unit_id,
+                new_ward_unit_id = EXCLUDED.new_ward_unit_id,
+                new_address_line = EXCLUDED.new_address_line,
+                old_province_unit_id = EXCLUDED.old_province_unit_id,
+                old_district_unit_id = EXCLUDED.old_district_unit_id,
+                old_ward_unit_id = EXCLUDED.old_ward_unit_id,
+                old_address_line = EXCLUDED.old_address_line,
+                full_address_text = EXCLUDED.full_address_text,
+                updated_at = NOW()
+            WHERE employee_addresses.new_province_unit_id IS DISTINCT FROM EXCLUDED.new_province_unit_id
+               OR employee_addresses.new_district_unit_id IS DISTINCT FROM EXCLUDED.new_district_unit_id
+               OR employee_addresses.new_ward_unit_id IS DISTINCT FROM EXCLUDED.new_ward_unit_id
+               OR employee_addresses.new_address_line IS DISTINCT FROM EXCLUDED.new_address_line
+               OR employee_addresses.old_province_unit_id IS DISTINCT FROM EXCLUDED.old_province_unit_id
+               OR employee_addresses.old_district_unit_id IS DISTINCT FROM EXCLUDED.old_district_unit_id
+               OR employee_addresses.old_ward_unit_id IS DISTINCT FROM EXCLUDED.old_ward_unit_id
+               OR employee_addresses.old_address_line IS DISTINCT FROM EXCLUDED.old_address_line
+               OR employee_addresses.full_address_text IS DISTINCT FROM EXCLUDED.full_address_text
+            """
+        ),
+        {
+            "employee_id": employee_id,
+            "new_province_unit_id": province_id if employee.residence_source == "new_province" else None,
+            "new_ward_unit_id": ward_id,
+            "new_address_line": employee.residence_address_line,
+            "full_address_text": employee.residence_full_address_text,
+        },
+    )
+    return result.rowcount
 
 
 async def _ensure_insurance_profile_and_change(
@@ -1512,6 +1711,7 @@ async def _ensure_recruitment_data(
 async def seed_control_branch_employee_domain_data(session: AsyncSession) -> dict[str, int]:
     """Seed full cross-module data for 5 control-branch employees."""
     summary = {
+        "employee_addresses": 0,
         "reward_types": 0,
         "training_courses": 0,
         "training_plans": 0,
@@ -1551,6 +1751,7 @@ async def seed_control_branch_employee_domain_data(session: AsyncSession) -> dic
 
     for employee in CONTROL_EMPLOYEES:
         employee_id = await _get_employee_id_by_seq(session, employee.employee_seq)
+        summary["employee_addresses"] += await _ensure_permanent_address(session, employee_id, employee)
         summary["contracts"] += await _ensure_contract_for_employee(session, employee_id, employee, admin_user_id)
         profile_updated, change_added = await _ensure_insurance_profile_and_change(session, employee_id, employee, admin_user_id)
         summary["insurance_profiles_updated"] += profile_updated

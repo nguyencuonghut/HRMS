@@ -8,13 +8,17 @@ from typing import Optional, Sequence
 import sqlalchemy as sa
 from fastapi import HTTPException, status
 from sqlalchemy import and_, case, func, select
+from sqlalchemy.orm import aliased
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.employee import Employee
+from app.models.employee import EmployeeAddress
+from app.models.employee_contract import EmployeeContract
 from app.models.employee_education import EmployeeEducationHistory
 from app.models.employee_job import EmployeeJobRecord
 from app.models.org import Department
-from app.models.catalog import EducationLevel
+from app.models.catalog import AdministrativeUnit, ContractCategory, EducationLevel
+from app.schemas.dashboard import PieMetricItem
 from app.schemas.dashboard import (
     DashboardSummary,
     GenderItem,
@@ -24,15 +28,26 @@ from app.schemas.dashboard import (
     StructureGroupItem,
     StructureReport,
 )
+from app.services.administrative_import_service import normalize_text
 
 _GENDER_LABELS = {
     "male": "Nam",
     "female": "Nữ",
     "other": "Khác",
 }
+_PROVINCE_SCOPE_ORDER = ["Trong tỉnh (Ninh Bình)", "Ngoài tỉnh"]
+_CONTRACT_TYPE_ORDER = ["Xác định thời hạn", "Không xác định thời hạn"]
+_LEGAL_CONTRACT_LABELS = {
+    "definite_term": "Xác định thời hạn",
+    "indefinite_term": "Không xác định thời hạn",
+}
 
 _AGE_GROUP_ORDER = ["Dưới 25", "25-34", "35-44", "45-54", "55 trở lên"]
 _TENURE_GROUP_ORDER = ["Dưới 1 năm", "1-2 năm", "3-5 năm", "6-10 năm", "Trên 10 năm"]
+_NINH_BINH_NORMALIZED_NAMES = {
+    normalize_text("Ninh Bình"),
+    normalize_text("Tỉnh Ninh Bình"),
+}
 
 
 def _round1(value: float) -> float:
@@ -42,6 +57,50 @@ def _round1(value: float) -> float:
 def _current_period(year: Optional[int], month: Optional[int]) -> tuple[int, Optional[int]]:
     today = date.today()
     return year or today.year, month
+
+
+def _build_pie_metric_items(
+    counts: dict[str, int],
+    order: Sequence[str],
+) -> list[PieMetricItem]:
+    total = sum(counts.values())
+    if total <= 0:
+        return []
+    return [
+        PieMetricItem(
+            label=label,
+            count=counts[label],
+            percentage=_round1(counts[label] / total * 100),
+        )
+        for label in order
+        if counts.get(label, 0) > 0
+    ]
+
+
+def _is_ninh_binh_from_sources(
+    *,
+    province_name: Optional[str],
+    full_address_text: Optional[str],
+) -> bool:
+    if province_name and normalize_text(province_name) in _NINH_BINH_NORMALIZED_NAMES:
+        return True
+    if full_address_text and "ninh binh" in normalize_text(full_address_text):
+        return True
+    return False
+
+
+def _classify_contract_type(
+    *,
+    legal_contract_type: Optional[str],
+    effective_to: Optional[date],
+) -> Optional[str]:
+    if legal_contract_type == "definite_term":
+        return _LEGAL_CONTRACT_LABELS["definite_term"]
+    if legal_contract_type == "indefinite_term":
+        return _LEGAL_CONTRACT_LABELS["indefinite_term"]
+    if effective_to is None:
+        return _LEGAL_CONTRACT_LABELS["indefinite_term"]
+    return None
 
 
 async def _department_scope_ids(
@@ -421,6 +480,9 @@ async def get_structure(
         allowed_department_ids=allowed_department_ids,
     )
     base_filters = _active_employee_filters(department_ids)
+    NewProvinceUnit = aliased(AdministrativeUnit)
+    NewWardUnit = aliased(AdministrativeUnit)
+    WardProvinceUnit = aliased(AdministrativeUnit)
 
     gender_stmt = (
         select(
@@ -441,6 +503,91 @@ async def get_structure(
         )
         for row in gender_rows
     ]
+
+    residence_stmt = (
+        select(
+            Employee.id,
+            NewProvinceUnit.name.label("new_province_name"),
+            WardProvinceUnit.name.label("new_ward_province_name"),
+            EmployeeAddress.full_address_text,
+        )
+        .join(EmployeeJobRecord, EmployeeJobRecord.employee_id == Employee.id)
+        .outerjoin(
+            EmployeeAddress,
+            and_(
+                EmployeeAddress.employee_id == Employee.id,
+                EmployeeAddress.address_type == "permanent",
+            ),
+        )
+        .outerjoin(NewProvinceUnit, NewProvinceUnit.id == EmployeeAddress.new_province_unit_id)
+        .outerjoin(NewWardUnit, NewWardUnit.id == EmployeeAddress.new_ward_unit_id)
+        .outerjoin(WardProvinceUnit, WardProvinceUnit.code == NewWardUnit.province_code)
+        .where(*base_filters)
+    )
+    residence_rows = (await session.execute(residence_stmt)).all()
+    residence_counts = {
+        _PROVINCE_SCOPE_ORDER[0]: 0,
+        _PROVINCE_SCOPE_ORDER[1]: 0,
+    }
+    for row in residence_rows:
+        label = (
+            _PROVINCE_SCOPE_ORDER[0]
+            if _is_ninh_binh_from_sources(
+                province_name=row.new_province_name or row.new_ward_province_name,
+                full_address_text=row.full_address_text,
+            )
+            else _PROVINCE_SCOPE_ORDER[1]
+        )
+        residence_counts[label] += 1
+    residence_province = _build_pie_metric_items(residence_counts, _PROVINCE_SCOPE_ORDER)
+
+    current_contract_subquery = (
+        select(
+            EmployeeContract.employee_id.label("employee_id"),
+            func.max(EmployeeContract.effective_from).label("effective_from"),
+        )
+        .where(
+            EmployeeContract.status == "active",
+            EmployeeContract.parent_contract_id.is_(None),
+            EmployeeContract.document_kind == "labor_contract",
+        )
+        .group_by(EmployeeContract.employee_id)
+        .subquery()
+    )
+    contract_stmt = (
+        select(
+            Employee.id.label("employee_id"),
+            ContractCategory.legal_contract_type.label("legal_contract_type"),
+            EmployeeContract.effective_to.label("effective_to"),
+        )
+        .join(EmployeeJobRecord, EmployeeJobRecord.employee_id == Employee.id)
+        .join(
+            current_contract_subquery,
+            current_contract_subquery.c.employee_id == Employee.id,
+        )
+        .join(
+            EmployeeContract,
+            and_(
+                EmployeeContract.employee_id == current_contract_subquery.c.employee_id,
+                EmployeeContract.effective_from == current_contract_subquery.c.effective_from,
+                EmployeeContract.status == "active",
+            ),
+        )
+        .join(ContractCategory, ContractCategory.id == EmployeeContract.contract_category_id)
+        .where(
+            *base_filters,
+        )
+    )
+    contract_rows = (await session.execute(contract_stmt)).all()
+    contract_counts = {label: 0 for label in _CONTRACT_TYPE_ORDER}
+    for row in contract_rows:
+        label = _classify_contract_type(
+            legal_contract_type=row.legal_contract_type,
+            effective_to=row.effective_to,
+        )
+        if label:
+            contract_counts[label] += 1
+    contract_type = _build_pie_metric_items(contract_counts, _CONTRACT_TYPE_ORDER)
 
     age_group_expr = case(
         (func.date_part("year", func.age(func.current_date(), Employee.date_of_birth)) < 25, "Dưới 25"),
@@ -510,6 +657,8 @@ async def get_structure(
 
     return StructureReport(
         gender=gender,
+        residence_province=residence_province,
+        contract_type=contract_type,
         age_group=age_group,
         education_level=education_level,
         tenure_group=tenure_group,

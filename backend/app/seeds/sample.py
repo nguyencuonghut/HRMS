@@ -75,6 +75,7 @@ async def run(session: AsyncSession) -> None:
     print(f"  [sample] Hồ sơ BHXH:        +{insurance_profiles_added} dòng")
     print(f"  [sample] Tài sản cấp phát:  +{assets_added} dòng")
     print(f"  [sample] Bản ghi công việc: +{job_records_added} dòng")
+    print(f"  [sample] Địa chỉ KS/KSNB/IT: +{control_branch_counts['employee_addresses']} dòng")
     print(f"  [sample] HĐ KS/KSNB/IT:     +{control_branch_counts['contracts']} dòng")
     print(f"  [sample] BHXH KS/KSNB/IT:   +{control_branch_counts['insurance_change_events']} biến động")
     print(f"  [sample] Nghỉ phép KS/..:   +{control_branch_counts['leave_records']} dòng")

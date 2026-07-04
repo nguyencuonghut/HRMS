@@ -28,6 +28,8 @@ test.describe("Dashboard tổng quan", () => {
     await expect(
       page.getByRole("heading", { name: /Cơ cấu nhân sự/i }),
     ).toBeVisible();
+    await expect(page.getByText("Trong tỉnh / ngoài tỉnh")).toBeVisible();
+    await expect(page.getByText("Loại hợp đồng lao động")).toBeVisible();
 
     await page.waitForLoadState("networkidle");
 
@@ -43,6 +45,9 @@ test.describe("Dashboard tổng quan", () => {
 
     const lineChart = page.locator(".line-chart-svg");
     await expect(lineChart).toBeVisible();
+
+    const donutCharts = page.locator(".pie-summary-chart");
+    await expect(donutCharts).toHaveCount(3);
   });
 
   test("applies dark mode skin without breaking dashboard layout", async ({

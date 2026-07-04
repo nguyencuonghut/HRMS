@@ -9,7 +9,7 @@
         :use-grouping="false"
         placeholder="Năm"
         style="width: 90px"
-        inputStyle="width: 100%"
+        :inputStyle="{ width: '100%' }"
       />
 
       <Select

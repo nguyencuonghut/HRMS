@@ -38,10 +38,14 @@ class MonthlyTrendReport(BaseModel):
     monthly: List[MonthlyTrendItem]
 
 
-class GenderItem(BaseModel):
+class PieMetricItem(BaseModel):
     label: str
     count: int
     percentage: float
+
+
+class GenderItem(PieMetricItem):
+    pass
 
 
 class StructureGroupItem(BaseModel):
@@ -51,6 +55,8 @@ class StructureGroupItem(BaseModel):
 
 class StructureReport(BaseModel):
     gender: List[GenderItem]
+    residence_province: List[PieMetricItem]
+    contract_type: List[PieMetricItem]
     age_group: List[StructureGroupItem]
     education_level: List[StructureGroupItem]
     tenure_group: List[StructureGroupItem]
