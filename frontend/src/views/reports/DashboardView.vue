@@ -183,6 +183,7 @@
             :palette="[
               'var(--dashboard-contract-definite)',
               'var(--dashboard-contract-indefinite)',
+              'var(--dashboard-contract-probation)',
             ]"
           />
         </div>
@@ -944,6 +945,7 @@ onMounted(async () => {
   --dashboard-residence-out-province: #f97316;
   --dashboard-contract-definite: #8b5cf6;
   --dashboard-contract-indefinite: #06b6d4;
+  --dashboard-contract-probation: #f59e0b;
   --dashboard-pie-1: #14b8a6;
   --dashboard-pie-2: #38bdf8;
   --dashboard-pie-3: #f59e0b;
@@ -983,6 +985,7 @@ html.dark-mode .dashboard-view {
   --dashboard-residence-out-province: #fdba74;
   --dashboard-contract-definite: #c4b5fd;
   --dashboard-contract-indefinite: #67e8f9;
+  --dashboard-contract-probation: #fcd34d;
   --dashboard-pie-1: #5eead4;
   --dashboard-pie-2: #7dd3fc;
   --dashboard-pie-3: #fcd34d;

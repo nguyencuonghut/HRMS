@@ -36,7 +36,7 @@ _GENDER_LABELS = {
     "other": "Khác",
 }
 _PROVINCE_SCOPE_ORDER = ["Trong tỉnh (Ninh Bình)", "Ngoài tỉnh"]
-_CONTRACT_TYPE_ORDER = ["Xác định thời hạn", "Không xác định thời hạn"]
+_CONTRACT_TYPE_ORDER = ["Xác định thời hạn", "Không xác định thời hạn", "Thử việc"]
 _LEGAL_CONTRACT_LABELS = {
     "definite_term": "Xác định thời hạn",
     "indefinite_term": "Không xác định thời hạn",
@@ -91,9 +91,12 @@ def _is_ninh_binh_from_sources(
 
 def _classify_contract_type(
     *,
+    contract_category_code: Optional[str],
     legal_contract_type: Optional[str],
     effective_to: Optional[date],
 ) -> Optional[str]:
+    if contract_category_code == "probation_agreement":
+        return "Thử việc"
     if legal_contract_type == "definite_term":
         return _LEGAL_CONTRACT_LABELS["definite_term"]
     if legal_contract_type == "indefinite_term":
@@ -557,6 +560,7 @@ async def get_structure(
     contract_stmt = (
         select(
             Employee.id.label("employee_id"),
+            ContractCategory.code.label("contract_category_code"),
             ContractCategory.legal_contract_type.label("legal_contract_type"),
             EmployeeContract.effective_to.label("effective_to"),
         )
@@ -582,6 +586,7 @@ async def get_structure(
     contract_counts = {label: 0 for label in _CONTRACT_TYPE_ORDER}
     for row in contract_rows:
         label = _classify_contract_type(
+            contract_category_code=row.contract_category_code,
             legal_contract_type=row.legal_contract_type,
             effective_to=row.effective_to,
         )
