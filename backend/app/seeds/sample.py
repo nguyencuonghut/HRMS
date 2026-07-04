@@ -10,7 +10,7 @@ Nội dung:
 Seeder này idempotent: chạy nhiều lần không sinh dữ liệu trùng.
 """
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.employee import Employee
@@ -42,6 +42,52 @@ async def _seed_sample_employee_insurance_profiles(session: AsyncSession) -> int
 
 
 async def run(session: AsyncSession) -> None:
+    # 1. Clean up orphaned records to avoid FK constraint errors on dirty dev database
+    await session.execute(text("DELETE FROM bhxh_salary_adjustments WHERE employee_id NOT IN (SELECT id FROM employees)"))
+    await session.execute(text("DELETE FROM insurance_change_events WHERE employee_id NOT IN (SELECT id FROM employees)"))
+    await session.execute(text("DELETE FROM employee_insurance_profiles WHERE employee_id NOT IN (SELECT id FROM employees)"))
+    await session.execute(text("DELETE FROM employee_contracts WHERE employee_id NOT IN (SELECT id FROM employees)"))
+    await session.execute(text("DELETE FROM employee_job_records WHERE employee_id NOT IN (SELECT id FROM employees)"))
+    await session.execute(text("DELETE FROM employee_bank_accounts WHERE employee_id NOT IN (SELECT id FROM employees)"))
+    await session.execute(text("DELETE FROM employee_addresses WHERE employee_id NOT IN (SELECT id FROM employees)"))
+    await session.execute(text("DELETE FROM employee_assets WHERE employee_id NOT IN (SELECT id FROM employees)"))
+    await session.execute(text("DELETE FROM employee_relatives WHERE employee_id NOT IN (SELECT id FROM employees)"))
+    await session.execute(text("DELETE FROM employee_rewards WHERE employee_id NOT IN (SELECT id FROM employees)"))
+    await session.execute(text("DELETE FROM employee_disciplines WHERE employee_id NOT IN (SELECT id FROM employees)"))
+    await session.execute(text("DELETE FROM employee_training_records WHERE employee_id NOT IN (SELECT id FROM employees)"))
+    await session.execute(text("DELETE FROM employee_training_certificates WHERE employee_id NOT IN (SELECT id FROM employees)"))
+    await session.execute(text("DELETE FROM employee_kpi_monthly WHERE employee_id NOT IN (SELECT id FROM employees)"))
+    await session.execute(text("DELETE FROM employee_yearly_reviews WHERE employee_id NOT IN (SELECT id FROM employees)"))
+    await session.execute(text("DELETE FROM leave_records WHERE employee_id NOT IN (SELECT id FROM employees)"))
+    await session.execute(text("DELETE FROM leave_entitlements WHERE employee_id NOT IN (SELECT id FROM employees)"))
+    await session.flush()
+
+    # 2. Reset Postgres sequences to avoid sequence out of sync issues (primary key collision)
+    for seq_name, table_name in [
+        ("employees_id_seq", "employees"),
+        ("employee_insurance_profiles_id_seq", "employee_insurance_profiles"),
+        ("employee_contracts_id_seq", "employee_contracts"),
+        ("employee_job_records_id_seq", "employee_job_records"),
+        ("insurance_change_events_id_seq", "insurance_change_events"),
+        ("bhxh_salary_adjustments_id_seq", "bhxh_salary_adjustments"),
+        ("employee_bank_accounts_id_seq", "employee_bank_accounts"),
+        ("employee_addresses_id_seq", "employee_addresses"),
+        ("employee_assets_id_seq", "employee_assets"),
+        ("employee_relatives_id_seq", "employee_relatives"),
+        ("employee_rewards_id_seq", "employee_rewards"),
+        ("employee_disciplines_id_seq", "employee_disciplines"),
+        ("employee_training_records_id_seq", "employee_training_records"),
+        ("employee_training_certificates_id_seq", "employee_training_certificates"),
+        ("employee_kpi_monthly_id_seq", "employee_kpi_monthly"),
+        ("employee_yearly_reviews_id_seq", "employee_yearly_reviews"),
+        ("leave_records_id_seq", "leave_records"),
+        ("leave_entitlements_id_seq", "leave_entitlements"),
+    ]:
+        await session.execute(
+            text(f"SELECT setval('{seq_name}', COALESCE((SELECT MAX(id) FROM {table_name}), 1), true)")
+        )
+    await session.flush()
+
     institutions_added, majors_added = await education_catalog.seed_sample_education_catalog(session)
     (
         skills_added,
