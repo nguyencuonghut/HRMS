@@ -458,6 +458,30 @@ async def seed_job_positions(session: AsyncSession) -> int:
             )
         inserted += r.rowcount
 
+        await session.execute(
+            text("""
+                INSERT INTO department_job_positions
+                    (department_id, job_position_id, is_active, created_at, updated_at)
+                SELECT
+                    :department_id,
+                    jp.id,
+                    true,
+                    CURRENT_TIMESTAMP,
+                    CURRENT_TIMESTAMP
+                FROM job_positions jp
+                WHERE jp.code = :code
+                  AND jp.deleted_at IS NULL
+                ON CONFLICT (department_id, job_position_id)
+                DO UPDATE SET
+                    is_active = true,
+                    updated_at = CURRENT_TIMESTAMP
+            """),
+            {
+                "department_id": dept_id,
+                "code": pos["code"],
+            },
+        )
+
     return inserted
 
 

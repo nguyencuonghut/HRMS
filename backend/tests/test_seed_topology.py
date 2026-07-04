@@ -69,3 +69,27 @@ async def test_rbac_core_does_not_seed_local_users():
 
     after = await _scalar(sql)
     assert after == before
+
+
+async def test_bootstrap_seed_job_positions_also_repairs_department_mappings():
+    async with _make_session()() as session:
+        await required.run(session)
+        await bootstrap.run(session)
+        await session.commit()
+
+    sql = """
+        SELECT COUNT(*)
+        FROM job_positions jp
+        JOIN departments d
+          ON d.id = jp.department_id
+         AND d.deleted_at IS NULL
+        LEFT JOIN department_job_positions djp
+          ON djp.job_position_id = jp.id
+         AND djp.department_id = jp.department_id
+         AND djp.is_active = true
+        WHERE jp.code IN ('CT_HDQT', 'NV_IT', 'NV_KSNB', 'CV_IT', 'TN_KSNB', 'TP_KSNB')
+          AND jp.deleted_at IS NULL
+          AND djp.id IS NULL
+    """
+    missing = await _scalar(sql)
+    assert missing == 0
