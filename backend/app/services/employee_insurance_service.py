@@ -204,6 +204,7 @@ async def _build_list_item(
             employer_pays_on_behalf=False,
             contract_id=None,
             contract_number=None,
+            insurance_salary_grade_no=None,
             contributions=[],
         )
 
@@ -235,6 +236,7 @@ async def _build_list_item(
         employer_pays_on_behalf=employer_pays,
         contract_id=current_contract.id if current_contract else None,
         contract_number=current_contract.contract_number if current_contract else None,
+        insurance_salary_grade_no=current_contract.insurance_salary_grade_no if current_contract else None,
         contributions=contributions,
     )
 
@@ -608,6 +610,7 @@ async def get_insurance_profile_detail(
         employer_pays_on_behalf=employer_pays,
         contract_id=contract_row.id if contract_row else None,
         contract_number=contract_row.contract_number if contract_row else None,
+        insurance_salary_grade_no=contract_row.insurance_salary_grade_no if contract_row else None,
         contributions=contributions,
         created_at=profile.created_at,
         updated_at=profile.updated_at,

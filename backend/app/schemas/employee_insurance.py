@@ -49,6 +49,7 @@ class EmployeeInsuranceListItem(BaseModel):
 
     contract_id: Optional[int]
     contract_number: Optional[str]
+    insurance_salary_grade_no: Optional[int] = None
     contributions: list[InsuranceContributionComponentSnapshot] = []
 
 
@@ -134,6 +135,7 @@ class EmployeeInsuranceProfileRead(BaseModel):
 
     contract_id: Optional[int]
     contract_number: Optional[str]
+    insurance_salary_grade_no: Optional[int] = None
     contributions: list[InsuranceContributionComponentSnapshot] = []
 
     created_at: datetime

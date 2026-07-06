@@ -96,9 +96,12 @@
             class="contract-info-item"
           >
             <span class="contract-info-label">Nhóm vị trí BHXH</span>
+            <span class="contract-info-value">{{ c.bhxh_position_group_name }}</span>
+          </div>
+          <div class="contract-info-item" v-if="c.insurance_salary_grade_no">
+            <span class="contract-info-label">Bậc đóng BHXH</span>
             <span class="contract-info-value">
-              {{ c.bhxh_position_group_name }}
-              <template v-if="c.insurance_salary_grade_no"> - Bậc gốc {{ c.insurance_salary_grade_no }}</template>
+              Bậc gốc {{ c.insurance_salary_grade_no }}
               <template
                 v-if="
                   c.resolved_insurance_salary_grade_no &&

@@ -141,8 +141,11 @@
             <span v-else class="text-muted">—</span>
           </template>
         </Column>
-        <Column field="bhyt_initial_clinic_name" header="Nơi KCB ban đầu" style="min-width: 160px">
-          <template #body="{ data }">{{ data.bhyt_initial_clinic_name ?? '—' }}</template>
+        <Column field="insurance_salary_grade_no" header="Bậc đóng" style="min-width: 100px; text-align: center" class="text-center">
+          <template #body="{ data }">
+            <span v-if="data.insurance_salary_grade_no" class="ins-code">Bậc {{ data.insurance_salary_grade_no }}</span>
+            <span v-else class="text-muted">—</span>
+          </template>
         </Column>
         <Column field="company_bhxh_joined_date" header="Ngày tham gia" style="min-width: 120px">
           <template #body="{ data }">{{ formatDate(data.company_bhxh_joined_date) }}</template>

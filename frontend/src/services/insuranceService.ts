@@ -309,6 +309,7 @@ export interface EmployeeInsuranceListItem {
   employer_pays_on_behalf: boolean
   contract_id: number | null
   contract_number: string | null
+  insurance_salary_grade_no: number | null
   contributions: InsuranceContributionComponentSnapshot[]
 }
 
