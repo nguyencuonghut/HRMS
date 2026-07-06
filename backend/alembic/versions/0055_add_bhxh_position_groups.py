@@ -121,6 +121,7 @@ def downgrade() -> None:
     op.drop_index("ix_salary_scale_entries_group_lookup", table_name="salary_scale_entries")
     op.drop_index("uq_salary_scale_entries_job_title_legacy", table_name="salary_scale_entries")
     op.drop_index("uq_salary_scale_entries_group", table_name="salary_scale_entries")
+    op.execute("DELETE FROM salary_scale_entries WHERE job_title_id IS NULL")
     op.alter_column("salary_scale_entries", "job_title_id", existing_type=sa.Integer(), nullable=False)
     op.drop_constraint(
         "fk_salary_scale_entries_bhxh_position_group",
