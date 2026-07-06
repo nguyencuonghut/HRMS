@@ -444,6 +444,15 @@ const router = createRouter({
             permission: "data_import:view",
           },
         },
+        {
+          path: "data/export",
+          name: "data-export",
+          component: () => import("@/views/data/DataExportView.vue"),
+          meta: {
+            title: "Xuất dữ liệu",
+            permission: "employees:export",
+          },
+        },
         // Danh mục
         {
           path: "catalog",

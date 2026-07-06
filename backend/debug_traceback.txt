@@ -1,0 +1,8 @@
+Traceback (most recent call last):
+  File "/app/app/api/v1/endpoints/employee_io.py", line 124, in export_comprehensive_employees
+    content = await employee_export_service.export_comprehensive_employee_list(session)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/app/app/services/employee_export_service.py", line 743, in export_comprehensive_employee_list
+    NDA_item = next((item for item, dtype in emp_chk if dtype.code == "cam_ket_bao_mat_thong_tin"), None)
+                                             ^^^^^^^
+NameError: name 'emp_chk' is not defined

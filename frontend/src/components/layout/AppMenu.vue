@@ -326,6 +326,12 @@ const menu: MenuItem[] = [
     icon: "pi-upload",
     permission: "data_import:view",
   },
+  {
+    to: "/data/export",
+    label: "Xuất dữ liệu",
+    icon: "pi-download",
+    permission: "employees:export",
+  },
   { section: true, label: "Hệ thống" },
   {
     label: "Danh mục",

@@ -853,6 +853,11 @@ export default {
   exportEmployeeProfile: (id: number) =>
     downloadBlob(`${BASE}/${id}/export`, `ho_so_${id}.xlsx`),
 
+  exportComprehensiveEmployeeList: () => {
+    const today = toLocalIso(new Date()).replace(/-/g, '')
+    return downloadBlob(`${BASE}/export/comprehensive`, `du_lieu_nhan_su_tong_hop_${today}.xlsx`)
+  },
+
   // Document Checklist (13.6)
   getDocumentChecklist: (id: number) =>
     api.get<ChecklistItemRead[]>(`${BASE}/${id}/document-checklist`),

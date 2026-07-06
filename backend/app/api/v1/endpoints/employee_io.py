@@ -110,6 +110,30 @@ async def export_employees(
     )
 
 
+# ── Export comprehensive data ──────────────────────────────────────────────────
+
+@router.get(
+    "/export/comprehensive",
+    summary="Xuất dữ liệu nhân sự tổng hợp ra Excel",
+)
+async def export_comprehensive_employees(
+    _: User = require_permission("employees:export"),
+    session: AsyncSession = Depends(get_session),
+):
+    try:
+        content = await employee_export_service.export_comprehensive_employee_list(session)
+    except Exception as exc:
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc))
+
+    today = date.today().strftime("%Y%m%d")
+    filename = f"du_lieu_nhan_su_tong_hop_{today}.xlsx"
+    return Response(
+        content=content,
+        media_type=_XLSX_MEDIA,
+        headers={"Content-Disposition": _content_disposition(filename)},
+    )
+
+
 # ── Export profile ────────────────────────────────────────────────────────────
 
 @router.get(

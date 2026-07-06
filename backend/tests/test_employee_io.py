@@ -537,10 +537,22 @@ async def test_export_profile_reads_bhxh_code_from_insurance_profile(client: Tes
 
     resp = client.get(f"{BASE}/{employee_id}/export", headers=headers)
     assert resp.status_code == 200, resp.text
-    wb = openpyxl.load_workbook(io.BytesIO(resp.content))
-    ws = wb["Thông tin cá nhân"]
-    rows = {
-        ws.cell(row=row_idx, column=1).value: ws.cell(row=row_idx, column=2).value
-        for row_idx in range(1, ws.max_row + 1)
-    }
     assert rows["Số BHXH"] == "BHXH-PROFILE-SOURCE"
+
+
+def test_export_comprehensive_200(client: TestClient):
+    headers = _admin(client)
+    resp = client.get(f"{BASE}/export/comprehensive", headers=headers)
+    assert resp.status_code == 200
+    assert "spreadsheetml" in resp.headers["content-type"]
+    wb = openpyxl.load_workbook(io.BytesIO(resp.content))
+    ws = wb.active
+    assert ws.title == "Dữ liệu nhân sự tổng hợp"
+    assert ws.max_row >= 2
+
+
+def test_export_comprehensive_requires_export_permission(client: TestClient):
+    headers = _viewer(client)
+    resp = client.get(f"{BASE}/export/comprehensive", headers=headers)
+    assert resp.status_code in (403, 401)
+
