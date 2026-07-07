@@ -64,7 +64,7 @@
         icon="pi pi-file-excel"
         severity="success"
         outlined
-        :disabled="!hasDateRange"
+        :disabled="isExporting"
         :loading="isExporting"
         @click="doExport"
       />
@@ -645,15 +645,15 @@ async function loadAll() {
 }
 
 async function doExport() {
-  if (!filterFrom.value || !filterTo.value) return
-  const filters: Record<string, any> = {
-    start_date: toIso(filterFrom.value),
-    end_date:   toIso(filterTo.value),
-  }
-  if (filterDeptId.value) {
-    filters.department_id = filterDeptId.value
-  }
-  const filename = `bc_thu_viec_${filters.start_date}_${filters.end_date}.xlsx`
+  const filters: Record<string, any> = {}
+  if (filterFrom.value)   filters.start_date    = toIso(filterFrom.value)
+  if (filterTo.value)     filters.end_date      = toIso(filterTo.value)
+  if (filterDeptId.value) filters.department_id = filterDeptId.value
+  if (filterKeyword.value)filters.keyword       = filterKeyword.value
+
+  const fromLabel = filterFrom.value ? toIso(filterFrom.value) : 'all'
+  const toLabel = filterTo.value ? toIso(filterTo.value) : 'all'
+  const filename = `bc_thu_viec_${fromLabel}_to_${toLabel}.xlsx`
   await startExport('probation', filters, filename)
 }
 

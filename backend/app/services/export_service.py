@@ -296,8 +296,8 @@ async def _export_hr_employee_list(session: AsyncSession, filters: dict[str, Any
 async def _estimate_hr_movement(session: AsyncSession, filters: dict[str, Any]) -> int:
     report = await hr_report_service.get_movement_report(
         session,
-        start_date=filters["start_date"],
-        end_date=filters["end_date"],
+        start_date=filters.get("start_date") or date(2000, 1, 1),
+        end_date=filters.get("end_date") or date.today(),
         group_by=filters.get("group_by", "month"),
         department_id=filters.get("department_id"),
     )
@@ -307,8 +307,8 @@ async def _estimate_hr_movement(session: AsyncSession, filters: dict[str, Any]) 
 async def _export_hr_movement(session: AsyncSession, filters: dict[str, Any]) -> io.BytesIO:
     return await hr_report_service.export_movement_excel(
         session,
-        start_date=filters["start_date"],
-        end_date=filters["end_date"],
+        start_date=filters.get("start_date") or date(2000, 1, 1),
+        end_date=filters.get("end_date") or date.today(),
         group_by=filters.get("group_by", "month"),
         department_id=filters.get("department_id"),
     )
@@ -405,8 +405,8 @@ async def _export_contracts(session: AsyncSession, filters: dict[str, Any]) -> i
 async def _estimate_recruitment(session: AsyncSession, filters: dict[str, Any]) -> int:
     report = await recruitment_report_service.get_funnel(
         session,
-        start_date=filters["start_date"],
-        end_date=filters["end_date"],
+        start_date=filters.get("start_date") or date(2000, 1, 1),
+        end_date=filters.get("end_date") or date.today(),
         department_id=filters.get("department_id"),
     )
     return len(report.stages)
@@ -415,8 +415,8 @@ async def _estimate_recruitment(session: AsyncSession, filters: dict[str, Any]) 
 async def _export_recruitment(session: AsyncSession, filters: dict[str, Any]) -> io.BytesIO:
     return await recruitment_report_service.export_excel(
         session,
-        start_date=filters["start_date"],
-        end_date=filters["end_date"],
+        start_date=filters.get("start_date") or date(2000, 1, 1),
+        end_date=filters.get("end_date") or date.today(),
         department_id=filters.get("department_id"),
     )
 
@@ -424,8 +424,8 @@ async def _export_recruitment(session: AsyncSession, filters: dict[str, Any]) ->
 async def _estimate_probation(session: AsyncSession, filters: dict[str, Any]) -> int:
     report = await probation_report_service.get_probation_history(
         session,
-        start_date=filters["start_date"],
-        end_date=filters["end_date"],
+        start_date=filters.get("start_date") or date(2000, 1, 1),
+        end_date=filters.get("end_date") or date.today(),
         department_id=filters.get("department_id"),
         keyword=filters.get("keyword"),
         page=1,
@@ -437,8 +437,8 @@ async def _estimate_probation(session: AsyncSession, filters: dict[str, Any]) ->
 async def _export_probation(session: AsyncSession, filters: dict[str, Any]) -> io.BytesIO:
     return await probation_report_service.export_excel(
         session,
-        start_date=filters["start_date"],
-        end_date=filters["end_date"],
+        start_date=filters.get("start_date") or date(2000, 1, 1),
+        end_date=filters.get("end_date") or date.today(),
         department_id=filters.get("department_id"),
     )
 
