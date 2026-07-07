@@ -389,7 +389,6 @@ import Column from 'primevue/column'
 import Skeleton from 'primevue/skeleton'
 import Toast from 'primevue/toast'
 import vTooltip from 'primevue/tooltip'
-import { useToast } from 'primevue/usetoast'
 import Dialog from 'primevue/dialog'
 import ProgressBar from 'primevue/progressbar'
 import ProgressSpinner from 'primevue/progressspinner'
@@ -405,7 +404,6 @@ import insuranceService, {
 import departmentService, { type DepartmentRead } from '@/services/departmentService'
 import { useExportQueue } from '@/composables/useExportQueue'
 
-const toast = useToast()
 const permissionGate = usePermissionGate()
 const canLoadDepartments = computed(() => permissionGate.canAccessRoute('/org/departments'))
 

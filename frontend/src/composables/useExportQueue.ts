@@ -69,7 +69,7 @@ export function useExportQueue() {
 
           if (currentJob.status === 'done') {
             cleanup()
-            await exportService.downloadJob(job.id, currentJob.filename || filename || 'download.xlsx')
+            await exportService.downloadJob(job.id, job.filename || filename || 'download.xlsx')
             toast.add({
               severity: 'success',
               summary: 'Thành công',

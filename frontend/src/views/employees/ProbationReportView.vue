@@ -399,7 +399,6 @@ import probationReportService, {
   type ChecklistCompletionReport,
   type FailureReasonReport,
   type ProbationHistoryReport,
-  type ProbationExportParams,
   type ProbationPassRateReport,
 } from '@/services/probationReportService'
 import { useExportQueue } from '@/composables/useExportQueue'
