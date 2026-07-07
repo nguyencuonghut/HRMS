@@ -11,6 +11,11 @@ export type ExportReportType =
   | 'contracts'
   | 'recruitment'
   | 'probation'
+  | 'comprehensive-employee-list'
+  | 'salary-summary'
+  | 'leave-employee-summary'
+  | 'leave-department-summary'
+  | 'leave-year-end'
 
 export type ExportFormat = 'xlsx' | 'pdf'
 export type ExportStatus = 'pending' | 'processing' | 'done' | 'failed'

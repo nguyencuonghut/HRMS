@@ -35,7 +35,7 @@
         label="Xuất Excel"
         icon="pi pi-file-excel"
         outlined
-        :loading="exporting"
+        :loading="isExporting"
         :disabled="!summaryData"
         @click="exportExcel"
       />
@@ -214,6 +214,16 @@
       </div>
     </div>
 
+    <!-- Progress Dialog for Asynchronous Queue Export -->
+    <Dialog v-model:visible="showExportDialog" modal header="Đang chuẩn bị tệp tin..." :closable="false" style="width: 25rem">
+      <div class="text-center p-4">
+        <ProgressSpinner v-if="exportProgress === 0" style="width: 50px; height: 50px" />
+        <ProgressBar v-else :value="exportProgress" style="height: 6px" class="mt-3"></ProgressBar>
+        <p class="mt-3">Hệ thống đang chuẩn bị tệp tin của bạn. Vui lòng không đóng trình duyệt hoặc tải lại trang.</p>
+        <Button label="Hủy" class="mt-2" severity="secondary" @click="cancelExport" />
+      </div>
+    </Dialog>
+
     <Toast />
   </div>
 </template>
@@ -226,10 +236,14 @@ import DataTable from 'primevue/datatable'
 import Select from 'primevue/select'
 import Toast from 'primevue/toast'
 import { useToast } from 'primevue/usetoast'
+import Dialog from 'primevue/dialog'
+import ProgressSpinner from 'primevue/progressspinner'
+import ProgressBar from 'primevue/progressbar'
 
 import { usePermissionGate } from '@/composables/usePermissionGate'
 import departmentService, { type DepartmentRead } from '@/services/departmentService'
 import salaryService, { type SalarySummaryPage, type SalarySummaryRow } from '@/services/salaryService'
+import { useExportQueue } from '@/composables/useExportQueue'
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
@@ -241,7 +255,7 @@ const filterMonth = ref(now.getMonth() + 1)
 const filterDeptId = ref<number | null>(null)
 const summaryData = ref<SalarySummaryPage | null>(null)
 const loading = ref(false)
-const exporting = ref(false)
+const { isExporting, exportProgress, showExportDialog, startExport, cancelExport } = useExportQueue()
 const departments = ref<DepartmentRead[]>([])
 const toast = useToast()
 
@@ -286,25 +300,13 @@ async function loadSummary() {
 
 async function exportExcel() {
   if (!summaryData.value) return
-  exporting.value = true
-  try {
-    const res = await salaryService.exportSalarySummary({
-      year: filterYear.value,
-      month: filterMonth.value,
-      department_id: filterDeptId.value,
-    })
-    const url = URL.createObjectURL(new Blob([res.data as BlobPart]))
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `luong_bhxh_${filterYear.value}_${String(filterMonth.value).padStart(2, '0')}.xlsx`
-    a.click()
-    URL.revokeObjectURL(url)
-    toast.add({ severity: 'success', summary: 'Xuất thành công', detail: 'File Excel đã được tải về', life: 3000 })
-  } catch {
-    toast.add({ severity: 'error', summary: 'Lỗi xuất file', detail: 'Không thể xuất Excel', life: 3000 })
-  } finally {
-    exporting.value = false
+  const filters = {
+    year: filterYear.value,
+    month: filterMonth.value,
+    department_id: filterDeptId.value,
   }
+  const filename = `luong_bhxh_${filterYear.value}_${String(filterMonth.value).padStart(2, '0')}.xlsx`
+  await startExport('salary-summary', filters, filename)
 }
 
 async function loadDepartments() {

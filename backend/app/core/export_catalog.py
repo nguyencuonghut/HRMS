@@ -11,6 +11,11 @@ REPORT_DEFS: list[tuple[str, str]] = [
     ("contracts", "Hợp đồng: Báo cáo hợp đồng"),
     ("recruitment", "Tuyển dụng: Báo cáo tuyển dụng"),
     ("probation", "Thử việc: Báo cáo thử việc"),
+    ("comprehensive-employee-list", "Nhân sự: Dữ liệu tổng hợp"),
+    ("salary-summary", "Lương: Tổng hợp BHXH"),
+    ("leave-employee-summary", "Nghỉ phép: Chi tiết nhân viên"),
+    ("leave-department-summary", "Nghỉ phép: Tổng hợp phòng ban"),
+    ("leave-year-end", "Nghỉ phép: Tồn phép cuối năm"),
 ]
 
 EXPORT_FORMAT_DEFS: list[tuple[str, str]] = [

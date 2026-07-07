@@ -65,7 +65,7 @@
         severity="success"
         outlined
         :disabled="!hasDateRange"
-        :loading="exporting"
+        :loading="isExporting"
         @click="doExport"
       />
     </div>
@@ -361,6 +361,16 @@
         </AccordionPanel>
       </Accordion>
     </div>
+
+    <!-- Progress Dialog for Asynchronous Queue Export -->
+    <Dialog v-model:visible="showExportDialog" modal header="Đang chuẩn bị tệp tin..." :closable="false" style="width: 25rem">
+      <div class="text-center p-4">
+        <ProgressSpinner v-if="exportProgress === 0" style="width: 50px; height: 50px" />
+        <ProgressBar v-else :value="exportProgress" style="height: 6px" class="mt-3"></ProgressBar>
+        <p class="mt-3">Hệ thống đang chuẩn bị tệp tin của bạn. Vui lòng không đóng trình duyệt hoặc tải lại trang.</p>
+        <Button label="Hủy" class="mt-2" severity="secondary" @click="cancelExport" />
+      </div>
+    </Dialog>
   </div>
 </template>
 
@@ -379,6 +389,8 @@ import ProgressBar from 'primevue/progressbar'
 import Select from 'primevue/select'
 import Tag from 'primevue/tag'
 import { useToast } from 'primevue/usetoast'
+import Dialog from 'primevue/dialog'
+import ProgressSpinner from 'primevue/progressspinner'
 import api from '@/services/api'
 import type { DepartmentOption } from '@/services/departmentService'
 import { toDepartmentSelectOptions } from '@/utils/departmentOptions'
@@ -390,6 +402,7 @@ import probationReportService, {
   type ProbationExportParams,
   type ProbationPassRateReport,
 } from '@/services/probationReportService'
+import { useExportQueue } from '@/composables/useExportQueue'
 
 withDefaults(defineProps<{
   breadcrumbRootLabel?: string
@@ -416,7 +429,8 @@ const loadingHistory   = ref(false)
 const loadingChecklist = ref(false)
 const loadingPassRate  = ref(false)
 const loadingFailure   = ref(false)
-const exporting        = ref(false)
+
+const { isExporting, exportProgress, showExportDialog, startExport, cancelExport } = useExportQueue()
 
 const activeProbation = ref<ActiveProbationReport | null>(null)
 const historyReport   = ref<ProbationHistoryReport | null>(null)
@@ -632,26 +646,15 @@ async function loadAll() {
 
 async function doExport() {
   if (!filterFrom.value || !filterTo.value) return
-  exporting.value = true
-  try {
-    const params: ProbationExportParams = {
-      start_date: toIso(filterFrom.value),
-      end_date:   toIso(filterTo.value),
-    }
-    if (filterDeptId.value) params.department_id = filterDeptId.value
-    const res = await probationReportService.exportReport(params)
-    const blob = res.data
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `bc_thu_viec_${params.start_date}_${params.end_date}.xlsx`
-    a.click()
-    URL.revokeObjectURL(url)
-  } catch (e: unknown) {
-    toast.add({ severity: 'error', summary: 'Lỗi xuất file', detail: String((e as Error).message), life: 5000 })
-  } finally {
-    exporting.value = false
+  const filters: Record<string, any> = {
+    start_date: toIso(filterFrom.value),
+    end_date:   toIso(filterTo.value),
   }
+  if (filterDeptId.value) {
+    filters.department_id = filterDeptId.value
+  }
+  const filename = `bc_thu_viec_${filters.start_date}_${filters.end_date}.xlsx`
+  await startExport('probation', filters, filename)
 }
 
 onMounted(async () => {

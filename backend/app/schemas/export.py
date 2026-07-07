@@ -19,6 +19,11 @@ ReportType = Literal[
     "contracts",
     "recruitment",
     "probation",
+    "comprehensive-employee-list",
+    "salary-summary",
+    "leave-employee-summary",
+    "leave-department-summary",
+    "leave-year-end",
 ]
 ExportFormat = Literal["xlsx", "pdf"]
 ExportStatus = Literal["pending", "processing", "done", "failed"]

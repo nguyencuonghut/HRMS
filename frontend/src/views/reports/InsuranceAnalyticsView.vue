@@ -53,7 +53,7 @@
         label="Xuất Excel"
         severity="success"
         outlined
-        :loading="exporting"
+        :loading="isExporting"
         @click="exportExcel"
       />
     </div>
@@ -366,7 +366,15 @@
           @click="changePage(filters.page + 1)"
         />
       </div>
-    </div>
+    <!-- Progress Dialog for Asynchronous Queue Export -->
+    <Dialog v-model:visible="showExportDialog" modal header="Đang chuẩn bị tệp tin..." :closable="false" style="width: 25rem">
+      <div class="text-center p-4">
+        <ProgressSpinner v-if="exportProgress === 0" style="width: 50px; height: 50px" />
+        <ProgressBar v-else :value="exportProgress" style="height: 6px" class="mt-3"></ProgressBar>
+        <p class="mt-3">Hệ thống đang chuẩn bị tệp tin của bạn. Vui lòng không đóng trình duyệt hoặc tải lại trang.</p>
+        <Button label="Hủy" class="mt-2" severity="secondary" @click="cancelExport" />
+      </div>
+    </Dialog>
   </div>
   <Toast />
 </template>
@@ -381,6 +389,9 @@ import Skeleton from 'primevue/skeleton'
 import Toast from 'primevue/toast'
 import vTooltip from 'primevue/tooltip'
 import { useToast } from 'primevue/usetoast'
+import Dialog from 'primevue/dialog'
+import ProgressBar from 'primevue/progressbar'
+import ProgressSpinner from 'primevue/progressspinner'
 
 import { usePermissionGate } from '@/composables/usePermissionGate'
 import insuranceService, {
@@ -391,6 +402,7 @@ import insuranceService, {
   type InsuranceNonParticipantsResponse,
 } from '@/services/insuranceService'
 import departmentService, { type DepartmentRead } from '@/services/departmentService'
+import { useExportQueue } from '@/composables/useExportQueue'
 
 const toast = useToast()
 const permissionGate = usePermissionGate()
@@ -416,7 +428,7 @@ const monthOptions = [
 
 // ── State ─────────────────────────────────────────────────────────────────────
 const loading = ref(false)
-const exporting = ref(false)
+const { isExporting, exportProgress, showExportDialog, startExport, cancelExport } = useExportQueue()
 const errorMsg = ref('')
 
 const departments = ref<DepartmentRead[]>([])
@@ -550,24 +562,13 @@ function resetFilters() {
 
 // ── Excel Export ──
 async function exportExcel() {
-  exporting.value = true
-  try {
-    await insuranceService.exportAnalyticsXlsx({
-      year: filters.year,
-      month: filters.month,
-      department_id: filters.department_id,
-    })
-  } catch (e) {
-    console.error('Lỗi xuất báo cáo bảo hiểm excel', e)
-    toast.add({
-      severity: 'error',
-      summary: 'Xuất Excel thất bại',
-      detail: 'Không thể xuất báo cáo bảo hiểm',
-      life: 3000,
-    })
-  } finally {
-    exporting.value = false
+  const jobFilters = {
+    year: filters.year,
+    month: filters.month,
+    department_id: filters.department_id,
   }
+  const filename = `bao_cao_bao_hiem_${filters.year}_${filters.month || 'ca_nam'}.xlsx`
+  await startExport('insurance', jobFilters, filename)
 }
 
 // ── Formatters & Helper Style Classes ─────────────────────────────────────────

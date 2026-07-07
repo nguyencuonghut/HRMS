@@ -45,11 +45,14 @@ from app.services import (
     contract_export_service,
     contract_report_service,
     dashboard_service,
+    employee_export_service,
     hr_report_service,
     insurance_analytics_service,
     leave_analytics_service,
+    leave_report_service,
     probation_report_service,
     recruitment_report_service,
+    salary_export_service,
 )
 from app.utils.excel_style import ExcelStyler
 
@@ -440,6 +443,85 @@ async def _export_probation(session: AsyncSession, filters: dict[str, Any]) -> i
     )
 
 
+async def _estimate_comprehensive_employee_list(session: AsyncSession, filters: dict[str, Any]) -> int:
+    from app.models.employee import Employee
+    result = await session.execute(select(func.count(Employee.id)).where(Employee.is_active == True))
+    return result.scalar() or 0
+
+
+async def _export_comprehensive_employee_list(session: AsyncSession, filters: dict[str, Any]) -> io.BytesIO:
+    return io.BytesIO(await employee_export_service.export_comprehensive_employee_list(session))
+
+
+async def _estimate_salary_summary(session: AsyncSession, filters: dict[str, Any]) -> int:
+    from app.models.employee import Employee
+    result = await session.execute(select(func.count(Employee.id)).where(Employee.is_active == True))
+    return result.scalar() or 0
+
+
+async def _export_salary_summary(session: AsyncSession, filters: dict[str, Any]) -> io.BytesIO:
+    excel_bytes = await salary_export_service.export_salary_summary_excel(
+        session,
+        year=int(filters["year"]),
+        month=int(filters["month"]),
+        department_id=filters.get("department_id"),
+    )
+    return io.BytesIO(excel_bytes)
+
+
+async def _estimate_leave_employee_summary(session: AsyncSession, filters: dict[str, Any]) -> int:
+    from app.models.employee import Employee
+    result = await session.execute(select(func.count(Employee.id)).where(Employee.is_active == True))
+    return result.scalar() or 0
+
+
+async def _export_leave_employee_summary(session: AsyncSession, filters: dict[str, Any]) -> io.BytesIO:
+    report = await leave_report_service.get_employee_summary(
+        session,
+        year=int(filters["year"]),
+        employee_id=filters.get("employee_id"),
+        department_id=filters.get("department_id"),
+        leave_type_id=filters.get("leave_type_id"),
+        keyword=filters.get("keyword"),
+        page=1,
+        page_size=10000,
+    )
+    return leave_report_service.export_employee_summary_xlsx(report)
+
+
+async def _estimate_leave_department_summary(session: AsyncSession, filters: dict[str, Any]) -> int:
+    return 100
+
+
+async def _export_leave_department_summary(session: AsyncSession, filters: dict[str, Any]) -> io.BytesIO:
+    report = await leave_report_service.get_department_summary(
+        session,
+        year=int(filters["year"]),
+        month_from=filters.get("month_from"),
+        month_to=filters.get("month_to"),
+        department_id=filters.get("department_id"),
+        leave_type_id=filters.get("leave_type_id"),
+    )
+    return leave_report_service.export_department_summary_xlsx(report)
+
+
+async def _estimate_leave_year_end(session: AsyncSession, filters: dict[str, Any]) -> int:
+    from app.models.employee import Employee
+    result = await session.execute(select(func.count(Employee.id)).where(Employee.is_active == True))
+    return result.scalar() or 0
+
+
+async def _export_leave_year_end(session: AsyncSession, filters: dict[str, Any]) -> io.BytesIO:
+    report = await leave_report_service.get_year_end(
+        session,
+        year=int(filters["year"]),
+        department_id=filters.get("department_id"),
+        page=1,
+        page_size=10000,
+    )
+    return leave_report_service.export_year_end_xlsx(report)
+
+
 REPORT_HANDLERS: dict[str, ReportHandler] = {
     "dashboard": ReportHandler(("employees:view",), _estimate_dashboard_rows, _export_dashboard_xlsx),
     "hr-employee-list": ReportHandler(("employees:view",), _estimate_hr_employee_list, _export_hr_employee_list),
@@ -451,6 +533,11 @@ REPORT_HANDLERS: dict[str, ReportHandler] = {
     "contracts": ReportHandler(("contracts:view",), _estimate_contracts, _export_contracts),
     "recruitment": ReportHandler(("recruitment:view",), _estimate_recruitment, _export_recruitment),
     "probation": ReportHandler(("employees:view",), _estimate_probation, _export_probation),
+    "comprehensive-employee-list": ReportHandler(("employees:export",), _estimate_comprehensive_employee_list, _export_comprehensive_employee_list),
+    "salary-summary": ReportHandler(("insurance:view",), _estimate_salary_summary, _export_salary_summary),
+    "leave-employee-summary": ReportHandler(("leaves:view",), _estimate_leave_employee_summary, _export_leave_employee_summary),
+    "leave-department-summary": ReportHandler(("leaves:view",), _estimate_leave_department_summary, _export_leave_department_summary),
+    "leave-year-end": ReportHandler(("leaves:view",), _estimate_leave_year_end, _export_leave_year_end),
 }
 
 
@@ -752,7 +839,7 @@ async def cleanup_expired_exports_async() -> dict[str, int]:
 
 async def run_export_job_by_id(job_id: uuid.UUID, request_dict: dict[str, Any]) -> None:
     from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
-
+    from celery.exceptions import SoftTimeLimitExceeded
     from app.core.config import settings
 
     engine = create_async_engine(settings.DATABASE_URL, connect_args={"ssl": False})
@@ -761,14 +848,28 @@ async def run_export_job_by_id(job_id: uuid.UUID, request_dict: dict[str, Any]) 
         async with SessionLocal() as session:
             job = (await session.execute(select(ExportJob).where(ExportJob.id == job_id))).scalar_one_or_none()
             if not job:
-                return
-            service = ExportService(session)
-            request = ExportJobRequest.model_validate(request_dict)
-            job.report_type = request.report_type
-            job.format = request.format
-            job.filters = request.filters
-            job.filename = _filename_with_extension(request.filename or job.filename, request.report_type, request.format)
-            await service._run_sync(job)
-            await session.commit()
+                raise ValueError(f"ExportJob with id {job_id} not found")
+            
+            try:
+                service = ExportService(session)
+                request = ExportJobRequest.model_validate(request_dict)
+                job.report_type = request.report_type
+                job.format = request.format
+                job.filters = request.filters
+                job.filename = _filename_with_extension(request.filename or job.filename, request.report_type, request.format)
+                await service._run_sync(job)
+                await session.commit()
+            except SoftTimeLimitExceeded as exc:
+                job.status = "failed"
+                job.error_message = "Xuất báo cáo bị quá thời hạn (Soft Time Limit Exceeded)"
+                job.completed_at = _utcnow()
+                await session.commit()
+                raise exc
+            except Exception as exc:
+                job.status = "failed"
+                job.error_message = str(exc)
+                job.completed_at = _utcnow()
+                await session.commit()
+                raise exc
     finally:
         await engine.dispose()

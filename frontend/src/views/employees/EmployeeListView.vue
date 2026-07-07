@@ -12,7 +12,7 @@
           icon="pi pi-download"
           severity="secondary"
           outlined
-          :loading="exporting"
+          :loading="isExporting"
           @click="doExport"
         />
         <Button v-can:create="'employees'" label="Thêm mới" icon="pi pi-plus" @click="router.push('/employees/new')" />
@@ -177,6 +177,16 @@
         </Column>
       </DataTable>
     </div>
+
+    <!-- Progress Dialog for Asynchronous Queue Export -->
+    <Dialog v-model:visible="showExportDialog" modal header="Đang chuẩn bị tệp tin..." :closable="false" style="width: 25rem">
+      <div class="text-center p-4">
+        <ProgressSpinner v-if="exportProgress === 0" style="width: 50px; height: 50px" />
+        <ProgressBar v-else :value="exportProgress" style="height: 6px" class="mt-3"></ProgressBar>
+        <p class="mt-3">Hệ thống đang chuẩn bị tệp tin của bạn. Vui lòng không đóng trình duyệt hoặc tải lại trang.</p>
+        <Button label="Hủy" class="mt-2" severity="secondary" @click="cancelExport" />
+      </div>
+    </Dialog>
   </div>
 </template>
 
@@ -193,14 +203,18 @@ import InputIcon from 'primevue/inputicon'
 import InputText from 'primevue/inputtext'
 import Select from 'primevue/select'
 import Tag from 'primevue/tag'
+import Dialog from 'primevue/dialog'
+import ProgressBar from 'primevue/progressbar'
+import ProgressSpinner from 'primevue/progressspinner'
 
 import employeeService, { type EmployeeListItem, RESIGNED_REASON_OPTIONS } from '@/services/employeeService'
+import { useExportQueue } from '@/composables/useExportQueue'
 
 const router  = useRouter()
 const toast   = useToast()
 const confirm = useConfirm()
 
-const exporting  = ref(false)
+const { isExporting, exportProgress, showExportDialog, startExport, cancelExport } = useExportQueue()
 
 // ── State ──────────────────────────────────────────────────────────────────────
 const loading      = ref(false)
@@ -379,19 +393,13 @@ function confirmDeactivate(emp: EmployeeListItem) {
 }
 
 async function doExport() {
-  exporting.value = true
-  try {
-    await employeeService.exportEmployees({
-      keyword:   keyword.value || undefined,
-      status:    filterStatus.value ?? undefined,
-      is_active: filterActive.value ?? undefined,
-      resigned_reason_type: (filterStatus.value === 'resigned' && filterResignedReason.value) ? filterResignedReason.value : undefined,
-    })
-  } catch (e) {
-    toast.add({ severity: 'error', summary: 'Lỗi export', detail: apiError(e), life: 4000 })
-  } finally {
-    exporting.value = false
+  const filters = {
+    keyword:   keyword.value || undefined,
+    status:    filterStatus.value ?? undefined,
+    is_active: filterActive.value ?? undefined,
+    resigned_reason_type: (filterStatus.value === 'resigned' && filterResignedReason.value) ? filterResignedReason.value : undefined,
   }
+  await startExport('hr-employee-list', filters, 'danh_sach_nhan_vien.xlsx')
 }
 
 onMounted(loadData)

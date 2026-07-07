@@ -57,13 +57,13 @@
                 icon="pi pi-arrow-left"
                 class="p-button-outlined p-button-secondary px-4 py-2"
                 @click="goBack"
-                :disabled="loading"
+                :disabled="isExporting"
               />
               <Button
                 label="Xuất dữ liệu Excel"
                 icon="pi pi-download"
                 class="p-button-success px-4 py-2"
-                :loading="loading"
+                :loading="isExporting"
                 @click="handleExport"
               />
             </div>
@@ -71,45 +71,37 @@
         </Card>
       </div>
     </div>
+
+    <!-- Progress Dialog for Asynchronous Queue Export -->
+    <Dialog v-model:visible="showExportDialog" modal header="Đang chuẩn bị tệp tin..." :closable="false" style="width: 25rem">
+      <div class="text-center p-4">
+        <ProgressSpinner v-if="exportProgress === 0" style="width: 50px; height: 50px" />
+        <ProgressBar v-else :value="exportProgress" style="height: 6px" class="mt-3"></ProgressBar>
+        <p class="mt-3">Hệ thống đang chuẩn bị tệp tin của bạn. Vui lòng không đóng trình duyệt hoặc tải lại trang.</p>
+        <Button label="Hủy" class="mt-2" severity="secondary" @click="cancelExport" />
+      </div>
+    </Dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import Card from 'primevue/card'
 import Button from 'primevue/button'
-import { useToast } from 'primevue/usetoast'
-import employeeService from '@/services/employeeService'
+import Dialog from 'primevue/dialog'
+import ProgressBar from 'primevue/progressbar'
+import ProgressSpinner from 'primevue/progressspinner'
+import { useExportQueue } from '@/composables/useExportQueue'
 
 const router = useRouter()
-const toast = useToast()
-const loading = ref(false)
+const { isExporting, exportProgress, showExportDialog, startExport, cancelExport } = useExportQueue()
 
 const goBack = () => {
   router.push('/employees')
 }
 
 const handleExport = async () => {
-  loading.value = true
-  try {
-    await employeeService.exportComprehensiveEmployeeList()
-    toast.add({
-      severity: 'success',
-      summary: 'Thành công',
-      detail: 'Đã xuất dữ liệu nhân sự thành công!',
-      life: 3000,
-    })
-  } catch (error: any) {
-    toast.add({
-      severity: 'error',
-      summary: 'Lỗi xuất dữ liệu',
-      detail: error.message || 'Có lỗi xảy ra trong quá trình xuất dữ liệu.',
-      life: 5000,
-    })
-  } finally {
-    loading.value = false
-  }
+  await startExport('comprehensive-employee-list', {}, 'du_lieu_nhan_su_tong_hop.xlsx')
 }
 </script>
 
