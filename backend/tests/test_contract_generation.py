@@ -5,6 +5,7 @@ import asyncio
 from datetime import date
 from decimal import Decimal
 from io import BytesIO
+from pathlib import Path
 
 import pytest
 from docx import Document
@@ -15,6 +16,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from app.core.config import settings
 from app.models.employee import Employee
 from app.services.contract_generate_service import (
+    fmt_currency_vnd,
     fmt_vn_date,
     number_to_words_vn,
     render_contract_docx,
@@ -29,6 +31,7 @@ _LM_EMAIL       = "linemanager@hrms.local"
 
 _DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 _PREFIX    = "TESTGEN"
+_REPO_ROOT = Path(__file__).resolve().parents[1]
 
 # Seed category IDs (labor_indefinite = 1, labor_definite = 2, appendix_salary = 3)
 CAT_LABOR_INDEFINITE = 1
@@ -194,6 +197,11 @@ def test_fmt_vn_date():
     assert fmt_vn_date(None) == ""
 
 
+def test_fmt_currency_vnd():
+    assert fmt_currency_vnd(Decimal("8000000")) == "8.000.000"
+    assert fmt_currency_vnd(None) == ""
+
+
 def test_number_to_words_vn():
     assert number_to_words_vn(Decimal("0")) == "Không đồng"
     assert number_to_words_vn(Decimal("8000000")) == "Tám triệu đồng"
@@ -234,6 +242,26 @@ def test_render_docx_unknown_token_replaced_with_empty():
     result = render_contract_docx(tmpl, {})
     doc = Document(BytesIO(result))
     assert any("Giá trị: " == p.text for p in doc.paragraphs)
+
+
+@pytest.mark.parametrize(
+    "template_path",
+    [
+        Path("app/seeds/data/probation.docx"),
+        Path("app/seeds/data/fixed_term.docx"),
+    ],
+)
+def test_repo_templates_use_single_currency_suffix(template_path: Path):
+    rendered = render_contract_docx(
+        _REPO_ROOT / template_path,
+        {"insurance_salary": "9.000.000"},
+    )
+    doc = Document(BytesIO(rendered))
+    texts = " ".join(p.text for p in doc.paragraphs)
+
+    assert "${insurance_salary}" not in texts
+    assert "9.000.000 đồng đồng" not in texts
+    assert "9.000.000 đồng/ tháng" in texts
 
 
 # ── Upload template tests ──────────────────────────────────────────────────────

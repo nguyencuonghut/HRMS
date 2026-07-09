@@ -36,10 +36,10 @@ def fmt_vn_date(d: Optional[date]) -> str:
 
 
 def fmt_currency_vnd(v: Optional[Decimal]) -> str:
-    """Decimal('8000000') → '8.000.000 đồng'"""
+    """Decimal('8000000') → '8.000.000'."""
     if v is None:
         return ""
-    return f"{int(v):,}".replace(",", ".") + " đồng"
+    return f"{int(v):,}".replace(",", ".")
 
 
 def gender_label(g: Optional[str]) -> str:
