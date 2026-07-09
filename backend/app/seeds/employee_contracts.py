@@ -1,4 +1,4 @@
-"""Seeder hợp đồng cho các nhân viên mẫu (1-13) để đảm bảo dữ liệu đầy đủ."""
+"""Seeder hợp đồng cho các nhân viên mẫu để đảm bảo dữ liệu đầy đủ."""
 
 import datetime
 from decimal import Decimal
@@ -52,6 +52,18 @@ CONTRACTS_DATA = [
     (11, "labor_indefinite", None, "active", Decimal("16500000")),
     (12, "labor_definite", 12, "active", Decimal("12500000")),
     (13, "labor_indefinite", None, "active", Decimal("17000000")),
+    (19, "labor_indefinite", None, "active", Decimal("11800000")),
+    (20, "labor_indefinite", None, "active", Decimal("12600000")),
+    (21, "labor_indefinite", None, "active", Decimal("13400000")),
+    (22, "labor_indefinite", None, "active", Decimal("12800000")),
+    (23, "labor_indefinite", None, "active", Decimal("13600000")),
+    (24, "labor_indefinite", None, "active", Decimal("12400000")),
+    (25, "labor_definite", 24, "expired", Decimal("11900000")),
+    (26, "labor_definite", 36, "expired", Decimal("13100000")),
+    (27, "labor_definite", 24, "expired", Decimal("12200000")),
+    (28, "labor_definite", 48, "expired", Decimal("12900000")),
+    (29, "labor_indefinite", None, "active", Decimal("14100000")),
+    (30, "labor_definite", 36, "expired", Decimal("12700000")),
 ]
 
 

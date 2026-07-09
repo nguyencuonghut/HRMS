@@ -737,6 +737,18 @@ const LineTrendChart = defineComponent({
       ),
     );
 
+    const yAxisStep = computed(() => Math.max(1, Math.ceil(maxValue.value / 4)));
+    const yAxisMax = computed(() =>
+      Math.max(yAxisStep.value, Math.ceil(maxValue.value / yAxisStep.value) * yAxisStep.value),
+    );
+    const yAxisTicks = computed(() => {
+      const ticks: number[] = [];
+      for (let value = 0; value <= yAxisMax.value; value += yAxisStep.value) {
+        ticks.push(value);
+      }
+      return ticks;
+    });
+
     function xAt(index: number): number {
       const innerWidth = width - padding.left - padding.right;
       return (
@@ -747,7 +759,7 @@ const LineTrendChart = defineComponent({
 
     function yAt(value: number): number {
       const innerHeight = height - padding.top - padding.bottom;
-      return padding.top + innerHeight - (value / maxValue.value) * innerHeight;
+      return padding.top + innerHeight - (value / yAxisMax.value) * innerHeight;
     }
 
     function toPath(values: number[]): string {
@@ -776,8 +788,7 @@ const LineTrendChart = defineComponent({
             "aria-label": "Biến động nhân sự 12 tháng",
           },
           [
-            ...Array.from({ length: 5 }, (_, index) => {
-              const value = (maxValue.value / 4) * index;
+            ...yAxisTicks.value.map((value, index) => {
               const y = yAt(value);
               return h("g", { key: `grid-${index}` }, [
                 h("line", {
@@ -790,7 +801,7 @@ const LineTrendChart = defineComponent({
                 h(
                   "text",
                   { x: 0, y: y + 4, class: "line-chart-axis-label" },
-                  formatInteger(Math.round(value)),
+                  formatInteger(value),
                 ),
               ]);
             }),
@@ -1461,6 +1472,11 @@ html.dark-mode .dashboard-view .headcount-card.is-empty {
   stroke: var(--dashboard-hires-color);
   background: var(--dashboard-hires-color);
   fill: var(--dashboard-hires-color);
+}
+
+.line-chart-path.is-hires,
+.line-chart-path.is-resigned {
+  fill: none;
 }
 
 .line-chart-path.is-resigned,

@@ -1,9 +1,12 @@
+from datetime import date
+
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.core.config import settings
 from app.seeds import bootstrap, required, rbac, sample
 from app.seeds.control_branch_sample import seed_control_branch_employee_domain_data
+from app.services import dashboard_service
 
 
 CONTROL_EMAILS = [
@@ -219,3 +222,34 @@ async def test_control_branch_seed_supports_dashboard_residence_and_contract_mix
         assert residence_rows[1] >= 2
         assert contract_counts["indefinite_term"] >= 3
         assert contract_counts["definite_term"] >= 2
+
+
+async def test_sample_seed_adds_current_year_personnel_changes_for_dashboard_trend():
+    report_year = date.today().year
+
+    async with _make_session()() as session:
+        await required.run(session)
+        await bootstrap.run(session)
+        await rbac.run(session, include_users=True)
+        await sample.run(session)
+        await session.commit()
+
+    async with _make_session()() as session:
+        trend = await dashboard_service.get_monthly_trend(session, year=report_year)
+        hires_by_month = {item.month: item.new_hires for item in trend.monthly}
+        resigned_by_month = {item.month: item.resigned_count for item in trend.monthly}
+
+        assert hires_by_month[1] >= 1
+        assert hires_by_month[3] >= 3
+        assert hires_by_month[4] >= 1
+        assert hires_by_month[6] >= 2
+        assert hires_by_month[9] >= 1
+        assert hires_by_month[11] >= 1
+
+        assert resigned_by_month[2] >= 1
+        assert resigned_by_month[5] >= 2
+        assert resigned_by_month[8] >= 1
+        assert resigned_by_month[12] >= 1
+
+        assert max(hires_by_month.values()) >= 3
+        assert max(resigned_by_month.values()) >= 2

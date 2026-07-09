@@ -250,6 +250,194 @@ async def _backfill_all_employees_to_completion(session: AsyncSession) -> None:
 
 
 async def run(session: AsyncSession) -> None:
+    # 0. Xóa cohort demo dashboard cũ để sample seed chỉ còn dữ liệu nhân sự mẫu tổng quát
+    dashboard_demo_filter = "dashboard.demo.%@hrms.local"
+    await session.execute(
+        text(
+            """
+            DELETE FROM employee_yearly_reviews
+            WHERE employee_id IN (
+                SELECT id FROM employees WHERE personal_email LIKE :dashboard_demo_filter
+            )
+            """
+        ),
+        {"dashboard_demo_filter": dashboard_demo_filter},
+    )
+    await session.execute(
+        text(
+            """
+            DELETE FROM employee_kpi_monthly
+            WHERE employee_id IN (
+                SELECT id FROM employees WHERE personal_email LIKE :dashboard_demo_filter
+            )
+            """
+        ),
+        {"dashboard_demo_filter": dashboard_demo_filter},
+    )
+    await session.execute(
+        text(
+            """
+            DELETE FROM employee_training_certificates
+            WHERE employee_id IN (
+                SELECT id FROM employees WHERE personal_email LIKE :dashboard_demo_filter
+            )
+            """
+        ),
+        {"dashboard_demo_filter": dashboard_demo_filter},
+    )
+    await session.execute(
+        text(
+            """
+            DELETE FROM employee_training_records
+            WHERE employee_id IN (
+                SELECT id FROM employees WHERE personal_email LIKE :dashboard_demo_filter
+            )
+            """
+        ),
+        {"dashboard_demo_filter": dashboard_demo_filter},
+    )
+    await session.execute(
+        text(
+            """
+            DELETE FROM employee_disciplines
+            WHERE employee_id IN (
+                SELECT id FROM employees WHERE personal_email LIKE :dashboard_demo_filter
+            )
+            """
+        ),
+        {"dashboard_demo_filter": dashboard_demo_filter},
+    )
+    await session.execute(
+        text(
+            """
+            DELETE FROM employee_rewards
+            WHERE employee_id IN (
+                SELECT id FROM employees WHERE personal_email LIKE :dashboard_demo_filter
+            )
+            """
+        ),
+        {"dashboard_demo_filter": dashboard_demo_filter},
+    )
+    await session.execute(
+        text(
+            """
+            DELETE FROM employee_education_histories
+            WHERE employee_id IN (
+                SELECT id FROM employees WHERE personal_email LIKE :dashboard_demo_filter
+            )
+            """
+        ),
+        {"dashboard_demo_filter": dashboard_demo_filter},
+    )
+    await session.execute(
+        text(
+            """
+            DELETE FROM employee_assets
+            WHERE employee_id IN (
+                SELECT id FROM employees WHERE personal_email LIKE :dashboard_demo_filter
+            )
+            """
+        ),
+        {"dashboard_demo_filter": dashboard_demo_filter},
+    )
+    await session.execute(
+        text(
+            """
+            DELETE FROM employee_relatives
+            WHERE employee_id IN (
+                SELECT id FROM employees WHERE personal_email LIKE :dashboard_demo_filter
+            )
+            """
+        ),
+        {"dashboard_demo_filter": dashboard_demo_filter},
+    )
+    await session.execute(
+        text(
+            """
+            DELETE FROM employee_addresses
+            WHERE employee_id IN (
+                SELECT id FROM employees WHERE personal_email LIKE :dashboard_demo_filter
+            )
+            """
+        ),
+        {"dashboard_demo_filter": dashboard_demo_filter},
+    )
+    await session.execute(
+        text(
+            """
+            DELETE FROM employee_bank_accounts
+            WHERE employee_id IN (
+                SELECT id FROM employees WHERE personal_email LIKE :dashboard_demo_filter
+            )
+            """
+        ),
+        {"dashboard_demo_filter": dashboard_demo_filter},
+    )
+    await session.execute(
+        text(
+            """
+            DELETE FROM bhxh_salary_adjustments
+            WHERE employee_id IN (
+                SELECT id FROM employees WHERE personal_email LIKE :dashboard_demo_filter
+            )
+            """
+        ),
+        {"dashboard_demo_filter": dashboard_demo_filter},
+    )
+    await session.execute(
+        text(
+            """
+            DELETE FROM insurance_change_events
+            WHERE employee_id IN (
+                SELECT id FROM employees WHERE personal_email LIKE :dashboard_demo_filter
+            )
+            """
+        ),
+        {"dashboard_demo_filter": dashboard_demo_filter},
+    )
+    await session.execute(
+        text(
+            """
+            DELETE FROM employee_insurance_profiles
+            WHERE employee_id IN (
+                SELECT id FROM employees WHERE personal_email LIKE :dashboard_demo_filter
+            )
+            """
+        ),
+        {"dashboard_demo_filter": dashboard_demo_filter},
+    )
+    await session.execute(
+        text(
+            """
+            DELETE FROM employee_contracts
+            WHERE employee_id IN (
+                SELECT id FROM employees WHERE personal_email LIKE :dashboard_demo_filter
+            )
+            """
+        ),
+        {"dashboard_demo_filter": dashboard_demo_filter},
+    )
+    await session.execute(
+        text(
+            """
+            DELETE FROM employee_job_records
+            WHERE employee_id IN (
+                SELECT id FROM employees WHERE personal_email LIKE :dashboard_demo_filter
+            )
+            """
+        ),
+        {"dashboard_demo_filter": dashboard_demo_filter},
+    )
+    await session.execute(
+        text(
+            """
+            DELETE FROM employees
+            WHERE personal_email LIKE :dashboard_demo_filter
+            """
+        ),
+        {"dashboard_demo_filter": dashboard_demo_filter},
+    )
+
     # 1. Clean up orphaned records to avoid FK constraint errors on dirty dev database
     await session.execute(text("DELETE FROM bhxh_salary_adjustments WHERE employee_id NOT IN (SELECT id FROM employees)"))
     await session.execute(text("DELETE FROM insurance_change_events WHERE employee_id NOT IN (SELECT id FROM employees)"))
