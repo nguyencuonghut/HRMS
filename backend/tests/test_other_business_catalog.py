@@ -406,6 +406,14 @@ def test_inspect_contract_template_docx_reads_real_sample_placeholders(client: T
     assert address_item["source_origin"] == "employee_addresses.full_address_text (address_type=permanent)"
 
 
+def test_seeded_ld_indefinite_template_has_local_docx(client: TestClient):
+    templates = client.get(TEMPLATE_BASE, params={"keyword": "ld_indefinite"}, headers=_admin(client))
+    assert templates.status_code == 200, templates.text
+    row = templates.json()["items"][0]
+    assert row["file_name"] == "hdld_khong_xac_dinh_thoi_han_v1.docx"
+    assert row["storage_path"] == "app/seeds/data/hdld_khong_xac_dinh_thoi_han_v1.docx"
+
+
 def test_lookup_contract_template_fields_returns_registry(client: TestClient):
     resp = client.get("/api/v1/lookups/contract-template-fields", headers=_admin(client))
     assert resp.status_code == 200, resp.text
