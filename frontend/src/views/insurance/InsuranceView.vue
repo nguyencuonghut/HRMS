@@ -41,7 +41,7 @@
     </div>
 
     <!-- Filter toolbar -->
-    <div class="toolbar">
+    <div class="toolbar ins-profiles-toolbar">
       <IconField class="toolbar-search">
         <InputIcon class="pi pi-search" />
         <InputText
@@ -108,10 +108,24 @@
       >
         <Column field="employee_code" header="Mã NV" style="min-width: 100px">
           <template #body="{ data }">
-            <span class="emp-code">{{ data.employee_code }}</span>
+            <RouterLink
+              :to="`/employees/${data.employee_id}`"
+              class="ins-profile-plain-link"
+            >
+              <span class="emp-code">{{ data.employee_code }}</span>
+            </RouterLink>
           </template>
         </Column>
-        <Column field="employee_name" header="Họ tên" style="min-width: 160px" />
+        <Column field="employee_name" header="Họ tên" style="min-width: 160px">
+          <template #body="{ data }">
+            <RouterLink
+              :to="`/employees/${data.employee_id}`"
+              class="ins-profile-plain-link"
+            >
+              <span class="name-cell">{{ data.employee_name }}</span>
+            </RouterLink>
+          </template>
+        </Column>
         <Column field="department_name" header="Phòng ban" style="min-width: 140px">
           <template #body="{ data }">{{ data.department_name ?? '—' }}</template>
         </Column>
@@ -414,7 +428,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { RouterLink, useRouter } from 'vue-router'
 import Button from 'primevue/button'
 import Checkbox from 'primevue/checkbox'
 import Column from 'primevue/column'
