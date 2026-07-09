@@ -139,14 +139,6 @@
               @click="confirmDeleteFile(c)"
             />
           </template>
-          <template v-else-if="canEdit">
-            <Button
-              label="Đính kèm file"
-              icon="pi pi-upload"
-              text size="small"
-              @click="openUpload(c)"
-            />
-          </template>
         </div>
 
         <!-- Appendices -->
@@ -185,9 +177,6 @@
                 <span class="contract-file-name">{{ app.file_name }}</span>
                 <Button icon="pi pi-download" text rounded size="small" v-tooltip.top="'Tải xuống'" @click="doDownload(app)" />
                 <Button v-if="canEdit" icon="pi pi-trash" text rounded size="small" severity="danger" v-tooltip.top="'Xóa file'" @click="confirmDeleteFile(app)" />
-              </template>
-              <template v-else-if="canEdit">
-                <Button label="Đính kèm file" icon="pi pi-upload" text size="small" @click="openUpload(app)" />
               </template>
             </div>
           </div>
