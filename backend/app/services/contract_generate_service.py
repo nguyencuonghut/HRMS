@@ -35,6 +35,13 @@ def fmt_vn_date(d: Optional[date]) -> str:
     return f"{d.day:02d} tháng {d.month:02d} năm {d.year}"
 
 
+def fmt_contract_signing_date_full(d: Optional[date]) -> str:
+    """date(2024, 1, 15) → 'ngày 15 tháng 01 năm 2024'"""
+    if d is None:
+        return ""
+    return f"ngày {d.day:02d} tháng {d.month:02d} năm {d.year}"
+
+
 def fmt_currency_vnd(v: Optional[Decimal]) -> str:
     """Decimal('8000000') → '8.000.000'."""
     if v is None:
@@ -237,6 +244,10 @@ async def build_contract_context(
         "position_title":         job_title_name,
         "insurance_salary":       fmt_currency_vnd(contract.insurance_salary),
         "insurance_salary_words": number_to_words_vn(contract.insurance_salary),
+        "contract_signing_date_full": fmt_contract_signing_date_full(sign_date),
+        "contract_signing_day":   f"{sign_date.day:02d}" if sign_date else "",
+        "contract_signing_month": f"{sign_date.month:02d}" if sign_date else "",
+        "contract_signing_year":  str(sign_date.year) if sign_date else "",
         # Legacy tokens
         "Ngày":             str(sign_date.day)   if sign_date else "",
         "Tháng":            str(sign_date.month) if sign_date else "",

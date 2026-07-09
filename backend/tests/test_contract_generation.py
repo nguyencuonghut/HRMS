@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from app.core.config import settings
 from app.models.employee import Employee
 from app.services.contract_generate_service import (
+    fmt_contract_signing_date_full,
     fmt_currency_vnd,
     fmt_vn_date,
     number_to_words_vn,
@@ -101,6 +102,15 @@ def _make_split_run_docx(left: str, right: str) -> bytes:
     buf = BytesIO()
     doc.save(buf)
     return buf.getvalue()
+
+
+def _collect_docx_text(doc: Document) -> str:
+    parts = [p.text for p in doc.paragraphs]
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                parts.extend(p.text for p in cell.paragraphs)
+    return " ".join(part for part in parts if part)
 
 
 # ── Setup helpers ──────────────────────────────────────────────────────────────
@@ -202,6 +212,11 @@ def test_fmt_currency_vnd():
     assert fmt_currency_vnd(None) == ""
 
 
+def test_fmt_contract_signing_date_full():
+    assert fmt_contract_signing_date_full(date(2024, 1, 15)) == "ngày 15 tháng 01 năm 2024"
+    assert fmt_contract_signing_date_full(None) == ""
+
+
 def test_number_to_words_vn():
     assert number_to_words_vn(Decimal("0")) == "Không đồng"
     assert number_to_words_vn(Decimal("8000000")) == "Tám triệu đồng"
@@ -249,6 +264,7 @@ def test_render_docx_unknown_token_replaced_with_empty():
     [
         Path("app/seeds/data/probation.docx"),
         Path("app/seeds/data/fixed_term.docx"),
+        Path("app/seeds/data/hdld_khong_xac_dinh_thoi_han_v1.docx"),
     ],
 )
 def test_repo_templates_use_single_currency_suffix(template_path: Path):
@@ -257,11 +273,48 @@ def test_repo_templates_use_single_currency_suffix(template_path: Path):
         {"insurance_salary": "9.000.000"},
     )
     doc = Document(BytesIO(rendered))
-    texts = " ".join(p.text for p in doc.paragraphs)
+    texts = _collect_docx_text(doc)
 
     assert "${insurance_salary}" not in texts
     assert "9.000.000 đồng đồng" not in texts
     assert "9.000.000 đồng/ tháng" in texts
+
+
+@pytest.mark.parametrize(
+    ("template_path", "expected_fragments"),
+    [
+        (
+            Path("app/seeds/data/fixed_term.docx"),
+            ["Hôm nay ngày 09 tháng 07 năm 2026 tại"],
+        ),
+        (
+            Path("app/seeds/data/hdld_khong_xac_dinh_thoi_han_v1.docx"),
+            ["Hôm nay ngày 09 tháng 07 năm 2026 tại"],
+        ),
+        (
+            Path("app/seeds/data/probation.docx"),
+            [
+                "Ninh Bình, ngày 09 tháng 07 năm 2026",
+                "Hôm nay, ngày 09 tháng 07 năm 2026 tại",
+            ],
+        ),
+    ],
+)
+def test_repo_templates_render_contract_signing_date(template_path: Path, expected_fragments: list[str]):
+    rendered = render_contract_docx(
+        _REPO_ROOT / template_path,
+        {
+            "contract_signing_date_full": "ngày 09 tháng 07 năm 2026",
+            "contract_signing_day": "09",
+            "contract_signing_month": "07",
+            "contract_signing_year": "2026",
+        },
+    )
+    doc = Document(BytesIO(rendered))
+    texts = _collect_docx_text(doc)
+
+    for fragment in expected_fragments:
+        assert fragment in texts
 
 
 # ── Upload template tests ──────────────────────────────────────────────────────

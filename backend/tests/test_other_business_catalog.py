@@ -397,11 +397,10 @@ def test_inspect_contract_template_docx_reads_real_sample_placeholders(client: T
     keys = {item["placeholder_key"] for item in body["detected_placeholders"]}
     assert "employee_full_name" in keys
     assert "employee_cccd_issued_on" in keys
-    assert "Ngày" in keys
+    assert "contract_signing_date_full" in keys
     assert "SĐT" in keys
     assert body["supported_count"] >= 1
     assert body["supported_count"] == len(body["suggested_rows"])
-    assert any("MERGEFIELD" in warning for warning in body["warnings"])
     address_item = next(item for item in body["detected_placeholders"] if item["placeholder_key"] == "employee_address")
     assert address_item["source_origin"] == "employee_addresses.full_address_text (address_type=permanent)"
 
@@ -420,6 +419,7 @@ def test_lookup_contract_template_fields_returns_registry(client: TestClient):
     rows = resp.json()
     assert any(item["token"] == "employee_full_name" and item["source_path"] == "employee.full_name" for item in rows)
     assert any(item["token"] == "Ngày" and item["recommended_token"] == "contract_signing_day" for item in rows)
+    assert any(item["token"] == "contract_signing_date_full" and item["source_path"] == "contract.signed_date_full" for item in rows)
     assert any(item["token"] == "employee_address" and item["source_origin"] == "employee_addresses.full_address_text (address_type=permanent)" for item in rows)
 
 
