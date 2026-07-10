@@ -40,6 +40,8 @@ async def get_dashboard_summary(
 
 @router.get("/headcount-by-dept", response_model=list[HeadcountByDeptItem], summary="Headcount theo phòng ban")
 async def get_dashboard_headcount_by_dept(
+    year: Optional[int] = Query(None, ge=2000, le=2100),
+    month: Optional[int] = Query(None, ge=1, le=12),
     department_id: Optional[int] = Query(None),
     _: User = require_permission("employees:view"),
     allowed_department_ids: set[int] | None = require_department_scope("employees:view"),
@@ -47,6 +49,8 @@ async def get_dashboard_headcount_by_dept(
 ):
     return await dashboard_service.get_headcount_by_dept(
         session,
+        year=year,
+        month=month,
         department_id=department_id,
         allowed_department_ids=allowed_department_ids,
     )
@@ -55,6 +59,7 @@ async def get_dashboard_headcount_by_dept(
 @router.get("/monthly-trend", response_model=MonthlyTrendReport, summary="Biến động nhân sự 12 tháng")
 async def get_dashboard_monthly_trend(
     year: Optional[int] = Query(None, ge=2000, le=2100),
+    month: Optional[int] = Query(None, ge=1, le=12),
     department_id: Optional[int] = Query(None),
     _: User = require_permission("employees:view"),
     allowed_department_ids: set[int] | None = require_department_scope("employees:view"),
@@ -63,6 +68,7 @@ async def get_dashboard_monthly_trend(
     return await dashboard_service.get_monthly_trend(
         session,
         year=year,
+        month=month,
         department_id=department_id,
         allowed_department_ids=allowed_department_ids,
     )
@@ -70,6 +76,8 @@ async def get_dashboard_monthly_trend(
 
 @router.get("/structure", response_model=StructureReport, summary="Cơ cấu nhân sự cho dashboard")
 async def get_dashboard_structure(
+    year: Optional[int] = Query(None, ge=2000, le=2100),
+    month: Optional[int] = Query(None, ge=1, le=12),
     department_id: Optional[int] = Query(None),
     _: User = require_permission("employees:view"),
     allowed_department_ids: set[int] | None = require_department_scope("employees:view"),
@@ -77,6 +85,8 @@ async def get_dashboard_structure(
 ):
     return await dashboard_service.get_structure(
         session,
+        year=year,
+        month=month,
         department_id=department_id,
         allowed_department_ids=allowed_department_ids,
     )

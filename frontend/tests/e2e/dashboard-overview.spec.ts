@@ -38,10 +38,14 @@ test.describe("Dashboard tổng quan", () => {
 
     const kpiCards = page.locator(".dashboard-kpi-card");
     await expect(kpiCards).toHaveCount(4);
+    await expect(page.getByRole("heading", { name: /KPI năm \d{4}/ })).toBeVisible();
 
     const headcountCards = page.locator(".headcount-card");
     await expect(headcountCards.first()).toBeVisible();
     expect(await headcountCards.count()).toBeGreaterThan(0);
+
+    const monthSelect = page.locator(".dashboard-toolbar .p-select").nth(1);
+    await expect(monthSelect).toContainText("Toàn năm");
 
     const divergingChart = page.locator(".diverging-chart-svg");
     await expect(divergingChart).toBeVisible();

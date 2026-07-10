@@ -466,6 +466,34 @@ def test_headcount_by_dept_drills_into_direct_children_when_filtered(client: Tes
     assert items[0]["child_department_count"] == 0
 
 
+def test_headcount_by_dept_respects_selected_month_snapshot(client: TestClient):
+    refs = asyncio.run(_seed_dashboard_data())
+    headers = _admin_headers(client)
+    today = date.today()
+    prev_month = 12 if today.month == 1 else today.month - 1
+    prev_month_year = today.year - 1 if today.month == 1 else today.year
+    two_months_back = 12 if prev_month == 1 else prev_month - 1
+    two_months_back_year = prev_month_year - 1 if prev_month == 1 else prev_month_year
+
+    resp = client.get(
+        f"{BASE}/headcount-by-dept",
+        headers=headers,
+        params={"year": two_months_back_year, "month": two_months_back},
+    )
+    assert resp.status_code == 200, resp.text
+    items = {item["department_id"]: item for item in resp.json()}
+    assert items[refs["dept_b"]]["headcount"] == 0
+
+    current_resp = client.get(
+        f"{BASE}/headcount-by-dept",
+        headers=headers,
+        params={"year": today.year, "month": today.month},
+    )
+    assert current_resp.status_code == 200, current_resp.text
+    current_items = {item["department_id"]: item for item in current_resp.json()}
+    assert current_items[refs["dept_b"]]["headcount"] == 1
+
+
 def test_monthly_trend_returns_12_months_and_net_change(client: TestClient):
     refs = asyncio.run(_seed_dashboard_data())
     headers = _admin_headers(client)
@@ -500,6 +528,28 @@ def test_monthly_trend_returns_12_months_and_net_change(client: TestClient):
     assert filtered_body["monthly"][prev_month - 1]["new_hires"] == 1
 
 
+def test_monthly_trend_supports_single_selected_month(client: TestClient):
+    refs = asyncio.run(_seed_dashboard_data())
+    headers = _admin_headers(client)
+    today = date.today()
+
+    resp = client.get(
+        f"{BASE}/monthly-trend",
+        headers=headers,
+        params={
+            "year": today.year,
+            "month": today.month,
+            "department_id": refs["dept_a"],
+        },
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert len(body["monthly"]) == 1
+    assert body["monthly"][0]["month"] == today.month
+    assert body["monthly"][0]["new_hires"] == 1
+    assert body["monthly"][0]["resigned_count"] == 1
+
+
 def test_structure_groups_gender_and_missing_education(client: TestClient):
     refs = asyncio.run(_seed_dashboard_data())
     headers = _admin_headers(client)
@@ -518,8 +568,36 @@ def test_structure_groups_gender_and_missing_education(client: TestClient):
     contract_type = {item["label"]: item["count"] for item in body["contract_type"]}
     assert contract_type["Xác định thời hạn"] == 1
     assert contract_type["Không xác định thời hạn"] == 1
+
+
+def test_structure_respects_selected_month_snapshot(client: TestClient):
+    refs = asyncio.run(_seed_dashboard_data())
+    headers = _admin_headers(client)
+    today = date.today()
+    prev_month = 12 if today.month == 1 else today.month - 1
+    prev_month_year = today.year - 1 if today.month == 1 else today.year
+
+    resp = client.get(
+        f"{BASE}/structure",
+        headers=headers,
+        params={
+            "year": prev_month_year,
+            "month": prev_month,
+            "department_id": refs["dept_a"],
+        },
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+
+    genders = {item["label"]: item for item in body["gender"]}
+    assert genders["Nam"]["count"] == 1
+    assert genders["Nữ"]["count"] == 1
+    contract_type = {item["label"]: item["count"] for item in body["contract_type"]}
+    assert contract_type["Xác định thời hạn"] == 1
+    assert "Không xác định thời hạn" not in contract_type
     assert len(body["age_group"]) >= 2
-    assert len(body["tenure_group"]) >= 2
+    tenure = {item["label"]: item["count"] for item in body["tenure_group"]}
+    assert tenure["1-2 năm"] == 2
 
     other_resp = client.get(f"{BASE}/structure", headers=headers, params={"department_id": refs["dept_b"]})
     assert other_resp.status_code == 200, other_resp.text

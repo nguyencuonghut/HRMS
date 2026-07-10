@@ -86,7 +86,7 @@
 
     <section class="dashboard-section">
       <div class="dashboard-section-head">
-        <h3>Headcount theo phòng ban</h3>
+        <h3>{{ headcountTitle }}</h3>
         <span class="dashboard-meta">{{ headcountMeta }}</span>
       </div>
       <div class="card dashboard-card">
@@ -108,7 +108,7 @@
 
     <section class="dashboard-section">
       <div class="dashboard-section-head">
-        <h3>Biến động 12 tháng</h3>
+        <h3>{{ trendHeading }}</h3>
       </div>
       <div class="card dashboard-card">
         <div v-if="loading" class="dashboard-chart-skeleton">
@@ -125,7 +125,7 @@
 
     <section class="dashboard-section">
       <div class="dashboard-section-head">
-        <h3>Cơ cấu nhân sự</h3>
+        <h3>{{ structureHeading }}</h3>
       </div>
       <div class="dashboard-structure-grid">
         <div class="card dashboard-card">
@@ -282,11 +282,9 @@ import departmentService, {
 
 const now = new Date();
 const currentYear = now.getFullYear();
-const currentMonth = now.getMonth() + 1;
-
 const filters = reactive<DashboardFilterParams>({
   year: currentYear,
-  month: currentMonth,
+  month: null,
   department_id: null,
 });
 
@@ -332,11 +330,20 @@ const selectedDepartment = computed(
     departments.value.find((department) => department.id === filters.department_id) ??
     null,
 );
+const headcountTitle = computed(() =>
+  filters.month == null
+    ? `Headcount theo phòng ban năm ${filters.year}`
+    : `Headcount theo phòng ban tháng ${filters.month}/${filters.year}`,
+);
 const headcountMeta = computed(() => {
+  const scopeLabel =
+    filters.month == null
+      ? `Snapshot theo năm ${filters.year}`
+      : `Snapshot theo tháng ${filters.month}/${filters.year}`;
   if (filters.department_id && selectedDepartment.value) {
-    return `Hiển thị các đơn vị trực thuộc ${selectedDepartment.value.name}`;
+    return `${scopeLabel} • Hiển thị các đơn vị trực thuộc ${selectedDepartment.value.name}`;
   }
-  return "Gộp theo phòng/ban cấp gốc";
+  return `${scopeLabel} • Gộp theo phòng/ban cấp gốc`;
 });
 
 const kpiCards = computed(() => {
@@ -386,6 +393,16 @@ const summaryHeading = computed(() =>
   filters.month == null
     ? `KPI năm ${filters.year}`
     : `KPI tháng ${filters.month}/${filters.year}`,
+);
+const trendHeading = computed(() =>
+  filters.month == null
+    ? `Biến động 12 tháng năm ${filters.year}`
+    : `Biến động tháng ${filters.month}/${filters.year}`,
+);
+const structureHeading = computed(() =>
+  filters.month == null
+    ? `Cơ cấu nhân sự năm ${filters.year}`
+    : `Cơ cấu nhân sự tháng ${filters.month}/${filters.year}`,
 );
 
 const EmptyState = defineComponent({
@@ -919,18 +936,14 @@ async function loadDashboard() {
     month: filters.month ?? null,
     department_id: filters.department_id ?? null,
   };
-  const yearlyParams = {
-    year: filters.year,
-    department_id: filters.department_id ?? null,
-  };
 
   try {
     const [summaryRes, headcountRes, trendRes, structureRes] =
       await Promise.all([
         dashboardService.getSummary(summaryParams),
         dashboardService.getHeadcountByDepartment(summaryParams),
-        dashboardService.getMonthlyTrend(yearlyParams),
-        dashboardService.getStructure(yearlyParams),
+        dashboardService.getMonthlyTrend(summaryParams),
+        dashboardService.getStructure(summaryParams),
       ]);
 
     summary.value = summaryRes.data;

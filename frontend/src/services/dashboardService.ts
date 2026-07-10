@@ -83,12 +83,12 @@ export default {
       },
     ),
 
-  getMonthlyTrend: (params: Omit<DashboardFilterParams, "month">) =>
+  getMonthlyTrend: (params: DashboardFilterParams) =>
     api.get<MonthlyTrendReport>("/reports/dashboard/monthly-trend", {
       params: cleanParams(params),
     }),
 
-  getStructure: (params: Omit<DashboardFilterParams, "month">) =>
+  getStructure: (params: DashboardFilterParams) =>
     api.get<StructureReport>("/reports/dashboard/structure", {
       params: cleanParams(params),
     }),

@@ -1,6 +1,7 @@
 """Service cho dashboard tổng quan nhân sự (11.1)."""
 from __future__ import annotations
 
+import calendar
 from datetime import date
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional, Sequence
@@ -57,6 +58,48 @@ def _round1(value: float) -> float:
 def _current_period(year: Optional[int], month: Optional[int]) -> tuple[int, Optional[int]]:
     today = date.today()
     return year or today.year, month
+
+
+def _period_bounds(year: int, month: Optional[int]) -> tuple[date, date]:
+    today = date.today()
+    if month is None:
+        start = date(year, 1, 1)
+        end = date(year, 12, 31)
+    else:
+        start = date(year, month, 1)
+        end = date(year, month, calendar.monthrange(year, month)[1])
+    if end > today:
+        end = today
+    return start, end
+
+
+def _employee_active_on(target_date: date) -> list[sa.ColumnElement[bool]]:
+    return [
+        Employee.start_date <= target_date,
+        sa.or_(
+            Employee.resigned_date.is_(None),
+            Employee.resigned_date > target_date,
+        ),
+    ]
+
+
+def _job_record_active_on(
+    target_date: date,
+    department_ids: Optional[Sequence[int]],
+) -> list[sa.ColumnElement[bool]]:
+    filters: list[sa.ColumnElement[bool]] = [
+        EmployeeJobRecord.effective_from <= target_date,
+        sa.or_(
+            EmployeeJobRecord.effective_to.is_(None),
+            EmployeeJobRecord.effective_to >= target_date,
+        ),
+    ]
+    if department_ids is not None:
+        if not department_ids:
+            filters.append(sa.false())
+        else:
+            filters.append(EmployeeJobRecord.department_id.in_(department_ids))
+    return filters
 
 
 def _build_pie_metric_items(
@@ -178,7 +221,7 @@ async def get_summary(
     allowed_department_ids: Optional[Sequence[int]] = None,
 ) -> DashboardSummary:
     year, month = _current_period(year, month)
-    period_start = date(year, month, 1) if month is not None else date(year, 1, 1)
+    period_start, period_end = _period_bounds(year, month)
     department_ids = await _effective_department_scope_ids(
         session,
         department_id=department_id,
@@ -187,8 +230,14 @@ async def get_summary(
 
     total_stmt = (
         select(func.count(Employee.id.distinct()))
-        .join(EmployeeJobRecord, EmployeeJobRecord.employee_id == Employee.id)
-        .where(*_active_employee_filters(department_ids))
+        .join(
+            EmployeeJobRecord,
+            and_(
+                EmployeeJobRecord.employee_id == Employee.id,
+                *_job_record_active_on(period_end, department_ids),
+            ),
+        )
+        .where(*_employee_active_on(period_end))
     )
     total_headcount = (await session.execute(total_stmt)).scalar_one() or 0
 
@@ -198,16 +247,18 @@ async def get_summary(
             EmployeeJobRecord,
             and_(
                 EmployeeJobRecord.employee_id == Employee.id,
-                EmployeeJobRecord.is_current == True,  # noqa: E712
+                EmployeeJobRecord.effective_from <= Employee.start_date,
+                sa.or_(
+                    EmployeeJobRecord.effective_to.is_(None),
+                    EmployeeJobRecord.effective_to >= Employee.start_date,
+                ),
             ),
         )
         .where(
-            sa.extract("year", Employee.start_date) == year,
-            Employee.is_active == True,  # noqa: E712
+            Employee.start_date >= period_start,
+            Employee.start_date <= period_end,
         )
     )
-    if month is not None:
-        new_hires_stmt = new_hires_stmt.where(sa.extract("month", Employee.start_date) == month)
     if department_ids is not None:
         if not department_ids:
             new_hires = 0
@@ -223,17 +274,20 @@ async def get_summary(
             EmployeeJobRecord,
             and_(
                 EmployeeJobRecord.employee_id == Employee.id,
-                EmployeeJobRecord.is_current == True,  # noqa: E712
+                EmployeeJobRecord.effective_from <= Employee.resigned_date,
+                sa.or_(
+                    EmployeeJobRecord.effective_to.is_(None),
+                    EmployeeJobRecord.effective_to >= Employee.resigned_date,
+                ),
             ),
         )
         .where(
             Employee.status == "resigned",
             Employee.resigned_date.is_not(None),
-            sa.extract("year", Employee.resigned_date) == year,
+            Employee.resigned_date >= period_start,
+            Employee.resigned_date <= period_end,
         )
     )
-    if month is not None:
-        resigned_stmt = resigned_stmt.where(sa.extract("month", Employee.resigned_date) == month)
     if department_ids is not None:
         if not department_ids:
             resigned_count = 0
@@ -249,25 +303,12 @@ async def get_summary(
             EmployeeJobRecord,
             and_(
                 EmployeeJobRecord.employee_id == Employee.id,
-                EmployeeJobRecord.is_current == True,  # noqa: E712
+                *_job_record_active_on(period_start, department_ids),
             ),
         )
-        .where(
-            Employee.start_date < period_start,
-            sa.or_(
-                Employee.resigned_date.is_(None),
-                Employee.resigned_date >= period_start,
-            ),
-        )
+        .where(*_employee_active_on(period_start))
     )
-    if department_ids is not None:
-        if not department_ids:
-            headcount_start = 0
-        else:
-            headcount_start_stmt = headcount_start_stmt.where(EmployeeJobRecord.department_id.in_(department_ids))
-            headcount_start = (await session.execute(headcount_start_stmt)).scalar_one() or 0
-    else:
-        headcount_start = (await session.execute(headcount_start_stmt)).scalar_one() or 0
+    headcount_start = (await session.execute(headcount_start_stmt)).scalar_one() or 0
 
     turnover_rate = _round1(resigned_count / headcount_start * 100) if headcount_start > 0 else 0.0
 
@@ -277,16 +318,20 @@ async def get_summary(
         resigned_this_month=resigned_count,
         headcount_start_of_month=headcount_start,
         turnover_rate=turnover_rate,
-        as_of_date=date.today(),
+        as_of_date=period_end,
     )
 
 
 async def get_headcount_by_dept(
     session: AsyncSession,
     *,
+    year: Optional[int] = None,
+    month: Optional[int] = None,
     department_id: Optional[int] = None,
     allowed_department_ids: Optional[Sequence[int]] = None,
 ) -> list[HeadcountByDeptItem]:
+    report_year, report_month = _current_period(year, month)
+    _, snapshot_date = _period_bounds(report_year, report_month)
     department_ids = await _effective_department_scope_ids(
         session,
         department_id=department_id,
@@ -305,15 +350,14 @@ async def get_headcount_by_dept(
             EmployeeJobRecord,
             and_(
                 EmployeeJobRecord.department_id == Department.id,
-                EmployeeJobRecord.is_current == True,  # noqa: E712
+                *_job_record_active_on(snapshot_date, None),
             ),
         )
         .outerjoin(
             Employee,
             and_(
                 Employee.id == EmployeeJobRecord.employee_id,
-                Employee.is_active == True,  # noqa: E712
-                Employee.status != "resigned",
+                *_employee_active_on(snapshot_date),
             ),
         )
         .where(Department.is_active == True)  # noqa: E712
@@ -388,6 +432,7 @@ async def get_monthly_trend(
     session: AsyncSession,
     *,
     year: Optional[int] = None,
+    month: Optional[int] = None,
     department_id: Optional[int] = None,
     allowed_department_ids: Optional[Sequence[int]] = None,
 ) -> MonthlyTrendReport:
@@ -407,7 +452,11 @@ async def get_monthly_trend(
             EmployeeJobRecord,
             and_(
                 EmployeeJobRecord.employee_id == Employee.id,
-                EmployeeJobRecord.is_current == True,  # noqa: E712
+                EmployeeJobRecord.effective_from <= Employee.start_date,
+                sa.or_(
+                    EmployeeJobRecord.effective_to.is_(None),
+                    EmployeeJobRecord.effective_to >= Employee.start_date,
+                ),
             ),
         )
         .where(sa.extract("year", Employee.start_date) == report_year)
@@ -431,7 +480,11 @@ async def get_monthly_trend(
             EmployeeJobRecord,
             and_(
                 EmployeeJobRecord.employee_id == Employee.id,
-                EmployeeJobRecord.is_current == True,  # noqa: E712
+                EmployeeJobRecord.effective_from <= Employee.resigned_date,
+                sa.or_(
+                    EmployeeJobRecord.effective_to.is_(None),
+                    EmployeeJobRecord.effective_to >= Employee.resigned_date,
+                ),
             ),
         )
         .where(
@@ -453,12 +506,13 @@ async def get_monthly_trend(
     hires_map = {int(row.month): row.count for row in hire_rows}
     resigned_map = {int(row.month): row.count for row in resigned_rows}
 
+    months = [month] if month is not None else list(range(1, 13))
     monthly = []
-    for month in range(1, 13):
-        new_hires = hires_map.get(month, 0)
-        resigned_count = resigned_map.get(month, 0)
+    for month_value in months:
+        new_hires = hires_map.get(month_value, 0)
+        resigned_count = resigned_map.get(month_value, 0)
         monthly.append(MonthlyTrendItem(
-            month=month,
+            month=month_value,
             new_hires=new_hires,
             resigned_count=resigned_count,
             net_change=new_hires - resigned_count,
@@ -474,15 +528,19 @@ async def get_monthly_trend(
 async def get_structure(
     session: AsyncSession,
     *,
+    year: Optional[int] = None,
+    month: Optional[int] = None,
     department_id: Optional[int] = None,
     allowed_department_ids: Optional[Sequence[int]] = None,
 ) -> StructureReport:
+    report_year, report_month = _current_period(year, month)
+    _, snapshot_date = _period_bounds(report_year, report_month)
     department_ids = await _effective_department_scope_ids(
         session,
         department_id=department_id,
         allowed_department_ids=allowed_department_ids,
     )
-    base_filters = _active_employee_filters(department_ids)
+    employee_filters = _employee_active_on(snapshot_date)
     NewProvinceUnit = aliased(AdministrativeUnit)
     NewWardUnit = aliased(AdministrativeUnit)
     WardProvinceUnit = aliased(AdministrativeUnit)
@@ -492,8 +550,14 @@ async def get_structure(
             Employee.gender,
             func.count(Employee.id).label("count"),
         )
-        .join(EmployeeJobRecord, EmployeeJobRecord.employee_id == Employee.id)
-        .where(*base_filters)
+        .join(
+            EmployeeJobRecord,
+            and_(
+                EmployeeJobRecord.employee_id == Employee.id,
+                *_job_record_active_on(snapshot_date, department_ids),
+            ),
+        )
+        .where(*employee_filters)
         .group_by(Employee.gender)
     )
     gender_rows = (await session.execute(gender_stmt)).all()
@@ -515,6 +579,10 @@ async def get_structure(
             EmployeeAddress.full_address_text,
         )
         .join(EmployeeJobRecord, EmployeeJobRecord.employee_id == Employee.id)
+        .where(
+            *_job_record_active_on(snapshot_date, department_ids),
+            *employee_filters,
+        )
         .outerjoin(
             EmployeeAddress,
             and_(
@@ -525,7 +593,6 @@ async def get_structure(
         .outerjoin(NewProvinceUnit, NewProvinceUnit.id == EmployeeAddress.new_province_unit_id)
         .outerjoin(NewWardUnit, NewWardUnit.id == EmployeeAddress.new_ward_unit_id)
         .outerjoin(WardProvinceUnit, WardProvinceUnit.code == NewWardUnit.province_code)
-        .where(*base_filters)
     )
     residence_rows = (await session.execute(residence_stmt)).all()
     residence_counts = {
@@ -550,9 +617,13 @@ async def get_structure(
             func.max(EmployeeContract.effective_from).label("effective_from"),
         )
         .where(
-            EmployeeContract.status == "active",
             EmployeeContract.parent_contract_id.is_(None),
             EmployeeContract.document_kind == "labor_contract",
+            EmployeeContract.effective_from <= snapshot_date,
+            sa.or_(
+                EmployeeContract.effective_to.is_(None),
+                EmployeeContract.effective_to >= snapshot_date,
+            ),
         )
         .group_by(EmployeeContract.employee_id)
         .subquery()
@@ -564,7 +635,13 @@ async def get_structure(
             ContractCategory.legal_contract_type.label("legal_contract_type"),
             EmployeeContract.effective_to.label("effective_to"),
         )
-        .join(EmployeeJobRecord, EmployeeJobRecord.employee_id == Employee.id)
+        .join(
+            EmployeeJobRecord,
+            and_(
+                EmployeeJobRecord.employee_id == Employee.id,
+                *_job_record_active_on(snapshot_date, department_ids),
+            ),
+        )
         .join(
             current_contract_subquery,
             current_contract_subquery.c.employee_id == Employee.id,
@@ -574,13 +651,10 @@ async def get_structure(
             and_(
                 EmployeeContract.employee_id == current_contract_subquery.c.employee_id,
                 EmployeeContract.effective_from == current_contract_subquery.c.effective_from,
-                EmployeeContract.status == "active",
             ),
         )
         .join(ContractCategory, ContractCategory.id == EmployeeContract.contract_category_id)
-        .where(
-            *base_filters,
-        )
+        .where(*employee_filters)
     )
     contract_rows = (await session.execute(contract_stmt)).all()
     contract_counts = {label: 0 for label in _CONTRACT_TYPE_ORDER}
@@ -595,16 +669,22 @@ async def get_structure(
     contract_type = _build_pie_metric_items(contract_counts, _CONTRACT_TYPE_ORDER)
 
     age_group_expr = case(
-        (func.date_part("year", func.age(func.current_date(), Employee.date_of_birth)) < 25, "Dưới 25"),
-        (func.date_part("year", func.age(func.current_date(), Employee.date_of_birth)).between(25, 34), "25-34"),
-        (func.date_part("year", func.age(func.current_date(), Employee.date_of_birth)).between(35, 44), "35-44"),
-        (func.date_part("year", func.age(func.current_date(), Employee.date_of_birth)).between(45, 54), "45-54"),
+        (func.date_part("year", func.age(snapshot_date, Employee.date_of_birth)) < 25, "Dưới 25"),
+        (func.date_part("year", func.age(snapshot_date, Employee.date_of_birth)).between(25, 34), "25-34"),
+        (func.date_part("year", func.age(snapshot_date, Employee.date_of_birth)).between(35, 44), "35-44"),
+        (func.date_part("year", func.age(snapshot_date, Employee.date_of_birth)).between(45, 54), "45-54"),
         else_="55 trở lên",
     )
     age_stmt = (
         select(age_group_expr.label("label"), func.count(Employee.id).label("count"))
-        .join(EmployeeJobRecord, EmployeeJobRecord.employee_id == Employee.id)
-        .where(*base_filters)
+        .join(
+            EmployeeJobRecord,
+            and_(
+                EmployeeJobRecord.employee_id == Employee.id,
+                *_job_record_active_on(snapshot_date, department_ids),
+            ),
+        )
+        .where(*employee_filters)
         .group_by(age_group_expr)
     )
     age_rows = (await session.execute(age_stmt)).all()
@@ -620,7 +700,13 @@ async def get_structure(
             EducationLevel.name.label("education_level_name"),
             func.count(Employee.id.distinct()).label("count"),
         )
-        .join(EmployeeJobRecord, EmployeeJobRecord.employee_id == Employee.id)
+        .join(
+            EmployeeJobRecord,
+            and_(
+                EmployeeJobRecord.employee_id == Employee.id,
+                *_job_record_active_on(snapshot_date, department_ids),
+            ),
+        )
         .outerjoin(
             EmployeeEducationHistory,
             and_(
@@ -629,7 +715,7 @@ async def get_structure(
             ),
         )
         .outerjoin(EducationLevel, EducationLevel.id == EmployeeEducationHistory.education_level_id)
-        .where(*base_filters)
+        .where(*employee_filters)
         .group_by(EducationLevel.name)
         .order_by(func.count(Employee.id.distinct()).desc())
     )
@@ -640,16 +726,22 @@ async def get_structure(
     ]
 
     tenure_group_expr = case(
-        (func.date_part("year", func.age(func.current_date(), Employee.start_date)) < 1, "Dưới 1 năm"),
-        (func.date_part("year", func.age(func.current_date(), Employee.start_date)).between(1, 2), "1-2 năm"),
-        (func.date_part("year", func.age(func.current_date(), Employee.start_date)).between(3, 5), "3-5 năm"),
-        (func.date_part("year", func.age(func.current_date(), Employee.start_date)).between(6, 10), "6-10 năm"),
+        (func.date_part("year", func.age(snapshot_date, Employee.start_date)) < 1, "Dưới 1 năm"),
+        (func.date_part("year", func.age(snapshot_date, Employee.start_date)).between(1, 2), "1-2 năm"),
+        (func.date_part("year", func.age(snapshot_date, Employee.start_date)).between(3, 5), "3-5 năm"),
+        (func.date_part("year", func.age(snapshot_date, Employee.start_date)).between(6, 10), "6-10 năm"),
         else_="Trên 10 năm",
     )
     tenure_stmt = (
         select(tenure_group_expr.label("label"), func.count(Employee.id).label("count"))
-        .join(EmployeeJobRecord, EmployeeJobRecord.employee_id == Employee.id)
-        .where(*base_filters)
+        .join(
+            EmployeeJobRecord,
+            and_(
+                EmployeeJobRecord.employee_id == Employee.id,
+                *_job_record_active_on(snapshot_date, department_ids),
+            ),
+        )
+        .where(*employee_filters)
         .group_by(tenure_group_expr)
     )
     tenure_rows = (await session.execute(tenure_stmt)).all()
