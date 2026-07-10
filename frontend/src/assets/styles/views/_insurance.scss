@@ -730,8 +730,12 @@ html.dark-mode {
 .ins-changes-tab {
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
-  padding-top: 0.5rem;
+  gap: 1.5rem;
+  padding-top: 0.875rem;
+}
+
+.ins-changes-card {
+  padding: 0.9rem 1rem 0.95rem;
 }
 
 .ins-changes-header {
@@ -739,6 +743,7 @@ html.dark-mode {
   align-items: center;
   gap: 0.75rem;
   flex-wrap: wrap;
+  padding-inline: 0.125rem;
 }
 
 .ins-changes-title {
@@ -759,7 +764,7 @@ html.dark-mode {
 .ins-changes-section-title {
   font-weight: 600;
   font-size: 0.875rem;
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.9rem;
 }
 
 .ins-changes-detail-toolbar {
@@ -767,8 +772,8 @@ html.dark-mode {
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-bottom: 0.75rem;
+  gap: 0.75rem;
+  margin-bottom: 0.9rem;
 }
 
 .ins-changes-detail-actions {
@@ -779,6 +784,16 @@ html.dark-mode {
 
 .ins-changes-type-filter {
   width: 130px;
+}
+
+@media (max-width: 768px) {
+  .ins-changes-card {
+    padding: 0.8rem 0.8rem 0.85rem;
+  }
+
+  .ins-changes-header {
+    padding-inline: 0;
+  }
 }
 
 .ins-changes-clear-month {

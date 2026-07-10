@@ -25,7 +25,7 @@
     </div>
 
     <!-- Monthly summary table -->
-    <div class="card">
+    <div class="card ins-changes-card">
       <div class="ins-changes-section-title">Tổng hợp theo tháng</div>
       <DataTable
         :value="monthlySummaries"
@@ -81,7 +81,7 @@
     </div>
 
     <!-- Detail table -->
-    <div class="card">
+    <div class="card ins-changes-card">
       <div class="ins-changes-detail-toolbar">
         <span class="ins-changes-section-title">
           Chi tiết {{ selectedMonth ? `tháng ${selectedMonth}/${selectedYear}` : `năm ${selectedYear}` }}
