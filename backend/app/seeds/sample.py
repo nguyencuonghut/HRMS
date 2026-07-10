@@ -43,6 +43,7 @@ async def _seed_sample_employee_insurance_profiles(session: AsyncSession) -> int
 
 
 async def _backfill_all_employees_to_completion(session: AsyncSession) -> None:
+    from datetime import date
     from app.models.employee import EmployeeAddress, EmployeeBankAccount
     from app.models.employee_insurance import EmployeeInsuranceProfile
     from app.models.employee_relative import EmployeeRelative
@@ -142,25 +143,46 @@ async def _backfill_all_employees_to_completion(session: AsyncSession) -> None:
             session.add(job)
 
         # 5. Relative
-        relative = (await session.execute(select(EmployeeRelative).where(EmployeeRelative.employee_id == emp.id))).scalars().first()
-        if not relative:
-            rel_names = [
-                "Nguyễn Thị Mai", "Trần Văn Hùng", "Lê Hoàng Yến", "Phạm Minh Đức",
-                "Bùi Thị Hồng", "Đặng Quốc Khánh", "Vũ Thùy Linh", "Đỗ Gia Bảo",
-                "Hoàng Thị Cúc", "Phan Thanh Tùng", "Ngô Anh Thư", "Dương Quốc Bảo",
-                "Lý Hải Yến", "Tạ Văn Sơn", "Đinh Thị Lan", "Hồ Đức Thịnh",
-                "Trịnh Kim Chi", "Phùng Thế Vinh", "Bùi Hoàng Nam", "Vũ Ngọc Ánh"
-            ]
-            relative = EmployeeRelative(
+        relatives = (await session.execute(select(EmployeeRelative).where(EmployeeRelative.employee_id == emp.id))).scalars().all()
+        if not relatives:
+            gender = emp.gender or "male"
+            spouse_type = "vo" if gender == "male" else "chong"
+            spouse_name = "Nguyễn Thị Mai" if gender == "male" else "Trần Văn Hùng"
+            
+            # 1. Spouse
+            spouse = EmployeeRelative(
                 employee_id=emp.id,
-                full_name=rel_names[emp.id % len(rel_names)],
-                relationship_type="spouse",
+                full_name=spouse_name,
+                relationship_type=spouse_type,
+                date_of_birth=date(1990, 6, 20),
                 phone_number="0987654321",
                 is_emergency_contact=True,
-                participates_in_health_care_insurance=True,
+                participates_in_health_care_insurance=False,
                 created_at=emp.created_at
             )
-            session.add(relative)
+            session.add(spouse)
+            
+            # 2. Child under 18
+            child_under = EmployeeRelative(
+                employee_id=emp.id,
+                full_name="Nguyễn Hoàng Nam",
+                relationship_type="con",
+                date_of_birth=date(2016, 5, 20),
+                participates_in_health_care_insurance=False,
+                created_at=emp.created_at
+            )
+            session.add(child_under)
+
+            # 3. Child over 18
+            child_over = EmployeeRelative(
+                employee_id=emp.id,
+                full_name="Nguyễn Hoàng Long",
+                relationship_type="con",
+                date_of_birth=date(2005, 3, 15),
+                participates_in_health_care_insurance=False,
+                created_at=emp.created_at
+            )
+            session.add(child_over)
 
         # 6. Asset
         asset = (await session.execute(select(EmployeeAsset).where(EmployeeAsset.employee_id == emp.id))).scalars().first()
@@ -225,15 +247,62 @@ async def _backfill_all_employees_to_completion(session: AsyncSession) -> None:
         if profile:
             if not profile.company_bhxh_joined_date:
                 profile.company_bhxh_joined_date = emp.start_date
-            if not profile.accident_insurance_code:
-                profile.accident_insurance_code = f"TNLD-AUTO-{emp.id:03d}"
-            if not profile.health_care_insurance_code:
-                profile.health_care_insurance_code = f"CSSK-AUTO-{emp.id:03d}"
-            if profile.health_care_family_participation is None:
-                profile.health_care_family_participation = True
+            
+            # Apply the 30% Health Care / 70% Accident rule for sample employees (employee_seq <= 13)
+            # Control branch employees keep their pre-seeded codes from control_branch_sample.py
+            if emp.employee_seq <= 13:
+                # 30% are CSSK (employee_seq: 3, 6, 9, 12)
+                if emp.employee_seq % 3 == 0:
+                    profile.health_care_insurance_code = f"CSSK-AUTO-{emp.employee_seq:03d}"
+                    profile.accident_insurance_code = None
+                    # 50% of CSSK have family participation (employee_seq: 6, 12)
+                    if (emp.employee_seq // 3) % 2 == 0:
+                        profile.health_care_family_participation = True
+                    else:
+                        profile.health_care_family_participation = False
+                else:
+                    # Remaining 70% are Accident (accident_insurance_code)
+                    profile.accident_insurance_code = f"TNLD-AUTO-{emp.employee_seq:03d}"
+                    profile.health_care_insurance_code = None
+                    profile.health_care_family_participation = None
+            else:
+                # For control branch or other employees, ensure they have at least one type of insurance
+                if not profile.health_care_insurance_code and not profile.accident_insurance_code:
+                    if emp.employee_seq % 2 == 0:
+                        profile.accident_insurance_code = f"TNLD-AUTO-{emp.employee_seq:03d}"
+                        profile.health_care_insurance_code = None
+                        profile.health_care_family_participation = None
+                    else:
+                        profile.health_care_insurance_code = f"CSSK-AUTO-{emp.employee_seq:03d}"
+                        profile.accident_insurance_code = None
+                        profile.health_care_family_participation = False
+
             if not profile.bhxh_code:
                 profile.bhxh_code = f"BHXH-{emp.id:09d}"
             session.add(profile)
+            
+            # Sync relative participates_in_health_care_insurance with the employee's family participation status
+            emp_relatives = (await session.execute(select(EmployeeRelative).where(EmployeeRelative.employee_id == emp.id))).scalars().all()
+            has_health_care_family = bool(profile.health_care_insurance_code) and (profile.health_care_family_participation is True)
+            
+            for rel in emp_relatives:
+                if has_health_care_family:
+                    if rel.relationship_type in {"vo", "chong"}:
+                        rel.participates_in_health_care_insurance = True
+                    elif rel.relationship_type == "con":
+                        age = 0
+                        if rel.date_of_birth:
+                            today = date.today()
+                            age = today.year - rel.date_of_birth.year - ((today.month, today.day) < (rel.date_of_birth.month, rel.date_of_birth.day))
+                        if age < 18:
+                            rel.participates_in_health_care_insurance = True
+                        else:
+                            rel.participates_in_health_care_insurance = False
+                    else:
+                        rel.participates_in_health_care_insurance = False
+                else:
+                    rel.participates_in_health_care_insurance = False
+                session.add(rel)
 
         # 11. NDA checklist items status set to submitted
         chk_items = (await session.execute(

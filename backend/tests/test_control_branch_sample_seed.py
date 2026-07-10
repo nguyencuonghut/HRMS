@@ -224,6 +224,51 @@ async def test_control_branch_seed_supports_dashboard_residence_and_contract_mix
         assert contract_counts["definite_term"] >= 2
 
 
+async def test_control_branch_seed_keeps_health_care_and_accident_insurance_mutually_exclusive():
+    async with _make_session()() as session:
+        await required.run(session)
+        await bootstrap.run(session)
+        await rbac.run(session, include_users=True)
+        await sample.run(session)
+        await session.commit()
+
+    async with _make_session()() as session:
+        rows = (
+            await session.execute(
+                text(
+                    """
+                    SELECT
+                        e.employee_seq,
+                        ip.health_care_insurance_code,
+                        ip.accident_insurance_code,
+                        ip.health_care_family_participation
+                    FROM employees e
+                    JOIN employee_insurance_profiles ip ON ip.employee_id = e.id
+                    WHERE e.personal_email IN (
+                        :email_1, :email_2, :email_3, :email_4, :email_5
+                    )
+                    ORDER BY e.employee_seq
+                    """
+                ),
+                {
+                    "email_1": CONTROL_EMAILS[0],
+                    "email_2": CONTROL_EMAILS[1],
+                    "email_3": CONTROL_EMAILS[2],
+                    "email_4": CONTROL_EMAILS[3],
+                    "email_5": CONTROL_EMAILS[4],
+                },
+            )
+        ).all()
+
+        assert len(rows) == 5
+        for employee_seq, health_care_code, accident_code, family_participation in rows:
+            assert not (health_care_code and accident_code), employee_seq
+            if health_care_code:
+                assert family_participation is not None, employee_seq
+            else:
+                assert family_participation is None, employee_seq
+
+
 async def test_sample_seed_adds_current_year_personnel_changes_for_dashboard_trend():
     report_year = date.today().year
 
