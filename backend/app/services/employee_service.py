@@ -350,7 +350,7 @@ async def create_employee(session: AsyncSession, payload: EmployeeCreate) -> Emp
         start_date=payload.start_date,
         resigned_date=payload.resigned_date,
         user_id=payload.user_id,
-        is_active=True,
+        is_active=payload.status != "resigned",
         created_at=_utcnow(),
     )
     session.add(emp)
@@ -403,6 +403,10 @@ async def update_employee(
         update_data["id_number_hash"] = hash_sensitive(update_data["id_number"])
     if "bhxh_code" in update_data:
         update_data["bhxh_code"] = employee_insurance_service.normalize_bhxh_code(update_data["bhxh_code"])
+    if update_data.get("status") == "resigned":
+        update_data["is_active"] = False
+    elif update_data.get("status") and update_data["status"] != "resigned" and "is_active" not in update_data:
+        update_data["is_active"] = True
 
     for field, value in update_data.items():
         setattr(emp, field, value)

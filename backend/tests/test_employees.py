@@ -275,6 +275,22 @@ def test_create_employee_auto_seq(client: TestClient):
     assert r2.json()["employee_seq"] == r1.json()["employee_seq"] + 1
 
 
+def test_create_resigned_employee_sets_inactive(client: TestClient):
+    headers = _admin(client)
+    payload = {
+        **_valid_payload("TEST999000012R"),
+        "employee_seq": 99991,
+        "status": "resigned",
+        "resigned_date": "2026-02-15",
+        "resigned_reason_type": "1",
+    }
+    resp = client.post(BASE, json=payload, headers=headers)
+    assert resp.status_code == 201, resp.text
+    data = resp.json()
+    assert data["status"] == "resigned"
+    assert data["is_active"] is False
+
+
 @pytest.mark.asyncio
 async def test_update_employee_syncs_bhxh_code_to_insurance_profile(client: TestClient):
     headers = _admin(client)
@@ -414,6 +430,20 @@ def test_update_employee_not_found(client: TestClient):
     headers = _admin(client)
     resp = client.put(f"{BASE}/999999", json={"status": "official"}, headers=headers)
     assert resp.status_code == 404
+
+
+def test_update_employee_status_resigned_sets_inactive(client: TestClient):
+    headers = _admin(client)
+    created = client.post(BASE, json=_valid_payload("TEST999000061R"), headers=headers).json()
+    resp = client.put(
+        f"{BASE}/{created['id']}",
+        json={"status": "resigned", "resigned_date": "2026-03-01", "resigned_reason_type": "2"},
+        headers=headers,
+    )
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["status"] == "resigned"
+    assert data["is_active"] is False
 
 
 # ── Soft delete ────────────────────────────────────────────────────────────────

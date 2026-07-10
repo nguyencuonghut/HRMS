@@ -699,7 +699,7 @@ async def seed_sample_employees(session: AsyncSession) -> int:
                     :phone_number, :personal_email, :personal_tax_code,
                     :status, :start_date, :resigned_date,
                     :resigned_reason_type, :resigned_reason_note,
-                    true, now()
+                    :is_active, now()
                 ON CONFLICT (id_number_hash) DO NOTHING
             """),
             {
@@ -725,6 +725,7 @@ async def seed_sample_employees(session: AsyncSession) -> int:
                 "resigned_date": _d(emp.get("resigned_date")),
                 "resigned_reason_type": emp.get("resigned_reason_type"),
                 "resigned_reason_note": emp.get("resigned_reason_note"),
+                "is_active": emp["status"] != "resigned",
             },
         )
         added += result.rowcount
@@ -763,5 +764,17 @@ async def seed_sample_employees(session: AsyncSession) -> int:
         WHERE ecs.id = sub.employee_code_sequence_id
           AND ecs.next_value <= sub.max_seq
     """))
+
+    sample_hashes = [hash_sensitive(emp["id_number"]) for emp in SAMPLE_EMPLOYEES]
+    await session.execute(
+        text(
+            """
+            UPDATE employees
+            SET is_active = CASE WHEN status = 'resigned' THEN FALSE ELSE is_active END
+            WHERE id_number_hash = ANY(:sample_hashes)
+            """
+        ),
+        {"sample_hashes": sample_hashes},
+    )
 
     return added

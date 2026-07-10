@@ -81,6 +81,7 @@
         :loading="loading"
         responsive-layout="scroll"
         :paginator="true"
+        :first="(page - 1) * pageSize"
         :rows="pageSize"
         :total-records="total"
         :rows-per-page-options="[10, 25, 50]"
@@ -139,8 +140,8 @@
         <Column header="Tình trạng" style="width: 120px">
           <template #body="{ data }">
             <Tag
-              :value="data.is_active ? 'Đang làm' : 'Đã rời'"
-              :severity="data.is_active ? 'success' : 'secondary'"
+              :value="activityLabel(data.is_active)"
+              :severity="activitySeverity(data.is_active)"
             />
           </template>
         </Column>
@@ -265,9 +266,17 @@ const resignedReasonOptions = [
 function statusLabel(s: string): string {
   const map: Record<string, string> = {
     probation: 'Thử việc', official: 'Chính thức',
-    long_leave: 'Nghỉ dài hạn', resigned: 'Đã nghỉ',
+    long_leave: 'Nghỉ dài hạn', resigned: 'Đã nghỉ việc',
   }
   return map[s] ?? s
+}
+
+function activityLabel(isActive: boolean): string {
+  return isActive ? 'Đang làm việc' : 'Đã rời công ty'
+}
+
+function activitySeverity(isActive: boolean): 'success' | 'secondary' {
+  return isActive ? 'success' : 'secondary'
 }
 
 function statusSeverity(s: string): 'warn' | 'success' | 'secondary' | 'danger' {
