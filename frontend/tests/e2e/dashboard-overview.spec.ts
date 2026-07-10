@@ -43,8 +43,10 @@ test.describe("Dashboard tổng quan", () => {
     await expect(headcountCards.first()).toBeVisible();
     expect(await headcountCards.count()).toBeGreaterThan(0);
 
-    const lineChart = page.locator(".line-chart-svg");
-    await expect(lineChart).toBeVisible();
+    const divergingChart = page.locator(".diverging-chart-svg");
+    await expect(divergingChart).toBeVisible();
+    await expect(page.locator(".diverging-chart-bar.is-hires")).toHaveCount(12);
+    await expect(page.locator(".diverging-chart-bar.is-resigned")).toHaveCount(12);
 
     const donutCharts = page.locator(".pie-summary-chart");
     await expect(donutCharts).toHaveCount(3);

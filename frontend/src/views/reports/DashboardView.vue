@@ -119,7 +119,7 @@
           title="Không có dữ liệu"
           subtitle="Chưa có dữ liệu biến động nhân sự trong năm đã chọn."
         />
-        <LineTrendChart v-else :items="monthlyTrend.monthly" />
+        <DivergingBarChart v-else :items="monthlyTrend.monthly" />
       </div>
     </section>
 
@@ -720,15 +720,15 @@ const PieSummaryChart = defineComponent({
   },
 });
 
-const LineTrendChart = defineComponent({
-  name: "DashboardLineTrendChart",
+const DivergingBarChart = defineComponent({
+  name: "DashboardDivergingBarChart",
   props: {
     items: { type: Array as PropType<MonthlyTrendItem[]>, required: true },
   },
   setup(props) {
     const width = 720;
-    const height = 260;
-    const padding = { top: 20, right: 28, bottom: 38, left: 28 };
+    const height = 300;
+    const padding = { top: 20, right: 28, bottom: 46, left: 36 };
 
     const maxValue = computed(() =>
       Math.max(
@@ -737,54 +737,69 @@ const LineTrendChart = defineComponent({
       ),
     );
 
-    const yAxisStep = computed(() => Math.max(1, Math.ceil(maxValue.value / 4)));
+    const yAxisStep = computed(() => Math.max(1, Math.ceil(maxValue.value / 3)));
     const yAxisMax = computed(() =>
-      Math.max(yAxisStep.value, Math.ceil(maxValue.value / yAxisStep.value) * yAxisStep.value),
+      Math.max(
+        yAxisStep.value,
+        Math.ceil(maxValue.value / yAxisStep.value) * yAxisStep.value,
+      ),
     );
     const yAxisTicks = computed(() => {
       const ticks: number[] = [];
-      for (let value = 0; value <= yAxisMax.value; value += yAxisStep.value) {
+      for (
+        let value = -yAxisMax.value;
+        value <= yAxisMax.value;
+        value += yAxisStep.value
+      ) {
         ticks.push(value);
       }
       return ticks;
     });
 
-    function xAt(index: number): number {
+    const groupWidth = computed(() => {
       const innerWidth = width - padding.left - padding.right;
-      return (
-        padding.left +
-        (innerWidth * index) / Math.max(props.items.length - 1, 1)
-      );
+      return innerWidth / Math.max(props.items.length, 1);
+    });
+
+    const barWidth = computed(() =>
+      Math.min(18, Math.max(10, groupWidth.value * 0.24)),
+    );
+
+    function xCenterAt(index: number): number {
+      return padding.left + groupWidth.value * index + groupWidth.value / 2;
     }
 
     function yAt(value: number): number {
       const innerHeight = height - padding.top - padding.bottom;
-      return padding.top + innerHeight - (value / yAxisMax.value) * innerHeight;
+      return (
+        padding.top +
+        innerHeight -
+        ((value + yAxisMax.value) / (yAxisMax.value * 2)) * innerHeight
+      );
     }
 
-    function toPath(values: number[]): string {
-      return values
-        .map(
-          (value, index) =>
-            `${index === 0 ? "M" : "L"} ${xAt(index)} ${yAt(value)}`,
-        )
-        .join(" ");
-    }
+    const zeroY = computed(() => yAt(0));
 
-    const hiresPath = computed(() =>
-      toPath(props.items.map((item) => item.new_hires)),
-    );
-    const resignedPath = computed(() =>
-      toPath(props.items.map((item) => item.resigned_count)),
-    );
+    function barRect(
+      value: number,
+      x: number,
+    ): { x: number; y: number; width: number; height: number } {
+      const targetY = yAt(value);
+      return {
+        x,
+        y: value >= 0 ? targetY : zeroY.value,
+        width: barWidth.value,
+        height: Math.max(Math.abs(zeroY.value - targetY), value === 0 ? 2 : 0),
+      };
+    }
 
     return () =>
-      h("div", { class: "line-chart" }, [
+      h("div", { class: "diverging-chart" }, [
         h(
           "svg",
           {
             viewBox: `0 0 ${width} ${height}`,
-            class: "line-chart-svg",
+            class: "diverging-chart-svg",
             "aria-label": "Biến động nhân sự 12 tháng",
           },
           [
@@ -796,55 +811,89 @@ const LineTrendChart = defineComponent({
                   y1: y,
                   x2: width - padding.right,
                   y2: y,
-                  class: "line-chart-grid",
+                  class: [
+                    "diverging-chart-grid",
+                    value === 0 && "is-zero",
+                  ],
                 }),
                 h(
                   "text",
-                  { x: 0, y: y + 4, class: "line-chart-axis-label" },
-                  formatInteger(value),
+                  {
+                    x: 0,
+                    y: y + 4,
+                    class: "diverging-chart-axis-label",
+                  },
+                  formatInteger(Math.abs(value)),
                 ),
               ]);
             }),
-            h("path", {
-              d: hiresPath.value,
-              class: "line-chart-path is-hires",
+            ...props.items.flatMap((item, index) => {
+              const centerX = xCenterAt(index);
+              const hiresRect = barRect(
+                item.new_hires,
+                centerX - barWidth.value - 4,
+              );
+              const resignedRect = barRect(-item.resigned_count, centerX + 4);
+
+              return [
+                h("rect", {
+                  x: hiresRect.x,
+                  y: hiresRect.y,
+                  width: hiresRect.width,
+                  height: hiresRect.height,
+                  rx: 4,
+                  class: "diverging-chart-bar is-hires",
+                }),
+                h("rect", {
+                  x: resignedRect.x,
+                  y: resignedRect.y,
+                  width: resignedRect.width,
+                  height: resignedRect.height,
+                  rx: 4,
+                  class: "diverging-chart-bar is-resigned",
+                }),
+                item.new_hires > 0
+                  ? h(
+                      "text",
+                      {
+                        x: hiresRect.x + hiresRect.width / 2,
+                        y: hiresRect.y - 6,
+                        class: "diverging-chart-value is-hires",
+                      },
+                      formatInteger(item.new_hires),
+                    )
+                  : null,
+                item.resigned_count > 0
+                  ? h(
+                      "text",
+                      {
+                        x: resignedRect.x + resignedRect.width / 2,
+                        y: resignedRect.y + resignedRect.height + 14,
+                        class: "diverging-chart-value is-resigned",
+                      },
+                      formatInteger(item.resigned_count),
+                    )
+                  : null,
+                h(
+                  "text",
+                  {
+                    x: centerX,
+                    y: height - 10,
+                    class: "diverging-chart-axis-label is-bottom",
+                  },
+                  `T${item.month}`,
+                ),
+              ];
             }),
-            h("path", {
-              d: resignedPath.value,
-              class: "line-chart-path is-resigned",
-            }),
-            ...props.items.flatMap((item, index) => [
-              h("circle", {
-                cx: xAt(index),
-                cy: yAt(item.new_hires),
-                r: 4,
-                class: "line-chart-point is-hires",
-              }),
-              h("circle", {
-                cx: xAt(index),
-                cy: yAt(item.resigned_count),
-                r: 4,
-                class: "line-chart-point is-resigned",
-              }),
-              h(
-                "text",
-                {
-                  x: xAt(index),
-                  y: height - 10,
-                  class: "line-chart-axis-label is-bottom",
-                },
-                `T${item.month}`,
-              ),
-            ]),
           ],
         ),
-        h("div", { class: "line-chart-legend" }, [
-          h("div", { class: "line-chart-legend-item" }, [
-            h("span", { class: "line-chart-legend-dot is-hires" }),
+        h("div", { class: "diverging-chart-legend" }, [
+          h("div", { class: "diverging-chart-legend-item" }, [
+            h("span", { class: "diverging-chart-legend-dot is-hires" }),
             h("span", "Tuyển mới"),
           ]),
-          h("div", { class: "line-chart-legend-item" }, [
-            h("span", { class: "line-chart-legend-dot is-resigned" }),
+          h("div", { class: "diverging-chart-legend-item" }, [
+            h("span", { class: "diverging-chart-legend-dot is-resigned" }),
             h("span", "Nghỉ việc"),
           ]),
         ]),
@@ -1433,61 +1482,64 @@ html.dark-mode .dashboard-view .headcount-card.is-empty {
   font-size: 0.85rem;
 }
 
-.line-chart {
+.diverging-chart {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
 }
 
-.line-chart-svg {
+.diverging-chart-svg {
   width: 100%;
   height: auto;
   overflow: visible;
 }
 
-.line-chart-grid {
+.diverging-chart-grid {
   stroke: var(--dashboard-grid-line);
   stroke-width: 1;
 }
 
-.line-chart-axis-label {
+.diverging-chart-grid.is-zero {
+  stroke: color-mix(in srgb, var(--l-text) 18%, var(--dashboard-grid-line));
+  stroke-width: 1.5;
+}
+
+.diverging-chart-axis-label {
   fill: var(--l-text-muted);
   font-size: 11px;
 }
 
-.line-chart-axis-label.is-bottom {
+.diverging-chart-axis-label.is-bottom,
+.diverging-chart-value {
   text-anchor: middle;
 }
 
-.line-chart-path {
-  fill: none;
-  stroke-width: 3;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+.diverging-chart-bar {
+  shape-rendering: geometricPrecision;
 }
 
-.line-chart-path.is-hires,
-.line-chart-point.is-hires,
-.line-chart-legend-dot.is-hires {
-  stroke: var(--dashboard-hires-color);
+.diverging-chart-value {
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.diverging-chart-bar.is-hires,
+.diverging-chart-legend-dot.is-hires,
+.diverging-chart-value.is-hires {
   background: var(--dashboard-hires-color);
   fill: var(--dashboard-hires-color);
+  color: var(--dashboard-hires-color);
 }
 
-.line-chart-path.is-hires,
-.line-chart-path.is-resigned {
-  fill: none;
-}
-
-.line-chart-path.is-resigned,
-.line-chart-point.is-resigned,
-.line-chart-legend-dot.is-resigned {
-  stroke: var(--dashboard-resigned-color);
+.diverging-chart-bar.is-resigned,
+.diverging-chart-legend-dot.is-resigned,
+.diverging-chart-value.is-resigned {
   background: var(--dashboard-resigned-color);
   fill: var(--dashboard-resigned-color);
+  color: var(--dashboard-resigned-color);
 }
 
-.line-chart-legend {
+.diverging-chart-legend {
   display: flex;
   justify-content: center;
   gap: 1rem;
@@ -1496,13 +1548,13 @@ html.dark-mode .dashboard-view .headcount-card.is-empty {
   font-size: 0.875rem;
 }
 
-.line-chart-legend-item {
+.diverging-chart-legend-item {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
 }
 
-.line-chart-legend-dot {
+.diverging-chart-legend-dot {
   width: 0.75rem;
   height: 0.75rem;
   border-radius: 999px;
