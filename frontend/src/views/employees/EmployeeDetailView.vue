@@ -685,7 +685,7 @@ const showProbationTab = computed(() => !isNew.value)
 const visibleTabValues = computed(() => {
   const tabs = ['basic', 'docs', 'contact', 'address']
   if (showEmployeeSubTabs.value) {
-    tabs.push('bank', 'job', 'relatives', 'education', 'attachments')
+    tabs.push('bank', 'job', 'relatives', 'assets', 'education', 'attachments')
   }
   if (showContractsTab.value) tabs.push('contracts')
   if (showInsuranceTab.value) tabs.push('insurance')
