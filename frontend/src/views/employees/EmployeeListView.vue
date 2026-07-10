@@ -126,6 +126,10 @@
           <template #body="{ data }">{{ formatDate(data.start_date) }}</template>
         </Column>
 
+        <Column field="resigned_date" header="Ngày nghỉ việc" style="width: 140px">
+          <template #body="{ data }">{{ formatDate(data.resigned_date) }}</template>
+        </Column>
+
         <Column field="phone_number" header="Số điện thoại" style="width: 145px">
           <template #body="{ data }">
             <span class="muted-text">{{ data.phone_number || '—' }}</span>

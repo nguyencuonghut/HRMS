@@ -248,6 +248,9 @@
         <Column header="Ngày vào làm" style="width: 130px">
           <template #body="{ data }">{{ formatDate(data.start_date) }}</template>
         </Column>
+        <Column header="Ngày nghỉ việc" style="width: 130px">
+          <template #body="{ data }">{{ formatDate(data.resigned_date) }}</template>
+        </Column>
         <Column header="Loại HĐ" style="min-width: 150px">
           <template #body="{ data }">{{ data.contract_category_name || '—' }}</template>
         </Column>
