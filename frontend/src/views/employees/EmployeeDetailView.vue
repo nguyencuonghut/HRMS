@@ -695,6 +695,11 @@ const visibleTabValues = computed(() => {
   return tabs
 })
 
+function resolveRequestedTab(value: unknown, tabs: string[]): string | null {
+  if (typeof value !== 'string') return null
+  return tabs.includes(value) ? value : null
+}
+
 // ── Form model ────────────────────────────────────────────────────────────────
 const form = ref({
   full_name: '',
@@ -1080,12 +1085,35 @@ watch(() => route.params.id, () => {
 })
 
 watch(
-  visibleTabValues,
-  (tabs) => {
+  [visibleTabValues, () => route.query.tab],
+  ([tabs, routeTab]) => {
+    const requestedTab = resolveRequestedTab(routeTab, tabs)
+    if (requestedTab) {
+      activeTab.value = requestedTab
+      return
+    }
     if (!tabs.includes(activeTab.value)) {
       activeTab.value = tabs[0] ?? 'basic'
     }
   },
   { immediate: true },
 )
+
+watch(activeTab, (tab) => {
+  if (isNew.value) return
+  const currentQueryTab = typeof route.query.tab === 'string' ? route.query.tab : null
+  const nextQueryTab = tab === 'basic' ? null : tab
+  if (currentQueryTab === nextQueryTab) return
+
+  const nextQuery = { ...route.query }
+  if (nextQueryTab) {
+    nextQuery.tab = nextQueryTab
+  } else {
+    delete nextQuery.tab
+  }
+
+  router.replace({
+    query: nextQuery,
+  })
+})
 </script>
