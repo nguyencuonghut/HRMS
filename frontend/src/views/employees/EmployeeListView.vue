@@ -155,6 +155,7 @@
             >
               <i :class="docExpiryIcon(data)" />
             </span>
+            <span v-else class="muted-text">—</span>
           </template>
         </Column>
 

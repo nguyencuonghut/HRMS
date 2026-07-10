@@ -34,6 +34,7 @@ SAMPLE_EMPLOYEES = [
         "id_number": "001088123456",
         "id_issued_on": "2021-06-15",
         "id_issued_by": "Cục Cảnh sát ĐKQLCƯ và DLQGVDC",
+        "id_expires_on": "2026-07-05",
         "phone_number": "0901234001",
         "personal_email": "nguyenvanan@gmail.com",
         "personal_tax_code": "8801234001",
@@ -55,6 +56,7 @@ SAMPLE_EMPLOYEES = [
         "id_number": "038092456789",
         "id_issued_on": "2022-01-10",
         "id_issued_by": "Cục Cảnh sát ĐKQLCƯ và DLQGVDC",
+        "id_expires_on": "2026-07-25",
         "phone_number": "0901234002",
         "personal_email": "tranthibinh@gmail.com",
         "personal_tax_code": "8801234002",
@@ -181,6 +183,8 @@ SAMPLE_EMPLOYEES = [
         "id_number": "001201789012",
         "id_issued_on": "2023-04-30",
         "id_issued_by": "Cục Cảnh sát ĐKQLCƯ và DLQGVDC",
+        "passport_number": "C1234567",
+        "passport_expires_on": "2026-08-02",
         "phone_number": "0901234008",
         "personal_email": "vuthihoa@gmail.com",
         "personal_tax_code": None,
@@ -202,6 +206,8 @@ SAMPLE_EMPLOYEES = [
         "id_number": "051098890123",
         "id_issued_on": "2022-08-15",
         "id_issued_by": "Cục Cảnh sát ĐKQLCƯ và DLQGVDC",
+        "work_permit_number": "WP-2026-0009",
+        "work_permit_expires_on": "2026-06-30",
         "phone_number": "0901234009",
         "personal_email": "buivanych@gmail.com",
         "personal_tax_code": None,
@@ -683,6 +689,7 @@ async def seed_sample_employees(session: AsyncSession) -> int:
                     employee_seq, employee_code_sequence_id, full_name, normalized_name, last_name, first_name,
                     date_of_birth, gender, nationality_id, ethnicity_id,
                     id_number, id_number_hash, id_issued_on, id_issued_by,
+                    id_expires_on, passport_number, passport_expires_on, work_permit_number, work_permit_expires_on,
                     phone_number, personal_email, personal_tax_code,
                     status, start_date, resigned_date,
                     resigned_reason_type, resigned_reason_note,
@@ -696,6 +703,7 @@ async def seed_sample_employees(session: AsyncSession) -> int:
                     (SELECT id FROM nationalities WHERE code = :nationality_code),
                     (SELECT id FROM ethnicities WHERE code = :ethnicity_code),
                     :id_number, :id_number_hash, :id_issued_on, :id_issued_by,
+                    :id_expires_on, :passport_number, :passport_expires_on, :work_permit_number, :work_permit_expires_on,
                     :phone_number, :personal_email, :personal_tax_code,
                     :status, :start_date, :resigned_date,
                     :resigned_reason_type, :resigned_reason_note,
@@ -717,6 +725,11 @@ async def seed_sample_employees(session: AsyncSession) -> int:
                 "id_number_hash": hash_sensitive(emp["id_number"]),
                 "id_issued_on": _d(emp["id_issued_on"]),
                 "id_issued_by": emp["id_issued_by"],
+                "id_expires_on": _d(emp.get("id_expires_on")),
+                "passport_number": encrypt(emp.get("passport_number")),
+                "passport_expires_on": _d(emp.get("passport_expires_on")),
+                "work_permit_number": emp.get("work_permit_number"),
+                "work_permit_expires_on": _d(emp.get("work_permit_expires_on")),
                 "phone_number": emp.get("phone_number"),
                 "personal_email": emp.get("personal_email"),
                 "personal_tax_code": encrypt(emp.get("personal_tax_code")),
@@ -765,16 +778,29 @@ async def seed_sample_employees(session: AsyncSession) -> int:
           AND ecs.next_value <= sub.max_seq
     """))
 
-    sample_hashes = [hash_sensitive(emp["id_number"]) for emp in SAMPLE_EMPLOYEES]
-    await session.execute(
-        text(
-            """
-            UPDATE employees
-            SET is_active = CASE WHEN status = 'resigned' THEN FALSE ELSE is_active END
-            WHERE id_number_hash = ANY(:sample_hashes)
-            """
-        ),
-        {"sample_hashes": sample_hashes},
-    )
+    for emp in SAMPLE_EMPLOYEES:
+        await session.execute(
+            text(
+                """
+                UPDATE employees
+                SET
+                    is_active = CASE WHEN status = 'resigned' THEN FALSE ELSE is_active END,
+                    id_expires_on = :id_expires_on,
+                    passport_number = :passport_number,
+                    passport_expires_on = :passport_expires_on,
+                    work_permit_number = :work_permit_number,
+                    work_permit_expires_on = :work_permit_expires_on
+                WHERE id_number_hash = :id_number_hash
+                """
+            ),
+            {
+                "id_number_hash": hash_sensitive(emp["id_number"]),
+                "id_expires_on": _d(emp.get("id_expires_on")),
+                "passport_number": encrypt(emp.get("passport_number")),
+                "passport_expires_on": _d(emp.get("passport_expires_on")),
+                "work_permit_number": emp.get("work_permit_number"),
+                "work_permit_expires_on": _d(emp.get("work_permit_expires_on")),
+            },
+        )
 
     return added
