@@ -70,6 +70,8 @@
         striped-rows
         size="small"
         lazy
+        paginator-template="RowsPerPageDropdown FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport"
+        current-page-report-template="Hiển thị từ {first} đến {last} trên tổng số {totalRecords} dòng"
         :total-records="total"
         :rows="pageSize"
         :first="(page - 1) * pageSize"

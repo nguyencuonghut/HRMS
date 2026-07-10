@@ -116,6 +116,8 @@
         size="small"
         striped-rows
         lazy
+        paginator-template="RowsPerPageDropdown FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport"
+        current-page-report-template="Hiển thị từ {first} đến {last} trên tổng số {totalRecords} dòng"
         :total-records="historyTotal"
         :rows="historyPageSize"
         :first="(historyPage - 1) * historyPageSize"

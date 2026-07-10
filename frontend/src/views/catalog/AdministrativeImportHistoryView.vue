@@ -36,7 +36,16 @@
     </div>
 
     <div class="card">
-      <DataTable :value="batches" :loading="loading" stripedRows paginator :rows="10" responsive-layout="scroll">
+      <DataTable
+        :value="batches"
+        :loading="loading"
+        stripedRows
+        paginator
+        paginator-template="RowsPerPageDropdown FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport"
+        current-page-report-template="Hiển thị từ {first} đến {last} trên tổng số {totalRecords} dòng"
+        :rows="10"
+        responsive-layout="scroll"
+      >
         <template #empty>
           <div class="empty-state">
             <i class="pi pi-inbox" />

@@ -165,6 +165,8 @@
               :rows="pageSize"
               :totalRecords="report.total_rewards"
               :first="(rewardPage - 1) * pageSize"
+              template="PrevPageLink PageLinks NextPageLink CurrentPageReport"
+              current-page-report-template="Hiển thị từ {first} đến {last} trên tổng số {totalRecords} dòng"
               @page="onRewardPage"
             />
           </TabPanel>
@@ -213,6 +215,8 @@
               :rows="pageSize"
               :totalRecords="report.total_disciplines"
               :first="(disciplinePage - 1) * pageSize"
+              template="PrevPageLink PageLinks NextPageLink CurrentPageReport"
+              current-page-report-template="Hiển thị từ {first} đến {last} trên tổng số {totalRecords} dòng"
               @page="onDisciplinePage"
             />
           </TabPanel>

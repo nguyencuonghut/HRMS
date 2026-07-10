@@ -119,7 +119,8 @@
           :rows="pageSize"
           :total-records="total"
           :first="(currentPage - 1) * pageSize"
-          template="PrevPageLink PageLinks NextPageLink"
+          template="PrevPageLink PageLinks NextPageLink CurrentPageReport"
+          current-page-report-template="Hiển thị từ {first} đến {last} trên tổng số {totalRecords} dòng"
           @page="onPageChange"
         />
         <div class="salary-adj-footer-total">Tổng: {{ total }} điều chỉnh</div>

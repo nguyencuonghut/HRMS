@@ -102,6 +102,8 @@
               :loading="logLoading"
               striped-rows
               paginator
+              paginator-template="RowsPerPageDropdown FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport"
+              current-page-report-template="Hiển thị từ {first} đến {last} trên tổng số {totalRecords} dòng"
               :rows="20"
               :total-records="logs.total"
               lazy

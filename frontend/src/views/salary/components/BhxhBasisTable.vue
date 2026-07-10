@@ -131,7 +131,8 @@
         :rows="pageSize"
         :total-records="total"
         :first="(currentPage - 1) * pageSize"
-        template="PrevPageLink PageLinks NextPageLink"
+        template="PrevPageLink PageLinks NextPageLink CurrentPageReport"
+        current-page-report-template="Hiển thị từ {first} đến {last} trên tổng số {totalRecords} dòng"
         @page="onPageChange"
       />
       <div style="padding: 0.5rem 0; font-size: 0.85rem; color: var(--p-text-muted-color)">

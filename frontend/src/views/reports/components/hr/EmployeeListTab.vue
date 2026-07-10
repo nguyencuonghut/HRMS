@@ -213,6 +213,8 @@
         :loading="loading"
         lazy
         paginator
+        paginator-template="RowsPerPageDropdown FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport"
+        current-page-report-template="Hiển thị từ {first} đến {last} trên tổng số {totalRecords} dòng"
         striped-rows
         responsive-layout="scroll"
         :rows="pageState.pageSize"
