@@ -205,6 +205,40 @@ CONTROL_EMPLOYEES: list[ControlEmployeeSeed] = [
 ]
 
 
+PIPELINE_DEMO_APPLICANTS = [
+    {
+        "email": "candidate.ks.014.screening@example.com",
+        "full_name": "Ứng viên Hồ Gia Hân",
+        "stage": "screening",
+        "applied_days_before_join": 18,
+        "stage_results": [("screening", "pending", Decimal("0"))],
+    },
+    {
+        "email": "candidate.ks.014.interview@example.com",
+        "full_name": "Ứng viên Lê Quốc Khánh",
+        "stage": "interview",
+        "applied_days_before_join": 24,
+        "stage_results": [
+            ("screening", "pass", Decimal("82")),
+            ("interview", "pending", Decimal("0")),
+        ],
+    },
+    {
+        "email": "candidate.ks.014.final@example.com",
+        "full_name": "Ứng viên Phan Minh Châu",
+        "stage": "final",
+        "applied_days_before_join": 30,
+        "stage_results": [
+            ("screening", "pass", Decimal("86")),
+            ("interview", "pass", Decimal("89")),
+            ("final", "pending", Decimal("0")),
+        ],
+    },
+]
+
+SELECTION_DEMO_EMPLOYEE_SEQ = 14
+
+
 async def _scalar(session: AsyncSession, sql: str, **params):
     return (await session.execute(text(sql), params)).scalar()
 
@@ -1266,128 +1300,230 @@ async def _ensure_recruitment_data(
         )
         counts["headcount_plans"] += 1
 
-    jr_code = f"SAMPLE-KS-JR-{employee.employee_seq:03d}"
-    jr_exists = await _scalar(
-        session,
-        "SELECT COUNT(*) FROM job_requisitions WHERE code = :code",
-        code=jr_code,
-    )
-    if not jr_exists:
-        await session.execute(
-            text(
-                """
-                INSERT INTO job_requisitions (
-                    code, job_position_id, department_id, headcount_plan_id,
-                    quantity, quantity_remaining, reason_type, deadline,
-                    salary_min, salary_max, jd_description, jd_requirements,
-                    status, submitted_by_id, submitted_at, approved_by_id, approved_at,
-                    rejection_note, internal_note, created_by_id, created_at, updated_at
-                )
-                SELECT
-                    :code,
-                    :job_position_id,
-                    :department_id,
-                    hp.id,
-                    1,
-                    0,
-                    'replacement',
-                    :deadline,
-                    :salary_min,
-                    :salary_max,
-                    :jd_description,
-                    :jd_requirements,
-                    'completed',
-                    :created_by_id,
-                    NOW(),
-                    :created_by_id,
-                    NOW(),
-                    NULL,
-                    :internal_note,
-                    :created_by_id,
-                    NOW(),
-                    NOW()
-                FROM headcount_plans hp
-                WHERE hp.year = :plan_year
-                  AND hp.department_id = :department_id
-                  AND hp.job_position_id = :job_position_id
-                """
-            ),
-            {
-                "code": jr_code,
-                "job_position_id": job_position_id,
-                "department_id": department_id,
-                "deadline": employee.join_date - timedelta(days=10),
-                "salary_min": employee.probation_salary,
-                "salary_max": employee.official_salary,
-                "jd_description": f"JR mẫu cho vị trí {employee.job_position_code}",
-                "jd_requirements": "Có kinh nghiệm phù hợp và hoàn tất hồ sơ đúng quy định",
-                "internal_note": "JR mẫu để liên kết dữ liệu employee - ATS",
-                "created_by_id": created_by_id,
-                "plan_year": plan_year,
-            },
-        )
-        counts["job_requisitions"] += 1
+    selection_jr_code = f"SAMPLE-KS-JR-{employee.employee_seq:03d}"
+    employee_jr_code = selection_jr_code
+    if employee.employee_seq == SELECTION_DEMO_EMPLOYEE_SEQ:
+        employee_jr_code = f"{selection_jr_code}-HIST"
 
-    posting_title = f"Tuyển {employee.job_position_code} - mẫu"
-    posting_exists = await _scalar(
-        session,
-        """
-        SELECT COUNT(*)
-        FROM job_postings
-        WHERE job_requisition_id = (
-            SELECT id FROM job_requisitions WHERE code = :jr_code
+    async def _ensure_jr(
+        code: str,
+        *,
+        quantity_remaining: int,
+        status: str,
+        internal_note: str,
+        deadline_offset_days: int,
+    ) -> None:
+        jr_exists = await _scalar(
+            session,
+            "SELECT COUNT(*) FROM job_requisitions WHERE code = :code",
+            code=code,
         )
-        """,
-        jr_code=jr_code,
-    )
-    if not posting_exists:
-        await session.execute(
-            text(
+        if not jr_exists:
+            await session.execute(
+                text(
+                    """
+                    INSERT INTO job_requisitions (
+                        code, job_position_id, department_id, headcount_plan_id,
+                        quantity, quantity_remaining, reason_type, deadline,
+                        salary_min, salary_max, jd_description, jd_requirements,
+                        status, submitted_by_id, submitted_at, approved_by_id, approved_at,
+                        rejection_note, internal_note, created_by_id, created_at, updated_at
+                    )
+                    SELECT
+                        :code,
+                        :job_position_id,
+                        :department_id,
+                        hp.id,
+                        1,
+                        :quantity_remaining,
+                        'replacement',
+                        :deadline,
+                        :salary_min,
+                        :salary_max,
+                        :jd_description,
+                        :jd_requirements,
+                        :status,
+                        :created_by_id,
+                        NOW(),
+                        :created_by_id,
+                        NOW(),
+                        NULL,
+                        :internal_note,
+                        :created_by_id,
+                        NOW(),
+                        NOW()
+                    FROM headcount_plans hp
+                    WHERE hp.year = :plan_year
+                      AND hp.department_id = :department_id
+                      AND hp.job_position_id = :job_position_id
+                    """
+                ),
+                {
+                    "code": code,
+                    "job_position_id": job_position_id,
+                    "department_id": department_id,
+                    "quantity_remaining": quantity_remaining,
+                    "deadline": employee.join_date - timedelta(days=deadline_offset_days),
+                    "salary_min": employee.probation_salary,
+                    "salary_max": employee.official_salary,
+                    "jd_description": f"JR mẫu cho vị trí {employee.job_position_code}",
+                    "jd_requirements": "Có kinh nghiệm phù hợp và hoàn tất hồ sơ đúng quy định",
+                    "status": status,
+                    "internal_note": internal_note,
+                    "created_by_id": created_by_id,
+                    "plan_year": plan_year,
+                },
+            )
+            counts["job_requisitions"] += 1
+
+    async def _ensure_posting(
+        jr_code: str,
+        *,
+        title: str,
+        posting_status: str,
+        note: str,
+        deadline_offset_days: int,
+    ) -> None:
+        posting_exists = await _scalar(
+            session,
+            """
+            SELECT COUNT(*)
+            FROM job_postings
+            WHERE job_requisition_id = (
+                SELECT id FROM job_requisitions WHERE code = :jr_code
+            )
+            """,
+            jr_code=jr_code,
+        )
+        if not posting_exists:
+            await session.execute(
+                text(
+                    """
+                    INSERT INTO job_postings (
+                        job_requisition_id, title, description, requirements, benefits,
+                        work_location, deadline, salary_display, posting_type, channels,
+                        status, opened_at, closed_at, expires_at, note,
+                        created_by_id, created_at, updated_at
+                    )
+                    SELECT
+                        jr.id,
+                        :title,
+                        :description,
+                        :requirements,
+                        :benefits,
+                        :work_location,
+                        :deadline,
+                        :salary_display,
+                        'external',
+                        ARRAY[:channel_id]::integer[],
+                        :status,
+                        NOW() - INTERVAL '45 days',
+                        CASE WHEN :is_closed THEN NOW() - INTERVAL '15 days' ELSE NULL END,
+                        CASE WHEN :is_closed THEN NOW() - INTERVAL '15 days' ELSE :expires_at END,
+                        :note,
+                        :created_by_id,
+                        NOW(),
+                        NOW()
+                    FROM job_requisitions jr
+                    WHERE jr.code = :jr_code
+                    """
+                ),
+                {
+                    "jr_code": jr_code,
+                    "title": title,
+                    "description": f"Bài đăng tuyển dụng mẫu cho {employee.full_name}",
+                    "requirements": "Có kỹ năng chuyên môn và kinh nghiệm phù hợp",
+                    "benefits": "Đóng BHXH đầy đủ, môi trường ổn định",
+                    "work_location": "Đắk Lắk",
+                    "deadline": employee.join_date - timedelta(days=deadline_offset_days),
+                    "expires_at": datetime.combine(
+                        employee.join_date - timedelta(days=deadline_offset_days),
+                        datetime.min.time(),
+                    ),
+                    "salary_display": f"{employee.probation_salary:,.0f} - {employee.official_salary:,.0f} VND",
+                    "channel_id": channel_id,
+                    "status": posting_status,
+                    "is_closed": posting_status == "closed",
+                    "note": note,
+                    "created_by_id": created_by_id,
+                },
+            )
+            counts["job_postings"] += 1
+
+    async def _ensure_pipeline_stages(jr_code: str) -> None:
+        stage_defs = [
+            (1, "Sàng lọc hồ sơ", "screening"),
+            (2, "Phỏng vấn", "interview"),
+            (3, "Vòng cuối", "final"),
+        ]
+        for stage_order, stage_name, stage_type in stage_defs:
+            exists = await _scalar(
+                session,
                 """
-                INSERT INTO job_postings (
-                    job_requisition_id, title, description, requirements, benefits,
-                    work_location, deadline, salary_display, posting_type, channels,
-                    status, opened_at, closed_at, expires_at, note,
-                    created_by_id, created_at, updated_at
-                )
-                SELECT
-                    jr.id,
-                    :title,
-                    :description,
-                    :requirements,
-                    :benefits,
-                    :work_location,
-                    :deadline,
-                    :salary_display,
-                    'external',
-                    ARRAY[:channel_id]::integer[],
-                    'closed',
-                    NOW() - INTERVAL '45 days',
-                    NOW() - INTERVAL '15 days',
-                    NOW() - INTERVAL '15 days',
-                    :note,
-                    :created_by_id,
-                    NOW(),
-                    NOW()
-                FROM job_requisitions jr
+                SELECT COUNT(*)
+                FROM pipeline_stages ps
+                JOIN job_requisitions jr ON jr.id = ps.job_requisition_id
                 WHERE jr.code = :jr_code
-                """
-            ),
-            {
-                "jr_code": jr_code,
-                "title": posting_title,
-                "description": f"Bài đăng tuyển dụng mẫu cho {employee.full_name}",
-                "requirements": "Có kỹ năng chuyên môn và kinh nghiệm phù hợp",
-                "benefits": "Đóng BHXH đầy đủ, môi trường ổn định",
-                "work_location": "Đắk Lắk",
-                "deadline": employee.join_date - timedelta(days=25),
-                "salary_display": f"{employee.probation_salary:,.0f} - {employee.official_salary:,.0f} VND",
-                "channel_id": channel_id,
-                "note": "Job posting mẫu nhánh Kiểm soát",
-                "created_by_id": created_by_id,
-            },
+                  AND ps.stage_type = :stage_type
+                """,
+                jr_code=jr_code,
+                stage_type=stage_type,
+            )
+            if exists:
+                continue
+            await session.execute(
+                text(
+                    """
+                    INSERT INTO pipeline_stages (
+                        job_requisition_id, stage_order, stage_name, stage_type, is_active
+                    )
+                    SELECT
+                        jr.id, :stage_order, :stage_name, :stage_type, TRUE
+                    FROM job_requisitions jr
+                    WHERE jr.code = :jr_code
+                    """
+                ),
+                {
+                    "jr_code": jr_code,
+                    "stage_order": stage_order,
+                    "stage_name": stage_name,
+                    "stage_type": stage_type,
+                },
+            )
+            counts["pipeline_stages"] += 1
+
+    await _ensure_jr(
+        selection_jr_code,
+        quantity_remaining=1 if employee.employee_seq == SELECTION_DEMO_EMPLOYEE_SEQ else 0,
+        status="in_progress" if employee.employee_seq == SELECTION_DEMO_EMPLOYEE_SEQ else "completed",
+        internal_note="JR mẫu để demo tuyển chọn đang hoạt động" if employee.employee_seq == SELECTION_DEMO_EMPLOYEE_SEQ else "JR mẫu để liên kết dữ liệu employee - ATS",
+        deadline_offset_days=3 if employee.employee_seq == SELECTION_DEMO_EMPLOYEE_SEQ else 10,
+    )
+    await _ensure_posting(
+        selection_jr_code,
+        title=f"Tuyển {employee.job_position_code} - mẫu",
+        posting_status="open" if employee.employee_seq == SELECTION_DEMO_EMPLOYEE_SEQ else "closed",
+        note="Job posting mẫu cho màn hình tuyển chọn" if employee.employee_seq == SELECTION_DEMO_EMPLOYEE_SEQ else "Job posting mẫu nhánh Kiểm soát",
+        deadline_offset_days=2 if employee.employee_seq == SELECTION_DEMO_EMPLOYEE_SEQ else 25,
+    )
+    await _ensure_pipeline_stages(selection_jr_code)
+
+    if employee_jr_code != selection_jr_code:
+        await _ensure_jr(
+            employee_jr_code,
+            quantity_remaining=0,
+            status="completed",
+            internal_note="JR lịch sử cho ứng viên đã chuyển đổi thành nhân viên",
+            deadline_offset_days=10,
         )
-        counts["job_postings"] += 1
+        await _ensure_posting(
+            employee_jr_code,
+            title=f"Tuyển {employee.job_position_code} - lịch sử",
+            posting_status="closed",
+            note="Job posting lịch sử cho hồ sơ đã tuyển dụng",
+            deadline_offset_days=25,
+        )
+        await _ensure_pipeline_stages(employee_jr_code)
 
     candidate_email = f"candidate.ks.{employee.employee_seq}@example.com"
     candidate_exists = await _scalar(
@@ -1433,6 +1569,88 @@ async def _ensure_recruitment_data(
         )
         counts["candidates"] += 1
 
+    if employee_jr_code != selection_jr_code:
+        await session.execute(
+            text(
+                """
+                UPDATE candidate_applications ca
+                SET job_requisition_id = hist.id
+                FROM candidates c
+                JOIN job_requisitions sel ON sel.code = :selection_jr_code
+                JOIN job_requisitions hist ON hist.code = :employee_jr_code
+                WHERE c.id = ca.candidate_id
+                  AND c.personal_email = :email
+                  AND ca.job_requisition_id = sel.id
+                  AND ca.current_stage = 'hired'
+                """
+            ),
+            {
+                "email": candidate_email,
+                "selection_jr_code": selection_jr_code,
+                "employee_jr_code": employee_jr_code,
+            },
+        )
+        await session.execute(
+            text(
+                """
+                UPDATE candidate_stage_results csr
+                SET stage_id = hist_ps.id
+                FROM candidate_applications ca,
+                     candidates c,
+                     pipeline_stages old_ps,
+                     job_requisitions hist_jr,
+                     pipeline_stages hist_ps
+                WHERE csr.application_id = ca.id
+                  AND c.id = ca.candidate_id
+                  AND old_ps.id = csr.stage_id
+                  AND hist_jr.code = :employee_jr_code
+                  AND hist_ps.job_requisition_id = hist_jr.id
+                  AND hist_ps.stage_type = old_ps.stage_type
+                  AND c.personal_email = :email
+                  AND ca.job_requisition_id = hist_jr.id
+                """
+            ),
+            {
+                "email": candidate_email,
+                "employee_jr_code": employee_jr_code,
+            },
+        )
+        await session.execute(
+            text(
+                """
+                UPDATE offers o
+                SET job_requisition_id = hist.id
+                FROM candidates c
+                JOIN job_requisitions hist ON hist.code = :employee_jr_code
+                WHERE c.id = o.candidate_id
+                  AND c.personal_email = :email
+                  AND o.job_requisition_id <> hist.id
+                """
+            ),
+            {
+                "email": candidate_email,
+                "employee_jr_code": employee_jr_code,
+            },
+        )
+        await session.execute(
+            text(
+                """
+                UPDATE hiring_decisions hd
+                SET job_requisition_id = hist.id
+                FROM offers o
+                JOIN candidates c ON c.id = o.candidate_id
+                JOIN job_requisitions hist ON hist.code = :employee_jr_code
+                WHERE hd.offer_id = o.id
+                  AND c.personal_email = :email
+                  AND hd.job_requisition_id <> hist.id
+                """
+            ),
+            {
+                "email": candidate_email,
+                "employee_jr_code": employee_jr_code,
+            },
+        )
+
     application_exists = await _scalar(
         session,
         """
@@ -1444,7 +1662,7 @@ async def _ensure_recruitment_data(
           AND jr.code = :jr_code
         """,
         email=candidate_email,
-        jr_code=jr_code,
+        jr_code=employee_jr_code,
     )
     if not application_exists:
         await session.execute(
@@ -1474,7 +1692,7 @@ async def _ensure_recruitment_data(
             ),
             {
                 "email": candidate_email,
-                "jr_code": jr_code,
+                "jr_code": employee_jr_code,
                 "applied_date": employee.join_date - timedelta(days=40),
                 "source_channel_id": channel_id,
                 "internal_note": "Application mẫu nhánh Kiểm soát",
@@ -1482,47 +1700,6 @@ async def _ensure_recruitment_data(
             },
         )
         counts["applications"] += 1
-
-    stage_defs = [
-        (1, "Sàng lọc hồ sơ", "screening"),
-        (2, "Phỏng vấn", "interview"),
-        (3, "Vòng cuối", "final"),
-    ]
-    for stage_order, stage_name, stage_type in stage_defs:
-        exists = await _scalar(
-            session,
-            """
-            SELECT COUNT(*)
-            FROM pipeline_stages ps
-            JOIN job_requisitions jr ON jr.id = ps.job_requisition_id
-            WHERE jr.code = :jr_code
-              AND ps.stage_type = :stage_type
-            """,
-            jr_code=jr_code,
-            stage_type=stage_type,
-        )
-        if exists:
-            continue
-        await session.execute(
-            text(
-                """
-                INSERT INTO pipeline_stages (
-                    job_requisition_id, stage_order, stage_name, stage_type, is_active
-                )
-                SELECT
-                    jr.id, :stage_order, :stage_name, :stage_type, TRUE
-                FROM job_requisitions jr
-                WHERE jr.code = :jr_code
-                """
-            ),
-            {
-                "jr_code": jr_code,
-                "stage_order": stage_order,
-                "stage_name": stage_name,
-                "stage_type": stage_type,
-            },
-        )
-        counts["pipeline_stages"] += 1
 
     result_defs = [
         ("screening", "pass", Decimal("85")),
@@ -1574,7 +1751,7 @@ async def _ensure_recruitment_data(
             ),
             {
                 "email": candidate_email,
-                "jr_code": jr_code,
+                "jr_code": employee_jr_code,
                 "stage_type": stage_type,
                 "result": result_value,
                 "score": score,
@@ -1583,6 +1760,162 @@ async def _ensure_recruitment_data(
             },
         )
         counts["stage_results"] += 1
+
+    if employee.employee_seq == SELECTION_DEMO_EMPLOYEE_SEQ:
+        for demo_candidate in PIPELINE_DEMO_APPLICANTS:
+            demo_email = demo_candidate["email"]
+            demo_exists = await _scalar(
+                session,
+                "SELECT COUNT(*) FROM candidates WHERE personal_email = :email",
+                email=demo_email,
+            )
+            if not demo_exists:
+                name_parts = demo_candidate["full_name"].split(" ", 1)
+                await session.execute(
+                    text(
+                        """
+                        INSERT INTO candidates (
+                            full_name, last_name, first_name, date_of_birth, gender,
+                            personal_email, phone_number, current_company, current_position,
+                            expected_salary, source_channel_id, source_note, internal_note,
+                            tags, is_active, created_by_id, created_at, updated_at
+                        )
+                        VALUES (
+                            :full_name, :last_name, :first_name, :date_of_birth, :gender,
+                            :personal_email, :phone_number, :current_company, :current_position,
+                            :expected_salary, :source_channel_id, :source_note, :internal_note,
+                            ARRAY['sample','control-branch','selection-demo']::text[],
+                            TRUE, :created_by_id, NOW(), NOW()
+                        )
+                        """
+                    ),
+                    {
+                        "full_name": demo_candidate["full_name"],
+                        "last_name": name_parts[0],
+                        "first_name": name_parts[1] if len(name_parts) > 1 else name_parts[0],
+                        "date_of_birth": employee.join_date.replace(year=employee.join_date.year - 25),
+                        "gender": "male",
+                        "personal_email": demo_email,
+                        "phone_number": f"0988{employee.employee_seq:02d}{len(demo_candidate['stage_results']):04d}",
+                        "current_company": "Công ty demo pipeline",
+                        "current_position": employee.job_position_code,
+                        "expected_salary": employee.official_salary,
+                        "source_channel_id": channel_id,
+                        "source_note": "Ứng viên mẫu để hiển thị Kanban tuyển chọn",
+                        "internal_note": f"Candidate demo stage {demo_candidate['stage']}",
+                        "created_by_id": created_by_id,
+                    },
+                )
+                counts["candidates"] += 1
+
+            demo_app_exists = await _scalar(
+                session,
+                """
+                SELECT COUNT(*)
+                FROM candidate_applications ca
+                JOIN candidates c ON c.id = ca.candidate_id
+                JOIN job_requisitions jr ON jr.id = ca.job_requisition_id
+                WHERE c.personal_email = :email
+                  AND jr.code = :jr_code
+                """,
+                email=demo_email,
+                jr_code=selection_jr_code,
+            )
+            if not demo_app_exists:
+                await session.execute(
+                    text(
+                        """
+                        INSERT INTO candidate_applications (
+                            candidate_id, job_requisition_id, applied_date, source_channel_id,
+                            current_stage, rejection_reason, internal_note,
+                            created_by_id, created_at, updated_at
+                        )
+                        SELECT
+                            c.id,
+                            jr.id,
+                            :applied_date,
+                            :source_channel_id,
+                            :current_stage,
+                            NULL,
+                            :internal_note,
+                            :created_by_id,
+                            NOW(),
+                            NOW()
+                        FROM candidates c
+                        CROSS JOIN job_requisitions jr
+                        WHERE c.personal_email = :email
+                          AND jr.code = :jr_code
+                        """
+                    ),
+                    {
+                        "email": demo_email,
+                        "jr_code": selection_jr_code,
+                        "applied_date": employee.join_date - timedelta(days=demo_candidate["applied_days_before_join"]),
+                        "source_channel_id": channel_id,
+                        "current_stage": demo_candidate["stage"],
+                        "internal_note": f"Application demo stage {demo_candidate['stage']}",
+                        "created_by_id": created_by_id,
+                    },
+                )
+                counts["applications"] += 1
+
+            for demo_stage_type, demo_result, demo_score in demo_candidate["stage_results"]:
+                demo_stage_result_exists = await _scalar(
+                    session,
+                    """
+                    SELECT COUNT(*)
+                    FROM candidate_stage_results csr
+                    JOIN pipeline_stages ps ON ps.id = csr.stage_id
+                    JOIN candidate_applications ca ON ca.id = csr.application_id
+                    JOIN candidates c ON c.id = ca.candidate_id
+                    JOIN job_requisitions jr ON jr.id = ca.job_requisition_id
+                    WHERE c.personal_email = :email
+                      AND jr.code = :jr_code
+                      AND ps.stage_type = :stage_type
+                    """,
+                    email=demo_email,
+                    jr_code=selection_jr_code,
+                    stage_type=demo_stage_type,
+                )
+                if demo_stage_result_exists:
+                    continue
+                await session.execute(
+                    text(
+                        """
+                        INSERT INTO candidate_stage_results (
+                            application_id, stage_id, result, score, notes,
+                            evaluated_by_id, evaluated_at, created_at, updated_at
+                        )
+                        SELECT
+                            ca.id,
+                            ps.id,
+                            :result,
+                            :score,
+                            :notes,
+                            :evaluated_by_id,
+                            NOW(),
+                            NOW(),
+                            NOW()
+                        FROM candidate_applications ca
+                        JOIN candidates c ON c.id = ca.candidate_id
+                        JOIN job_requisitions jr ON jr.id = ca.job_requisition_id
+                        JOIN pipeline_stages ps ON ps.job_requisition_id = jr.id
+                        WHERE c.personal_email = :email
+                          AND jr.code = :jr_code
+                          AND ps.stage_type = :stage_type
+                        """
+                    ),
+                    {
+                        "email": demo_email,
+                        "jr_code": selection_jr_code,
+                        "stage_type": demo_stage_type,
+                        "result": demo_result,
+                        "score": demo_score,
+                        "notes": f"Kết quả demo stage {demo_stage_type}",
+                        "evaluated_by_id": created_by_id,
+                    },
+                )
+                counts["stage_results"] += 1
 
     offer_exists = await _scalar(
         session,
@@ -1594,7 +1927,7 @@ async def _ensure_recruitment_data(
           AND o.job_requisition_id = (SELECT id FROM job_requisitions WHERE code = :jr_code)
         """,
         email=candidate_email,
-        jr_code=jr_code,
+        jr_code=employee_jr_code,
     )
     if not offer_exists:
         await session.execute(
@@ -1634,7 +1967,7 @@ async def _ensure_recruitment_data(
             ),
             {
                 "email": candidate_email,
-                "jr_code": jr_code,
+                "jr_code": employee_jr_code,
                 "job_position_id": job_position_id,
                 "department_id": department_id,
                 "proposed_start_date": employee.join_date,
@@ -1690,7 +2023,7 @@ async def _ensure_recruitment_data(
             ),
             {
                 "email": candidate_email,
-                "jr_code": jr_code,
+                "jr_code": employee_jr_code,
                 "decision_number": decision_number,
                 "signed_date": employee.join_date - timedelta(days=5),
                 "department_id": department_id,

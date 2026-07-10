@@ -253,3 +253,51 @@ async def test_sample_seed_adds_current_year_personnel_changes_for_dashboard_tre
 
         assert max(hires_by_month.values()) >= 3
         assert max(resigned_by_month.values()) >= 2
+
+
+async def test_control_branch_seed_adds_demo_pipeline_candidates_for_selection_kanban():
+    async with _make_session()() as session:
+        await required.run(session)
+        await bootstrap.run(session)
+        await rbac.run(session, include_users=True)
+        await sample.run(session)
+        await session.commit()
+
+    async with _make_session()() as session:
+        rows = (
+            await session.execute(
+                text(
+                    """
+                    SELECT ca.current_stage, COUNT(*) AS count
+                    FROM candidate_applications ca
+                    JOIN job_requisitions jr ON jr.id = ca.job_requisition_id
+                    WHERE jr.code = 'SAMPLE-KS-JR-014'
+                    GROUP BY ca.current_stage
+                    """
+                )
+            )
+        ).all()
+
+        counts = {row[0]: row[1] for row in rows}
+
+        assert counts["screening"] >= 1
+        assert counts["interview"] >= 1
+        assert counts["final"] >= 1
+        assert "hired" not in counts
+
+        historical_rows = (
+            await session.execute(
+                text(
+                    """
+                    SELECT ca.current_stage, COUNT(*) AS count
+                    FROM candidate_applications ca
+                    JOIN job_requisitions jr ON jr.id = ca.job_requisition_id
+                    WHERE jr.code = 'SAMPLE-KS-JR-014-HIST'
+                    GROUP BY ca.current_stage
+                    """
+                )
+            )
+        ).all()
+
+        historical_counts = {row[0]: row[1] for row in historical_rows}
+        assert historical_counts["hired"] >= 1
