@@ -93,4 +93,4 @@ from app.models.onboarding import OnboardingTask, OnboardingChecklist, Onboardin
 from app.models.probation import ProbationEvaluation  # noqa: F401
 from app.models.export import ExportJob, ReportTemplate  # noqa: F401
 from app.models.employee_asset import EmployeeAsset  # noqa: F401
-
+from app.models.backup import BackupConfig, BackupJob, RestoreRequest  # noqa: F401

@@ -60,6 +60,9 @@ AUDIT_ENTITY_DEFS: list[tuple[str, str, str]] = [
     ("skill", "Danh mục kỹ năng", "secondary"),
     ("certificate", "Danh mục chứng chỉ", "secondary"),
     ("leave_type", "Loại nghỉ phép", "secondary"),
+    ("backup_config", "Cấu hình sao lưu", "warn"),
+    ("backup_job", "Tác vụ sao lưu", "info"),
+    ("restore_request", "Yêu cầu khôi phục", "danger"),
 ]
 
 AUDIT_ACTION_LABELS = {code: label for code, label, _ in AUDIT_ACTION_DEFS}

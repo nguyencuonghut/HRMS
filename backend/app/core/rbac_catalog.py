@@ -21,6 +21,7 @@ MODULE_DEFS: list[tuple[str, str]] = [
     ("users", "Tài khoản người dùng"),
     ("roles", "Vai trò & Quyền"),
     ("audit_logs", "Nhật ký hệ thống"),
+    ("backups", "Sao lưu & khôi phục"),
 ]
 
 ACTION_DEFS: list[tuple[str, str]] = [

@@ -206,6 +206,23 @@ class Settings(BaseSettings):
     SMTP_FROM_NAME: str = "Hồng Hà HRMS"
     COMPANY_NAME: str = "Công ty Hồng Hà"
 
+    # Backup scheduler / admin console bootstrap
+    BACKUP_STORAGE_ENDPOINT: str = ""
+    BACKUP_STORAGE_ACCESS_KEY: str = ""
+    BACKUP_STORAGE_SECRET_KEY: str = ""
+    BACKUP_STORAGE_SECURE: bool = True
+    BACKUP_STORAGE_BUCKET: str = "hrms-backup"
+    BACKUP_RETENTION_DAYS: int = 90
+    DB_BACKUP_CRON: str = "0 2 * * *"
+    MINIO_BACKUP_CRON: str = "0 3 * * *"
+    SOURCE_ALIAS: str = "local"
+    SOURCE_STORAGE_ENDPOINT: str = ""
+    SOURCE_STORAGE_ACCESS_KEY: str = ""
+    SOURCE_STORAGE_SECRET_KEY: str = ""
+    SOURCE_STORAGE_SECURE: str = ""
+    DEST_ALIAS: str = "backup"
+    BACKUP_NOTIFY_EMAILS: str = ""
+
     # Administrative catalog seed source
     ADMINISTRATIVE_WARDS_JSON_PATH: str = str(
         _BASE_DIR / "app" / "seeds" / "data" / "wards_all_qd19_2025.json"

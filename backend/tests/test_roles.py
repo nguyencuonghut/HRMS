@@ -2,8 +2,11 @@
 import uuid
 from fastapi.testclient import TestClient
 
+from app.core.rbac_catalog import ACTION_DEFS, MODULE_DEFS
+
 BASE       = "/api/v1/roles"
 PERM_BASE  = "/api/v1/roles/permissions"
+EXPECTED_PERMISSION_COUNT = len(MODULE_DEFS) * len(ACTION_DEFS)
 
 _ADMIN_EMAIL    = "admin@hrms.local"
 _ADMIN_PASSWORD = "Hrms@2026"
@@ -41,8 +44,14 @@ def test_list_permissions_admin_200(client: TestClient):
     resp = client.get(PERM_BASE, headers=_admin(client))
     assert resp.status_code == 200
     perms = resp.json()
-    assert len(perms) == 85  # 17 modules × 5 actions
+    assert len(perms) == EXPECTED_PERMISSION_COUNT
     assert all("code" in p and "module" in p and "action" in p for p in perms)
+
+
+def test_permissions_include_backup_management_codes(client: TestClient):
+    perms = client.get(PERM_BASE, headers=_admin(client)).json()
+    codes = {p["code"] for p in perms}
+    assert {"backups:view", "backups:create", "backups:edit", "backups:export"}.issubset(codes)
 
 
 def test_list_permissions_no_token_401(client: TestClient):
@@ -99,7 +108,7 @@ def test_list_roles_officer_403(client: TestClient):
 def test_list_roles_has_permission_count(client: TestClient):
     roles = client.get(BASE, headers=_admin(client)).json()
     admin_role = next(r for r in roles if r["code"] == "admin")
-    assert admin_role["permission_count"] == 85  # 17 modules × 5 actions
+    assert admin_role["permission_count"] == EXPECTED_PERMISSION_COUNT
 
 
 def test_list_roles_system_flag(client: TestClient):
@@ -157,7 +166,7 @@ def test_get_role_includes_permissions(client: TestClient):
     roles = client.get(BASE, headers=_admin(client)).json()
     admin_role = next(r for r in roles if r["code"] == "admin")
     body = client.get(f"{BASE}/{admin_role['id']}", headers=_admin(client)).json()
-    assert len(body["permissions"]) == 85  # 17 modules × 5 actions
+    assert len(body["permissions"]) == EXPECTED_PERMISSION_COUNT
 
 
 # ── PUT /roles/{id} ────────────────────────────────────────────────────────────

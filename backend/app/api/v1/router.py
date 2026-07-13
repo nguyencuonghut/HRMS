@@ -40,6 +40,7 @@ from app.api.v1.endpoints import bhxh_exports
 from app.api.v1.endpoints import contract_reports
 from app.api.v1.endpoints import export
 from app.api.v1.endpoints import notifications
+from app.api.v1.endpoints import backups
 
 router = APIRouter()
 router.include_router(auth.router,          prefix="/auth",          tags=["Xác thực"])
@@ -101,3 +102,4 @@ router.include_router(export.router, prefix="/reports/export", tags=["Trung tâm
 router.include_router(data_imports.router, prefix="/imports", tags=["Import dữ liệu"])
 router.include_router(bhxh_exports.router, prefix="/exports/bhxh", tags=["Xuất biểu mẫu BHXH"])
 router.include_router(notifications.router, prefix="/notifications", tags=["Thông báo"])
+router.include_router(backups.router, prefix="/backups", tags=["Sao lưu & Khôi phục"])

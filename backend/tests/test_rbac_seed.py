@@ -4,8 +4,11 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.core.config import settings
+from app.core.rbac_catalog import ACTION_DEFS, MODULE_DEFS
 from app.core.security import hash_password, verify_password
 from app.seeds import rbac
+
+EXPECTED_PERMISSION_COUNT = len(MODULE_DEFS) * len(ACTION_DEFS)
 
 
 # ── Helpers — tạo fresh engine để tránh event loop conflict với TestClient ─────
@@ -42,9 +45,9 @@ async def ensure_latest_rbac_seed():
 # ── Permissions ────────────────────────────────────────────────────────────────
 
 async def test_permissions_count():
-    """17 modules × 5 actions = 85 permissions."""
+    """Permission catalog phải khớp số module × action hiện tại."""
     count = await _scalar("SELECT COUNT(*) FROM permissions")
-    assert count == 85
+    assert count == EXPECTED_PERMISSION_COUNT
 
 
 async def test_permission_code_format():
@@ -91,7 +94,24 @@ async def test_admin_has_all_permissions():
         JOIN roles r ON rp.role_id = r.id
         WHERE r.code = 'admin'
     """)
-    assert admin_count == 85
+    assert admin_count == EXPECTED_PERMISSION_COUNT
+
+
+async def test_backup_permissions_seeded_for_admin_only_by_default():
+    rows = await _rows("""
+        SELECT r.code AS role_code, array_agg(p.code ORDER BY p.code) AS permissions
+        FROM role_permissions rp
+        JOIN roles r ON rp.role_id = r.id
+        JOIN permissions p ON rp.permission_id = p.id
+        WHERE p.module = 'backups'
+        GROUP BY r.code
+        ORDER BY r.code
+    """)
+    actual = {row.role_code: list(row.permissions) for row in rows}
+    assert set(actual) == {"admin"}
+    assert {"backups:view", "backups:create", "backups:edit", "backups:export"}.issubset(
+        set(actual["admin"])
+    )
 
 
 async def test_hr_manager_has_org_full_except_export():
@@ -232,7 +252,7 @@ async def test_finance_only_insurance_salary_reports():
         JOIN permissions p ON rp.permission_id = p.id
         WHERE r.code = 'finance'
     """)}
-    assert modules == {"insurance", "salary", "reports"}
+    assert modules == {"insurance", "salary", "data_import", "reports"}
 
 
 # ── Users ──────────────────────────────────────────────────────────────────────

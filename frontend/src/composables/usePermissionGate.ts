@@ -18,10 +18,12 @@ export type PermissionModule =
   | "training"
   | "recruitment"
   | "performance"
+  | "data_import"
   | "reports"
   | "users"
   | "roles"
-  | "audit_logs";
+  | "audit_logs"
+  | "backups";
 
 type PermissionSpec = {
   permission?: string;
