@@ -6,7 +6,7 @@ WORKDIR /app
 
 # Cài system deps + tạo non-root user trong một layer để tối ưu image size
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends gcc libpq-dev curl && \
+    apt-get install -y --no-install-recommends gcc libpq-dev postgresql-client curl && \
     rm -rf /var/lib/apt/lists/* && \
     groupadd -r appuser && \
     useradd -r -g appuser -u 1000 -d /app -s /sbin/nologin appuser

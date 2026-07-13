@@ -4,6 +4,12 @@ from __future__ import annotations
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
+import pytest
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+from app.core.config import settings
+from app.services import backup_service
+from app.services.backup_runner_service import BackupRunResult
 
 BASE = "/api/v1/backups"
 
@@ -52,6 +58,16 @@ def _update_payload(config: dict) -> dict:
         "target_secure": config["target_secure"],
         "notify_emails": config["notify_emails"],
     }
+
+
+async def _with_isolated_session(work):
+    engine = create_async_engine(settings.DATABASE_URL, connect_args={"ssl": False})
+    Session = async_sessionmaker(engine, expire_on_commit=False)
+    try:
+        async with Session() as session:
+            return await work(session)
+    finally:
+        await engine.dispose()
 
 
 def test_backup_config_requires_backup_permission(client: TestClient):
@@ -215,3 +231,110 @@ def test_validate_target_updates_validation_state_without_exposing_secrets(clien
     assert "access_key" not in serialized
     assert "secret_key" not in serialized
     assert "password" not in serialized
+
+
+def test_create_manual_backup_job_requires_create_permission(client: TestClient):
+    resp = client.post(
+        f"{BASE}/jobs",
+        json={"kind": "db"},
+        headers=_line_manager(client),
+    )
+
+    assert resp.status_code == 403
+
+
+def test_admin_creates_manual_backup_job_and_writes_safe_audit_log(client: TestClient):
+    headers = _admin(client)
+
+    resp = client.post(f"{BASE}/jobs", json={"kind": "db"}, headers=headers)
+
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["kind"] == "db"
+    assert data["trigger"] == "manual"
+    assert data["status"] == "queued"
+    assert data["created_at"]
+
+    overview_resp = client.get(f"{BASE}/overview", headers=headers)
+    assert overview_resp.status_code == 200
+    overview_jobs = overview_resp.json()["latest_jobs"]
+    assert any(item["id"] == data["id"] for item in overview_jobs)
+
+    audit_resp = client.get(
+        "/api/v1/audit-logs",
+        params={
+            "entity_type": "backup_job",
+            "entity_id": data["id"],
+            "action": "CREATE",
+            "page_size": 10,
+        },
+        headers=headers,
+    )
+    assert audit_resp.status_code == 200
+    audit_items = audit_resp.json()["items"]
+    assert audit_items
+    assert audit_items[0]["new_data"]["kind"] == "db"
+    assert audit_items[0]["new_data"]["trigger"] == "manual"
+    assert audit_items[0]["new_data"]["status"] == "queued"
+
+    serialized_audit = str(audit_items[0]).lower()
+    assert "access_key" not in serialized_audit
+    assert "secret_key" not in serialized_audit
+    assert "password" not in serialized_audit
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_backup_runner_marks_job_success_with_artifact_metadata():
+    async def create_job(session):
+        job = await backup_service.create_manual_backup_job(session, kind="db", user_id=None)
+        await session.commit()
+        return job.id
+
+    job_id = await _with_isolated_session(create_job)
+
+    async def runner(_session, config, _now):
+        assert config.kind == "db"
+        return BackupRunResult(
+            artifact_key="postgres/test-db.jsonl.gz",
+            artifact_bucket="hrms-backup",
+            artifact_size_bytes=1234,
+            object_count=None,
+            log_excerpt="Đã tạo artifact kiểm thử.",
+        )
+
+    async def run_job(session):
+        return await backup_service.run_backup_job(session, job_id=job_id, runner=runner)
+
+    row = await _with_isolated_session(run_job)
+
+    assert row.status == "success"
+    assert row.artifact_key == "postgres/test-db.jsonl.gz"
+    assert row.artifact_bucket == "hrms-backup"
+    assert row.artifact_size_bytes == 1234
+    assert row.started_at is not None
+    assert row.finished_at is not None
+    assert row.error_summary is None
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_backup_runner_marks_job_failed_without_exposing_secrets():
+    async def create_job(session):
+        job = await backup_service.create_manual_backup_job(session, kind="db", user_id=None)
+        await session.commit()
+        return job.id
+
+    job_id = await _with_isolated_session(create_job)
+
+    async def runner(_session, _config, _now):
+        raise RuntimeError(f"Lỗi kiểm thử {settings.BACKUP_STORAGE_SECRET_KEY}")
+
+    async def run_job(session):
+        return await backup_service.run_backup_job(session, job_id=job_id, runner=runner)
+
+    row = await _with_isolated_session(run_job)
+
+    assert row.status == "failed"
+    assert row.finished_at is not None
+    assert row.error_summary
+    assert settings.BACKUP_STORAGE_SECRET_KEY not in row.error_summary
+    assert "secret_key" not in row.error_summary.lower()

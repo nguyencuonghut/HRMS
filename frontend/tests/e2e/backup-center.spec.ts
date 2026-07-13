@@ -85,6 +85,17 @@ async function updateDbBackupConfig(
   expect(response.ok()).toBeTruthy();
 }
 
+function jobStatusLabel(status: string): string {
+  const labels: Record<string, string> = {
+    queued: "Đang chờ",
+    running: "Đang chạy",
+    success: "Thành công",
+    failed: "Thất bại",
+    cancelled: "Đã hủy",
+  };
+  return labels[status] ?? "Trạng thái khác";
+}
+
 test("admin can open read-only backup center and see backend overview", async ({ page }) => {
   await login(page, ADMIN_EMAIL, ADMIN_PASSWORD);
 
@@ -224,6 +235,31 @@ test("admin can trigger backup target validation state from the table", async ({
   await expect(page.getByTestId("backup-config-table")).toContainText(
     validation.status === "success" ? "Thành công" : "Thất bại",
   );
+});
+
+test("admin can queue a manual backup job from the backup center", async ({ page }) => {
+  await login(page, ADMIN_EMAIL, ADMIN_PASSWORD);
+
+  const overviewResponse = page.waitForResponse((response) => (
+    response.url().includes("/api/v1/backups/overview") && response.status() === 200
+  ));
+  await page.goto("/admin/backups");
+  await overviewResponse;
+  await page.waitForLoadState("networkidle");
+
+  const jobResponse = page.waitForResponse((response) => (
+    response.url().includes("/api/v1/backups/jobs")
+    && response.request().method() === "POST"
+    && response.status() === 201
+  ));
+  await page.getByRole("button", { name: "Chạy sao lưu Cơ sở dữ liệu PostgreSQL" }).click();
+  const job = await (await jobResponse).json();
+
+  const history = page.locator(".backup-history-grid").first();
+  await expect(history).toContainText("Cơ sở dữ liệu PostgreSQL");
+  await expect(history).toContainText("Thủ công");
+  await expect(history).toContainText(jobStatusLabel(job.status));
+  await expect(page.locator(".backup-center")).not.toContainText(ENGLISH_BACKUP_UI_PATTERN);
 });
 
 test("user without backups permission cannot see or open backup center", async ({ page }) => {

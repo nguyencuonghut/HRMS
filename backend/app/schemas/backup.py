@@ -203,6 +203,18 @@ class BackupValidateTargetResponse(BaseModel):
     target_configured: bool
 
 
+class BackupJobCreateRequest(BaseModel):
+    kind: str
+
+    @field_validator("kind")
+    @classmethod
+    def validate_kind(cls, value: str) -> str:
+        cleaned = value.strip()
+        if cleaned not in {"db", "object_storage"}:
+            raise ValueError("Loại cấu hình sao lưu không hợp lệ")
+        return cleaned
+
+
 class BackupJobSummary(BaseModel):
     id: int
     kind: str
@@ -215,6 +227,7 @@ class BackupJobSummary(BaseModel):
     started_at: Optional[datetime]
     finished_at: Optional[datetime]
     error_summary: Optional[str]
+    log_excerpt: Optional[str]
     created_at: datetime
 
     model_config = {"from_attributes": True}

@@ -10,7 +10,7 @@ celery_app = Celery(
     "hrms",
     broker=_redis_url,
     backend=_redis_url,
-    include=["app.workers.tasks", "app.workers.export_tasks"],
+    include=["app.workers.tasks", "app.workers.export_tasks", "app.workers.backup_tasks"],
 )
 
 celery_app.conf.update(
@@ -31,6 +31,7 @@ celery_app.conf.update(
     # ── Routing ─────────────────────────────────────────────────────────────
     task_routes={
         "app.workers.export_tasks.run_export_task": {"queue": "exports"},
+        "app.workers.backup_tasks.run_backup_job_task": {"queue": "backups"},
     },
 
     # ── RedBeat distributed scheduler ───────────────────────────────────────

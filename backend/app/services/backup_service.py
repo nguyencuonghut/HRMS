@@ -3,6 +3,9 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Iterable
 from datetime import datetime, timezone
+import inspect
+import structlog
+from typing import Awaitable, Callable
 from urllib.parse import urlsplit
 
 from minio import Minio
@@ -20,6 +23,11 @@ from app.schemas.backup import (
     BackupValidateTargetResponse,
     RestoreRequestSummary,
 )
+from app.services.backup_runner_service import BackupRunResult, run_backup
+
+logger = structlog.get_logger(__name__)
+
+BackupRunner = Callable[[AsyncSession, BackupConfig, datetime], Awaitable[BackupRunResult] | BackupRunResult]
 
 
 BACKUP_KIND_DEFS: list[tuple[str, str]] = [
@@ -65,6 +73,10 @@ CONFIG_AUDIT_FIELDS = (
 
 
 class BackupConfigNotFound(Exception):
+    pass
+
+
+class BackupJobNotFound(Exception):
     pass
 
 
@@ -278,6 +290,10 @@ def _sanitize_validation_message(message: str) -> str:
     return sanitized[:500]
 
 
+def job_response(row: BackupJob) -> BackupJobSummary:
+    return BackupJobSummary.model_validate(row)
+
+
 def _probe_target_bucket(endpoint: str, bucket: str, secure: bool) -> tuple[bool, str]:
     http_client = PoolManager(
         timeout=Timeout(connect=1.5, read=2.0),
@@ -330,6 +346,118 @@ async def validate_backup_target(
         checked_at=checked_at,
         target_configured=_target_configured(row),
     )
+
+
+async def create_manual_backup_job(
+    session: AsyncSession,
+    *,
+    kind: str,
+    user_id: int | None,
+) -> BackupJob:
+    await get_backup_config_row(session, kind)
+    now = _utcnow()
+    row = BackupJob(
+        kind=kind,
+        trigger="manual",
+        status="queued",
+        created_by_id=user_id,
+        created_at=now,
+        updated_at=now,
+    )
+    session.add(row)
+    await session.flush()
+    return row
+
+
+def safe_job_snapshot(row: BackupJob) -> dict:
+    return {
+        "id": row.id,
+        "kind": row.kind,
+        "trigger": row.trigger,
+        "status": row.status,
+        "artifact_key": row.artifact_key,
+        "artifact_bucket": row.artifact_bucket,
+        "artifact_size_bytes": row.artifact_size_bytes,
+        "object_count": row.object_count,
+    }
+
+
+def enqueue_backup_job(job_id: int) -> None:
+    try:
+        from app.workers.backup_tasks import run_backup_job_task
+
+        run_backup_job_task.apply_async(args=[job_id], queue="backups")
+    except Exception as exc:  # pragma: no cover - phụ thuộc broker runtime
+        logger.warning("backup_job_enqueue_failed", job_id=job_id, error=str(exc))
+
+
+async def list_backup_jobs(
+    session: AsyncSession,
+    *,
+    kind: str | None = None,
+    status: str | None = None,
+    limit: int = 50,
+) -> list[BackupJobSummary]:
+    query = select(BackupJob)
+    if kind:
+        query = query.where(BackupJob.kind == kind)
+    if status:
+        query = query.where(BackupJob.status == status)
+    rows = (
+        await session.execute(
+            query.order_by(BackupJob.created_at.desc()).limit(limit)
+        )
+    ).scalars().all()
+    return _job_summaries(rows)
+
+
+async def run_backup_job(
+    session: AsyncSession,
+    *,
+    job_id: int,
+    runner: BackupRunner = run_backup,
+) -> BackupJob:
+    row = (
+        await session.execute(select(BackupJob).where(BackupJob.id == job_id))
+    ).scalar_one_or_none()
+    if row is None:
+        raise BackupJobNotFound(job_id)
+    if row.status != "queued":
+        return row
+
+    config = await get_backup_config_row(session, row.kind)
+    now = _utcnow()
+    row.status = "running"
+    row.started_at = now
+    row.updated_at = now
+    session.add(row)
+    await session.commit()
+
+    try:
+        result_or_awaitable = runner(session, config, now)
+        result = await result_or_awaitable if inspect.isawaitable(result_or_awaitable) else result_or_awaitable
+        finished_at = _utcnow()
+        row.status = "success"
+        row.artifact_key = result.artifact_key
+        row.artifact_bucket = result.artifact_bucket
+        row.artifact_size_bytes = result.artifact_size_bytes
+        row.object_count = result.object_count
+        row.error_summary = None
+        row.log_excerpt = result.log_excerpt
+        row.finished_at = finished_at
+        row.updated_at = finished_at
+    except Exception as exc:
+        finished_at = _utcnow()
+        row.status = "failed"
+        row.error_summary = _sanitize_validation_message(str(exc))
+        row.log_excerpt = "Tác vụ sao lưu thất bại. Xem lỗi rút gọn trong error_summary."
+        row.finished_at = finished_at
+        row.updated_at = finished_at
+
+    session.add(row)
+    await session.commit()
+    await session.refresh(row)
+    return row
 
 
 async def list_backup_configs(session: AsyncSession) -> list[BackupConfigResponse]:

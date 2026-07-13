@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import require_permission
@@ -10,6 +11,8 @@ from app.models.auth import User
 from app.schemas.backup import (
     BackupConfigResponse,
     BackupConfigUpdate,
+    BackupJobCreateRequest,
+    BackupJobSummary,
     BackupMetaResponse,
     BackupOption,
     BackupOverviewResponse,
@@ -107,6 +110,57 @@ async def validate_backup_target(
 
     await session.commit()
     return result
+
+
+@router.post("/jobs", response_model=BackupJobSummary, status_code=status.HTTP_201_CREATED)
+async def create_manual_backup_job(
+    payload: BackupJobCreateRequest,
+    request: Request,
+    current_user: User = require_permission("backups:create"),
+    session: AsyncSession = Depends(get_session),
+) -> BackupJobSummary:
+    try:
+        row = await backup_service.create_manual_backup_job(
+            session,
+            kind=payload.kind,
+            user_id=current_user.id,
+        )
+    except backup_service.BackupConfigNotFound as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Không tìm thấy cấu hình sao lưu",
+        ) from exc
+
+    await auth_service.log_audit(
+        session,
+        current_user.id,
+        "CREATE",
+        entity_type="backup_job",
+        entity_id=row.id,
+        entity_name=row.kind,
+        new_data=backup_service.safe_job_snapshot(row),
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
+    await session.commit()
+    backup_service.enqueue_backup_job(row.id)
+    return backup_service.job_response(row)
+
+
+@router.get("/jobs", response_model=list[BackupJobSummary])
+async def list_backup_jobs(
+    kind: str | None = None,
+    job_status: str | None = Query(default=None, alias="status"),
+    limit: int = Query(default=50, ge=1, le=100),
+    _: User = require_permission("backups:view"),
+    session: AsyncSession = Depends(get_session),
+) -> list[BackupJobSummary]:
+    return await backup_service.list_backup_jobs(
+        session,
+        kind=kind,
+        status=job_status,
+        limit=limit,
+    )
 
 
 @router.get("/overview", response_model=BackupOverviewResponse)

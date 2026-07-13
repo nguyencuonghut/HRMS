@@ -70,6 +70,10 @@ export interface BackupValidateTargetResponse {
   target_configured: boolean
 }
 
+export interface BackupJobCreateRequest {
+  kind: string
+}
+
 export interface BackupJobSummary {
   id: number
   kind: string
@@ -82,6 +86,7 @@ export interface BackupJobSummary {
   started_at: string | null
   finished_at: string | null
   error_summary: string | null
+  log_excerpt: string | null
   created_at: string
 }
 
@@ -122,5 +127,11 @@ export default {
   },
   validateTarget(payload: BackupValidateTargetRequest) {
     return api.post<BackupValidateTargetResponse>(`${BASE}/validate-target`, payload)
+  },
+  createJob(payload: BackupJobCreateRequest) {
+    return api.post<BackupJobSummary>(`${BASE}/jobs`, payload)
+  },
+  getJobs(params?: { kind?: string; status?: string; limit?: number }) {
+    return api.get<BackupJobSummary[]>(`${BASE}/jobs`, { params })
   },
 }

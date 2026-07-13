@@ -12,7 +12,7 @@
         :loading="loading"
         v-tooltip.bottom="'Làm mới'"
         aria-label="Làm mới"
-        @click="loadOverview"
+        @click="() => loadOverview()"
       />
     </div>
 
@@ -24,7 +24,7 @@
     <div v-else-if="error" class="backup-error">
       <i class="pi pi-exclamation-triangle" />
       <span>{{ error }}</span>
-      <Button label="Thử lại" icon="pi pi-refresh" size="small" @click="loadOverview" />
+      <Button label="Thử lại" icon="pi pi-refresh" size="small" @click="() => loadOverview()" />
     </div>
 
     <template v-else-if="overview">
@@ -143,9 +143,21 @@
               </template>
             </Column>
 
-            <Column header="" style="width: 110px">
+            <Column header="" style="width: 140px">
               <template #body="{ data }">
                 <div class="backup-actions">
+                  <Button
+                    v-can:create="'backups'"
+                    icon="pi pi-play"
+                    severity="success"
+                    text
+                    rounded
+                    size="small"
+                    :loading="creatingJobKind === data.kind"
+                    :aria-label="`Chạy sao lưu ${data.kind_label}`"
+                    v-tooltip.top="'Chạy sao lưu ngay'"
+                    @click="createManualBackup(data)"
+                  />
                   <Button
                     v-can:edit="'backups'"
                     icon="pi pi-pencil"
@@ -194,6 +206,9 @@
               </template>
               <Column header="Loại" style="width: 140px">
                 <template #body="{ data }">{{ kindLabel(data.kind) }}</template>
+              </Column>
+              <Column header="Kiểu chạy" style="width: 120px">
+                <template #body="{ data }">{{ triggerLabel(data.trigger) }}</template>
               </Column>
               <Column header="Trạng thái" style="width: 130px">
                 <template #body="{ data }">
@@ -338,7 +353,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import Button from 'primevue/button'
 import Column from 'primevue/column'
 import DataTable from 'primevue/datatable'
@@ -352,6 +367,7 @@ import { useToast } from 'primevue/usetoast'
 import backupService, {
   type BackupConfigRead,
   type BackupConfigUpdatePayload,
+  type BackupJobSummary,
   type BackupOverviewResponse,
 } from '@/services/backupService'
 import { formatDatetime } from '@/utils/format'
@@ -377,8 +393,10 @@ const editDialogVisible = ref(false)
 const editingConfig = ref<BackupConfigRead | null>(null)
 const savingConfig = ref(false)
 const validatingKind = ref('')
+const creatingJobKind = ref('')
 const configFormError = ref('')
 const toast = useToast()
+let overviewPollTimer: number | undefined
 
 const configForm = ref<BackupConfigForm>({
   enabled: true,
@@ -410,16 +428,44 @@ const sourceSecureValue = computed({
   },
 })
 
-async function loadOverview() {
-  loading.value = true
+async function loadOverview(options: { silent?: boolean } = {}) {
+  if (!options.silent) loading.value = true
   error.value = ''
   try {
     const resp = await backupService.getOverview()
     overview.value = resp.data
+    syncOverviewPolling()
   } catch {
-    error.value = 'Không tải được dữ liệu sao lưu. Vui lòng thử lại.'
+    if (!options.silent) {
+      error.value = 'Không tải được dữ liệu sao lưu. Vui lòng thử lại.'
+    }
   } finally {
-    loading.value = false
+    if (!options.silent) loading.value = false
+  }
+}
+
+function hasActiveBackupJob(): boolean {
+  return overview.value?.latest_jobs.some((item) => ['queued', 'running'].includes(item.status)) ?? false
+}
+
+function startOverviewPolling() {
+  if (overviewPollTimer !== undefined) return
+  overviewPollTimer = window.setInterval(() => {
+    void loadOverview({ silent: true })
+  }, 5000)
+}
+
+function stopOverviewPolling() {
+  if (overviewPollTimer === undefined) return
+  window.clearInterval(overviewPollTimer)
+  overviewPollTimer = undefined
+}
+
+function syncOverviewPolling() {
+  if (hasActiveBackupJob()) {
+    startOverviewPolling()
+  } else {
+    stopOverviewPolling()
   }
 }
 
@@ -508,6 +554,18 @@ function replaceConfig(config: BackupConfigRead) {
       item.kind === config.kind ? config : item
     )),
   }
+}
+
+function prependJob(job: BackupJobSummary) {
+  if (!overview.value) return
+  overview.value = {
+    ...overview.value,
+    latest_jobs: [
+      job,
+      ...overview.value.latest_jobs.filter((item) => item.id !== job.id),
+    ].slice(0, 5),
+  }
+  syncOverviewPolling()
 }
 
 function apiErrorMessage(error: unknown, fallback: string): string {
@@ -610,6 +668,29 @@ async function validateTarget(config: BackupConfigRead) {
   }
 }
 
+async function createManualBackup(config: BackupConfigRead) {
+  creatingJobKind.value = config.kind
+  try {
+    const resp = await backupService.createJob({ kind: config.kind })
+    prependJob(resp.data)
+    toast.add({
+      severity: 'success',
+      summary: 'Đã đưa vào hàng chờ sao lưu',
+      detail: config.kind_label,
+      life: 4500,
+    })
+  } catch (err) {
+    toast.add({
+      severity: 'error',
+      summary: 'Không tạo được tác vụ sao lưu',
+      detail: apiErrorMessage(err, 'Không tạo được tác vụ sao lưu.'),
+      life: 5000,
+    })
+  } finally {
+    creatingJobKind.value = ''
+  }
+}
+
 function cronDescription(expression: string): string {
   const [minute, hour, dayOfMonth, month, dayOfWeek] = expression.trim().split(/\s+/)
   if ([minute, hour, dayOfMonth, month, dayOfWeek].every((part) => part !== undefined)) {
@@ -651,6 +732,16 @@ function statusLabel(status: string): string {
     cancelled: 'Đã hủy',
   }
   return labels[status] ?? 'Trạng thái khác'
+}
+
+function triggerLabel(trigger: string): string {
+  const labels: Record<string, string> = {
+    schedule: 'Theo lịch',
+    manual: 'Thủ công',
+    restore_request: 'Yêu cầu khôi phục',
+    system: 'Hệ thống',
+  }
+  return labels[trigger] ?? 'Kiểu khác'
 }
 
 function statusSeverity(status: string): string {
@@ -699,7 +790,10 @@ function restoreStatusSeverity(status: string): string {
   return severities[status] ?? 'secondary'
 }
 
-onMounted(loadOverview)
+onMounted(() => {
+  void loadOverview()
+})
+onBeforeUnmount(stopOverviewPolling)
 </script>
 
 <style scoped>
