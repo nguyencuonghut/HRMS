@@ -1,9 +1,29 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 
 const ADMIN_EMAIL = process.env.E2E_EMAIL || "admin@hrms.local";
 const ADMIN_PASSWORD = process.env.E2E_PASSWORD || "Hrms@2026";
 const LINE_MANAGER_EMAIL = process.env.E2E_LINE_MANAGER_EMAIL || "linemanager@hrms.local";
 const LINE_MANAGER_PASSWORD = process.env.E2E_LINE_MANAGER_PASSWORD || "Hrms@2026";
+const ENGLISH_BACKUP_UI_PATTERN = /\b(Database|File upload|object storage|Secret|Validate|Endpoint|Bucket|Prefix|Artifact|Job|backend|server|cron|HTTPS)\b/i;
+
+test.describe.configure({ mode: "serial" });
+
+type BackupConfig = {
+  enabled: boolean;
+  cron_expression: string;
+  retention_days: number;
+  source_endpoint: string | null;
+  source_bucket: string | null;
+  source_secure: boolean | null;
+  target_endpoint: string | null;
+  target_bucket: string;
+  target_prefix: string | null;
+  target_secure: boolean;
+  notify_emails: string[] | null;
+  kind: string;
+};
+
+type BackupConfigUpdatePayload = Omit<BackupConfig, "kind">;
 
 async function login(page: Page, email: string, password: string) {
   await page.goto("/login");
@@ -17,6 +37,52 @@ async function login(page: Page, email: string, password: string) {
   await page.getByRole("button", { name: "Đăng nhập" }).click();
   await meResponse;
   await page.waitForLoadState("networkidle");
+}
+
+async function loginViaApi(request: APIRequestContext, email: string, password: string): Promise<string> {
+  const response = await request.post("/api/v1/auth/login", {
+    data: { email, password },
+  });
+  expect(response.ok()).toBeTruthy();
+  const payload = await response.json();
+  return payload.access_token as string;
+}
+
+function payloadFromConfig(config: BackupConfig): BackupConfigUpdatePayload {
+  return {
+    enabled: config.enabled,
+    cron_expression: config.cron_expression,
+    retention_days: config.retention_days,
+    source_endpoint: config.source_endpoint,
+    source_bucket: config.source_bucket,
+    source_secure: config.source_secure,
+    target_endpoint: config.target_endpoint,
+    target_bucket: config.target_bucket,
+    target_prefix: config.target_prefix,
+    target_secure: config.target_secure,
+    notify_emails: config.notify_emails,
+  };
+}
+
+async function dbBackupConfig(request: APIRequestContext, token: string): Promise<BackupConfig> {
+  const response = await request.get("/api/v1/backups/config", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  expect(response.ok()).toBeTruthy();
+  const configs = await response.json() as BackupConfig[];
+  return configs.find((item) => item.kind === "db")!;
+}
+
+async function updateDbBackupConfig(
+  request: APIRequestContext,
+  token: string,
+  payload: BackupConfigUpdatePayload,
+) {
+  const response = await request.put("/api/v1/backups/config/db", {
+    headers: { Authorization: `Bearer ${token}` },
+    data: payload,
+  });
+  expect(response.ok()).toBeTruthy();
 }
 
 test("admin can open read-only backup center and see backend overview", async ({ page }) => {
@@ -34,13 +100,14 @@ test("admin can open read-only backup center and see backend overview", async ({
   await expect(page.getByRole("link", { name: /Sao lưu & khôi phục/ })).toBeVisible();
 
   await expect(page.getByTestId("backup-config-count")).toContainText(String(overview.config_count));
-  await expect(page.getByTestId("backup-config-table")).toContainText("Database PostgreSQL");
-  await expect(page.getByTestId("backup-config-table")).toContainText("File upload / object storage");
+  await expect(page.getByTestId("backup-config-table")).toContainText("Cơ sở dữ liệu PostgreSQL");
+  await expect(page.getByTestId("backup-config-table")).toContainText("Tệp tải lên trên MinIO");
   await expect(page.getByTestId("backup-config-table")).toContainText("hrms-backup");
   await expect(page.getByTestId("backup-config-table")).toContainText("Hằng ngày lúc 02:00");
   await expect(page.getByText(/access_key|secret_key|password/i)).toHaveCount(0);
-  await expect(page.getByRole("heading", { name: "Lịch backup gần nhất" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Lịch sao lưu gần nhất" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Yêu cầu khôi phục gần nhất" })).toBeVisible();
+  await expect(page.locator(".backup-center")).not.toContainText(ENGLISH_BACKUP_UI_PATTERN);
 });
 
 test("backup cron expression remains readable in dark mode", async ({ page }) => {
@@ -83,6 +150,80 @@ test("backup cron expression remains readable in dark mode", async ({ page }) =>
   });
 
   expect(contrastRatio).toBeGreaterThan(4.5);
+});
+
+test("admin can save backup config and see the new value after reload", async ({ page, request }) => {
+  const token = await loginViaApi(request, ADMIN_EMAIL, ADMIN_PASSWORD);
+  const original = await dbBackupConfig(request, token);
+  const originalPayload = payloadFromConfig(original);
+  const nextRetentionDays = original.retention_days === 41 ? 42 : 41;
+  const nextPrefix = `e2e-slice4-${Date.now().toString(36)}`;
+
+  try {
+    await login(page, ADMIN_EMAIL, ADMIN_PASSWORD);
+
+    const overviewResponse = page.waitForResponse((response) => (
+      response.url().includes("/api/v1/backups/overview") && response.status() === 200
+    ));
+    await page.goto("/admin/backups");
+    await overviewResponse;
+    await page.waitForLoadState("networkidle");
+
+    await page.getByRole("button", { name: "Sửa cấu hình Cơ sở dữ liệu PostgreSQL" }).click();
+    const dialog = page.getByRole("dialog", { name: "Sửa cấu hình Cơ sở dữ liệu PostgreSQL" });
+    await expect(dialog).toBeVisible();
+    await expect(dialog).not.toContainText(ENGLISH_BACKUP_UI_PATTERN);
+
+    await page.getByLabel("Lịch chạy").fill("20 4 * * *");
+    await page.locator("#backup-retention").fill(String(nextRetentionDays));
+    await page.getByLabel("Kho lưu trữ đích").fill("hrms-backup");
+    await page.getByLabel("Thư mục đích").fill(nextPrefix);
+    await page.getByLabel("Thư điện tử nhận thông báo").fill("backup-admin@hrms.local");
+
+    const saveResponse = page.waitForResponse((response) => (
+      response.url().includes("/api/v1/backups/config/db")
+      && response.request().method() === "PUT"
+      && response.status() === 200
+    ));
+    await page.getByRole("button", { name: "Lưu", exact: true }).click();
+    await saveResponse;
+    await expect(page.getByRole("dialog", { name: "Sửa cấu hình Cơ sở dữ liệu PostgreSQL" })).toHaveCount(0);
+
+    const reloadResponse = page.waitForResponse((response) => (
+      response.url().includes("/api/v1/backups/overview") && response.status() === 200
+    ));
+    await page.reload();
+    await reloadResponse;
+    await page.waitForLoadState("networkidle");
+
+    await expect(page.getByTestId("backup-config-table")).toContainText(`Giữ ${nextRetentionDays} ngày`);
+    await expect(page.getByTestId("backup-config-table")).toContainText(nextPrefix);
+  } finally {
+    await updateDbBackupConfig(request, token, originalPayload);
+  }
+});
+
+test("admin can trigger backup target validation state from the table", async ({ page }) => {
+  await login(page, ADMIN_EMAIL, ADMIN_PASSWORD);
+
+  const overviewResponse = page.waitForResponse((response) => (
+    response.url().includes("/api/v1/backups/overview") && response.status() === 200
+  ));
+  await page.goto("/admin/backups");
+  await overviewResponse;
+  await page.waitForLoadState("networkidle");
+
+  const validationResponse = page.waitForResponse((response) => (
+    response.url().includes("/api/v1/backups/validate-target")
+    && response.request().method() === "POST"
+    && response.status() === 200
+  ));
+  await page.getByRole("button", { name: "Kiểm tra đích sao lưu Cơ sở dữ liệu PostgreSQL" }).click();
+  const validation = await (await validationResponse).json();
+
+  await expect(page.getByTestId("backup-config-table")).toContainText(
+    validation.status === "success" ? "Thành công" : "Thất bại",
+  );
 });
 
 test("user without backups permission cannot see or open backup center", async ({ page }) => {

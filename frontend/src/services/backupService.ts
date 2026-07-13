@@ -44,6 +44,32 @@ export interface BackupConfigRead {
   updated_at: string
 }
 
+export interface BackupConfigUpdatePayload {
+  enabled: boolean
+  cron_expression: string
+  retention_days: number
+  source_endpoint: string | null
+  source_bucket: string | null
+  source_secure: boolean | null
+  target_endpoint: string | null
+  target_bucket: string
+  target_prefix: string | null
+  target_secure: boolean
+  notify_emails: string[] | null
+}
+
+export interface BackupValidateTargetRequest {
+  kind: string
+}
+
+export interface BackupValidateTargetResponse {
+  kind: string
+  status: string
+  message: string
+  checked_at: string
+  target_configured: boolean
+}
+
 export interface BackupJobSummary {
   id: number
   kind: string
@@ -90,5 +116,11 @@ export default {
   },
   getOverview() {
     return api.get<BackupOverviewResponse>(`${BASE}/overview`)
+  },
+  updateConfig(kind: string, payload: BackupConfigUpdatePayload) {
+    return api.put<BackupConfigRead>(`${BASE}/config/${kind}`, payload)
+  },
+  validateTarget(payload: BackupValidateTargetRequest) {
+    return api.post<BackupValidateTargetResponse>(`${BASE}/validate-target`, payload)
   },
 }
