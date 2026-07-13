@@ -84,7 +84,7 @@
             <Column header="Lịch chạy" style="min-width: 160px">
               <template #body="{ data }">
                 <div class="cron-cell">
-                  <code class="backup-code">{{ data.cron_expression }}</code>
+                  <span class="backup-code">{{ scheduleTimeLabel(data.cron_expression) }}</span>
                   <span class="muted-text">{{ cronDescription(data.cron_expression) }}</span>
                 </div>
                 <div class="muted-text">Giữ {{ data.retention_days }} ngày</div>
@@ -165,7 +165,7 @@
                     text
                     rounded
                     size="small"
-                    :aria-label="`Sửa cấu hình ${data.kind_label}`"
+                    :aria-label="`Sửa cấu hình sao lưu ${data.kind_label}`"
                     v-tooltip.top="'Sửa cấu hình'"
                     @click="openEditDialog(data)"
                   />
@@ -359,9 +359,9 @@
           </div>
 
           <div class="backup-field">
-            <label for="backup-cron">Lịch chạy</label>
-            <InputText id="backup-cron" v-model.trim="configForm.cron_expression" class="w-full" />
-            <small>{{ cronDescription(configForm.cron_expression) }}</small>
+            <label for="backup-schedule-time">Giờ chạy hằng ngày</label>
+            <InputText id="backup-schedule-time" v-model="configForm.schedule_time" type="time" class="w-full" />
+            <small>{{ dailyScheduleDescription(configForm.schedule_time) }}</small>
           </div>
 
           <div class="backup-field">
@@ -547,7 +547,7 @@ import { formatDatetime } from '@/utils/format'
 
 interface BackupConfigForm {
   enabled: boolean
-  cron_expression: string
+  schedule_time: string
   retention_days: number | null
   source_endpoint: string
   source_bucket: string
@@ -589,7 +589,7 @@ let overviewPollTimer: number | undefined
 
 const configForm = ref<BackupConfigForm>({
   enabled: true,
-  cron_expression: '0 2 * * *',
+  schedule_time: '02:00',
   retention_days: 90,
   source_endpoint: '',
   source_bucket: '',
@@ -630,7 +630,7 @@ const latestJobStatus = computed(() => {
   return status ? statusLabel(status) : 'Chưa có'
 })
 const editDialogTitle = computed(() => (
-  editingConfig.value ? `Sửa cấu hình ${editingConfig.value.kind_label}` : 'Sửa cấu hình sao lưu'
+  editingConfig.value ? `Sửa cấu hình sao lưu: ${editingConfig.value.kind_label}` : 'Sửa cấu hình sao lưu'
 ))
 const restoreDialogTitle = computed(() => 'Tạo yêu cầu khôi phục')
 const dbSnapshotOptions = computed(() => snapshotOptions('db'))
@@ -736,6 +736,44 @@ function nullableText(value: string): string | null {
   return cleaned ? cleaned : null
 }
 
+function cronTimeParts(expression: string): { hour: number; minute: number } | null {
+  const [minuteRaw, hourRaw] = expression.trim().split(/\s+/)
+  if (!/^\d+$/.test(minuteRaw ?? '') || !/^\d+$/.test(hourRaw ?? '')) return null
+
+  const minute = Number(minuteRaw)
+  const hour = Number(hourRaw)
+  if (!Number.isInteger(minute) || minute < 0 || minute > 59) return null
+  if (!Number.isInteger(hour) || hour < 0 || hour > 23) return null
+  return { hour, minute }
+}
+
+function cronToScheduleTime(expression: string): string {
+  const time = cronTimeParts(expression)
+  if (!time) return '02:00'
+  return `${String(time.hour).padStart(2, '0')}:${String(time.minute).padStart(2, '0')}`
+}
+
+function scheduleTimeToCron(value: string): string | null {
+  const match = /^(\d{2}):(\d{2})$/.exec(value.trim())
+  if (!match) return null
+  const hour = Number(match[1])
+  const minute = Number(match[2])
+  if (!Number.isInteger(hour) || hour < 0 || hour > 23) return null
+  if (!Number.isInteger(minute) || minute < 0 || minute > 59) return null
+  return `${minute} ${hour} * * *`
+}
+
+function dailyScheduleDescription(value: string): string {
+  const cronExpression = scheduleTimeToCron(value)
+  return cronExpression ? cronDescription(cronExpression) : 'Chọn giờ và phút hợp lệ'
+}
+
+function scheduleTimeLabel(expression: string): string {
+  const time = cronTimeParts(expression)
+  if (!time) return 'Tùy chỉnh'
+  return `${String(time.hour).padStart(2, '0')}:${String(time.minute).padStart(2, '0')}`
+}
+
 function parseNotifyEmails(value: string): string[] | null {
   const emails = value
     .split(',')
@@ -748,7 +786,7 @@ function openEditDialog(config: BackupConfigRead) {
   editingConfig.value = config
   configForm.value = {
     enabled: config.enabled,
-    cron_expression: config.cron_expression,
+    schedule_time: cronToScheduleTime(config.cron_expression),
     retention_days: config.retention_days,
     source_endpoint: config.source_endpoint ?? '',
     source_bucket: config.source_bucket ?? '',
@@ -763,10 +801,15 @@ function openEditDialog(config: BackupConfigRead) {
   editDialogVisible.value = true
 }
 
-function buildUpdatePayload(): BackupConfigUpdatePayload {
+function buildUpdatePayload(): BackupConfigUpdatePayload | null {
+  const cronExpression = scheduleTimeToCron(configForm.value.schedule_time)
+  if (!cronExpression) {
+    configFormError.value = 'Giờ chạy hằng ngày không hợp lệ.'
+    return null
+  }
   return {
     enabled: configForm.value.enabled,
-    cron_expression: configForm.value.cron_expression,
+    cron_expression: cronExpression,
     retention_days: configForm.value.retention_days ?? 1,
     source_endpoint: nullableText(configForm.value.source_endpoint),
     source_bucket: nullableText(configForm.value.source_bucket),
@@ -868,7 +911,7 @@ function translateApiDetailItem(item: unknown): string {
 function fieldLabel(field: string): string {
   const labels: Record<string, string> = {
     enabled: 'Trạng thái kích hoạt',
-    cron_expression: 'Lịch chạy',
+    cron_expression: 'Giờ chạy hằng ngày',
     retention_days: 'Số ngày giữ',
     source_endpoint: 'Địa chỉ kết nối nguồn',
     source_bucket: 'Kho lưu trữ nguồn',
@@ -894,7 +937,9 @@ async function saveConfig() {
   savingConfig.value = true
   configFormError.value = ''
   try {
-    const resp = await backupService.updateConfig(editingConfig.value.kind, buildUpdatePayload())
+    const payload = buildUpdatePayload()
+    if (!payload) return
+    const resp = await backupService.updateConfig(editingConfig.value.kind, payload)
     replaceConfig(resp.data)
     editDialogVisible.value = false
     toast.add({

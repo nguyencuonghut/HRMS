@@ -202,7 +202,7 @@ test("admin can open read-only backup center and see backend overview", async ({
   await expect(page.locator(".backup-center")).not.toContainText(ENGLISH_BACKUP_UI_PATTERN);
 });
 
-test("backup cron expression remains readable in dark mode", async ({ page }) => {
+test("backup schedule time remains readable in dark mode", async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem("hrms-dark-mode", "true");
   });
@@ -212,7 +212,7 @@ test("backup cron expression remains readable in dark mode", async ({ page }) =>
   await openBackupCenter(page);
 
   await expect(page.locator("html.dark-mode")).toHaveCount(1);
-  const cronBadge = page.locator(".backup-code").filter({ hasText: "0 2 * * *" }).first();
+  const cronBadge = page.locator(".backup-code").filter({ hasText: "02:00" }).first();
   await expect(cronBadge).toBeVisible();
 
   const contrastRatio = await cronBadge.evaluate((el) => {
@@ -243,15 +243,15 @@ test("backup config dialog remains usable on a narrow viewport", async ({ page }
   await login(page, ADMIN_EMAIL, ADMIN_PASSWORD);
   await openBackupCenter(page);
 
-  await page.getByRole("button", { name: "Sửa cấu hình Cơ sở dữ liệu PostgreSQL" }).click();
-  const dialog = page.getByRole("dialog", { name: "Sửa cấu hình Cơ sở dữ liệu PostgreSQL" });
+  await page.getByRole("button", { name: "Sửa cấu hình sao lưu Cơ sở dữ liệu PostgreSQL" }).click();
+  const dialog = page.getByRole("dialog", { name: "Sửa cấu hình sao lưu: Cơ sở dữ liệu PostgreSQL" });
   await expect(dialog).toBeVisible();
 
   await page.setViewportSize({ width: 390, height: 720 });
   await expect(dialog).toBeVisible();
 
   const enabledField = dialog.locator(".backup-field", { hasText: "Kích hoạt" }).first();
-  const scheduleField = dialog.locator(".backup-field", { hasText: "Lịch chạy" }).first();
+  const scheduleField = dialog.locator(".backup-field", { hasText: "Giờ chạy hằng ngày" }).first();
   const enabledBox = await visibleBox(enabledField);
   const scheduleBox = await visibleBox(scheduleField);
   const dialogBox = await visibleBox(dialog);
@@ -282,12 +282,14 @@ test("admin can save backup config and see the new value after reopening the pag
 
     await openBackupCenter(page);
 
-    await page.getByRole("button", { name: "Sửa cấu hình Cơ sở dữ liệu PostgreSQL" }).click();
-    const dialog = page.getByRole("dialog", { name: "Sửa cấu hình Cơ sở dữ liệu PostgreSQL" });
+    await page.getByRole("button", { name: "Sửa cấu hình sao lưu Cơ sở dữ liệu PostgreSQL" }).click();
+    const dialog = page.getByRole("dialog", { name: "Sửa cấu hình sao lưu: Cơ sở dữ liệu PostgreSQL" });
     await expect(dialog).toBeVisible();
     await expect(dialog).not.toContainText(ENGLISH_BACKUP_UI_PATTERN);
+    await expect(dialog).not.toContainText(/\d+\s+\d+\s+\*\s+\*\s+\*/);
+    await expect(dialog.getByLabel("Giờ chạy hằng ngày")).toHaveAttribute("type", "time");
 
-    await page.getByLabel("Lịch chạy").fill("20 4 * * *");
+    await page.getByLabel("Giờ chạy hằng ngày").fill("04:20");
     await page.locator("#backup-retention").fill(String(nextRetentionDays));
     await page.getByLabel("Kho lưu trữ đích").fill("hrms-backup");
     await page.getByLabel("Thư mục đích").fill(nextPrefix);
@@ -299,14 +301,17 @@ test("admin can save backup config and see the new value after reopening the pag
       && response.status() === 200
     ));
     await page.getByRole("button", { name: "Lưu", exact: true }).click();
-    await saveResponse;
-    await expect(page.getByRole("dialog", { name: "Sửa cấu hình Cơ sở dữ liệu PostgreSQL" })).toHaveCount(0);
+    const savedConfig = await (await saveResponse).json();
+    expect(savedConfig.cron_expression).toBe("20 4 * * *");
+    await expect(page.getByRole("dialog", { name: "Sửa cấu hình sao lưu: Cơ sở dữ liệu PostgreSQL" })).toHaveCount(0);
 
     await page.getByRole("link", { name: /Dashboard tổng quan/ }).first().click();
     await expect(page).toHaveURL(/\/reports\/dashboard$/);
     await openBackupCenter(page);
 
     await expect(page.getByTestId("backup-config-table")).toContainText(`Giữ ${nextRetentionDays} ngày`);
+    await expect(page.getByTestId("backup-config-table")).toContainText("04:20");
+    await expect(page.getByTestId("backup-config-table")).not.toContainText("20 4 * * *");
     await expect(page.getByTestId("backup-config-table")).toContainText(nextPrefix);
   } finally {
     await updateDbBackupConfig(request, token, originalPayload);
