@@ -541,6 +541,12 @@ const router = createRouter({
           component: () => import("@/views/admin/AuditLogView.vue"),
           meta: { title: "Nhật ký hệ thống", permission: "audit_logs:view" },
         },
+        {
+          path: "admin/backups",
+          name: "admin-backups",
+          component: () => import("@/views/admin/BackupCenterView.vue"),
+          meta: { title: "Sao lưu & khôi phục", permission: "backups:view" },
+        },
       ],
     },
     { path: "/:pathMatch(.*)*", redirect: "/" },

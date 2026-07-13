@@ -392,6 +392,7 @@ const menu: MenuItem[] = [
   { to: "/admin/users", label: "Tài khoản người dùng", icon: "pi-user-edit" },
   { to: "/admin/roles", label: "Vai trò & Quyền", icon: "pi-shield" },
   { to: "/admin/audit-logs", label: "Nhật ký hệ thống", icon: "pi-list" },
+  { to: "/admin/backups", label: "Sao lưu & khôi phục", icon: "pi-database" },
 ];
 
 const filteredMenu = computed(() => {
