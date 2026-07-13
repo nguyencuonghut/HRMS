@@ -188,6 +188,75 @@
         </div>
       </section>
 
+      <section class="backup-section">
+        <div class="backup-section-header">
+          <div>
+            <h3>Bản sao có thể khôi phục</h3>
+            <span>Danh sách tệp sao lưu đã tạo thành công trong kho sao lưu.</span>
+          </div>
+          <div class="backup-section-actions">
+            <Button
+              v-can:create="'backups'"
+              label="Tạo yêu cầu khôi phục"
+              icon="pi pi-history"
+              size="small"
+              @click="openRestoreDialog()"
+            />
+            <Button
+              icon="pi pi-refresh"
+              severity="secondary"
+              text
+              rounded
+              size="small"
+              :loading="loadingSnapshots"
+              v-tooltip.top="'Làm mới bản sao'"
+              aria-label="Làm mới bản sao có thể khôi phục"
+              @click="loadSnapshots"
+            />
+          </div>
+        </div>
+        <div class="card" data-testid="backup-snapshot-table">
+          <DataTable :value="snapshots" :loading="loadingSnapshots" size="small" responsive-layout="scroll">
+            <template #empty>
+              <div class="empty-state compact-empty">
+                <i class="pi pi-box" />
+                <span>Chưa có bản sao nào có thể khôi phục.</span>
+              </div>
+            </template>
+            <Column header="Loại" style="width: 180px">
+              <template #body="{ data }">{{ kindLabel(data.kind) }}</template>
+            </Column>
+            <Column header="Đường dẫn">
+              <template #body="{ data }">
+                <span>{{ data.artifact_key }}</span>
+                <div class="muted-text">{{ data.artifact_bucket }}</div>
+              </template>
+            </Column>
+            <Column header="Kích thước" style="width: 130px">
+              <template #body="{ data }">{{ formatBytes(data.artifact_size_bytes) }}</template>
+            </Column>
+            <Column header="Thời gian" style="width: 170px">
+              <template #body="{ data }">{{ formatDatetime(data.finished_at || data.created_at) }}</template>
+            </Column>
+            <Column header="" style="width: 72px">
+              <template #body="{ data }">
+                <Button
+                  v-can:create="'backups'"
+                  icon="pi pi-history"
+                  severity="secondary"
+                  text
+                  rounded
+                  size="small"
+                  :aria-label="`Tạo yêu cầu khôi phục ${data.artifact_key}`"
+                  v-tooltip.top="'Tạo yêu cầu khôi phục'"
+                  @click="openRestoreDialog(data)"
+                />
+              </template>
+            </Column>
+          </DataTable>
+        </div>
+      </section>
+
       <section class="backup-history-grid">
         <div class="backup-section">
           <div class="backup-section-header">
@@ -234,6 +303,14 @@
               <h3>Yêu cầu khôi phục gần nhất</h3>
               <span>Tối đa 5 yêu cầu mới nhất từ máy chủ.</span>
             </div>
+            <Button
+              v-can:create="'backups'"
+              label="Tạo yêu cầu"
+              icon="pi pi-history"
+              size="small"
+              outlined
+              @click="openRestoreDialog()"
+            />
           </div>
           <div class="card">
             <DataTable :value="overview.latest_restore_requests" size="small" responsive-layout="scroll">
@@ -349,6 +426,96 @@
         </div>
       </form>
     </Dialog>
+
+    <Dialog
+      v-model:visible="restoreDialogVisible"
+      modal
+      :header="restoreDialogTitle"
+      :style="{ width: '760px', maxWidth: '94vw' }"
+      :closable="!creatingRestoreRequest"
+    >
+      <form class="backup-config-form" @submit.prevent="submitRestoreRequest">
+        <div class="backup-form-grid">
+          <div class="backup-field">
+            <label for="restore-kind">Loại khôi phục</label>
+            <Select
+              input-id="restore-kind"
+              v-model="restoreForm.kind"
+              :options="restoreKindOptions"
+              option-label="label"
+              option-value="value"
+              class="w-full"
+            />
+          </div>
+
+          <div class="backup-field">
+            <label for="restore-mode">Chế độ</label>
+            <Select
+              input-id="restore-mode"
+              v-model="restoreForm.mode"
+              :options="restoreModeOptions"
+              option-label="label"
+              option-value="value"
+              class="w-full"
+            />
+          </div>
+
+          <div v-if="restoreForm.kind === 'db' || restoreForm.kind === 'full'" class="backup-field backup-field-wide">
+            <label for="restore-db-artifact">Bản sao cơ sở dữ liệu</label>
+            <Select
+              input-id="restore-db-artifact"
+              v-model="restoreForm.db_artifact_key"
+              :options="dbSnapshotOptions"
+              option-label="label"
+              option-value="value"
+              class="w-full"
+              :loading="loadingSnapshots"
+            />
+          </div>
+
+          <div v-if="restoreForm.kind === 'object_storage' || restoreForm.kind === 'full'" class="backup-field backup-field-wide">
+            <label for="restore-object-snapshot">Bản sao tệp tải lên</label>
+            <Select
+              input-id="restore-object-snapshot"
+              v-model="restoreForm.object_snapshot_key"
+              :options="objectSnapshotOptions"
+              option-label="label"
+              option-value="value"
+              class="w-full"
+              :loading="loadingSnapshots"
+            />
+          </div>
+
+          <div v-if="restoreForm.mode === 'restore_to_new_target' && (restoreForm.kind === 'db' || restoreForm.kind === 'full')" class="backup-field">
+            <label for="restore-target-db">Cơ sở dữ liệu đích mới</label>
+            <InputText id="restore-target-db" v-model.trim="restoreForm.target_db_name" class="w-full" />
+          </div>
+
+          <div v-if="restoreForm.mode === 'restore_to_new_target' && (restoreForm.kind === 'object_storage' || restoreForm.kind === 'full')" class="backup-field">
+            <label for="restore-target-bucket">Kho tệp đích mới</label>
+            <InputText id="restore-target-bucket" v-model.trim="restoreForm.target_bucket" class="w-full" />
+          </div>
+
+          <div class="backup-field backup-field-wide">
+            <label for="restore-confirmation">Nội dung xác nhận</label>
+            <InputText id="restore-confirmation" v-model.trim="restoreForm.confirmation_text" class="w-full" />
+            <small>Nhập nội dung xác nhận trước khi tạo yêu cầu.</small>
+          </div>
+
+          <div class="backup-field backup-field-wide">
+            <label for="restore-notes">Ghi chú</label>
+            <Textarea id="restore-notes" v-model.trim="restoreForm.notes" rows="3" auto-resize class="w-full" />
+          </div>
+        </div>
+
+        <p v-if="restoreFormError" class="backup-form-error">{{ restoreFormError }}</p>
+
+        <div class="backup-dialog-footer">
+          <Button label="Hủy" severity="secondary" outlined :disabled="creatingRestoreRequest" @click="restoreDialogVisible = false" />
+          <Button type="submit" label="Tạo yêu cầu" icon="pi pi-check" :loading="creatingRestoreRequest" />
+        </div>
+      </form>
+    </Dialog>
   </div>
 </template>
 
@@ -361,7 +528,9 @@ import Dialog from 'primevue/dialog'
 import InputNumber from 'primevue/inputnumber'
 import InputText from 'primevue/inputtext'
 import ProgressSpinner from 'primevue/progressspinner'
+import Select from 'primevue/select'
 import Tag from 'primevue/tag'
+import Textarea from 'primevue/textarea'
 import ToggleSwitch from 'primevue/toggleswitch'
 import { useToast } from 'primevue/usetoast'
 import backupService, {
@@ -369,6 +538,8 @@ import backupService, {
   type BackupConfigUpdatePayload,
   type BackupJobSummary,
   type BackupOverviewResponse,
+  type BackupSnapshotSummary,
+  type RestoreRequestSummary,
 } from '@/services/backupService'
 import { formatDatetime } from '@/utils/format'
 
@@ -386,15 +557,31 @@ interface BackupConfigForm {
   notify_emails: string
 }
 
+interface RestoreForm {
+  kind: string
+  mode: string
+  db_artifact_key: string | null
+  object_snapshot_key: string | null
+  target_db_name: string
+  target_bucket: string
+  confirmation_text: string
+  notes: string
+}
+
 const overview = ref<BackupOverviewResponse | null>(null)
+const snapshots = ref<BackupSnapshotSummary[]>([])
 const loading = ref(false)
+const loadingSnapshots = ref(false)
 const error = ref('')
 const editDialogVisible = ref(false)
+const restoreDialogVisible = ref(false)
 const editingConfig = ref<BackupConfigRead | null>(null)
 const savingConfig = ref(false)
 const validatingKind = ref('')
 const creatingJobKind = ref('')
+const creatingRestoreRequest = ref(false)
 const configFormError = ref('')
+const restoreFormError = ref('')
 const toast = useToast()
 let overviewPollTimer: number | undefined
 
@@ -412,6 +599,28 @@ const configForm = ref<BackupConfigForm>({
   notify_emails: '',
 })
 
+const restoreForm = ref<RestoreForm>({
+  kind: 'db',
+  mode: 'verify_only',
+  db_artifact_key: null,
+  object_snapshot_key: null,
+  target_db_name: '',
+  target_bucket: '',
+  confirmation_text: '',
+  notes: '',
+})
+
+const restoreKindOptions = [
+  { label: 'Cơ sở dữ liệu PostgreSQL', value: 'db' },
+  { label: 'Tệp tải lên trên MinIO', value: 'object_storage' },
+  { label: 'Cơ sở dữ liệu và tệp tải lên', value: 'full' },
+]
+
+const restoreModeOptions = [
+  { label: 'Chỉ kiểm tra', value: 'verify_only' },
+  { label: 'Khôi phục sang đích mới', value: 'restore_to_new_target' },
+]
+
 const enabledCount = computed(() => overview.value?.configs.filter((item) => item.enabled).length ?? 0)
 const targetConfiguredCount = computed(() => overview.value?.configs.filter((item) => item.target_configured).length ?? 0)
 const latestJobStatus = computed(() => {
@@ -421,6 +630,9 @@ const latestJobStatus = computed(() => {
 const editDialogTitle = computed(() => (
   editingConfig.value ? `Sửa cấu hình ${editingConfig.value.kind_label}` : 'Sửa cấu hình sao lưu'
 ))
+const restoreDialogTitle = computed(() => 'Tạo yêu cầu khôi phục')
+const dbSnapshotOptions = computed(() => snapshotOptions('db'))
+const objectSnapshotOptions = computed(() => snapshotOptions('object_storage'))
 const sourceSecureValue = computed({
   get: () => configForm.value.source_secure ?? false,
   set: (value: boolean) => {
@@ -444,8 +656,27 @@ async function loadOverview(options: { silent?: boolean } = {}) {
   }
 }
 
+async function loadSnapshots() {
+  loadingSnapshots.value = true
+  try {
+    const resp = await backupService.getSnapshots({ limit: 50 })
+    snapshots.value = resp.data
+  } catch {
+    toast.add({
+      severity: 'error',
+      summary: 'Không tải được bản sao',
+      detail: 'Vui lòng thử lại.',
+      life: 5000,
+    })
+  } finally {
+    loadingSnapshots.value = false
+  }
+}
+
 function hasActiveBackupJob(): boolean {
-  return overview.value?.latest_jobs.some((item) => ['queued', 'running'].includes(item.status)) ?? false
+  const hasActiveJob = overview.value?.latest_jobs.some((item) => ['queued', 'running'].includes(item.status)) ?? false
+  const hasActiveRestore = overview.value?.latest_restore_requests.some((item) => ['queued', 'running'].includes(item.status)) ?? false
+  return hasActiveJob || hasActiveRestore
 }
 
 function startOverviewPolling() {
@@ -568,6 +799,38 @@ function prependJob(job: BackupJobSummary) {
   syncOverviewPolling()
 }
 
+function prependRestoreRequest(row: RestoreRequestSummary) {
+  if (!overview.value) return
+  overview.value = {
+    ...overview.value,
+    latest_restore_requests: [
+      row,
+      ...overview.value.latest_restore_requests.filter((item) => item.id !== row.id),
+    ].slice(0, 5),
+  }
+  syncOverviewPolling()
+}
+
+function snapshotOptions(kind: string) {
+  return snapshots.value
+    .filter((item) => item.kind === kind)
+    .map((item) => ({
+      label: `${item.artifact_key} · ${formatBytes(item.artifact_size_bytes)}`,
+      value: item.artifact_key,
+    }))
+}
+
+function firstSnapshot(kind: string): string | null {
+  return snapshots.value.find((item) => item.kind === kind)?.artifact_key ?? null
+}
+
+function formatBytes(value: number | null): string {
+  if (!value && value !== 0) return '—'
+  if (value < 1024) return `${value} B`
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`
+  return `${(value / 1024 / 1024).toFixed(1)} MB`
+}
+
 function apiErrorMessage(error: unknown, fallback: string): string {
   const response = (error as { response?: { data?: { detail?: unknown } } }).response
   const detail = response?.data?.detail
@@ -614,6 +877,12 @@ function fieldLabel(field: string): string {
     target_secure: 'Kết nối bảo mật đích',
     notify_emails: 'Thư điện tử nhận thông báo',
     kind: 'Loại cấu hình sao lưu',
+    mode: 'Chế độ khôi phục',
+    db_artifact_key: 'Bản sao cơ sở dữ liệu',
+    object_snapshot_key: 'Bản sao tệp tải lên',
+    target_db_name: 'Cơ sở dữ liệu đích mới',
+    confirmation_text: 'Nội dung xác nhận',
+    notes: 'Ghi chú',
   }
   return labels[field] ?? 'Giá trị'
 }
@@ -688,6 +957,61 @@ async function createManualBackup(config: BackupConfigRead) {
     })
   } finally {
     creatingJobKind.value = ''
+  }
+}
+
+async function openRestoreDialog(snapshot?: BackupSnapshotSummary) {
+  await loadSnapshots()
+  const selectedKind = snapshot?.kind ?? 'db'
+  restoreForm.value = {
+    kind: selectedKind,
+    mode: 'verify_only',
+    db_artifact_key: selectedKind === 'db' ? snapshot?.artifact_key ?? firstSnapshot('db') : firstSnapshot('db'),
+    object_snapshot_key: selectedKind === 'object_storage' ? snapshot?.artifact_key ?? firstSnapshot('object_storage') : firstSnapshot('object_storage'),
+    target_db_name: '',
+    target_bucket: '',
+    confirmation_text: '',
+    notes: '',
+  }
+  restoreFormError.value = ''
+  restoreDialogVisible.value = true
+}
+
+function buildRestorePayload() {
+  const kind = restoreForm.value.kind
+  return {
+    kind,
+    mode: restoreForm.value.mode,
+    db_artifact_key: kind === 'db' || kind === 'full' ? restoreForm.value.db_artifact_key : null,
+    object_snapshot_key: kind === 'object_storage' || kind === 'full' ? restoreForm.value.object_snapshot_key : null,
+    target_db_name: restoreForm.value.mode === 'restore_to_new_target' && (kind === 'db' || kind === 'full')
+      ? nullableText(restoreForm.value.target_db_name)
+      : null,
+    target_bucket: restoreForm.value.mode === 'restore_to_new_target' && (kind === 'object_storage' || kind === 'full')
+      ? nullableText(restoreForm.value.target_bucket)
+      : null,
+    confirmation_text: restoreForm.value.confirmation_text.trim(),
+    notes: nullableText(restoreForm.value.notes),
+  }
+}
+
+async function submitRestoreRequest() {
+  creatingRestoreRequest.value = true
+  restoreFormError.value = ''
+  try {
+    const resp = await backupService.createRestoreRequest(buildRestorePayload())
+    prependRestoreRequest(resp.data)
+    restoreDialogVisible.value = false
+    toast.add({
+      severity: 'success',
+      summary: 'Đã tạo yêu cầu khôi phục',
+      detail: restoreModeLabel(resp.data.mode),
+      life: 5000,
+    })
+  } catch (err) {
+    restoreFormError.value = apiErrorMessage(err, 'Không tạo được yêu cầu khôi phục.')
+  } finally {
+    creatingRestoreRequest.value = false
   }
 }
 
@@ -792,6 +1116,7 @@ function restoreStatusSeverity(status: string): string {
 
 onMounted(() => {
   void loadOverview()
+  void loadSnapshots()
 })
 onBeforeUnmount(stopOverviewPolling)
 </script>
@@ -860,6 +1185,14 @@ onBeforeUnmount(stopOverviewPolling)
 .backup-section-header span {
   color: var(--p-text-muted-color);
   font-size: 0.82rem;
+}
+
+.backup-section-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .backup-history-grid {

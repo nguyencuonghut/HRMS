@@ -90,6 +90,27 @@ export interface BackupJobSummary {
   created_at: string
 }
 
+export interface BackupSnapshotSummary {
+  kind: string
+  artifact_key: string
+  artifact_bucket: string
+  artifact_size_bytes: number | null
+  object_count: number | null
+  created_at: string
+  finished_at: string | null
+}
+
+export interface RestoreRequestCreatePayload {
+  kind: string
+  mode: string
+  db_artifact_key: string | null
+  object_snapshot_key: string | null
+  target_db_name: string | null
+  target_bucket: string | null
+  confirmation_text: string
+  notes: string | null
+}
+
 export interface RestoreRequestSummary {
   id: number
   kind: string
@@ -99,6 +120,7 @@ export interface RestoreRequestSummary {
   object_snapshot_key: string | null
   target_db_name: string | null
   target_bucket: string | null
+  notes: string | null
   created_at: string
   updated_at: string
 }
@@ -133,5 +155,14 @@ export default {
   },
   getJobs(params?: { kind?: string; status?: string; limit?: number }) {
     return api.get<BackupJobSummary[]>(`${BASE}/jobs`, { params })
+  },
+  getSnapshots(params?: { kind?: string; limit?: number }) {
+    return api.get<BackupSnapshotSummary[]>(`${BASE}/snapshots`, { params })
+  },
+  createRestoreRequest(payload: RestoreRequestCreatePayload) {
+    return api.post<RestoreRequestSummary>(`${BASE}/restore-requests`, payload)
+  },
+  getRestoreRequests(params?: { kind?: string; status?: string; limit?: number }) {
+    return api.get<RestoreRequestSummary[]>(`${BASE}/restore-requests`, { params })
   },
 }

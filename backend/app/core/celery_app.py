@@ -32,6 +32,7 @@ celery_app.conf.update(
     task_routes={
         "app.workers.export_tasks.run_export_task": {"queue": "exports"},
         "app.workers.backup_tasks.run_backup_job_task": {"queue": "backups"},
+        "app.workers.backup_tasks.run_restore_request_task": {"queue": "backups"},
     },
 
     # ── RedBeat distributed scheduler ───────────────────────────────────────

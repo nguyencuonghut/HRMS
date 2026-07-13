@@ -32,3 +32,25 @@ async def _run_backup_job_task_async(job_id: int) -> None:
         logger.warning("backup_job_not_found", job_id=job_id)
     finally:
         await engine.dispose()
+
+
+@celery_app.task(
+    name="app.workers.backup_tasks.run_restore_request_task",
+    acks_late=True,
+    time_limit=7200,
+    soft_time_limit=7100,
+    ignore_result=True,
+)
+def run_restore_request_task(restore_request_id: int) -> None:
+    asyncio.run(_run_restore_request_task_async(restore_request_id))
+
+
+async def _run_restore_request_task_async(restore_request_id: int) -> None:
+    engine, SessionLocal = _make_engine_and_session()
+    try:
+        async with SessionLocal() as session:
+            await backup_service.run_restore_request(session, restore_request_id=restore_request_id)
+    except backup_service.RestoreRequestNotFound:
+        logger.warning("restore_request_not_found", restore_request_id=restore_request_id)
+    finally:
+        await engine.dispose()

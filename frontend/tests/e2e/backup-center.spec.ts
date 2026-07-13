@@ -25,6 +25,22 @@ type BackupConfig = {
 
 type BackupConfigUpdatePayload = Omit<BackupConfig, "kind">;
 
+type BackupJob = {
+  id: number;
+  kind: string;
+  status: string;
+  artifact_key: string | null;
+};
+
+type BackupSnapshot = {
+  kind: string;
+  artifact_key: string;
+};
+
+type BackupOverview = {
+  config_count: number;
+};
+
 async function login(page: Page, email: string, password: string) {
   await page.goto("/login");
   await page.getByLabel("Email").fill(email);
@@ -36,6 +52,7 @@ async function login(page: Page, email: string, password: string) {
 
   await page.getByRole("button", { name: "Đăng nhập" }).click();
   await meResponse;
+  await page.waitForURL(/\/(dashboard|reports\/dashboard|reports)/);
   await page.waitForLoadState("networkidle");
 }
 
@@ -96,15 +113,73 @@ function jobStatusLabel(status: string): string {
   return labels[status] ?? "Trạng thái khác";
 }
 
-test("admin can open read-only backup center and see backend overview", async ({ page }) => {
-  await login(page, ADMIN_EMAIL, ADMIN_PASSWORD);
+function restoreStatusLabel(status: string): string {
+  const labels: Record<string, string> = {
+    draft: "Bản nháp",
+    queued: "Đang chờ",
+    running: "Đang chạy",
+    verified: "Đã kiểm tra",
+    restored: "Đã khôi phục",
+    failed: "Thất bại",
+    cancelled: "Đã hủy",
+  };
+  return labels[status] ?? "Trạng thái khác";
+}
 
+async function latestDbSnapshot(request: APIRequestContext, token: string): Promise<BackupSnapshot | null> {
+  const response = await request.get("/api/v1/backups/snapshots", {
+    headers: { Authorization: `Bearer ${token}` },
+    params: { kind: "db", limit: 1 },
+  });
+  expect(response.ok()).toBeTruthy();
+  const snapshots = await response.json() as BackupSnapshot[];
+  return snapshots[0] ?? null;
+}
+
+async function ensureDbSnapshot(request: APIRequestContext, token: string): Promise<BackupSnapshot> {
+  const existing = await latestDbSnapshot(request, token);
+  if (existing) return existing;
+
+  const createResponse = await request.post("/api/v1/backups/jobs", {
+    headers: { Authorization: `Bearer ${token}` },
+    data: { kind: "db" },
+  });
+  expect(createResponse.ok()).toBeTruthy();
+  const job = await createResponse.json() as BackupJob;
+
+  const deadline = Date.now() + 90000;
+  while (Date.now() < deadline) {
+    const jobsResponse = await request.get("/api/v1/backups/jobs", {
+      headers: { Authorization: `Bearer ${token}` },
+      params: { limit: 20 },
+    });
+    expect(jobsResponse.ok()).toBeTruthy();
+    const jobs = await jobsResponse.json() as BackupJob[];
+    const current = jobs.find((item) => item.id === job.id);
+    if (current?.status === "success" && current.artifact_key) {
+      return { kind: "db", artifact_key: current.artifact_key };
+    }
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+  }
+  throw new Error("Không tạo được bản sao cơ sở dữ liệu trong thời gian chờ");
+}
+
+async function openBackupCenter(page: Page): Promise<BackupOverview> {
   const overviewResponse = page.waitForResponse((response) => (
     response.url().includes("/api/v1/backups/overview") && response.status() === 200
   ));
-  await page.goto("/admin/backups");
-  const overview = await (await overviewResponse).json();
+  await page.getByRole("link", { name: /Sao lưu & khôi phục/ }).click();
+  const overview = await (await overviewResponse).json() as BackupOverview;
+  await expect(page).toHaveURL(/\/admin\/backups$/);
+  await expect(page.getByRole("heading", { name: "Sao lưu & khôi phục" })).toBeVisible();
   await page.waitForLoadState("networkidle");
+  return overview;
+}
+
+test("admin can open read-only backup center and see backend overview", async ({ page }) => {
+  await login(page, ADMIN_EMAIL, ADMIN_PASSWORD);
+
+  const overview = await openBackupCenter(page);
 
   await expect(page).toHaveURL(/\/admin\/backups$/);
   await expect(page.getByRole("heading", { name: "Sao lưu & khôi phục" })).toBeVisible();
@@ -128,12 +203,7 @@ test("backup cron expression remains readable in dark mode", async ({ page }) =>
 
   await login(page, ADMIN_EMAIL, ADMIN_PASSWORD);
 
-  const overviewResponse = page.waitForResponse((response) => (
-    response.url().includes("/api/v1/backups/overview") && response.status() === 200
-  ));
-  await page.goto("/admin/backups");
-  await overviewResponse;
-  await page.waitForLoadState("networkidle");
+  await openBackupCenter(page);
 
   await expect(page.locator("html.dark-mode")).toHaveCount(1);
   const cronBadge = page.locator(".backup-code").filter({ hasText: "0 2 * * *" }).first();
@@ -163,7 +233,7 @@ test("backup cron expression remains readable in dark mode", async ({ page }) =>
   expect(contrastRatio).toBeGreaterThan(4.5);
 });
 
-test("admin can save backup config and see the new value after reload", async ({ page, request }) => {
+test("admin can save backup config and see the new value after reopening the page", async ({ page, request }) => {
   const token = await loginViaApi(request, ADMIN_EMAIL, ADMIN_PASSWORD);
   const original = await dbBackupConfig(request, token);
   const originalPayload = payloadFromConfig(original);
@@ -173,12 +243,7 @@ test("admin can save backup config and see the new value after reload", async ({
   try {
     await login(page, ADMIN_EMAIL, ADMIN_PASSWORD);
 
-    const overviewResponse = page.waitForResponse((response) => (
-      response.url().includes("/api/v1/backups/overview") && response.status() === 200
-    ));
-    await page.goto("/admin/backups");
-    await overviewResponse;
-    await page.waitForLoadState("networkidle");
+    await openBackupCenter(page);
 
     await page.getByRole("button", { name: "Sửa cấu hình Cơ sở dữ liệu PostgreSQL" }).click();
     const dialog = page.getByRole("dialog", { name: "Sửa cấu hình Cơ sở dữ liệu PostgreSQL" });
@@ -200,12 +265,9 @@ test("admin can save backup config and see the new value after reload", async ({
     await saveResponse;
     await expect(page.getByRole("dialog", { name: "Sửa cấu hình Cơ sở dữ liệu PostgreSQL" })).toHaveCount(0);
 
-    const reloadResponse = page.waitForResponse((response) => (
-      response.url().includes("/api/v1/backups/overview") && response.status() === 200
-    ));
-    await page.reload();
-    await reloadResponse;
-    await page.waitForLoadState("networkidle");
+    await page.getByRole("link", { name: /Dashboard tổng quan/ }).first().click();
+    await expect(page).toHaveURL(/\/reports\/dashboard$/);
+    await openBackupCenter(page);
 
     await expect(page.getByTestId("backup-config-table")).toContainText(`Giữ ${nextRetentionDays} ngày`);
     await expect(page.getByTestId("backup-config-table")).toContainText(nextPrefix);
@@ -217,12 +279,7 @@ test("admin can save backup config and see the new value after reload", async ({
 test("admin can trigger backup target validation state from the table", async ({ page }) => {
   await login(page, ADMIN_EMAIL, ADMIN_PASSWORD);
 
-  const overviewResponse = page.waitForResponse((response) => (
-    response.url().includes("/api/v1/backups/overview") && response.status() === 200
-  ));
-  await page.goto("/admin/backups");
-  await overviewResponse;
-  await page.waitForLoadState("networkidle");
+  await openBackupCenter(page);
 
   const validationResponse = page.waitForResponse((response) => (
     response.url().includes("/api/v1/backups/validate-target")
@@ -240,12 +297,7 @@ test("admin can trigger backup target validation state from the table", async ({
 test("admin can queue a manual backup job from the backup center", async ({ page }) => {
   await login(page, ADMIN_EMAIL, ADMIN_PASSWORD);
 
-  const overviewResponse = page.waitForResponse((response) => (
-    response.url().includes("/api/v1/backups/overview") && response.status() === 200
-  ));
-  await page.goto("/admin/backups");
-  await overviewResponse;
-  await page.waitForLoadState("networkidle");
+  await openBackupCenter(page);
 
   const jobResponse = page.waitForResponse((response) => (
     response.url().includes("/api/v1/backups/jobs")
@@ -259,6 +311,38 @@ test("admin can queue a manual backup job from the backup center", async ({ page
   await expect(history).toContainText("Cơ sở dữ liệu PostgreSQL");
   await expect(history).toContainText("Thủ công");
   await expect(history).toContainText(jobStatusLabel(job.status));
+  await expect(page.locator(".backup-center")).not.toContainText(ENGLISH_BACKUP_UI_PATTERN);
+});
+
+test("admin can create a safe restore verification request from a snapshot", async ({ page, request }) => {
+  const token = await loginViaApi(request, ADMIN_EMAIL, ADMIN_PASSWORD);
+  const snapshot = await ensureDbSnapshot(request, token);
+
+  await login(page, ADMIN_EMAIL, ADMIN_PASSWORD);
+
+  await openBackupCenter(page);
+
+  await expect(page.getByTestId("backup-snapshot-table")).toContainText(snapshot.artifact_key);
+
+  await page.getByRole("button", { name: `Tạo yêu cầu khôi phục ${snapshot.artifact_key}` }).click();
+  const dialog = page.getByRole("dialog", { name: "Tạo yêu cầu khôi phục" });
+  await expect(dialog).toBeVisible();
+  await expect(dialog).not.toContainText(ENGLISH_BACKUP_UI_PATTERN);
+  await expect(dialog).toContainText(snapshot.artifact_key);
+
+  await dialog.getByLabel("Nội dung xác nhận").fill("TOI XAC NHAN");
+
+  const restoreResponse = page.waitForResponse((response) => (
+    response.url().includes("/api/v1/backups/restore-requests")
+    && response.request().method() === "POST"
+    && response.status() === 201
+  ));
+  await dialog.getByRole("button", { name: "Tạo yêu cầu", exact: true }).click();
+  const restoreRequest = await (await restoreResponse).json();
+
+  const history = page.locator(".backup-history-grid").first();
+  await expect(history).toContainText("Chỉ kiểm tra");
+  await expect(history).toContainText(restoreStatusLabel(restoreRequest.status));
   await expect(page.locator(".backup-center")).not.toContainText(ENGLISH_BACKUP_UI_PATTERN);
 });
 

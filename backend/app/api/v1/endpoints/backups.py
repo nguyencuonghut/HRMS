@@ -16,7 +16,10 @@ from app.schemas.backup import (
     BackupMetaResponse,
     BackupOption,
     BackupOverviewResponse,
+    BackupSnapshotSummary,
     BackupStatusOption,
+    RestoreRequestCreate,
+    RestoreRequestSummary,
     BackupValidateTargetRequest,
     BackupValidateTargetResponse,
 )
@@ -159,6 +162,83 @@ async def list_backup_jobs(
         session,
         kind=kind,
         status=job_status,
+        limit=limit,
+    )
+
+
+@router.get("/snapshots", response_model=list[BackupSnapshotSummary])
+async def list_backup_snapshots(
+    kind: str | None = None,
+    limit: int = Query(default=50, ge=1, le=100),
+    _: User = require_permission("backups:view"),
+    session: AsyncSession = Depends(get_session),
+) -> list[BackupSnapshotSummary]:
+    return await backup_service.list_backup_snapshots(
+        session,
+        kind=kind,
+        limit=limit,
+    )
+
+
+@router.post("/restore-requests", response_model=RestoreRequestSummary, status_code=status.HTTP_201_CREATED)
+async def create_restore_request(
+    payload: RestoreRequestCreate,
+    request: Request,
+    current_user: User = require_permission("backups:create"),
+    session: AsyncSession = Depends(get_session),
+) -> RestoreRequestSummary:
+    try:
+        row = await backup_service.create_restore_request(
+            session,
+            kind=payload.kind,
+            mode=payload.mode,
+            db_artifact_key=payload.db_artifact_key,
+            object_snapshot_key=payload.object_snapshot_key,
+            target_db_name=payload.target_db_name,
+            target_bucket=payload.target_bucket,
+            confirmation_text=payload.confirmation_text,
+            notes=payload.notes,
+            user_id=current_user.id,
+        )
+    except backup_service.BackupSnapshotNotFound as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Không tìm thấy artifact sao lưu để khôi phục",
+        ) from exc
+    except backup_service.UnsafeRestoreTarget as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+    await auth_service.log_audit(
+        session,
+        current_user.id,
+        "CREATE",
+        entity_type="restore_request",
+        entity_id=row.id,
+        entity_name=row.kind,
+        new_data=backup_service.safe_restore_snapshot(row),
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
+    await session.commit()
+    backup_service.enqueue_restore_request(row.id)
+    return RestoreRequestSummary.model_validate(row)
+
+
+@router.get("/restore-requests", response_model=list[RestoreRequestSummary])
+async def list_restore_requests(
+    kind: str | None = None,
+    restore_status: str | None = Query(default=None, alias="status"),
+    limit: int = Query(default=50, ge=1, le=100),
+    _: User = require_permission("backups:view"),
+    session: AsyncSession = Depends(get_session),
+) -> list[RestoreRequestSummary]:
+    return await backup_service.list_restore_requests(
+        session,
+        kind=kind,
+        status=restore_status,
         limit=limit,
     )
 

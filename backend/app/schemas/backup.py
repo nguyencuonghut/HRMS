@@ -5,7 +5,7 @@ import re
 from typing import Optional
 from urllib.parse import urlsplit
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 _BUCKET_RE = re.compile(r"^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$")
@@ -46,6 +46,15 @@ def _strip_optional(value: str | None) -> str | None:
         return None
     cleaned = value.strip()
     return cleaned or None
+
+
+def _validate_backup_object_key(value: str) -> str:
+    cleaned = value.strip().strip("/")
+    if not cleaned:
+        raise ValueError("đường dẫn artifact là bắt buộc")
+    if "\\" in cleaned or any(part in {"", ".."} for part in cleaned.split("/")):
+        raise ValueError("đường dẫn artifact không hợp lệ")
+    return cleaned
 
 
 class BackupOption(BaseModel):
@@ -233,6 +242,94 @@ class BackupJobSummary(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class BackupSnapshotSummary(BaseModel):
+    kind: str
+    artifact_key: str
+    artifact_bucket: str
+    artifact_size_bytes: Optional[int]
+    object_count: Optional[int]
+    created_at: datetime
+    finished_at: Optional[datetime]
+
+
+class RestoreRequestCreate(BaseModel):
+    kind: str
+    mode: str
+    db_artifact_key: Optional[str] = Field(default=None, max_length=500)
+    object_snapshot_key: Optional[str] = Field(default=None, max_length=500)
+    target_db_name: Optional[str] = Field(default=None, max_length=63)
+    target_bucket: Optional[str] = Field(default=None, min_length=3, max_length=63)
+    confirmation_text: str = Field(min_length=5, max_length=255)
+    notes: Optional[str] = Field(default=None, max_length=1000)
+
+    @field_validator("kind")
+    @classmethod
+    def validate_kind(cls, value: str) -> str:
+        cleaned = value.strip()
+        if cleaned not in {"db", "object_storage", "full"}:
+            raise ValueError("Loại yêu cầu khôi phục không hợp lệ")
+        return cleaned
+
+    @field_validator("mode")
+    @classmethod
+    def validate_mode(cls, value: str) -> str:
+        cleaned = value.strip()
+        if cleaned not in {"verify_only", "restore_to_new_target"}:
+            raise ValueError("Chế độ khôi phục không hợp lệ")
+        return cleaned
+
+    @field_validator("db_artifact_key", "object_snapshot_key")
+    @classmethod
+    def validate_artifact_key(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return _validate_backup_object_key(value)
+
+    @field_validator("target_db_name")
+    @classmethod
+    def validate_target_db_name(cls, value: str | None) -> str | None:
+        cleaned = _strip_optional(value)
+        if cleaned is None:
+            return None
+        if not re.match(r"^[a-z][a-z0-9_]{2,62}$", cleaned):
+            raise ValueError("Tên cơ sở dữ liệu đích chỉ dùng chữ thường, số và dấu gạch dưới")
+        return cleaned
+
+    @field_validator("target_bucket")
+    @classmethod
+    def validate_target_bucket(cls, value: str | None) -> str | None:
+        cleaned = _strip_optional(value)
+        if cleaned is None:
+            return None
+        return BackupConfigUpdate._validate_bucket(cleaned)
+
+    @field_validator("confirmation_text")
+    @classmethod
+    def validate_confirmation_text(cls, value: str) -> str:
+        cleaned = " ".join(value.strip().split())
+        if len(cleaned) < 5:
+            raise ValueError("Cần nhập nội dung xác nhận khôi phục")
+        return cleaned
+
+    @field_validator("notes")
+    @classmethod
+    def validate_notes(cls, value: str | None) -> str | None:
+        return _strip_optional(value)
+
+    @model_validator(mode="after")
+    def validate_required_fields(self) -> "RestoreRequestCreate":
+        if self.kind in {"db", "full"} and not self.db_artifact_key:
+            raise ValueError("Cần chọn bản sao lưu cơ sở dữ liệu")
+        if self.kind in {"object_storage", "full"} and not self.object_snapshot_key:
+            raise ValueError("Cần chọn snapshot tệp tải lên")
+        if self.mode == "restore_to_new_target":
+            if self.kind in {"db", "full"} and not self.target_db_name:
+                raise ValueError("Cần nhập cơ sở dữ liệu đích mới")
+            if self.kind in {"object_storage", "full"} and not self.target_bucket:
+                raise ValueError("Cần nhập kho tệp đích mới")
+        return self
+
+
 class RestoreRequestSummary(BaseModel):
     id: int
     kind: str
@@ -242,6 +339,7 @@ class RestoreRequestSummary(BaseModel):
     object_snapshot_key: Optional[str]
     target_db_name: Optional[str]
     target_bucket: Optional[str]
+    notes: Optional[str]
     created_at: datetime
     updated_at: datetime
 
