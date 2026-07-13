@@ -1,4 +1,4 @@
-import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
+import { expect, test, type APIRequestContext, type Locator, type Page } from "@playwright/test";
 
 const ADMIN_EMAIL = process.env.E2E_EMAIL || "admin@hrms.local";
 const ADMIN_PASSWORD = process.env.E2E_PASSWORD || "Hrms@2026";
@@ -176,6 +176,12 @@ async function openBackupCenter(page: Page): Promise<BackupOverview> {
   return overview;
 }
 
+async function visibleBox(locator: Locator) {
+  const box = await locator.boundingBox();
+  expect(box).not.toBeNull();
+  return box!;
+}
+
 test("admin can open read-only backup center and see backend overview", async ({ page }) => {
   await login(page, ADMIN_EMAIL, ADMIN_PASSWORD);
 
@@ -231,6 +237,37 @@ test("backup cron expression remains readable in dark mode", async ({ page }) =>
   });
 
   expect(contrastRatio).toBeGreaterThan(4.5);
+});
+
+test("backup config dialog remains usable on a narrow viewport", async ({ page }) => {
+  await login(page, ADMIN_EMAIL, ADMIN_PASSWORD);
+  await openBackupCenter(page);
+
+  await page.getByRole("button", { name: "Sửa cấu hình Cơ sở dữ liệu PostgreSQL" }).click();
+  const dialog = page.getByRole("dialog", { name: "Sửa cấu hình Cơ sở dữ liệu PostgreSQL" });
+  await expect(dialog).toBeVisible();
+
+  await page.setViewportSize({ width: 390, height: 720 });
+  await expect(dialog).toBeVisible();
+
+  const enabledField = dialog.locator(".backup-field", { hasText: "Kích hoạt" }).first();
+  const scheduleField = dialog.locator(".backup-field", { hasText: "Lịch chạy" }).first();
+  const enabledBox = await visibleBox(enabledField);
+  const scheduleBox = await visibleBox(scheduleField);
+  const dialogBox = await visibleBox(dialog);
+
+  expect(dialogBox.width).toBeLessThanOrEqual(390);
+  expect(Math.abs(enabledBox.x - scheduleBox.x)).toBeLessThan(4);
+  expect(scheduleBox.y).toBeGreaterThan(enabledBox.y + enabledBox.height - 1);
+
+  const hasHorizontalOverflow = await dialog.evaluate((element) => element.scrollWidth > element.clientWidth + 1);
+  expect(hasHorizontalOverflow).toBeFalsy();
+
+  const cancelBox = await visibleBox(dialog.getByRole("button", { name: "Hủy" }));
+  const saveBox = await visibleBox(dialog.getByRole("button", { name: "Lưu", exact: true }));
+  expect(Math.abs(cancelBox.x - saveBox.x)).toBeLessThan(4);
+  expect(cancelBox.width).toBeGreaterThan(300);
+  expect(saveBox.width).toBeGreaterThan(300);
 });
 
 test("admin can save backup config and see the new value after reopening the page", async ({ page, request }) => {

@@ -347,7 +347,8 @@
       v-model:visible="editDialogVisible"
       modal
       :header="editDialogTitle"
-      :style="{ width: '720px', maxWidth: '94vw' }"
+      class="backup-dialog backup-edit-dialog"
+      :style="{ width: 'min(720px, calc(100vw - 2rem))' }"
       :closable="!savingConfig"
     >
       <form class="backup-config-form" @submit.prevent="saveConfig">
@@ -431,7 +432,8 @@
       v-model:visible="restoreDialogVisible"
       modal
       :header="restoreDialogTitle"
-      :style="{ width: '760px', maxWidth: '94vw' }"
+      class="backup-dialog backup-restore-dialog"
+      :style="{ width: 'min(760px, calc(100vw - 2rem))' }"
       :closable="!creatingRestoreRequest"
     >
       <form class="backup-config-form" @submit.prevent="submitRestoreRequest">
@@ -1261,6 +1263,7 @@ onBeforeUnmount(stopOverviewPolling)
 }
 
 .backup-config-form {
+  container-type: inline-size;
   display: flex;
   flex-direction: column;
   gap: 1rem;
@@ -1313,6 +1316,26 @@ onBeforeUnmount(stopOverviewPolling)
   padding: 2rem;
 }
 
+:global(.backup-dialog) {
+  max-width: calc(100vw - 2rem);
+  max-height: calc(100dvh - 2rem);
+}
+
+:global(.backup-dialog .p-dialog-content) {
+  overflow-y: auto;
+}
+
+@container (max-width: 700px) {
+  .backup-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .backup-toggle-field {
+    min-height: auto;
+    justify-content: flex-start;
+  }
+}
+
 @media (max-width: 960px) {
   .backup-summary-grid,
   .backup-history-grid {
@@ -1321,6 +1344,23 @@ onBeforeUnmount(stopOverviewPolling)
 
   .backup-form-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  :global(.backup-dialog) {
+    width: calc(100vw - 1rem) !important;
+    max-width: calc(100vw - 1rem);
+    max-height: calc(100dvh - 1rem);
+  }
+
+  .backup-dialog-footer {
+    flex-direction: column-reverse;
+  }
+
+  .backup-dialog-footer :deep(.p-button) {
+    width: 100%;
+    justify-content: center;
   }
 }
 </style>
