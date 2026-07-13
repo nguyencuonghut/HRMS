@@ -37,6 +37,14 @@ type BackupSnapshot = {
   artifact_key: string;
 };
 
+type BackupSnapshotSummary = BackupSnapshot & {
+  artifact_bucket: string;
+  artifact_size_bytes: number;
+  object_count: number | null;
+  created_at: string;
+  finished_at: string;
+};
+
 type BackupOverview = {
   config_count: number;
 };
@@ -200,6 +208,45 @@ test("admin can open read-only backup center and see backend overview", async ({
   await expect(page.getByRole("heading", { name: "Lịch sao lưu gần nhất" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Yêu cầu khôi phục gần nhất" })).toBeVisible();
   await expect(page.locator(".backup-center")).not.toContainText(ENGLISH_BACKUP_UI_PATTERN);
+});
+
+test("backup snapshots table uses the standard paginator", async ({ page }) => {
+  const fakeSnapshots: BackupSnapshotSummary[] = Array.from({ length: 12 }, (_, index) => {
+    const itemNumber = String(index + 1).padStart(2, "0");
+    return {
+      kind: index % 2 === 0 ? "db" : "object_storage",
+      artifact_key: index % 2 === 0
+        ? `postgres/e2e-snapshot-${itemNumber}.sql.gz`
+        : `files/e2e-snapshot-${itemNumber}`,
+      artifact_bucket: "hrms-backup",
+      artifact_size_bytes: 2048 + index,
+      object_count: index % 2 === 0 ? null : 2,
+      created_at: `2026-07-13T08:${itemNumber}:00`,
+      finished_at: `2026-07-13T08:${itemNumber}:30`,
+    };
+  });
+
+  await login(page, ADMIN_EMAIL, ADMIN_PASSWORD);
+  await page.route("**/api/v1/backups/snapshots**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(fakeSnapshots),
+    });
+  });
+
+  await openBackupCenter(page);
+
+  const table = page.getByTestId("backup-snapshot-table");
+  await expect(table.locator(".p-paginator")).toBeVisible();
+  await expect(table.locator(".paginator-info")).toHaveText("Hiển thị 1–10 / 12");
+  await expect(table).toContainText("postgres/e2e-snapshot-01.sql.gz");
+  await expect(table).not.toContainText("postgres/e2e-snapshot-11.sql.gz");
+
+  await table.locator(".p-paginator-next").click();
+
+  await expect(table.locator(".paginator-info")).toHaveText("Hiển thị 11–12 / 12");
+  await expect(table).toContainText("postgres/e2e-snapshot-11.sql.gz");
 });
 
 test("backup schedule time remains readable in dark mode", async ({ page }) => {

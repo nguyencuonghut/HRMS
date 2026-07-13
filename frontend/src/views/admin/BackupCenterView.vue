@@ -216,7 +216,24 @@
           </div>
         </div>
         <div class="card" data-testid="backup-snapshot-table">
-          <DataTable :value="snapshots" :loading="loadingSnapshots" size="small" responsive-layout="scroll">
+          <DataTable
+            :value="snapshots"
+            :loading="loadingSnapshots"
+            size="small"
+            responsive-layout="scroll"
+            :paginator="true"
+            :first="(snapshotPage - 1) * snapshotPageSize"
+            :rows="snapshotPageSize"
+            :total-records="snapshotTotal"
+            :rows-per-page-options="[10, 25, 50]"
+            paginator-template="RowsPerPageDropdown FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport"
+            current-page-report-template="Hiển thị từ {first} đến {last} trên tổng số {totalRecords} dòng"
+            @page="onSnapshotPage"
+            @update:rows="onSnapshotRowsChange"
+          >
+            <template #paginatorstart>
+              <span v-if="snapshotPaginatorInfo" class="paginator-info">{{ snapshotPaginatorInfo }}</span>
+            </template>
             <template #empty>
               <div class="empty-state compact-empty">
                 <i class="pi pi-box" />
@@ -523,6 +540,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import type { DataTablePageEvent } from 'primevue/datatable'
 import Button from 'primevue/button'
 import Column from 'primevue/column'
 import DataTable from 'primevue/datatable'
@@ -572,6 +590,8 @@ interface RestoreForm {
 
 const overview = ref<BackupOverviewResponse | null>(null)
 const snapshots = ref<BackupSnapshotSummary[]>([])
+const snapshotPage = ref(1)
+const snapshotPageSize = ref(10)
 const loading = ref(false)
 const loadingSnapshots = ref(false)
 const error = ref('')
@@ -635,6 +655,13 @@ const editDialogTitle = computed(() => (
 const restoreDialogTitle = computed(() => 'Tạo yêu cầu khôi phục')
 const dbSnapshotOptions = computed(() => snapshotOptions('db'))
 const objectSnapshotOptions = computed(() => snapshotOptions('object_storage'))
+const snapshotTotal = computed(() => snapshots.value.length)
+const snapshotPaginatorInfo = computed(() => {
+  if (snapshotTotal.value <= 0) return ''
+  const first = (snapshotPage.value - 1) * snapshotPageSize.value + 1
+  const last = Math.min(snapshotPage.value * snapshotPageSize.value, snapshotTotal.value)
+  return `Hiển thị ${first}–${last} / ${snapshotTotal.value}`
+})
 const sourceSecureValue = computed({
   get: () => configForm.value.source_secure ?? false,
   set: (value: boolean) => {
@@ -663,6 +690,9 @@ async function loadSnapshots() {
   try {
     const resp = await backupService.getSnapshots({ limit: 50 })
     snapshots.value = resp.data
+    if ((snapshotPage.value - 1) * snapshotPageSize.value >= snapshots.value.length) {
+      snapshotPage.value = 1
+    }
   } catch {
     toast.add({
       severity: 'error',
@@ -673,6 +703,16 @@ async function loadSnapshots() {
   } finally {
     loadingSnapshots.value = false
   }
+}
+
+function onSnapshotPage(event: DataTablePageEvent) {
+  snapshotPageSize.value = event.rows
+  snapshotPage.value = Math.floor(event.first / event.rows) + 1
+}
+
+function onSnapshotRowsChange(rows: number) {
+  snapshotPageSize.value = rows
+  snapshotPage.value = 1
 }
 
 function hasActiveBackupJob(): boolean {
