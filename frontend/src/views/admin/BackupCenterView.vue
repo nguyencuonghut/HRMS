@@ -1775,8 +1775,8 @@ onBeforeUnmount(stopOverviewPolling)
 }
 
 .backup-history-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  display: flex;
+  flex-direction: column;
   gap: 1rem;
 }
 
@@ -1938,8 +1938,7 @@ onBeforeUnmount(stopOverviewPolling)
 }
 
 @media (max-width: 960px) {
-  .backup-summary-grid,
-  .backup-history-grid {
+  .backup-summary-grid {
     grid-template-columns: 1fr;
   }
 
