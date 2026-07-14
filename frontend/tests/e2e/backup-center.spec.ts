@@ -45,6 +45,22 @@ type BackupSnapshotSummary = BackupSnapshot & {
   finished_at: string;
 };
 
+type BackupSetSummary = {
+  id: number;
+  trigger: string;
+  status: string;
+  db_job_id: number | null;
+  object_job_id: number | null;
+  db_artifact_key: string | null;
+  object_snapshot_key: string | null;
+  artifact_bucket: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+  error_summary: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 type BackupOverview = {
   config_count: number;
 };
@@ -266,6 +282,7 @@ test("latest backup job summary shows status color", async ({ page }) => {
     latest_jobs: [
       {
         id: 501,
+        backup_set_id: null,
         kind: "db",
         trigger: "manual",
         status: "failed",
@@ -280,6 +297,7 @@ test("latest backup job summary shows status color", async ({ page }) => {
         created_at: "2026-07-14T01:01:00+07:00",
       },
     ],
+    latest_backup_sets: [],
     latest_restore_requests: [],
   };
 
@@ -292,6 +310,13 @@ test("latest backup job summary shows status color", async ({ page }) => {
     });
   });
   await page.route("**/api/v1/backups/snapshots**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: "[]",
+    });
+  });
+  await page.route("**/api/v1/backups/sets**", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -343,6 +368,542 @@ test("backup snapshots table uses the standard paginator", async ({ page }) => {
 
   await expect(table.locator(".paginator-info")).toHaveText("Hiển thị 11–12 / 12");
   await expect(table).toContainText("postgres/e2e-snapshot-11.sql.gz");
+});
+
+test("full backup sets table uses the standard paginator", async ({ page }) => {
+  const fakeOverview = {
+    config_count: 2,
+    configs: [
+      {
+        id: 1,
+        kind: "db",
+        kind_label: "Cơ sở dữ liệu PostgreSQL",
+        enabled: true,
+        cron_expression: "0 2 * * *",
+        retention_days: 90,
+        source_endpoint: null,
+        source_bucket: null,
+        source_secure: null,
+        target_endpoint: "minio:9000",
+        target_bucket: "hrms-backup",
+        target_prefix: "postgres",
+        target_secure: false,
+        notify_emails: null,
+        secret_source: "env",
+        source_configured: true,
+        target_configured: true,
+        last_validated_at: null,
+        last_validation_status: null,
+        last_validation_error: null,
+        created_at: "2026-07-14T01:00:00+07:00",
+        updated_at: "2026-07-14T01:00:00+07:00",
+      },
+      {
+        id: 2,
+        kind: "object_storage",
+        kind_label: "Kho tệp ứng dụng trên MinIO",
+        enabled: true,
+        cron_expression: "0 3 * * *",
+        retention_days: 90,
+        source_endpoint: "minio:9000",
+        source_bucket: "hrms-attachments-dev",
+        source_secure: false,
+        target_endpoint: "minio:9000",
+        target_bucket: "hrms-backup",
+        target_prefix: "files",
+        target_secure: false,
+        notify_emails: null,
+        secret_source: "env",
+        source_configured: true,
+        target_configured: true,
+        last_validated_at: null,
+        last_validation_status: null,
+        last_validation_error: null,
+        created_at: "2026-07-14T01:00:00+07:00",
+        updated_at: "2026-07-14T01:00:00+07:00",
+      },
+    ],
+    latest_jobs: [],
+    latest_backup_sets: [],
+    latest_restore_requests: [],
+  };
+  const fakeBackupSets: BackupSetSummary[] = Array.from({ length: 12 }, (_, index) => {
+    const itemNumber = String(index + 1).padStart(2, "0");
+    return {
+      id: 8000 + index,
+      trigger: "manual_full",
+      status: "success",
+      db_job_id: 1000 + index,
+      object_job_id: 2000 + index,
+      db_artifact_key: `postgres/full-set-${itemNumber}.sql.gz`,
+      object_snapshot_key: `files/full-set-${itemNumber}`,
+      artifact_bucket: "hrms-backup",
+      started_at: `2026-07-14T02:${itemNumber}:00+07:00`,
+      finished_at: `2026-07-14T02:${itemNumber}:30+07:00`,
+      error_summary: null,
+      created_at: `2026-07-14T02:${itemNumber}:00+07:00`,
+      updated_at: `2026-07-14T02:${itemNumber}:30+07:00`,
+    };
+  });
+
+  await login(page, ADMIN_EMAIL, ADMIN_PASSWORD);
+  await page.route("**/api/v1/backups/overview", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(fakeOverview),
+    });
+  });
+  await page.route("**/api/v1/backups/snapshots**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: "[]",
+    });
+  });
+  await page.route("**/api/v1/backups/sets**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(fakeBackupSets),
+    });
+  });
+
+  await openBackupCenter(page);
+
+  const table = page.getByTestId("backup-set-table");
+  await expect(table.locator(".p-paginator")).toBeVisible();
+  await expect(table.locator(".p-paginator-current")).toHaveText("Hiển thị từ 1 đến 10 trên tổng số 12 dòng");
+  await expect(table.locator(".paginator-info")).toHaveText("Hiển thị 1–10 / 12");
+  await expect(table).toContainText("postgres/full-set-01.sql.gz");
+  await expect(table).not.toContainText("postgres/full-set-11.sql.gz");
+
+  await table.locator(".p-paginator-next").click();
+
+  await expect(table.locator(".p-paginator-current")).toHaveText("Hiển thị từ 11 đến 12 trên tổng số 12 dòng");
+  await expect(table.locator(".paginator-info")).toHaveText("Hiển thị 11–12 / 12");
+  await expect(table).toContainText("postgres/full-set-11.sql.gz");
+});
+
+test("backup polling refreshes full backup set and latest job tables", async ({ page }) => {
+  const queuedSet: BackupSetSummary = {
+    id: 9101,
+    trigger: "manual_full",
+    status: "queued",
+    db_job_id: 3101,
+    object_job_id: 3102,
+    db_artifact_key: null,
+    object_snapshot_key: null,
+    artifact_bucket: "hrms-backup",
+    started_at: null,
+    finished_at: null,
+    error_summary: null,
+    created_at: "2026-07-14T02:00:00+07:00",
+    updated_at: "2026-07-14T02:00:00+07:00",
+  };
+  const finishedSet: BackupSetSummary = {
+    ...queuedSet,
+    status: "success",
+    db_artifact_key: "postgres/full-set-auto-refresh.sql.gz",
+    object_snapshot_key: "files/full-set-auto-refresh",
+    started_at: "2026-07-14T02:00:05+07:00",
+    finished_at: "2026-07-14T02:10:00+07:00",
+    updated_at: "2026-07-14T02:10:00+07:00",
+  };
+  const queuedJob = {
+    id: 3101,
+    backup_set_id: queuedSet.id,
+    kind: "db",
+    trigger: "manual_full",
+    status: "queued",
+    artifact_key: null,
+    artifact_bucket: null,
+    artifact_size_bytes: null,
+    object_count: null,
+    started_at: null,
+    finished_at: null,
+    error_summary: null,
+    log_excerpt: null,
+    created_at: "2026-07-14T02:00:00+07:00",
+  };
+  const finishedJob = {
+    ...queuedJob,
+    status: "success",
+    artifact_key: "postgres/full-set-auto-refresh.sql.gz",
+    artifact_bucket: "hrms-backup",
+    artifact_size_bytes: 4096,
+    started_at: "2026-07-14T02:00:05+07:00",
+    finished_at: "2026-07-14T02:10:00+07:00",
+  };
+  const queuedOverview = {
+    config_count: 0,
+    configs: [],
+    latest_jobs: [queuedJob],
+    latest_backup_sets: [queuedSet],
+    latest_restore_requests: [],
+  };
+  const finishedOverview = {
+    ...queuedOverview,
+    latest_jobs: [finishedJob],
+    latest_backup_sets: [finishedSet],
+  };
+  let overviewRequests = 0;
+
+  await login(page, ADMIN_EMAIL, ADMIN_PASSWORD);
+  await page.route("**/api/v1/backups/overview", async (route) => {
+    overviewRequests += 1;
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(overviewRequests === 1 ? queuedOverview : finishedOverview),
+    });
+  });
+  await page.route("**/api/v1/backups/snapshots**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: "[]",
+    });
+  });
+  await page.route("**/api/v1/backups/sets**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify([queuedSet]),
+    });
+  });
+
+  await openBackupCenter(page);
+
+  const backupSetTable = page.getByTestId("backup-set-table");
+  const latestJobsTable = page.getByTestId("backup-latest-jobs-table");
+  await expect(backupSetTable).toContainText("Đang chờ");
+  await expect(latestJobsTable).toContainText("Đang chờ");
+
+  await expect(backupSetTable).toContainText("Thành công", { timeout: 8000 });
+  await expect(backupSetTable).toContainText(finishedSet.db_artifact_key!, { timeout: 8000 });
+  await expect(latestJobsTable).toContainText("Thành công", { timeout: 8000 });
+  await expect(latestJobsTable).toContainText(finishedJob.artifact_key, { timeout: 8000 });
+});
+
+test("full backup button updates latest task status immediately", async ({ page }) => {
+  const oldSuccessJob = {
+    id: 7001,
+    backup_set_id: null,
+    kind: "db",
+    trigger: "manual",
+    status: "success",
+    artifact_key: "postgres/old-success.sql.gz",
+    artifact_bucket: "hrms-backup",
+    artifact_size_bytes: 4096,
+    object_count: null,
+    started_at: "2026-07-14T01:00:00+07:00",
+    finished_at: "2026-07-14T01:05:00+07:00",
+    error_summary: null,
+    log_excerpt: null,
+    created_at: "2026-07-14T01:00:00+07:00",
+  };
+  const queuedSet: BackupSetSummary = {
+    id: 9102,
+    trigger: "manual_full",
+    status: "queued",
+    db_job_id: 7101,
+    object_job_id: 7102,
+    db_artifact_key: null,
+    object_snapshot_key: null,
+    artifact_bucket: "hrms-backup",
+    started_at: null,
+    finished_at: null,
+    error_summary: null,
+    created_at: "2026-07-14T02:00:00+07:00",
+    updated_at: "2026-07-14T02:00:00+07:00",
+  };
+
+  await login(page, ADMIN_EMAIL, ADMIN_PASSWORD);
+  await page.route("**/api/v1/backups/overview", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        config_count: 0,
+        configs: [],
+        latest_jobs: [oldSuccessJob],
+        latest_backup_sets: [],
+        latest_restore_requests: [],
+      }),
+    });
+  });
+  await page.route("**/api/v1/backups/snapshots**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: "[]",
+    });
+  });
+  await page.route("**/api/v1/backups/sets**", async (route) => {
+    if (route.request().method() === "POST") {
+      await route.fulfill({
+        status: 201,
+        contentType: "application/json",
+        body: JSON.stringify(queuedSet),
+      });
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: "[]",
+    });
+  });
+
+  await openBackupCenter(page);
+
+  await expect(page.getByTestId("latest-job-status")).toHaveText("Thành công");
+  const fullBackupResponse = page.waitForResponse((response) => (
+    response.url().includes("/api/v1/backups/sets")
+    && response.request().method() === "POST"
+    && response.status() === 201
+  ));
+  await page.getByRole("button", { name: "Sao lưu đầy đủ" }).click();
+  await fullBackupResponse;
+
+  await expect(page.getByTestId("latest-job-status")).toHaveText("Đang chờ");
+  await expect(page.getByTestId("backup-set-table")).toContainText("Đang chờ");
+});
+
+test("latest task card follows visible active full backup set", async ({ page }) => {
+  const oldSuccessJob = {
+    id: 7002,
+    backup_set_id: null,
+    kind: "db",
+    trigger: "manual",
+    status: "success",
+    artifact_key: "postgres/older-success.sql.gz",
+    artifact_bucket: "hrms-backup",
+    artifact_size_bytes: 4096,
+    object_count: null,
+    started_at: "2026-07-14T01:00:00+07:00",
+    finished_at: "2026-07-14T01:05:00+07:00",
+    error_summary: null,
+    log_excerpt: null,
+    created_at: "2026-07-14T01:00:00+07:00",
+  };
+  const queuedSet: BackupSetSummary = {
+    id: 9103,
+    trigger: "manual_full",
+    status: "queued",
+    db_job_id: 7201,
+    object_job_id: 7202,
+    db_artifact_key: null,
+    object_snapshot_key: null,
+    artifact_bucket: "hrms-backup",
+    started_at: null,
+    finished_at: null,
+    error_summary: null,
+    created_at: "2026-07-14T02:00:00+07:00",
+    updated_at: "2026-07-14T02:00:00+07:00",
+  };
+
+  await login(page, ADMIN_EMAIL, ADMIN_PASSWORD);
+  await page.route("**/api/v1/backups/overview", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        config_count: 0,
+        configs: [],
+        latest_jobs: [oldSuccessJob],
+        latest_backup_sets: [],
+        latest_restore_requests: [],
+      }),
+    });
+  });
+  await page.route("**/api/v1/backups/snapshots**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: "[]",
+    });
+  });
+  await page.route("**/api/v1/backups/sets**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify([queuedSet]),
+    });
+  });
+
+  await openBackupCenter(page);
+
+  await expect(page.getByTestId("backup-set-table")).toContainText("Đang chờ");
+  await expect(page.getByTestId("latest-job-status")).toHaveText("Đang chờ");
+});
+
+test("admin can queue a full backup set and restore from that set", async ({ page }) => {
+  const configs = [
+    {
+      id: 1,
+      kind: "db",
+      kind_label: "Cơ sở dữ liệu PostgreSQL",
+      enabled: true,
+      cron_expression: "0 2 * * *",
+      retention_days: 90,
+      source_endpoint: null,
+      source_bucket: null,
+      source_secure: null,
+      target_endpoint: "minio:9000",
+      target_bucket: "hrms-backup",
+      target_prefix: "postgres",
+      target_secure: false,
+      notify_emails: null,
+      secret_source: "env",
+      source_configured: true,
+      target_configured: true,
+      last_validated_at: null,
+      last_validation_status: null,
+      last_validation_error: null,
+      created_at: "2026-07-14T01:00:00+07:00",
+      updated_at: "2026-07-14T01:00:00+07:00",
+    },
+    {
+      id: 2,
+      kind: "object_storage",
+      kind_label: "Kho tệp ứng dụng trên MinIO",
+      enabled: true,
+      cron_expression: "0 3 * * *",
+      retention_days: 90,
+      source_endpoint: "minio:9000",
+      source_bucket: "hrms-attachments-dev",
+      source_secure: false,
+      target_endpoint: "minio:9000",
+      target_bucket: "hrms-backup",
+      target_prefix: "files",
+      target_secure: false,
+      notify_emails: null,
+      secret_source: "env",
+      source_configured: true,
+      target_configured: true,
+      last_validated_at: null,
+      last_validation_status: null,
+      last_validation_error: null,
+      created_at: "2026-07-14T01:00:00+07:00",
+      updated_at: "2026-07-14T01:00:00+07:00",
+    },
+  ];
+  const restorableSet: BackupSetSummary = {
+    id: 9001,
+    trigger: "manual",
+    status: "success",
+    db_job_id: 101,
+    object_job_id: 102,
+    db_artifact_key: "postgres/full-set-db.sql.gz",
+    object_snapshot_key: "files/full-set-files",
+    artifact_bucket: "hrms-backup",
+    started_at: "2026-07-14T01:00:00+07:00",
+    finished_at: "2026-07-14T01:30:00+07:00",
+    error_summary: null,
+    created_at: "2026-07-14T01:00:00+07:00",
+    updated_at: "2026-07-14T01:30:00+07:00",
+  };
+  const queuedSet: BackupSetSummary = {
+    ...restorableSet,
+    id: 9002,
+    status: "queued",
+    db_job_id: 201,
+    object_job_id: 202,
+    db_artifact_key: null,
+    object_snapshot_key: null,
+    started_at: null,
+    finished_at: null,
+    created_at: "2026-07-14T02:00:00+07:00",
+    updated_at: "2026-07-14T02:00:00+07:00",
+  };
+  let restorePayload: Record<string, unknown> | null = null;
+
+  await login(page, ADMIN_EMAIL, ADMIN_PASSWORD);
+  await page.route("**/api/v1/backups/overview", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        config_count: 2,
+        configs,
+        latest_jobs: [],
+        latest_backup_sets: [restorableSet],
+        latest_restore_requests: [],
+      }),
+    });
+  });
+  await page.route("**/api/v1/backups/snapshots**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: "[]",
+    });
+  });
+  await page.route("**/api/v1/backups/sets**", async (route) => {
+    if (route.request().method() === "POST") {
+      await route.fulfill({
+        status: 201,
+        contentType: "application/json",
+        body: JSON.stringify(queuedSet),
+      });
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify([restorableSet]),
+    });
+  });
+  await page.route("**/api/v1/backups/restore-requests", async (route) => {
+    restorePayload = route.request().postDataJSON();
+    await route.fulfill({
+      status: 201,
+      contentType: "application/json",
+      body: JSON.stringify({
+        id: 301,
+        backup_set_id: restorableSet.id,
+        kind: "full",
+        mode: "verify_only",
+        status: "queued",
+        db_artifact_key: restorableSet.db_artifact_key,
+        object_snapshot_key: restorableSet.object_snapshot_key,
+        target_db_name: null,
+        target_bucket: null,
+        notes: null,
+        created_at: "2026-07-14T02:05:00+07:00",
+        updated_at: "2026-07-14T02:05:00+07:00",
+      }),
+    });
+  });
+
+  await openBackupCenter(page);
+
+  const fullBackupResponse = page.waitForResponse((response) => (
+    response.url().includes("/api/v1/backups/sets")
+    && response.request().method() === "POST"
+    && response.status() === 201
+  ));
+  await page.getByRole("button", { name: "Sao lưu đầy đủ" }).click();
+  await fullBackupResponse;
+  await expect(page.getByTestId("backup-set-table")).toContainText("Đang chờ");
+
+  await page.getByRole("button", { name: `Tạo yêu cầu khôi phục bộ sao lưu ${restorableSet.id}` }).click();
+  const dialog = page.getByRole("dialog", { name: "Tạo yêu cầu khôi phục" });
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText("Bộ sao lưu đầy đủ");
+  await expect(dialog).toContainText(restorableSet.db_artifact_key!);
+  await dialog.getByLabel("Nội dung xác nhận").fill("TOI XAC NHAN");
+  await dialog.getByRole("button", { name: "Tạo yêu cầu", exact: true }).click();
+
+  expect(restorePayload).toMatchObject({
+    kind: "full",
+    mode: "verify_only",
+    backup_set_id: restorableSet.id,
+    db_artifact_key: null,
+    object_snapshot_key: null,
+  });
 });
 
 test("backup schedule time remains readable in dark mode", async ({ page }) => {

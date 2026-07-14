@@ -15,6 +15,7 @@ from app.core.storage import ensure_bucket
 from app.middleware.security_headers import SecurityHeadersMiddleware
 from app.middleware.request_id import RequestIDMiddleware
 from app.middleware.csrf import CSRFMiddleware
+from app.middleware.backup_readonly import BackupReadOnlyMiddleware
 from app.api.v1.router import router as api_v1_router
 from app.seeds import rbac as rbac_seed
 from app.seeds import notification_templates as notif_seed
@@ -98,6 +99,7 @@ app.add_middleware(SlowAPIMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(RequestIDMiddleware)
 app.add_middleware(CSRFMiddleware)
+app.add_middleware(BackupReadOnlyMiddleware)
 
 app.add_middleware(
     CORSMiddleware,

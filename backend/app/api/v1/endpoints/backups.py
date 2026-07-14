@@ -16,6 +16,7 @@ from app.schemas.backup import (
     BackupMetaResponse,
     BackupOption,
     BackupOverviewResponse,
+    BackupSetSummary,
     BackupSnapshotSummary,
     BackupStatusOption,
     RestoreRequestCreate,
@@ -150,6 +151,48 @@ async def create_manual_backup_job(
     return backup_service.job_response(row)
 
 
+@router.post("/sets", response_model=BackupSetSummary, status_code=status.HTTP_201_CREATED)
+async def create_manual_backup_set(
+    request: Request,
+    current_user: User = require_permission("backups:create"),
+    session: AsyncSession = Depends(get_session),
+) -> BackupSetSummary:
+    try:
+        row = await backup_service.create_manual_backup_set(
+            session,
+            user_id=current_user.id,
+        )
+    except backup_service.BackupConfigNotFound as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Không tìm thấy cấu hình sao lưu",
+        ) from exc
+    except backup_service.ActiveBackupSetExists as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"Đã có bộ sao lưu đầy đủ #{exc.backup_set_id} đang chờ hoặc đang chạy. "
+                "Vui lòng đợi tác vụ hiện tại hoàn tất trước khi tạo bộ mới."
+            ),
+        ) from exc
+
+    await auth_service.log_audit(
+        session,
+        current_user.id,
+        "CREATE",
+        entity_type="backup_set",
+        entity_id=row.id,
+        entity_name=f"backup-set-{row.id}",
+        new_data=backup_service.safe_backup_set_snapshot(row),
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
+    await session.commit()
+    backup_service.enqueue_backup_set(row.id)
+    summaries = await backup_service.list_backup_sets(session, limit=1)
+    return next(item for item in summaries if item.id == row.id)
+
+
 @router.get("/jobs", response_model=list[BackupJobSummary])
 async def list_backup_jobs(
     kind: str | None = None,
@@ -162,6 +205,20 @@ async def list_backup_jobs(
         session,
         kind=kind,
         status=job_status,
+        limit=limit,
+    )
+
+
+@router.get("/sets", response_model=list[BackupSetSummary])
+async def list_backup_sets(
+    backup_set_status: str | None = Query(default=None, alias="status"),
+    limit: int = Query(default=50, ge=1, le=100),
+    _: User = require_permission("backups:view"),
+    session: AsyncSession = Depends(get_session),
+) -> list[BackupSetSummary]:
+    return await backup_service.list_backup_sets(
+        session,
+        status=backup_set_status,
         limit=limit,
     )
 
@@ -192,6 +249,7 @@ async def create_restore_request(
             session,
             kind=payload.kind,
             mode=payload.mode,
+            backup_set_id=payload.backup_set_id,
             db_artifact_key=payload.db_artifact_key,
             object_snapshot_key=payload.object_snapshot_key,
             target_db_name=payload.target_db_name,
@@ -204,6 +262,11 @@ async def create_restore_request(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Không tìm thấy artifact sao lưu để khôi phục",
+        ) from exc
+    except backup_service.BackupSetNotFound as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Không tìm thấy bộ sao lưu đầy đủ để khôi phục",
         ) from exc
     except backup_service.UnsafeRestoreTarget as exc:
         raise HTTPException(

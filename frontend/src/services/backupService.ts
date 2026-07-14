@@ -76,6 +76,7 @@ export interface BackupJobCreateRequest {
 
 export interface BackupJobSummary {
   id: number
+  backup_set_id: number | null
   kind: string
   trigger: string
   status: string
@@ -100,9 +101,26 @@ export interface BackupSnapshotSummary {
   finished_at: string | null
 }
 
+export interface BackupSetSummary {
+  id: number
+  trigger: string
+  status: string
+  db_job_id: number | null
+  object_job_id: number | null
+  db_artifact_key: string | null
+  object_snapshot_key: string | null
+  artifact_bucket: string | null
+  started_at: string | null
+  finished_at: string | null
+  error_summary: string | null
+  created_at: string
+  updated_at: string
+}
+
 export interface RestoreRequestCreatePayload {
   kind: string
   mode: string
+  backup_set_id: number | null
   db_artifact_key: string | null
   object_snapshot_key: string | null
   target_db_name: string | null
@@ -113,6 +131,7 @@ export interface RestoreRequestCreatePayload {
 
 export interface RestoreRequestSummary {
   id: number
+  backup_set_id: number | null
   kind: string
   mode: string
   status: string
@@ -129,6 +148,7 @@ export interface BackupOverviewResponse {
   config_count: number
   configs: BackupConfigRead[]
   latest_jobs: BackupJobSummary[]
+  latest_backup_sets: BackupSetSummary[]
   latest_restore_requests: RestoreRequestSummary[]
 }
 
@@ -153,8 +173,14 @@ export default {
   createJob(payload: BackupJobCreateRequest) {
     return api.post<BackupJobSummary>(`${BASE}/jobs`, payload)
   },
+  createBackupSet() {
+    return api.post<BackupSetSummary>(`${BASE}/sets`)
+  },
   getJobs(params?: { kind?: string; status?: string; limit?: number }) {
     return api.get<BackupJobSummary[]>(`${BASE}/jobs`, { params })
+  },
+  getBackupSets(params?: { status?: string; limit?: number }) {
+    return api.get<BackupSetSummary[]>(`${BASE}/sets`, { params })
   },
   getSnapshots(params?: { kind?: string; limit?: number }) {
     return api.get<BackupSnapshotSummary[]>(`${BASE}/snapshots`, { params })

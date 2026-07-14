@@ -54,6 +54,10 @@ class BackupJob(SQLModel, table=True):
     __tablename__ = "backup_jobs"
 
     id: Optional[int] = Field(default=None, primary_key=True)
+    backup_set_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(sa.Integer(), sa.ForeignKey("backup_sets.id", ondelete="SET NULL"), nullable=True, index=True),
+    )
     kind: str = Field(max_length=50, index=True)
     trigger: str = Field(max_length=50)
     status: str = Field(default="queued", max_length=50, index=True)
@@ -73,10 +77,39 @@ class BackupJob(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=_utcnow)
 
 
+class BackupSet(SQLModel, table=True):
+    __tablename__ = "backup_sets"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    trigger: str = Field(max_length=50)
+    status: str = Field(default="queued", max_length=50, index=True)
+    db_job_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(sa.Integer(), sa.ForeignKey("backup_jobs.id", ondelete="SET NULL"), nullable=True),
+    )
+    object_job_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(sa.Integer(), sa.ForeignKey("backup_jobs.id", ondelete="SET NULL"), nullable=True),
+    )
+    started_at: Optional[datetime] = Field(default=None)
+    finished_at: Optional[datetime] = Field(default=None)
+    error_summary: Optional[str] = Field(default=None, sa_column=Column(sa.Text(), nullable=True))
+    created_by_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(sa.Integer(), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
+    )
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: datetime = Field(default_factory=_utcnow)
+
+
 class RestoreRequest(SQLModel, table=True):
     __tablename__ = "restore_requests"
 
     id: Optional[int] = Field(default=None, primary_key=True)
+    backup_set_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(sa.Integer(), sa.ForeignKey("backup_sets.id", ondelete="SET NULL"), nullable=True, index=True),
+    )
     kind: str = Field(max_length=50, index=True)
     db_artifact_key: Optional[str] = Field(default=None, max_length=500)
     object_snapshot_key: Optional[str] = Field(default=None, max_length=500)
@@ -96,4 +129,3 @@ class RestoreRequest(SQLModel, table=True):
     notes: Optional[str] = Field(default=None, sa_column=Column(sa.Text(), nullable=True))
     created_at: datetime = Field(default_factory=_utcnow)
     updated_at: datetime = Field(default_factory=_utcnow)
-

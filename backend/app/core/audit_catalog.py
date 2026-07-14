@@ -62,6 +62,7 @@ AUDIT_ENTITY_DEFS: list[tuple[str, str, str]] = [
     ("leave_type", "Loại nghỉ phép", "secondary"),
     ("backup_config", "Cấu hình sao lưu", "warn"),
     ("backup_job", "Tác vụ sao lưu", "info"),
+    ("backup_set", "Bộ sao lưu đầy đủ", "info"),
     ("restore_request", "Yêu cầu khôi phục", "danger"),
 ]
 

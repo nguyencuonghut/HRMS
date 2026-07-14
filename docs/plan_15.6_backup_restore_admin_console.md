@@ -315,14 +315,14 @@ Những yêu cầu này cần runner có state/application logic hơn là cronta
 
 Phiên bản đầu không restore ghi đè production trực tiếp.
 
-Quy trình UI đề xuất:
+Quy trình UI đề xuất sau khi bổ sung bộ sao lưu đầy đủ:
 
-1. Admin chọn DB dump và/hoặc object snapshot.
-2. Hệ thống hiển thị thời điểm, kích thước, source, checksum nếu có.
-3. Admin chọn mode:
+1. Nếu khôi phục riêng lẻ, Admin chọn DB dump hoặc object snapshot tương ứng.
+2. Nếu khôi phục đầy đủ, Admin chọn một bộ sao lưu đầy đủ đã thành công; bộ này đã liên kết sẵn DB dump và snapshot kho tệp ứng dụng.
+3. Hệ thống hiển thị thời điểm, kích thước, source, checksum nếu có.
+4. Admin chọn mode:
    - Verify only.
    - Restore to new DB/bucket.
-4. Nếu restore full, UI cảnh báo khi DB dump và object snapshot lệch mốc thời gian.
 5. Admin nhập confirmation text.
 6. Runner tạo restore job và cập nhật `restore_requests`.
 7. Khi thành công, UI hiển thị kết quả và hướng dẫn bước vận hành nếu cần swap production.
@@ -534,7 +534,7 @@ Kiểm thử:
 
 - "Admin" có nghĩa là superuser/system admin hay mọi user có `settings:edit`? Đề xuất: chỉ user có permission `backups:*`.
 - Với production nội bộ LAN, v1 không cho Admin nhập/sửa credential backup storage từ UI. Credential đặt trong `.env` trên server và UI chỉ hiển thị trạng thái đã cấu hình/chưa cấu hình.
-- Có bắt buộc restore full DB + file cùng một thời điểm không? Đề xuất: UI cảnh báo khi snapshot lệch mốc thời gian, nhưng cho phép restore riêng từng loại.
+- Có bắt buộc restore full DB + file cùng một thời điểm không? Đã chốt: restore full phải đi qua `backup_sets`, không ghép hai snapshot rời. Restore riêng DB hoặc riêng kho tệp vẫn được giữ cho tình huống vận hành đặc biệt.
 - Có cần approval 2 người cho restore không? Đề xuất v1.5/v2 nếu hệ thống có yêu cầu kiểm soát nội bộ.
 - Runner nên dùng DB polling riêng hay Celery queue `backups`? Đề xuất v1: runner riêng trong `backup_scheduler` để giữ các binary `pg_dump/mc` ở đúng image và giảm thay đổi Celery worker hiện có.
 
@@ -546,8 +546,9 @@ Tính năng chỉ được coi là xong khi:
 - Admin xem được config không chứa secret, trạng thái backup gần nhất, job history và artifact.
 - Admin sửa được schedule/retention/notify emails và thay đổi có tác dụng với runner.
 - Admin trigger được manual DB backup và object storage backup.
+- Admin trigger được bộ sao lưu đầy đủ; DB backup và snapshot kho tệp ứng dụng được chạy nối tiếp trong cùng hàng đợi và cùng `backup_set_id`.
 - Artifact backup được ghi vào backup target và hiển thị trong UI.
-- Admin tạo được restore request an toàn, tối thiểu verify-only hoặc restore vào target mới.
+- Admin tạo được restore request an toàn, tối thiểu verify-only hoặc restore vào target mới; restore full phải chọn một bộ sao lưu đầy đủ đã thành công.
 - Tất cả thao tác thay đổi có audit log.
 - Secret không bị trả về frontend hoặc ghi vào log excerpt.
 - Backend tests, frontend build, browser-level tests và runtime backup/restore checks liên quan đều được chạy và ghi lại kết quả.

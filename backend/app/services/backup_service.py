@@ -16,12 +16,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from urllib3 import PoolManager, Timeout
 
 from app.core.config import settings
-from app.models.backup import BackupConfig, BackupJob, RestoreRequest
+from app.models.backup import BackupConfig, BackupJob, BackupSet, RestoreRequest
 from app.schemas.backup import (
     BackupConfigResponse,
     BackupConfigUpdate,
     BackupJobSummary,
     BackupOverviewResponse,
+    BackupSetSummary,
     BackupSnapshotSummary,
     BackupValidateTargetResponse,
     RestoreRequestSummary,
@@ -89,6 +90,15 @@ class BackupJobNotFound(Exception):
 
 class BackupSnapshotNotFound(Exception):
     pass
+
+
+class BackupSetNotFound(Exception):
+    pass
+
+
+class ActiveBackupSetExists(Exception):
+    def __init__(self, backup_set_id: int):
+        self.backup_set_id = backup_set_id
 
 
 class RestoreRequestNotFound(Exception):
@@ -246,6 +256,48 @@ def _job_summaries(rows: Iterable[BackupJob]) -> list[BackupJobSummary]:
 
 def _restore_summaries(rows: Iterable[RestoreRequest]) -> list[RestoreRequestSummary]:
     return [RestoreRequestSummary.model_validate(row) for row in rows]
+
+
+def _backup_set_summary(row: BackupSet, jobs_by_id: dict[int, BackupJob]) -> BackupSetSummary:
+    db_job = jobs_by_id.get(row.db_job_id or 0)
+    object_job = jobs_by_id.get(row.object_job_id or 0)
+    artifact_bucket = (
+        db_job.artifact_bucket
+        if db_job and db_job.artifact_bucket
+        else object_job.artifact_bucket if object_job and object_job.artifact_bucket else None
+    )
+    return BackupSetSummary(
+        id=row.id,
+        trigger=row.trigger,
+        status=row.status,
+        db_job_id=row.db_job_id,
+        object_job_id=row.object_job_id,
+        db_artifact_key=db_job.artifact_key if db_job else None,
+        object_snapshot_key=object_job.artifact_key if object_job else None,
+        artifact_bucket=artifact_bucket,
+        started_at=row.started_at,
+        finished_at=row.finished_at,
+        error_summary=row.error_summary,
+        created_at=row.created_at,
+        updated_at=row.updated_at,
+    )
+
+
+async def _backup_set_summaries(session: AsyncSession, rows: Iterable[BackupSet]) -> list[BackupSetSummary]:
+    rows_list = list(rows)
+    job_ids = {
+        job_id
+        for row in rows_list
+        for job_id in (row.db_job_id, row.object_job_id)
+        if job_id is not None
+    }
+    jobs_by_id: dict[int, BackupJob] = {}
+    if job_ids:
+        jobs = (
+            await session.execute(select(BackupJob).where(BackupJob.id.in_(job_ids)))
+        ).scalars().all()
+        jobs_by_id = {job.id: job for job in jobs if job.id is not None}
+    return [_backup_set_summary(row, jobs_by_id) for row in rows_list]
 
 
 def _snapshot_summaries(rows: Iterable[BackupJob]) -> list[BackupSnapshotSummary]:
@@ -492,9 +544,69 @@ async def create_manual_backup_job(
     return row
 
 
+async def create_manual_backup_set(
+    session: AsyncSession,
+    *,
+    user_id: int | None,
+) -> BackupSet:
+    await get_backup_config_row(session, "db")
+    await get_backup_config_row(session, "object_storage")
+    active_backup_set_id = (
+        await session.execute(
+            select(BackupSet.id)
+            .where(BackupSet.status.in_(["queued", "running"]))
+            .order_by(BackupSet.created_at.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    if active_backup_set_id is not None:
+        raise ActiveBackupSetExists(active_backup_set_id)
+
+    now = _utcnow()
+    row = BackupSet(
+        trigger="manual",
+        status="queued",
+        created_by_id=user_id,
+        created_at=now,
+        updated_at=now,
+    )
+    session.add(row)
+    await session.flush()
+
+    db_job = BackupJob(
+        backup_set_id=row.id,
+        kind="db",
+        trigger="manual_full",
+        status="queued",
+        created_by_id=user_id,
+        created_at=now,
+        updated_at=now,
+    )
+    object_job = BackupJob(
+        backup_set_id=row.id,
+        kind="object_storage",
+        trigger="manual_full",
+        status="queued",
+        created_by_id=user_id,
+        created_at=now,
+        updated_at=now,
+    )
+    session.add(db_job)
+    session.add(object_job)
+    await session.flush()
+
+    row.db_job_id = db_job.id
+    row.object_job_id = object_job.id
+    row.updated_at = now
+    session.add(row)
+    await session.flush()
+    return row
+
+
 def safe_job_snapshot(row: BackupJob) -> dict:
     return {
         "id": row.id,
+        "backup_set_id": row.backup_set_id,
         "kind": row.kind,
         "trigger": row.trigger,
         "status": row.status,
@@ -505,9 +617,23 @@ def safe_job_snapshot(row: BackupJob) -> dict:
     }
 
 
+def safe_backup_set_snapshot(row: BackupSet) -> dict:
+    return {
+        "id": row.id,
+        "trigger": row.trigger,
+        "status": row.status,
+        "db_job_id": row.db_job_id,
+        "object_job_id": row.object_job_id,
+        "started_at": row.started_at.isoformat() if row.started_at else None,
+        "finished_at": row.finished_at.isoformat() if row.finished_at else None,
+        "error_summary": row.error_summary,
+    }
+
+
 def safe_restore_snapshot(row: RestoreRequest) -> dict:
     return {
         "id": row.id,
+        "backup_set_id": row.backup_set_id,
         "kind": row.kind,
         "mode": row.mode,
         "status": row.status,
@@ -525,6 +651,15 @@ def enqueue_backup_job(job_id: int) -> None:
         run_backup_job_task.apply_async(args=[job_id], queue="backups")
     except Exception as exc:  # pragma: no cover - phụ thuộc broker runtime
         logger.warning("backup_job_enqueue_failed", job_id=job_id, error=str(exc))
+
+
+def enqueue_backup_set(backup_set_id: int) -> None:
+    try:
+        from app.workers.backup_tasks import run_backup_set_task
+
+        run_backup_set_task.apply_async(args=[backup_set_id], queue="backups")
+    except Exception as exc:  # pragma: no cover - phụ thuộc broker runtime
+        logger.warning("backup_set_enqueue_failed", backup_set_id=backup_set_id, error=str(exc))
 
 
 def enqueue_restore_request(restore_request_id: int) -> None:
@@ -554,6 +689,23 @@ async def list_backup_jobs(
         )
     ).scalars().all()
     return _job_summaries(rows)
+
+
+async def list_backup_sets(
+    session: AsyncSession,
+    *,
+    status: str | None = None,
+    limit: int = 50,
+) -> list[BackupSetSummary]:
+    query = select(BackupSet)
+    if status:
+        query = query.where(BackupSet.status == status)
+    rows = (
+        await session.execute(
+            query.order_by(BackupSet.created_at.desc()).limit(limit)
+        )
+    ).scalars().all()
+    return await _backup_set_summaries(session, rows)
 
 
 async def list_backup_snapshots(
@@ -591,6 +743,33 @@ async def _find_snapshot_job(session: AsyncSession, *, kind: str, artifact_key: 
     if row is None or not row.artifact_bucket:
         raise BackupSnapshotNotFound(artifact_key)
     return row
+
+
+async def _find_successful_backup_set(session: AsyncSession, backup_set_id: int) -> tuple[BackupSet, BackupJob, BackupJob]:
+    row = await session.get(BackupSet, backup_set_id)
+    if row is None or row.status != "success" or not row.db_job_id or not row.object_job_id:
+        raise BackupSetNotFound(backup_set_id)
+
+    jobs = (
+        await session.execute(
+            select(BackupJob).where(BackupJob.id.in_([row.db_job_id, row.object_job_id]))
+        )
+    ).scalars().all()
+    jobs_by_kind = {job.kind: job for job in jobs}
+    db_job = jobs_by_kind.get("db")
+    object_job = jobs_by_kind.get("object_storage")
+    if (
+        db_job is None
+        or object_job is None
+        or db_job.status != "success"
+        or object_job.status != "success"
+        or not db_job.artifact_key
+        or not db_job.artifact_bucket
+        or not object_job.artifact_key
+        or not object_job.artifact_bucket
+    ):
+        raise BackupSetNotFound(backup_set_id)
+    return row, db_job, object_job
 
 
 def _current_database_name() -> str:
@@ -639,6 +818,7 @@ async def create_restore_request(
     *,
     kind: str,
     mode: str,
+    backup_set_id: int | None,
     db_artifact_key: str | None,
     object_snapshot_key: str | None,
     target_db_name: str | None,
@@ -647,9 +827,22 @@ async def create_restore_request(
     notes: str | None,
     user_id: int | None,
 ) -> RestoreRequest:
-    if kind in {"db", "full"} and db_artifact_key:
+    if kind == "full":
+        if not backup_set_id:
+            raise BackupSetNotFound("missing")
+        _, db_job, object_job = await _find_successful_backup_set(session, backup_set_id)
+        db_artifact_key = db_job.artifact_key
+        object_snapshot_key = object_job.artifact_key
+    elif kind == "db":
+        backup_set_id = None
+        object_snapshot_key = None
+    elif kind == "object_storage":
+        backup_set_id = None
+        db_artifact_key = None
+
+    if kind == "db" and db_artifact_key:
         await _find_snapshot_job(session, kind="db", artifact_key=db_artifact_key)
-    if kind in {"object_storage", "full"} and object_snapshot_key:
+    if kind == "object_storage" and object_snapshot_key:
         await _find_snapshot_job(session, kind="object_storage", artifact_key=object_snapshot_key)
     await _validate_restore_targets(
         session,
@@ -661,6 +854,7 @@ async def create_restore_request(
 
     now = _utcnow()
     row = RestoreRequest(
+        backup_set_id=backup_set_id,
         kind=kind,
         db_artifact_key=db_artifact_key,
         object_snapshot_key=object_snapshot_key,
@@ -788,6 +982,60 @@ async def run_backup_job(
     return row
 
 
+async def _run_backup_set_child(
+    session: AsyncSession,
+    *,
+    job_id: int | None,
+    runner: BackupRunner,
+) -> BackupJob:
+    if job_id is None:
+        raise BackupJobNotFound("missing")
+    row = await run_backup_job(session, job_id=job_id, runner=runner)
+    if row.status != "success":
+        raise RuntimeError(row.error_summary or f"Sao lưu {KIND_LABELS.get(row.kind, row.kind)} thất bại.")
+    return row
+
+
+async def run_backup_set(
+    session: AsyncSession,
+    *,
+    backup_set_id: int,
+    runner: BackupRunner = run_backup,
+) -> BackupSet:
+    row = await session.get(BackupSet, backup_set_id)
+    if row is None:
+        raise BackupSetNotFound(backup_set_id)
+    if row.status != "queued":
+        return row
+
+    now = _utcnow()
+    row.status = "running"
+    row.started_at = now
+    row.updated_at = now
+    session.add(row)
+    await session.commit()
+
+    try:
+        await _run_backup_set_child(session, job_id=row.db_job_id, runner=runner)
+        await _run_backup_set_child(session, job_id=row.object_job_id, runner=runner)
+        finished_at = _utcnow()
+        row.status = "success"
+        row.error_summary = None
+        row.finished_at = finished_at
+        row.updated_at = finished_at
+    except Exception as exc:
+        finished_at = _utcnow()
+        row.status = "failed"
+        row.error_summary = _sanitize_validation_message(str(exc))
+        row.finished_at = finished_at
+        row.updated_at = finished_at
+
+    session.add(row)
+    await session.commit()
+    await session.refresh(row)
+    return row
+
+
 async def list_backup_configs(session: AsyncSession) -> list[BackupConfigResponse]:
     await ensure_backup_configs(session)
     rows = (
@@ -810,10 +1058,16 @@ async def get_backup_overview(session: AsyncSession) -> BackupOverviewResponse:
             select(RestoreRequest).order_by(RestoreRequest.created_at.desc()).limit(5)
         )
     ).scalars().all()
+    backup_sets = (
+        await session.execute(
+            select(BackupSet).order_by(BackupSet.created_at.desc()).limit(5)
+        )
+    ).scalars().all()
 
     return BackupOverviewResponse(
         config_count=len(configs),
         configs=configs,
         latest_jobs=_job_summaries(jobs),
+        latest_backup_sets=await _backup_set_summaries(session, backup_sets),
         latest_restore_requests=_restore_summaries(restore_requests),
     )

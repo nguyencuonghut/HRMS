@@ -59,6 +59,16 @@
             <h3>Cấu hình sao lưu</h3>
             <span>Thông tin đọc từ cấu hình hệ thống; thông tin bí mật được giữ trong biến môi trường máy chủ.</span>
           </div>
+          <div class="backup-section-actions">
+            <Button
+              v-can:create="'backups'"
+              label="Sao lưu đầy đủ"
+              icon="pi pi-shield"
+              size="small"
+              :loading="creatingBackupSet"
+              @click="createFullBackupSet"
+            />
+          </div>
         </div>
 
         <div class="card" data-testid="backup-config-table">
@@ -197,6 +207,83 @@
       <section class="backup-section">
         <div class="backup-section-header">
           <div>
+            <h3>Bộ sao lưu đầy đủ</h3>
+            <span>Mỗi bộ gồm một bản CSDL và một snapshot kho tệp được chạy nối tiếp trong cùng hàng đợi.</span>
+          </div>
+          <Button
+            icon="pi pi-refresh"
+            severity="secondary"
+            text
+            rounded
+            size="small"
+            :loading="loadingBackupSets"
+            v-tooltip.top="'Làm mới bộ sao lưu'"
+            aria-label="Làm mới bộ sao lưu đầy đủ"
+            @click="loadBackupSets"
+          />
+        </div>
+        <div class="card" data-testid="backup-set-table">
+          <DataTable
+            :value="backupSets"
+            :loading="loadingBackupSets"
+            size="small"
+            responsive-layout="scroll"
+            :paginator="true"
+            :first="(backupSetPage - 1) * backupSetPageSize"
+            :rows="backupSetPageSize"
+            :total-records="backupSetTotal"
+            :rows-per-page-options="[10, 25, 50]"
+            paginator-template="RowsPerPageDropdown FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport"
+            current-page-report-template="Hiển thị từ {first} đến {last} trên tổng số {totalRecords} dòng"
+            @page="onBackupSetPage"
+            @update:rows="onBackupSetRowsChange"
+          >
+            <template #paginatorstart>
+              <span v-if="backupSetPaginatorInfo" class="paginator-info">{{ backupSetPaginatorInfo }}</span>
+            </template>
+            <template #empty>
+              <div class="empty-state compact-empty">
+                <i class="pi pi-shield" />
+                <span>Chưa có bộ sao lưu đầy đủ.</span>
+              </div>
+            </template>
+            <Column header="Trạng thái" style="width: 150px">
+              <template #body="{ data }">
+                <Tag :value="statusLabel(data.status)" :severity="statusSeverity(data.status)" rounded />
+              </template>
+            </Column>
+            <Column header="Cơ sở dữ liệu">
+              <template #body="{ data }">{{ data.db_artifact_key || '—' }}</template>
+            </Column>
+            <Column header="Kho tệp ứng dụng">
+              <template #body="{ data }">{{ data.object_snapshot_key || '—' }}</template>
+            </Column>
+            <Column header="Thời gian" style="width: 170px">
+              <template #body="{ data }">{{ formatDatetime(data.finished_at || data.created_at) }}</template>
+            </Column>
+            <Column header="" style="width: 72px">
+              <template #body="{ data }">
+                <Button
+                  v-can:create="'backups'"
+                  icon="pi pi-history"
+                  severity="secondary"
+                  text
+                  rounded
+                  size="small"
+                  :disabled="data.status !== 'success'"
+                  :aria-label="`Tạo yêu cầu khôi phục bộ sao lưu ${data.id}`"
+                  v-tooltip.top="'Tạo yêu cầu khôi phục'"
+                  @click="openRestoreDialog(undefined, data)"
+                />
+              </template>
+            </Column>
+          </DataTable>
+        </div>
+      </section>
+
+      <section class="backup-section">
+        <div class="backup-section-header">
+          <div>
             <h3>Bản sao có thể khôi phục</h3>
             <span>Danh sách tệp sao lưu đã tạo thành công trong kho sao lưu.</span>
           </div>
@@ -288,7 +375,7 @@
               <span>Tối đa 5 tác vụ mới nhất từ máy chủ.</span>
             </div>
           </div>
-          <div class="card">
+          <div class="card" data-testid="backup-latest-jobs-table">
             <DataTable :value="overview.latest_jobs" size="small" responsive-layout="scroll">
               <template #empty>
                 <div class="empty-state compact-empty">
@@ -485,7 +572,23 @@
             />
           </div>
 
-          <div v-if="restoreForm.kind === 'db' || restoreForm.kind === 'full'" class="backup-field backup-field-wide">
+          <div v-if="restoreForm.kind === 'full'" class="backup-field backup-field-wide">
+            <label for="restore-backup-set">Bộ sao lưu đầy đủ</label>
+            <Select
+              input-id="restore-backup-set"
+              v-model="restoreForm.backup_set_id"
+              :options="backupSetOptions"
+              option-label="label"
+              option-value="value"
+              class="w-full"
+              :loading="loadingBackupSets"
+            />
+            <small v-if="selectedBackupSet">
+              CSDL: {{ selectedBackupSet.db_artifact_key }} · Kho tệp: {{ selectedBackupSet.object_snapshot_key }}
+            </small>
+          </div>
+
+          <div v-if="restoreForm.kind === 'db'" class="backup-field backup-field-wide">
             <label for="restore-db-artifact">Bản sao cơ sở dữ liệu</label>
             <Select
               input-id="restore-db-artifact"
@@ -498,7 +601,7 @@
             />
           </div>
 
-          <div v-if="restoreForm.kind === 'object_storage' || restoreForm.kind === 'full'" class="backup-field backup-field-wide">
+          <div v-if="restoreForm.kind === 'object_storage'" class="backup-field backup-field-wide">
             <label for="restore-object-snapshot">Bản sao kho tệp ứng dụng</label>
             <Select
               input-id="restore-object-snapshot"
@@ -545,7 +648,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { DataTablePageEvent } from 'primevue/datatable'
 import Button from 'primevue/button'
 import Column from 'primevue/column'
@@ -564,6 +667,7 @@ import backupService, {
   type BackupConfigUpdatePayload,
   type BackupJobSummary,
   type BackupOverviewResponse,
+  type BackupSetSummary,
   type BackupSnapshotSummary,
   type RestoreRequestSummary,
 } from '@/services/backupService'
@@ -586,6 +690,7 @@ interface BackupConfigForm {
 interface RestoreForm {
   kind: string
   mode: string
+  backup_set_id: number | null
   db_artifact_key: string | null
   object_snapshot_key: string | null
   target_db_name: string
@@ -596,10 +701,14 @@ interface RestoreForm {
 
 const overview = ref<BackupOverviewResponse | null>(null)
 const snapshots = ref<BackupSnapshotSummary[]>([])
+const backupSets = ref<BackupSetSummary[]>([])
+const backupSetPage = ref(1)
+const backupSetPageSize = ref(10)
 const snapshotPage = ref(1)
 const snapshotPageSize = ref(10)
 const loading = ref(false)
 const loadingSnapshots = ref(false)
+const loadingBackupSets = ref(false)
 const error = ref('')
 const editDialogVisible = ref(false)
 const restoreDialogVisible = ref(false)
@@ -607,6 +716,7 @@ const editingConfig = ref<BackupConfigRead | null>(null)
 const savingConfig = ref(false)
 const validatingKind = ref('')
 const creatingJobKind = ref('')
+const creatingBackupSet = ref(false)
 const creatingRestoreRequest = ref(false)
 const configFormError = ref('')
 const restoreFormError = ref('')
@@ -630,6 +740,7 @@ const configForm = ref<BackupConfigForm>({
 const restoreForm = ref<RestoreForm>({
   kind: 'db',
   mode: 'verify_only',
+  backup_set_id: null,
   db_artifact_key: null,
   object_snapshot_key: null,
   target_db_name: '',
@@ -641,7 +752,7 @@ const restoreForm = ref<RestoreForm>({
 const restoreKindOptions = [
   { label: 'Cơ sở dữ liệu PostgreSQL', value: 'db' },
   { label: 'Kho tệp ứng dụng trên MinIO', value: 'object_storage' },
-  { label: 'Cơ sở dữ liệu và kho tệp ứng dụng', value: 'full' },
+  { label: 'Bộ sao lưu đầy đủ', value: 'full' },
 ]
 
 const restoreModeOptions = [
@@ -649,14 +760,33 @@ const restoreModeOptions = [
   { label: 'Khôi phục sang đích mới', value: 'restore_to_new_target' },
 ]
 
+const activeBackupStatuses = new Set(['queued', 'running'])
+
 const enabledCount = computed(() => overview.value?.configs.filter((item) => item.enabled).length ?? 0)
 const targetConfiguredCount = computed(() => overview.value?.configs.filter((item) => item.target_configured).length ?? 0)
+const latestBackupActivity = computed(() => {
+  const activeVisibleSet = newestActivity(backupSets.value
+    .filter((item) => activeBackupStatuses.has(item.status))
+    .map(backupSetActivity))
+  if (activeVisibleSet) return activeVisibleSet
+
+  const currentOverview = overview.value
+  const activities = [
+    ...(currentOverview?.latest_jobs.map((item) => ({
+      status: item.status,
+      occurredAt: item.finished_at ?? item.started_at ?? item.created_at,
+    })) ?? []),
+    ...(currentOverview?.latest_backup_sets.map(backupSetActivity) ?? []),
+    ...backupSets.value.map(backupSetActivity),
+  ]
+  return newestActivity(activities)
+})
 const latestJobStatus = computed(() => {
-  const status = overview.value?.latest_jobs[0]?.status
+  const status = latestBackupActivity.value?.status
   return status ? statusLabel(status) : 'Chưa có'
 })
 const latestJobStatusSeverity = computed(() => {
-  const status = overview.value?.latest_jobs[0]?.status
+  const status = latestBackupActivity.value?.status
   return status ? statusSeverity(status) : 'secondary'
 })
 const editDialogTitle = computed(() => (
@@ -665,6 +795,22 @@ const editDialogTitle = computed(() => (
 const restoreDialogTitle = computed(() => 'Tạo yêu cầu khôi phục')
 const dbSnapshotOptions = computed(() => snapshotOptions('db'))
 const objectSnapshotOptions = computed(() => snapshotOptions('object_storage'))
+const backupSetOptions = computed(() => backupSets.value
+  .filter((item) => item.status === 'success' && item.db_artifact_key && item.object_snapshot_key)
+  .map((item) => ({
+    label: `Bộ #${item.id} · ${formatDatetime(item.finished_at || item.created_at)}`,
+    value: item.id,
+  })))
+const selectedBackupSet = computed(() => (
+  backupSets.value.find((item) => item.id === restoreForm.value.backup_set_id) ?? null
+))
+const backupSetTotal = computed(() => backupSets.value.length)
+const backupSetPaginatorInfo = computed(() => {
+  if (backupSetTotal.value <= 0) return ''
+  const first = (backupSetPage.value - 1) * backupSetPageSize.value + 1
+  const last = Math.min(backupSetPage.value * backupSetPageSize.value, backupSetTotal.value)
+  return `Hiển thị ${first}–${last} / ${backupSetTotal.value}`
+})
 const snapshotTotal = computed(() => snapshots.value.length)
 const snapshotPaginatorInfo = computed(() => {
   if (snapshotTotal.value <= 0) return ''
@@ -679,12 +825,30 @@ const sourceSecureValue = computed({
   },
 })
 
+watch(() => restoreForm.value.kind, (kind) => {
+  if (kind === 'full') {
+    restoreForm.value.backup_set_id = restoreForm.value.backup_set_id ?? firstBackupSet()
+    restoreForm.value.db_artifact_key = null
+    restoreForm.value.object_snapshot_key = null
+    return
+  }
+  restoreForm.value.backup_set_id = null
+  if (kind === 'db') {
+    restoreForm.value.db_artifact_key = restoreForm.value.db_artifact_key ?? firstSnapshot('db')
+    restoreForm.value.object_snapshot_key = null
+  } else if (kind === 'object_storage') {
+    restoreForm.value.db_artifact_key = null
+    restoreForm.value.object_snapshot_key = restoreForm.value.object_snapshot_key ?? firstSnapshot('object_storage')
+  }
+})
+
 async function loadOverview(options: { silent?: boolean } = {}) {
   if (!options.silent) loading.value = true
   error.value = ''
   try {
     const resp = await backupService.getOverview()
     overview.value = resp.data
+    mergeBackupSetRows(resp.data.latest_backup_sets)
     syncOverviewPolling()
   } catch {
     if (!options.silent) {
@@ -715,6 +879,58 @@ async function loadSnapshots() {
   }
 }
 
+async function loadBackupSets() {
+  loadingBackupSets.value = true
+  try {
+    const resp = await backupService.getBackupSets({ limit: 50 })
+    backupSets.value = resp.data
+    normalizeBackupSetPage()
+  } catch {
+    toast.add({
+      severity: 'error',
+      summary: 'Không tải được bộ sao lưu',
+      detail: 'Vui lòng thử lại.',
+      life: 5000,
+    })
+  } finally {
+    loadingBackupSets.value = false
+  }
+}
+
+function onBackupSetPage(event: DataTablePageEvent) {
+  backupSetPageSize.value = event.rows
+  backupSetPage.value = Math.floor(event.first / event.rows) + 1
+}
+
+function onBackupSetRowsChange(rows: number) {
+  backupSetPageSize.value = rows
+  backupSetPage.value = 1
+}
+
+function backupSetActivity(item: BackupSetSummary) {
+  return {
+    status: item.status,
+    occurredAt: item.updated_at ?? item.finished_at ?? item.started_at ?? item.created_at,
+  }
+}
+
+function newestActivity<T extends { occurredAt: string | null | undefined }>(activities: T[]): T | null {
+  return activities
+    .filter((item) => item.occurredAt)
+    .sort((left, right) => activityTime(right.occurredAt) - activityTime(left.occurredAt))[0] ?? null
+}
+
+function activityTime(value: string | null | undefined): number {
+  const timestamp = value ? Date.parse(value) : 0
+  return Number.isFinite(timestamp) ? timestamp : 0
+}
+
+function normalizeBackupSetPage() {
+  if ((backupSetPage.value - 1) * backupSetPageSize.value >= backupSets.value.length) {
+    backupSetPage.value = 1
+  }
+}
+
 function onSnapshotPage(event: DataTablePageEvent) {
   snapshotPageSize.value = event.rows
   snapshotPage.value = Math.floor(event.first / event.rows) + 1
@@ -726,9 +942,11 @@ function onSnapshotRowsChange(rows: number) {
 }
 
 function hasActiveBackupJob(): boolean {
-  const hasActiveJob = overview.value?.latest_jobs.some((item) => ['queued', 'running'].includes(item.status)) ?? false
-  const hasActiveRestore = overview.value?.latest_restore_requests.some((item) => ['queued', 'running'].includes(item.status)) ?? false
-  return hasActiveJob || hasActiveRestore
+  const hasActiveJob = overview.value?.latest_jobs.some((item) => activeBackupStatuses.has(item.status)) ?? false
+  const hasActiveSet = overview.value?.latest_backup_sets.some((item) => activeBackupStatuses.has(item.status)) ?? false
+  const hasActiveVisibleSet = backupSets.value.some((item) => activeBackupStatuses.has(item.status))
+  const hasActiveRestore = overview.value?.latest_restore_requests.some((item) => activeBackupStatuses.has(item.status)) ?? false
+  return hasActiveJob || hasActiveSet || hasActiveVisibleSet || hasActiveRestore
 }
 
 function startOverviewPolling() {
@@ -894,6 +1112,30 @@ function prependJob(job: BackupJobSummary) {
   syncOverviewPolling()
 }
 
+function prependBackupSet(row: BackupSetSummary) {
+  if (!overview.value) return
+  overview.value = {
+    ...overview.value,
+    latest_backup_sets: [
+      row,
+      ...overview.value.latest_backup_sets.filter((item) => item.id !== row.id),
+    ].slice(0, 5),
+  }
+  mergeBackupSetRows([row])
+  backupSetPage.value = 1
+  syncOverviewPolling()
+}
+
+function mergeBackupSetRows(rows: BackupSetSummary[]) {
+  if (!rows.length) return
+  const incomingIds = new Set(rows.map((item) => item.id))
+  backupSets.value = [
+    ...rows,
+    ...backupSets.value.filter((item) => !incomingIds.has(item.id)),
+  ].slice(0, 50)
+  normalizeBackupSetPage()
+}
+
 function prependRestoreRequest(row: RestoreRequestSummary) {
   if (!overview.value) return
   overview.value = {
@@ -917,6 +1159,12 @@ function snapshotOptions(kind: string) {
 
 function firstSnapshot(kind: string): string | null {
   return snapshots.value.find((item) => item.kind === kind)?.artifact_key ?? null
+}
+
+function firstBackupSet(): number | null {
+  return backupSets.value.find((item) => (
+    item.status === 'success' && item.db_artifact_key && item.object_snapshot_key
+  ))?.id ?? null
 }
 
 function formatBytes(value: number | null): string {
@@ -975,6 +1223,7 @@ function fieldLabel(field: string): string {
     mode: 'Chế độ khôi phục',
     db_artifact_key: 'Bản sao cơ sở dữ liệu',
     object_snapshot_key: 'Bản sao kho tệp ứng dụng',
+    backup_set_id: 'Bộ sao lưu đầy đủ',
     target_db_name: 'Cơ sở dữ liệu đích mới',
     confirmation_text: 'Nội dung xác nhận',
     notes: 'Ghi chú',
@@ -1057,14 +1306,38 @@ async function createManualBackup(config: BackupConfigRead) {
   }
 }
 
-async function openRestoreDialog(snapshot?: BackupSnapshotSummary) {
-  await loadSnapshots()
-  const selectedKind = snapshot?.kind ?? 'db'
+async function createFullBackupSet() {
+  creatingBackupSet.value = true
+  try {
+    const resp = await backupService.createBackupSet()
+    prependBackupSet(resp.data)
+    toast.add({
+      severity: 'success',
+      summary: 'Đã đưa vào hàng chờ sao lưu đầy đủ',
+      detail: 'Cơ sở dữ liệu và kho tệp ứng dụng sẽ được chạy nối tiếp.',
+      life: 5000,
+    })
+  } catch (err) {
+    toast.add({
+      severity: 'error',
+      summary: 'Không tạo được bộ sao lưu đầy đủ',
+      detail: apiErrorMessage(err, 'Không tạo được bộ sao lưu đầy đủ.'),
+      life: 5000,
+    })
+  } finally {
+    creatingBackupSet.value = false
+  }
+}
+
+async function openRestoreDialog(snapshot?: BackupSnapshotSummary, backupSet?: BackupSetSummary) {
+  await Promise.all([loadSnapshots(), loadBackupSets()])
+  const selectedKind = backupSet ? 'full' : snapshot?.kind ?? 'db'
   restoreForm.value = {
     kind: selectedKind,
     mode: 'verify_only',
-    db_artifact_key: selectedKind === 'db' ? snapshot?.artifact_key ?? firstSnapshot('db') : firstSnapshot('db'),
-    object_snapshot_key: selectedKind === 'object_storage' ? snapshot?.artifact_key ?? firstSnapshot('object_storage') : firstSnapshot('object_storage'),
+    backup_set_id: backupSet?.id ?? (selectedKind === 'full' ? firstBackupSet() : null),
+    db_artifact_key: selectedKind === 'db' ? snapshot?.artifact_key ?? firstSnapshot('db') : null,
+    object_snapshot_key: selectedKind === 'object_storage' ? snapshot?.artifact_key ?? firstSnapshot('object_storage') : null,
     target_db_name: '',
     target_bucket: '',
     confirmation_text: '',
@@ -1079,8 +1352,9 @@ function buildRestorePayload() {
   return {
     kind,
     mode: restoreForm.value.mode,
-    db_artifact_key: kind === 'db' || kind === 'full' ? restoreForm.value.db_artifact_key : null,
-    object_snapshot_key: kind === 'object_storage' || kind === 'full' ? restoreForm.value.object_snapshot_key : null,
+    backup_set_id: kind === 'full' ? restoreForm.value.backup_set_id : null,
+    db_artifact_key: kind === 'db' ? restoreForm.value.db_artifact_key : null,
+    object_snapshot_key: kind === 'object_storage' ? restoreForm.value.object_snapshot_key : null,
     target_db_name: restoreForm.value.mode === 'restore_to_new_target' && (kind === 'db' || kind === 'full')
       ? nullableText(restoreForm.value.target_db_name)
       : null,
@@ -1159,6 +1433,7 @@ function triggerLabel(trigger: string): string {
   const labels: Record<string, string> = {
     schedule: 'Theo lịch',
     manual: 'Thủ công',
+    manual_full: 'Sao lưu đầy đủ',
     restore_request: 'Yêu cầu khôi phục',
     system: 'Hệ thống',
   }
@@ -1214,6 +1489,7 @@ function restoreStatusSeverity(status: string): string {
 onMounted(() => {
   void loadOverview()
   void loadSnapshots()
+  void loadBackupSets()
 })
 onBeforeUnmount(stopOverviewPolling)
 </script>

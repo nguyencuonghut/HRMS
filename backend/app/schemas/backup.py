@@ -226,6 +226,7 @@ class BackupJobCreateRequest(BaseModel):
 
 class BackupJobSummary(BaseModel):
     id: int
+    backup_set_id: Optional[int]
     kind: str
     trigger: str
     status: str
@@ -252,9 +253,26 @@ class BackupSnapshotSummary(BaseModel):
     finished_at: Optional[datetime]
 
 
+class BackupSetSummary(BaseModel):
+    id: int
+    trigger: str
+    status: str
+    db_job_id: Optional[int]
+    object_job_id: Optional[int]
+    db_artifact_key: Optional[str]
+    object_snapshot_key: Optional[str]
+    artifact_bucket: Optional[str]
+    started_at: Optional[datetime]
+    finished_at: Optional[datetime]
+    error_summary: Optional[str]
+    created_at: datetime
+    updated_at: datetime
+
+
 class RestoreRequestCreate(BaseModel):
     kind: str
     mode: str
+    backup_set_id: Optional[int] = Field(default=None, ge=1)
     db_artifact_key: Optional[str] = Field(default=None, max_length=500)
     object_snapshot_key: Optional[str] = Field(default=None, max_length=500)
     target_db_name: Optional[str] = Field(default=None, max_length=63)
@@ -318,9 +336,12 @@ class RestoreRequestCreate(BaseModel):
 
     @model_validator(mode="after")
     def validate_required_fields(self) -> "RestoreRequestCreate":
-        if self.kind in {"db", "full"} and not self.db_artifact_key:
+        if self.kind == "full":
+            if not self.backup_set_id:
+                raise ValueError("Cần chọn bộ sao lưu đầy đủ")
+        if self.kind == "db" and not self.db_artifact_key:
             raise ValueError("Cần chọn bản sao lưu cơ sở dữ liệu")
-        if self.kind in {"object_storage", "full"} and not self.object_snapshot_key:
+        if self.kind == "object_storage" and not self.object_snapshot_key:
             raise ValueError("Cần chọn snapshot kho tệp ứng dụng")
         if self.mode == "restore_to_new_target":
             if self.kind in {"db", "full"} and not self.target_db_name:
@@ -332,6 +353,7 @@ class RestoreRequestCreate(BaseModel):
 
 class RestoreRequestSummary(BaseModel):
     id: int
+    backup_set_id: Optional[int]
     kind: str
     mode: str
     status: str
@@ -350,4 +372,5 @@ class BackupOverviewResponse(BaseModel):
     config_count: int
     configs: list[BackupConfigResponse]
     latest_jobs: list[BackupJobSummary]
+    latest_backup_sets: list[BackupSetSummary]
     latest_restore_requests: list[RestoreRequestSummary]
