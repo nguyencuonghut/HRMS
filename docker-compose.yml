@@ -58,6 +58,7 @@ services:
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --loop asyncio
     volumes:
       - ./backend:/app
+      - backup_temp:/backups/tmp
     ports:
       - "8000:8000"
     environment:
@@ -77,6 +78,7 @@ services:
       BACKUP_STORAGE_SECRET_KEY: ${BACKUP_STORAGE_SECRET_KEY:-${MINIO_ROOT_PASSWORD:-minioadmin}}
       BACKUP_STORAGE_SECURE: ${BACKUP_STORAGE_SECURE:-false}
       BACKUP_STORAGE_BUCKET: ${BACKUP_STORAGE_BUCKET:-hrms-backup}
+      BACKUP_TEMP_DIR: ${BACKUP_TEMP_DIR:-/backups/tmp}
       SMTP_HOST: ${SMTP_HOST:-mailpit}
       SMTP_PORT: ${SMTP_PORT:-1025}
       SMTP_USERNAME: ${SMTP_USERNAME:-}
@@ -110,6 +112,7 @@ services:
       start_period: 20s
     volumes:
       - ./backend:/app
+      - backup_temp:/backups/tmp
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-hrms}
       REDIS_URL: redis://redis:6379/0
@@ -126,6 +129,7 @@ services:
       BACKUP_STORAGE_SECRET_KEY: ${BACKUP_STORAGE_SECRET_KEY:-${MINIO_ROOT_PASSWORD:-minioadmin}}
       BACKUP_STORAGE_SECURE: ${BACKUP_STORAGE_SECURE:-false}
       BACKUP_STORAGE_BUCKET: ${BACKUP_STORAGE_BUCKET:-hrms-backup}
+      BACKUP_TEMP_DIR: ${BACKUP_TEMP_DIR:-/backups/tmp}
       SMTP_HOST: ${SMTP_HOST:-mailpit}
       SMTP_PORT: ${SMTP_PORT:-1025}
       SMTP_USERNAME: ${SMTP_USERNAME:-}
@@ -164,6 +168,7 @@ services:
       BACKUP_STORAGE_SECRET_KEY: ${BACKUP_STORAGE_SECRET_KEY:-${MINIO_ROOT_PASSWORD:-minioadmin}}
       BACKUP_STORAGE_SECURE: ${BACKUP_STORAGE_SECURE:-false}
       BACKUP_STORAGE_BUCKET: ${BACKUP_STORAGE_BUCKET:-hrms-backup}
+      BACKUP_TEMP_DIR: ${BACKUP_TEMP_DIR:-/backups/tmp}
       SMTP_HOST: ${SMTP_HOST:-mailpit}
       SMTP_PORT: ${SMTP_PORT:-1025}
       SMTP_USERNAME: ${SMTP_USERNAME:-}
@@ -192,3 +197,4 @@ services:
 volumes:
   postgres_data:
   minio_data:
+  backup_temp:

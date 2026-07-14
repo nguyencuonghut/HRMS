@@ -17,9 +17,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy source với ownership appuser — không chạy root
 COPY --chown=appuser:appuser . .
 
-# Tạo thư mục log/tmp với đúng permissions
-RUN mkdir -p /app/logs /tmp/hrms_exports && \
-    chown -R appuser:appuser /app/logs /tmp/hrms_exports
+# Tạo thư mục log/tmp/backup với đúng permissions
+RUN mkdir -p /app/logs /tmp/hrms_exports /backups/tmp && \
+    chown -R appuser:appuser /app/logs /tmp/hrms_exports /backups
 
 USER appuser
 

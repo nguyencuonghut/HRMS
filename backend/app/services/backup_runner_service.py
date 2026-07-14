@@ -3,11 +3,13 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 from datetime import datetime
-from io import BytesIO, StringIO
+from io import BytesIO
 import gzip
 import json
 import os
+from pathlib import Path
 import shutil
+import tempfile
 
 from fastapi.encoders import jsonable_encoder
 from minio import Minio
@@ -18,6 +20,8 @@ from urllib3 import PoolManager, Timeout
 
 from app.core.config import settings
 from app.models.backup import BackupConfig
+
+BACKUP_STREAM_CHUNK_SIZE = 1024 * 1024
 
 
 @dataclass(frozen=True)
@@ -105,6 +109,18 @@ def _target_client(config: BackupConfig) -> tuple[Minio, str]:
     return client, bucket
 
 
+def _backup_temp_dir() -> Path:
+    path = Path(settings.BACKUP_TEMP_DIR)
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _temporary_backup_path(*, prefix: str, suffix: str) -> Path:
+    fd, raw_path = tempfile.mkstemp(prefix=prefix, suffix=suffix, dir=_backup_temp_dir())
+    os.close(fd)
+    return Path(raw_path)
+
+
 def _put_bytes(config: BackupConfig, object_name: str, payload: bytes, content_type: str) -> BackupRunResult:
     client, bucket = _target_client(config)
     client.put_object(
@@ -118,6 +134,24 @@ def _put_bytes(config: BackupConfig, object_name: str, payload: bytes, content_t
         artifact_key=object_name,
         artifact_bucket=bucket,
         artifact_size_bytes=len(payload),
+    )
+
+
+def _put_file(config: BackupConfig, object_name: str, path: Path, content_type: str) -> BackupRunResult:
+    client, bucket = _target_client(config)
+    length = path.stat().st_size
+    with path.open("rb") as data:
+        client.put_object(
+            bucket_name=bucket,
+            object_name=object_name,
+            data=data,
+            length=length,
+            content_type=content_type,
+        )
+    return BackupRunResult(
+        artifact_key=object_name,
+        artifact_bucket=bucket,
+        artifact_size_bytes=length,
     )
 
 
@@ -143,6 +177,14 @@ def _pg_dump_command_and_env() -> tuple[list[str], dict[str, str]]:
     return command, env
 
 
+async def _copy_async_reader(reader, writer) -> None:
+    while True:
+        chunk = await reader.read(BACKUP_STREAM_CHUNK_SIZE)
+        if not chunk:
+            return
+        writer.write(chunk)
+
+
 async def _run_pg_dump_backup(config: BackupConfig, now: datetime) -> BackupRunResult:
     command, env = _pg_dump_command_and_env()
     process = await asyncio.create_subprocess_exec(
@@ -151,17 +193,35 @@ async def _run_pg_dump_backup(config: BackupConfig, now: datetime) -> BackupRunR
         stderr=asyncio.subprocess.PIPE,
         env=env,
     )
-    stdout, stderr = await process.communicate()
-    if process.returncode != 0:
-        detail = stderr.decode("utf-8", errors="replace").strip() or "pg_dump thất bại"
-        raise RuntimeError(detail)
-
-    compressed = gzip.compress(stdout, compresslevel=9)
     object_name = _join_object_key(
         config.target_prefix,
         f"hrms_{_timestamp(now)}.sql.gz",
     )
-    result = _put_bytes(config, object_name, compressed, "application/gzip")
+    output_path = _temporary_backup_path(prefix="hrms-db-", suffix=".sql.gz")
+    stderr_path = _temporary_backup_path(prefix="hrms-db-", suffix=".stderr")
+    try:
+        if process.stdout is None or process.stderr is None:
+            raise RuntimeError("Không mở được stream pg_dump.")
+
+        with gzip.open(output_path, "wb", compresslevel=9) as gz_file, stderr_path.open("wb") as stderr_file:
+            stdout_task = asyncio.create_task(_copy_async_reader(process.stdout, gz_file))
+            stderr_task = asyncio.create_task(_copy_async_reader(process.stderr, stderr_file))
+            returncode = await process.wait()
+            await stdout_task
+            await stderr_task
+
+        if returncode != 0:
+            detail = stderr_path.read_text(encoding="utf-8", errors="replace").strip() or "pg_dump thất bại"
+            raise RuntimeError(detail)
+
+        if not output_path.exists() or output_path.stat().st_size <= 0:
+            raise RuntimeError("pg_dump không tạo được dữ liệu sao lưu.")
+
+        result = _put_file(config, object_name, output_path, "application/gzip")
+    finally:
+        output_path.unlink(missing_ok=True)
+        stderr_path.unlink(missing_ok=True)
+
     return BackupRunResult(
         artifact_key=result.artifact_key,
         artifact_bucket=result.artifact_bucket,
@@ -175,7 +235,7 @@ def _quote_identifier(identifier: str) -> str:
     return '"' + identifier.replace('"', '""') + '"'
 
 
-async def _build_json_db_snapshot(session: AsyncSession, now: datetime) -> bytes:
+async def _write_json_db_snapshot(session: AsyncSession, now: datetime, writer) -> None:
     table_result = await session.execute(text("""
         SELECT table_name
         FROM information_schema.tables
@@ -185,8 +245,7 @@ async def _build_json_db_snapshot(session: AsyncSession, now: datetime) -> bytes
     """))
     tables = list(table_result.scalars().all())
 
-    buffer = StringIO()
-    buffer.write(json.dumps({
+    writer.write(json.dumps({
         "format": "hrms-db-jsonl-v1",
         "created_at": now.isoformat(),
         "table_count": len(tables),
@@ -194,24 +253,31 @@ async def _build_json_db_snapshot(session: AsyncSession, now: datetime) -> bytes
 
     for table_name in tables:
         quoted = _quote_identifier(table_name)
-        rows = await session.execute(text(f"SELECT to_jsonb(t) AS data FROM public.{quoted} AS t"))
-        for row in rows:
-            buffer.write(json.dumps({
+        rows = await session.stream(text(f"SELECT to_jsonb(t) AS data FROM public.{quoted} AS t"))
+        async for row in rows:
+            writer.write(json.dumps({
                 "table": table_name,
                 "row": jsonable_encoder(row[0]),
             }, ensure_ascii=False, default=str) + "\n")
 
-    return buffer.getvalue().encode("utf-8")
-
 
 async def _run_json_db_backup(session: AsyncSession, config: BackupConfig, now: datetime) -> BackupRunResult:
-    payload = await _build_json_db_snapshot(session, now)
-    compressed = gzip.compress(payload, compresslevel=9)
     object_name = _join_object_key(
         config.target_prefix,
         f"hrms_{_timestamp(now)}.jsonl.gz",
     )
-    result = _put_bytes(config, object_name, compressed, "application/gzip")
+    output_path = _temporary_backup_path(prefix="hrms-db-json-", suffix=".jsonl.gz")
+    try:
+        with gzip.open(output_path, "wt", encoding="utf-8", compresslevel=9) as gz_file:
+            await _write_json_db_snapshot(session, now, gz_file)
+
+        if not output_path.exists() or output_path.stat().st_size <= 0:
+            raise RuntimeError("Không tạo được dữ liệu snapshot JSONL.")
+
+        result = _put_file(config, object_name, output_path, "application/gzip")
+    finally:
+        output_path.unlink(missing_ok=True)
+
     return BackupRunResult(
         artifact_key=result.artifact_key,
         artifact_bucket=result.artifact_bucket,

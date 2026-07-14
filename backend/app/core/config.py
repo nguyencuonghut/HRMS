@@ -224,6 +224,7 @@ class Settings(BaseSettings):
     BACKUP_STORAGE_SECRET_KEY: str = ""
     BACKUP_STORAGE_SECURE: bool = True
     BACKUP_STORAGE_BUCKET: str = "hrms-backup"
+    BACKUP_TEMP_DIR: str = "/backups/tmp"
     BACKUP_RETENTION_DAYS: int = 90
     DB_BACKUP_CRON: str = "0 2 * * *"
     MINIO_BACKUP_CRON: str = "0 3 * * *"
