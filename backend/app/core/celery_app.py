@@ -34,6 +34,7 @@ celery_app.conf.update(
         "app.workers.backup_tasks.run_backup_job_task": {"queue": "backups"},
         "app.workers.backup_tasks.run_backup_set_task": {"queue": "backups"},
         "app.workers.backup_tasks.run_restore_request_task": {"queue": "backups"},
+        "app.workers.backup_tasks.dispatch_scheduled_backup_set_task": {"queue": "backups"},
     },
 
     # ── RedBeat distributed scheduler ───────────────────────────────────────
@@ -65,6 +66,10 @@ celery_app.conf.update(
         },
         "ping-healthcheck": {
             "task": "app.workers.tasks.ping_healthcheck",
+            "schedule": 60.0,
+        },
+        "dispatch-scheduled-full-backup": {
+            "task": "app.workers.backup_tasks.dispatch_scheduled_backup_set_task",
             "schedule": 60.0,
         },
     },

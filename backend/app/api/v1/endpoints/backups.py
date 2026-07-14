@@ -189,8 +189,7 @@ async def create_manual_backup_set(
     )
     await session.commit()
     backup_service.enqueue_backup_set(row.id)
-    summaries = await backup_service.list_backup_sets(session, limit=1)
-    return next(item for item in summaries if item.id == row.id)
+    return await backup_service.get_backup_set_summary(session, row.id)
 
 
 @router.get("/jobs", response_model=list[BackupJobSummary])

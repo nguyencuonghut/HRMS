@@ -1434,6 +1434,7 @@ function triggerLabel(trigger: string): string {
     schedule: 'Theo lịch',
     manual: 'Thủ công',
     manual_full: 'Sao lưu đầy đủ',
+    scheduled_full: 'Sao lưu đầy đủ theo lịch',
     restore_request: 'Yêu cầu khôi phục',
     system: 'Hệ thống',
   }

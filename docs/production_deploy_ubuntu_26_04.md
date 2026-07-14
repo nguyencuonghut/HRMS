@@ -524,8 +524,8 @@ IMAGE_TAG=<new-commit-sha>
 ### 12.2. Pull và restart toàn bộ app layer
 
 ```bash
-docker compose -f docker-compose.prod.yml pull backend celery_worker celery_beat backup_scheduler frontend
-docker compose -f docker-compose.prod.yml up -d --no-deps --remove-orphans backend celery_worker celery_beat backup_scheduler frontend
+docker compose -f docker-compose.prod.yml pull backend celery_worker celery_beat frontend
+docker compose -f docker-compose.prod.yml up -d --no-deps --remove-orphans backend celery_worker celery_beat frontend
 docker compose -f docker-compose.prod.yml exec -T backend alembic upgrade head
 ```
 
@@ -556,20 +556,19 @@ docker compose -f docker-compose.prod.yml exec -T backend alembic upgrade head
 
 ### 13.1. Backup
 
-Stack production hiện đã có service `backup_scheduler`.
+Lịch backup production mặc định chạy qua Admin Backup Console + Celery:
 
-Đã xác nhận từ source:
+- `celery_beat` kiểm tra lịch mỗi phút.
+- Khi đến giờ cấu hình, hệ thống tạo một `backup_set` loại `scheduled_full`.
+- `celery_worker` queue `backups` chạy backup DB trước, sau đó backup kho tệp ứng dụng.
 
-- image backup dùng [docker/backup/Dockerfile](/run/media/cuong/DATA/02_Project/166_HonghaHRM/HRMS/docker/backup/Dockerfile)
-- entrypoint dùng:
-  - `scripts/backup_db.sh`
-  - `scripts/backup_minio.sh`
-  - `scripts/backup-entrypoint.sh`
+Service `backup_scheduler` script cũ vẫn còn trong compose nhưng chỉ để dự phòng legacy, nằm dưới profile `legacy-backup` và không khởi động mặc định.
 
-Kiểm tra log backup:
+Chỉ bật scheduler cũ khi đã chủ động quay về cơ chế script/env:
 
 ```bash
-docker compose -f docker-compose.prod.yml logs backup_scheduler --tail=200
+docker compose -f docker-compose.prod.yml --profile legacy-backup up -d backup_scheduler
+docker compose -f docker-compose.prod.yml --profile legacy-backup logs backup_scheduler --tail=200
 ```
 
 ### 13.2. Restore

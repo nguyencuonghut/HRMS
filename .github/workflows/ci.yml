@@ -224,9 +224,9 @@ jobs:
             export IMAGE_TAG=${{ github.sha }}
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ${{ env.REGISTRY }} -u "${{ github.actor }}" --password-stdin
             # Pull đúng artifact vừa build/push
-            docker compose -f docker-compose.prod.yml pull backend celery_worker celery_beat backup_scheduler frontend
+            docker compose -f docker-compose.prod.yml pull backend celery_worker celery_beat frontend
             # Restart đủ services dùng image mới
-            docker compose -f docker-compose.prod.yml up -d --no-deps --remove-orphans backend celery_worker celery_beat backup_scheduler frontend
+            docker compose -f docker-compose.prod.yml up -d --no-deps --remove-orphans backend celery_worker celery_beat frontend
             # Run migrations
             docker compose -f docker-compose.prod.yml exec -T backend alembic upgrade head
             echo "Staging deploy complete at $(date)"

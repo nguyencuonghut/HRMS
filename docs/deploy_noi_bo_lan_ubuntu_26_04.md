@@ -125,7 +125,7 @@ Ví dụ user truy cập:
 
 - [docker-compose.lan.yml](/run/media/cuong/DATA/02_Project/166_HonghaHRM/HRMS/docker-compose.lan.yml) nay chạy `ENVIRONMENT=${ENVIRONMENT:-lan}`
 - `docker-compose.lan.yml` đã có service `minio` nội bộ
-- `backup_scheduler` trong LAN stack đã được chuyển sang `profile` tùy chọn, không khởi động mặc định
+- backup mặc định dùng `celery_beat` + `celery_worker`; `backup_scheduler` chỉ còn là profile legacy tùy chọn, không khởi động mặc định
 
 Đã verify runtime trên máy dev:
 
@@ -154,7 +154,7 @@ Theo [docker-compose.lan.yml](/run/media/cuong/DATA/02_Project/166_HonghaHRM/HRM
 
 Ngoài ra:
 
-- `backup_scheduler` là service tùy chọn, chỉ chạy khi bật profile `backup`
+- `backup_scheduler` là service legacy tùy chọn, chỉ chạy khi bật profile `backup`
 
 User trong LAN sẽ truy cập qua:
 
@@ -776,8 +776,9 @@ curl -kI https://172.16.2.100
 
 Trong LAN deployment hiện tại:
 
-- `backup_scheduler` không chạy mặc định
-- muốn bật backup phải dùng profile `backup`
+- backup mặc định chạy qua Admin Backup Console + `celery_beat` + `celery_worker`
+- `backup_scheduler` script cũ không chạy mặc định
+- chỉ bật profile `backup` nếu cần quay về cơ chế legacy script/env để dự phòng
 
 Ví dụ:
 
@@ -811,7 +812,7 @@ docker compose -f docker-compose.lan.yml --profile backup logs backup_scheduler 
 3. FE production không dùng port `5173`
 4. `REFRESH_TOKEN_COOKIE_SECURE` phải khớp với HTTP/HTTPS thực tế
 5. `docker-compose.lan.yml` có service `minio` nội bộ
-6. `backup_scheduler` trong LAN hiện là optional profile, không chạy mặc định
+6. backup mặc định chạy qua Celery; `backup_scheduler` trong LAN hiện là optional legacy profile, không chạy mặc định
 7. runtime verify cục bộ cho `db + redis + minio + backend` đã cho `backend` trạng thái `healthy`
 
 ### Chưa xác nhận trong tài liệu này
@@ -860,4 +861,3 @@ Với source hiện tại, 3 nguyên nhân phải kiểm tra đầu tiên là:
 1. `ENVIRONMENT` trong `.env` không phải `lan` hoặc bị override ngoài ý muốn
 2. `CORS_ORIGINS` không phải JSON array hợp lệ
 3. image local đang cũ, chưa rebuild theo source mới
-

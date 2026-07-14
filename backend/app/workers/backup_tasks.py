@@ -13,6 +13,34 @@ logger = structlog.get_logger(__name__)
 
 
 @celery_app.task(
+    name="app.workers.backup_tasks.dispatch_scheduled_backup_set_task",
+    acks_late=True,
+    time_limit=300,
+    soft_time_limit=240,
+    ignore_result=True,
+)
+def dispatch_scheduled_backup_set_task() -> None:
+    asyncio.run(_dispatch_scheduled_backup_set_task_async())
+
+
+async def _dispatch_scheduled_backup_set_task_async() -> None:
+    engine, SessionLocal = _make_engine_and_session()
+    try:
+        async with SessionLocal() as session:
+            backup_set = await backup_service.create_scheduled_backup_set_if_due(session)
+            if backup_set is None:
+                await session.rollback()
+                return
+
+            backup_set_id = backup_set.id
+            await session.commit()
+            logger.info("scheduled_backup_set_created", backup_set_id=backup_set_id)
+            backup_service.enqueue_backup_set(backup_set_id)
+    finally:
+        await engine.dispose()
+
+
+@celery_app.task(
     name="app.workers.backup_tasks.run_backup_job_task",
     acks_late=True,
     time_limit=7200,

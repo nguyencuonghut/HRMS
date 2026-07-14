@@ -4,14 +4,15 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime, timezone
 from uuid import uuid4
+from zoneinfo import ZoneInfo
 
 from fastapi.testclient import TestClient
 import pytest
-from sqlalchemy import update
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.core.config import settings
-from app.models.backup import BackupJob, BackupSet
+from app.models.backup import BackupConfig, BackupJob, BackupSet
 from app.services import backup_notification_service, backup_service
 from app.services.backup_runner_service import BackupRunResult
 from app.services.restore_runner_service import RestoreRunResult, _prepare_sql_dump_for_restore
@@ -90,7 +91,7 @@ async def _clear_active_backup_sets() -> None:
         )
         await session.execute(
             update(BackupJob)
-            .where(BackupJob.trigger == "manual_full")
+            .where(BackupJob.trigger.in_(["manual_full", "scheduled_full"]))
             .where(BackupJob.status.in_(["queued", "running"]))
             .values(
                 status="failed",
@@ -99,6 +100,31 @@ async def _clear_active_backup_sets() -> None:
                 updated_at=now,
             )
         )
+        await session.commit()
+
+    await _with_isolated_session(work)
+
+
+async def _clear_backup_sets_for_slot(slot_start: datetime, slot_end: datetime) -> None:
+    async def work(session):
+        backup_set_ids = (
+            await session.execute(
+                select(BackupSet.id)
+                .where(BackupSet.trigger == "scheduled_full")
+                .where(BackupSet.created_at >= slot_start)
+                .where(BackupSet.created_at < slot_end)
+            )
+        ).scalars().all()
+        if not backup_set_ids:
+            return
+
+        await session.execute(
+            update(BackupSet)
+            .where(BackupSet.id.in_(backup_set_ids))
+            .values(db_job_id=None, object_job_id=None)
+        )
+        await session.execute(delete(BackupJob).where(BackupJob.backup_set_id.in_(backup_set_ids)))
+        await session.execute(delete(BackupSet).where(BackupSet.id.in_(backup_set_ids)))
         await session.commit()
 
     await _with_isolated_session(work)
@@ -460,6 +486,52 @@ def test_create_full_backup_set_requires_create_permission(client: TestClient):
     resp = client.post(f"{BASE}/sets", headers=_line_manager(client))
 
     assert resp.status_code == 403
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_scheduled_backup_set_uses_db_cron_and_is_idempotent_per_minute(client: TestClient):
+    await _clear_active_backup_sets()
+    local_now = datetime(2031, 5, 17, 2, 0, 15, tzinfo=ZoneInfo(settings.APP_TIMEZONE))
+    slot_start = local_now.replace(second=0, microsecond=0).astimezone(timezone.utc).replace(tzinfo=None)
+    slot_end = local_now.replace(minute=1, second=0, microsecond=0).astimezone(timezone.utc).replace(tzinfo=None)
+    await _clear_backup_sets_for_slot(slot_start, slot_end)
+
+    async def work(session):
+        await backup_service.ensure_backup_configs(session)
+        await session.execute(
+            update(BackupConfig)
+            .where(BackupConfig.kind == "db")
+            .values(enabled=True, cron_expression="0 2 * * *")
+        )
+        await session.execute(
+            update(BackupConfig)
+            .where(BackupConfig.kind == "object_storage")
+            .values(enabled=True, cron_expression="30 3 * * *")
+        )
+        await session.commit()
+
+        backup_set = await backup_service.create_scheduled_backup_set_if_due(session, now=local_now)
+        assert backup_set is not None
+        assert backup_set.trigger == "scheduled_full"
+        assert backup_set.status == "queued"
+        assert backup_set.db_job_id
+        assert backup_set.object_job_id
+        await session.commit()
+
+        duplicate = await backup_service.create_scheduled_backup_set_if_due(session, now=local_now)
+        assert duplicate is None
+
+        child_jobs = (
+            await session.execute(
+                select(BackupJob)
+                .where(BackupJob.backup_set_id == backup_set.id)
+                .order_by(BackupJob.kind)
+            )
+        ).scalars().all()
+        assert {job.kind for job in child_jobs} == {"db", "object_storage"}
+        assert {job.trigger for job in child_jobs} == {"scheduled_full"}
+
+    await _with_isolated_session(work)
 
 
 @pytest.mark.asyncio(loop_scope="session")

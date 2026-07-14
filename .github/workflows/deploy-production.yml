@@ -75,8 +75,8 @@ jobs:
               echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
             fi
 
-            docker compose -f "$INPUT_COMPOSE_FILE" pull backend celery_worker celery_beat backup_scheduler frontend
-            docker compose -f "$INPUT_COMPOSE_FILE" up -d --no-deps --remove-orphans backend celery_worker celery_beat backup_scheduler frontend
+            docker compose -f "$INPUT_COMPOSE_FILE" pull backend celery_worker celery_beat frontend
+            docker compose -f "$INPUT_COMPOSE_FILE" up -d --no-deps --remove-orphans backend celery_worker celery_beat frontend
 
             if [ "$INPUT_RUN_MIGRATE" = "true" ]; then
               docker compose -f "$INPUT_COMPOSE_FILE" exec -T backend alembic upgrade head

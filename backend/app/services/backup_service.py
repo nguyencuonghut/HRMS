@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Iterable
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import inspect
 import structlog
 from typing import Awaitable, Callable
@@ -62,6 +62,9 @@ RESTORE_STATUS_DEFS: list[tuple[str, str, str]] = [
 ]
 
 KIND_LABELS = {code: label for code, label in BACKUP_KIND_DEFS}
+ACTIVE_BACKUP_SET_STATUSES = ("queued", "running")
+FULL_BACKUP_TRIGGER_MANUAL = "manual_full"
+FULL_BACKUP_TRIGGER_SCHEDULED = "scheduled_full"
 
 CONFIG_AUDIT_FIELDS = (
     "kind",
@@ -111,6 +114,66 @@ class UnsafeRestoreTarget(Exception):
 
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def _as_utc_naive(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc).replace(tzinfo=None)
+    return value.astimezone(timezone.utc).replace(tzinfo=None)
+
+
+def _as_app_timezone(value: datetime) -> datetime:
+    aware = value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value
+    return aware.astimezone(ZoneInfo(settings.APP_TIMEZONE))
+
+
+def _cron_values(raw: str, minimum: int, maximum: int) -> set[int]:
+    values: set[int] = set()
+    for item in raw.split(","):
+        base, separator, step_raw = item.partition("/")
+        step = int(step_raw) if separator else 1
+        if base == "*":
+            start = minimum
+            end = maximum
+        else:
+            start_raw, range_separator, end_raw = base.partition("-")
+            start = int(start_raw)
+            end = int(end_raw) if range_separator else start
+        values.update(range(start, end + 1, step))
+    return values
+
+
+def _cron_matches(expression: str, value: datetime) -> bool:
+    parts = " ".join(expression.strip().split()).split(" ")
+    if len(parts) != 5:
+        return False
+
+    minute_raw, hour_raw, day_raw, month_raw, weekday_raw = parts
+    try:
+        minute_values = _cron_values(minute_raw, 0, 59)
+        hour_values = _cron_values(hour_raw, 0, 23)
+        day_values = _cron_values(day_raw, 1, 31)
+        month_values = _cron_values(month_raw, 1, 12)
+        weekday_values = _cron_values(weekday_raw, 0, 7)
+    except (TypeError, ValueError):
+        return False
+
+    cron_weekday = 0 if value.isoweekday() == 7 else value.isoweekday()
+    weekday_matches = cron_weekday in weekday_values or (cron_weekday == 0 and 7 in weekday_values)
+    day_matches = value.day in day_values
+    day_restricted = day_raw != "*"
+    weekday_restricted = weekday_raw != "*"
+    if day_restricted and weekday_restricted:
+        schedule_day_matches = day_matches or weekday_matches
+    else:
+        schedule_day_matches = day_matches and weekday_matches
+
+    return (
+        value.minute in minute_values
+        and value.hour in hour_values
+        and value.month in month_values
+        and schedule_day_matches
+    )
 
 
 def _split_emails(raw: str) -> list[str] | None:
@@ -554,7 +617,7 @@ async def create_manual_backup_set(
     active_backup_set_id = (
         await session.execute(
             select(BackupSet.id)
-            .where(BackupSet.status.in_(["queued", "running"]))
+            .where(BackupSet.status.in_(ACTIVE_BACKUP_SET_STATUSES))
             .order_by(BackupSet.created_at.desc())
             .limit(1)
         )
@@ -576,7 +639,7 @@ async def create_manual_backup_set(
     db_job = BackupJob(
         backup_set_id=row.id,
         kind="db",
-        trigger="manual_full",
+        trigger=FULL_BACKUP_TRIGGER_MANUAL,
         status="queued",
         created_by_id=user_id,
         created_at=now,
@@ -585,7 +648,7 @@ async def create_manual_backup_set(
     object_job = BackupJob(
         backup_set_id=row.id,
         kind="object_storage",
-        trigger="manual_full",
+        trigger=FULL_BACKUP_TRIGGER_MANUAL,
         status="queued",
         created_by_id=user_id,
         created_at=now,
@@ -598,6 +661,91 @@ async def create_manual_backup_set(
     row.db_job_id = db_job.id
     row.object_job_id = object_job.id
     row.updated_at = now
+    session.add(row)
+    await session.flush()
+    return row
+
+
+async def create_scheduled_backup_set_if_due(
+    session: AsyncSession,
+    *,
+    now: datetime | None = None,
+) -> BackupSet | None:
+    db_config = await get_backup_config_row(session, "db")
+    object_config = await get_backup_config_row(session, "object_storage")
+    if not db_config.enabled or not object_config.enabled:
+        return None
+
+    current = now or _utcnow()
+    app_now = _as_app_timezone(current).replace(second=0, microsecond=0)
+    if not _cron_matches(db_config.cron_expression, app_now):
+        return None
+
+    slot_start = _as_utc_naive(app_now)
+    slot_end = slot_start + timedelta(minutes=1)
+    existing_scheduled_id = (
+        await session.execute(
+            select(BackupSet.id)
+            .where(BackupSet.trigger == FULL_BACKUP_TRIGGER_SCHEDULED)
+            .where(BackupSet.created_at >= slot_start)
+            .where(BackupSet.created_at < slot_end)
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    if existing_scheduled_id is not None:
+        return None
+
+    active_backup_set_id = (
+        await session.execute(
+            select(BackupSet.id)
+            .where(BackupSet.status.in_(ACTIVE_BACKUP_SET_STATUSES))
+            .order_by(BackupSet.created_at.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    if active_backup_set_id is not None:
+        logger.info(
+            "scheduled_backup_set_skipped_active_set",
+            active_backup_set_id=active_backup_set_id,
+            scheduled_for=app_now.isoformat(),
+        )
+        return None
+
+    row = BackupSet(
+        trigger=FULL_BACKUP_TRIGGER_SCHEDULED,
+        status="queued",
+        created_by_id=None,
+        created_at=slot_start,
+        updated_at=slot_start,
+    )
+    session.add(row)
+    await session.flush()
+
+    db_job = BackupJob(
+        backup_set_id=row.id,
+        kind="db",
+        trigger=FULL_BACKUP_TRIGGER_SCHEDULED,
+        status="queued",
+        created_by_id=None,
+        created_at=slot_start,
+        updated_at=slot_start,
+    )
+    object_job = BackupJob(
+        backup_set_id=row.id,
+        kind="object_storage",
+        trigger=FULL_BACKUP_TRIGGER_SCHEDULED,
+        status="queued",
+        created_by_id=None,
+        created_at=slot_start,
+        updated_at=slot_start,
+    )
+    session.add(db_job)
+    session.add(object_job)
+    await session.flush()
+
+    row.db_job_id = db_job.id
+    row.object_job_id = object_job.id
+    row.updated_at = slot_start
     session.add(row)
     await session.flush()
     return row
@@ -706,6 +854,13 @@ async def list_backup_sets(
         )
     ).scalars().all()
     return await _backup_set_summaries(session, rows)
+
+
+async def get_backup_set_summary(session: AsyncSession, backup_set_id: int) -> BackupSetSummary:
+    row = await session.get(BackupSet, backup_set_id)
+    if row is None:
+        raise BackupSetNotFound(backup_set_id)
+    return (await _backup_set_summaries(session, [row]))[0]
 
 
 async def list_backup_snapshots(

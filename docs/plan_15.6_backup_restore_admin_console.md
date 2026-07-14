@@ -285,20 +285,21 @@ Tất cả endpoint phải:
 
 ### 7.1. Hướng triển khai khuyến nghị cho v1
 
-Tạo DB-backed backup runner trong service `backup_scheduler` hiện có.
+Tạo DB-backed backup runner trên Celery queue `backups`, dùng `celery_beat` làm bộ kích hoạt lịch.
 
 Runner mới:
 
 - Đọc `backup_configs` từ DB.
-- Tính lịch chạy theo `cron_expression`.
-- Tạo `backup_jobs` khi đến lịch hoặc khi Admin trigger manual job.
-- Chạy backup bằng các script/tool hiện có:
-  - DB: `pg_dump`, gzip, `mc cp`.
-  - Object storage: `mc mirror`/snapshot.
-- Cập nhật `backup_jobs.status`, artifact, size/object count, lỗi rút gọn.
+- Mỗi phút, `celery_beat` gọi task dispatcher ngắn để kiểm tra lịch.
+- Khi đến lịch, tạo một `backup_set` loại `scheduled_full` gồm job DB và job kho tệp ứng dụng.
+- Chạy backup bằng backend runner hiện có:
+  - DB: `pg_dump`, gzip, upload artifact lên backup target.
+  - Object storage: copy snapshot kho tệp ứng dụng lên backup target.
+- Cập nhật `backup_sets.status`, `backup_jobs.status`, artifact, size/object count, lỗi rút gọn.
 - Gửi notification bằng service hiện có nếu cấu hình có email.
+- `backup_scheduler` script/env cũ chỉ còn là profile legacy dự phòng, không khởi động mặc định trong production/LAN.
 
-Cần cân nhắc thêm dependency parse cron, vì `backend/requirements.txt` hiện có Celery/RedBeat nhưng chưa thấy `croniter`/APScheduler. Nếu không thêm dependency, có thể tiếp tục sinh crontab nhưng runner phải reload config an toàn. Để đơn giản và test được, đề xuất thêm `croniter` cho runner DB-backed.
+Không thêm dependency parse cron mới trong v1. Runner dùng matcher nhỏ cho biểu thức 5 trường đã được validate, hỗ trợ `*`, danh sách, khoảng và bước.
 
 ### 7.2. Lý do không chỉ sửa `supercronic`
 
@@ -536,7 +537,7 @@ Kiểm thử:
 - Với production nội bộ LAN, v1 không cho Admin nhập/sửa credential backup storage từ UI. Credential đặt trong `.env` trên server và UI chỉ hiển thị trạng thái đã cấu hình/chưa cấu hình.
 - Có bắt buộc restore full DB + file cùng một thời điểm không? Đã chốt: restore full phải đi qua `backup_sets`, không ghép hai snapshot rời. Restore riêng DB hoặc riêng kho tệp vẫn được giữ cho tình huống vận hành đặc biệt.
 - Có cần approval 2 người cho restore không? Đề xuất v1.5/v2 nếu hệ thống có yêu cầu kiểm soát nội bộ.
-- Runner nên dùng DB polling riêng hay Celery queue `backups`? Đề xuất v1: runner riêng trong `backup_scheduler` để giữ các binary `pg_dump/mc` ở đúng image và giảm thay đổi Celery worker hiện có.
+- Runner nên dùng DB polling riêng hay Celery queue `backups`? Đã chốt v1: dùng Celery queue `backups`; `backup_scheduler` cũ chỉ là đường legacy dự phòng.
 
 ## 13. Tiêu chí hoàn thành
 
