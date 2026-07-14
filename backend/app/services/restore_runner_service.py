@@ -189,7 +189,7 @@ async def _restore_db_snapshot(session: AsyncSession, request: RestoreRequest) -
 
 async def _verify_object_snapshot(session: AsyncSession, request: RestoreRequest) -> str:
     if not request.object_snapshot_key:
-        raise RuntimeError("Thiếu snapshot tệp tải lên.")
+        raise RuntimeError("Thiếu snapshot kho tệp ứng dụng.")
     job = await _snapshot_job(session, "object_storage", request.object_snapshot_key)
     client = _backup_target_client()
     manifest_key = f"{job.artifact_key.rstrip('/')}/manifest.json"
@@ -198,8 +198,8 @@ async def _verify_object_snapshot(session: AsyncSession, request: RestoreRequest
         lambda: list(client.list_objects(job.artifact_bucket, prefix=f"{job.artifact_key.rstrip('/')}/", recursive=True))
     )
     if not objects:
-        raise RuntimeError("Snapshot tệp tải lên không có object nào.")
-    return "Đã kiểm tra snapshot tệp tải lên."
+        raise RuntimeError("Snapshot kho tệp ứng dụng không có object nào.")
+    return "Đã kiểm tra snapshot kho tệp ứng dụng."
 
 
 def _restore_object_snapshot_sync(job: BackupJob, target_bucket: str) -> tuple[int, int]:
@@ -236,13 +236,13 @@ def _restore_object_snapshot_sync(job: BackupJob, target_bucket: str) -> tuple[i
             response.release_conn()
 
     if copied == 0:
-        raise RuntimeError("Snapshot tệp tải lên không có object dữ liệu để khôi phục.")
+        raise RuntimeError("Snapshot kho tệp ứng dụng không có object dữ liệu để khôi phục.")
     return copied, total_size
 
 
 async def _restore_object_snapshot(session: AsyncSession, request: RestoreRequest) -> str:
     if not request.object_snapshot_key:
-        raise RuntimeError("Thiếu snapshot tệp tải lên.")
+        raise RuntimeError("Thiếu snapshot kho tệp ứng dụng.")
     if not request.target_bucket:
         raise RuntimeError("Thiếu kho tệp đích mới.")
     job = await _snapshot_job(session, "object_storage", request.object_snapshot_key)

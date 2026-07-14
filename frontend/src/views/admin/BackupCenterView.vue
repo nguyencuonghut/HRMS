@@ -3,7 +3,7 @@
     <div class="page-header">
       <div>
         <h2>Sao lưu & khôi phục</h2>
-        <span class="subtitle">Theo dõi cấu hình sao lưu cơ sở dữ liệu và tệp tải lên trên MinIO.</span>
+        <span class="subtitle">Theo dõi cấu hình sao lưu cơ sở dữ liệu và kho tệp ứng dụng trên MinIO.</span>
       </div>
       <Button
         icon="pi pi-refresh"
@@ -499,7 +499,7 @@
           </div>
 
           <div v-if="restoreForm.kind === 'object_storage' || restoreForm.kind === 'full'" class="backup-field backup-field-wide">
-            <label for="restore-object-snapshot">Bản sao tệp tải lên</label>
+            <label for="restore-object-snapshot">Bản sao kho tệp ứng dụng</label>
             <Select
               input-id="restore-object-snapshot"
               v-model="restoreForm.object_snapshot_key"
@@ -640,8 +640,8 @@ const restoreForm = ref<RestoreForm>({
 
 const restoreKindOptions = [
   { label: 'Cơ sở dữ liệu PostgreSQL', value: 'db' },
-  { label: 'Tệp tải lên trên MinIO', value: 'object_storage' },
-  { label: 'Cơ sở dữ liệu và tệp tải lên', value: 'full' },
+  { label: 'Kho tệp ứng dụng trên MinIO', value: 'object_storage' },
+  { label: 'Cơ sở dữ liệu và kho tệp ứng dụng', value: 'full' },
 ]
 
 const restoreModeOptions = [
@@ -759,14 +759,14 @@ function kindLabel(kind: string): string {
 function kindCodeLabel(kind: string): string {
   const labels: Record<string, string> = {
     db: 'Cấu hình cơ sở dữ liệu',
-    object_storage: 'Cấu hình kho tệp tải lên',
+    object_storage: 'Cấu hình kho tệp ứng dụng',
   }
   return labels[kind] ?? 'Cấu hình sao lưu'
 }
 
 function sourceName(config: BackupConfigRead): string {
   if (config.kind === 'db') return 'Cơ sở dữ liệu ứng dụng PostgreSQL'
-  return config.source_bucket || 'Kho tệp tải lên MinIO'
+  return config.source_bucket || 'Kho tệp ứng dụng trên MinIO'
 }
 
 function sourceLocation(config: BackupConfigRead): string {
@@ -974,7 +974,7 @@ function fieldLabel(field: string): string {
     kind: 'Loại cấu hình sao lưu',
     mode: 'Chế độ khôi phục',
     db_artifact_key: 'Bản sao cơ sở dữ liệu',
-    object_snapshot_key: 'Bản sao tệp tải lên',
+    object_snapshot_key: 'Bản sao kho tệp ứng dụng',
     target_db_name: 'Cơ sở dữ liệu đích mới',
     confirmation_text: 'Nội dung xác nhận',
     notes: 'Ghi chú',

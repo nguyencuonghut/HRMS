@@ -321,7 +321,7 @@ class RestoreRequestCreate(BaseModel):
         if self.kind in {"db", "full"} and not self.db_artifact_key:
             raise ValueError("Cần chọn bản sao lưu cơ sở dữ liệu")
         if self.kind in {"object_storage", "full"} and not self.object_snapshot_key:
-            raise ValueError("Cần chọn snapshot tệp tải lên")
+            raise ValueError("Cần chọn snapshot kho tệp ứng dụng")
         if self.mode == "restore_to_new_target":
             if self.kind in {"db", "full"} and not self.target_db_name:
                 raise ValueError("Cần nhập cơ sở dữ liệu đích mới")

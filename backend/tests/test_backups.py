@@ -613,7 +613,7 @@ async def test_backup_runner_sends_status_email_to_configured_recipients(monkeyp
 
     assert row.status == "success"
     assert sent_payloads
-    assert sent_payloads[0]["job_name"] == "Tệp tải lên trên MinIO"
+    assert sent_payloads[0]["job_name"] == "Kho tệp ứng dụng trên MinIO"
     assert sent_payloads[0]["status"] == "success"
     assert sent_payloads[0]["started_at"].endswith("+07:00")
     assert sent_payloads[0]["finished_at"].endswith("+07:00")

@@ -356,7 +356,7 @@ def _run_object_storage_backup_sync(config: BackupConfig, now: datetime) -> Back
         artifact_bucket=target_bucket,
         artifact_size_bytes=total_size + len(manifest),
         object_count=copied,
-        log_excerpt="Đã tạo snapshot tệp tải lên và manifest.",
+        log_excerpt="Đã tạo snapshot kho tệp ứng dụng và manifest.",
     )
 
 
