@@ -139,6 +139,8 @@ export interface RestoreRequestSummary {
   object_snapshot_key: string | null
   target_db_name: string | null
   target_bucket: string | null
+  requested_by_id: number | null
+  approved_by_id: number | null
   notes: string | null
   created_at: string
   updated_at: string
@@ -187,6 +189,15 @@ export default {
   },
   createRestoreRequest(payload: RestoreRequestCreatePayload) {
     return api.post<RestoreRequestSummary>(`${BASE}/restore-requests`, payload)
+  },
+  approveRestoreRequest(id: number) {
+    return api.post<RestoreRequestSummary>(`${BASE}/restore-requests/${id}/approve`)
+  },
+  retryRestoreRequest(id: number) {
+    return api.post<RestoreRequestSummary>(`${BASE}/restore-requests/${id}/retry`)
+  },
+  cancelRestoreRequest(id: number) {
+    return api.post<RestoreRequestSummary>(`${BASE}/restore-requests/${id}/cancel`)
   },
   getRestoreRequests(params?: { kind?: string; status?: string; limit?: number }) {
     return api.get<RestoreRequestSummary[]>(`${BASE}/restore-requests`, { params })

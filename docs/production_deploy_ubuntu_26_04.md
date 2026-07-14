@@ -582,6 +582,91 @@ Nguyên tắc đã ghi rõ trong source:
 - luôn restore sang DB/bucket mới trước
 - không overwrite trực tiếp production đang chạy
 
+### 13.3. Chạy production với dữ liệu vừa khôi phục
+
+Admin Backup Console hiện có 2 chế độ khôi phục:
+
+- `Chỉ kiểm tra`: hệ thống chỉ restore thử DB vào cơ sở dữ liệu tạm, kiểm tra snapshot MinIO, sau đó dọn tài nguyên tạm. Chế độ này **không** dùng để chạy production với dữ liệu khôi phục.
+- `Khôi phục sang đích mới`: hệ thống tạo DB đích mới và bucket MinIO đích mới, restore dữ liệu vào đó, nhưng **không tự động chuyển production sang đích mới**.
+
+Sau khi yêu cầu `Khôi phục sang đích mới` có trạng thái `Đã khôi phục`, thực hiện chuyển production sang dữ liệu vừa khôi phục như sau.
+
+1. Ghi lại chính xác 2 giá trị trên màn **Yêu cầu khôi phục gần nhất**:
+
+   - `Cơ sở dữ liệu đích mới`, ví dụ `hrms_restore_20260714`
+   - `Kho tệp đích mới`, ví dụ `hrms-attachments-restore-20260714`
+
+2. Trên server production, backup file `.env` hiện tại:
+
+   ```bash
+   cp .env ".env.before-restore-switch-$(date +%Y%m%d_%H%M%S)"
+   ```
+
+3. Sửa `.env` để app trỏ sang DB/bucket vừa khôi phục:
+
+   ```env
+   POSTGRES_DB=hrms_restore_20260714
+   MINIO_BUCKET=hrms-attachments-restore-20260714
+   ```
+
+   Nếu production dùng `DATABASE_URL` tự khai báo thay vì biến `POSTGRES_DB`, phải đổi `DATABASE_URL` sang database vừa khôi phục tương ứng.
+
+4. Restart **app layer**, không xóa volume và không recreate `db` / `minio`:
+
+   ```bash
+   docker compose -f docker-compose.prod.yml up -d --no-deps --force-recreate backend celery_worker celery_beat
+   ```
+
+   Nếu đang bật profile `legacy-backup` và `backup_scheduler` đang chạy, restart thêm service đó để nó nhận `POSTGRES_DB` / `MINIO_BUCKET` mới:
+
+   ```bash
+   docker compose -f docker-compose.prod.yml --profile legacy-backup up -d --no-deps --force-recreate backup_scheduler
+   ```
+
+5. Kiểm tra DB app đang trỏ tới:
+
+   ```bash
+   docker compose -f docker-compose.prod.yml exec -T backend python - <<'PY'
+   from app.core.config import settings
+   print(settings.DATABASE_URL)
+   print(settings.MINIO_BUCKET)
+   PY
+   ```
+
+6. Kiểm tra migration của DB vừa khôi phục:
+
+   ```bash
+   docker compose -f docker-compose.prod.yml exec -T backend alembic current
+   ```
+
+   Nếu source hiện tại mới hơn snapshot được restore, chạy migration trên DB đích mới:
+
+   ```bash
+   docker compose -f docker-compose.prod.yml exec -T backend alembic upgrade head
+   ```
+
+7. Smoke test sau chuyển đổi:
+
+   - đăng nhập bằng tài khoản admin
+   - mở danh sách nhân sự
+   - mở một hồ sơ có file đính kèm
+   - tải thử file từ MinIO
+   - kiểm tra log backend/worker:
+
+   ```bash
+   docker compose -f docker-compose.prod.yml logs backend --tail=100
+   docker compose -f docker-compose.prod.yml logs celery_worker --tail=100
+   ```
+
+Không chạy các lệnh sau khi chỉ muốn chuyển sang dữ liệu vừa khôi phục:
+
+```bash
+docker compose -f docker-compose.prod.yml down -v
+docker volume rm ...
+```
+
+Các lệnh đó có thể xóa volume dữ liệu hiện tại.
+
 ---
 
 ## 14. Chạy production bằng systemd

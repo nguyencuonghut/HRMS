@@ -8,6 +8,9 @@ AUDIT_ACTION_DEFS: list[tuple[str, str, str]] = [
     ("EXPORT", "Xuất dữ liệu", "secondary"),
     ("RESET_PASSWORD", "Đặt lại mật khẩu", "warn"),
     ("CREATE_CONTRACT", "Tạo hợp đồng", "success"),
+    ("APPROVE", "Phê duyệt", "success"),
+    ("RETRY", "Thử lại", "warn"),
+    ("CANCEL", "Hủy", "warn"),
 ]
 
 AUDIT_ENTITY_DEFS: list[tuple[str, str, str]] = [

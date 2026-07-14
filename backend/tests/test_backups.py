@@ -12,9 +12,10 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.core.config import settings
-from app.models.backup import BackupConfig, BackupJob, BackupSet
+from app.models.backup import BackupConfig, BackupJob, BackupSet, RestoreRequest
 from app.services import backup_notification_service, backup_service
 from app.services.backup_runner_service import BackupRunResult
+from app.services import restore_runner_service
 from app.services.restore_runner_service import RestoreRunResult, _prepare_sql_dump_for_restore
 
 BASE = "/api/v1/backups"
@@ -597,7 +598,7 @@ async def test_admin_creates_verify_restore_request_and_writes_safe_audit_log(cl
     data = resp.json()
     assert data["kind"] == "db"
     assert data["mode"] == "verify_only"
-    assert data["status"] == "queued"
+    assert data["status"] == "draft"
     assert data["db_artifact_key"] == db_key
 
     audit_resp = client.get(
@@ -620,6 +621,138 @@ async def test_admin_creates_verify_restore_request_and_writes_safe_audit_log(cl
     assert "access_key" not in serialized_audit
     assert "secret_key" not in serialized_audit
     assert "password" not in serialized_audit
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_admin_approves_restore_request_before_it_is_queued(client: TestClient, monkeypatch):
+    headers = _admin(client)
+    artifact_key = f"postgres/pytest-approve-{uuid4().hex}.sql.gz"
+    await _insert_successful_backup_job("db", artifact_key)
+    enqueued_ids: list[int] = []
+
+    create_resp = client.post(
+        f"{BASE}/restore-requests",
+        json={
+            "kind": "db",
+            "mode": "verify_only",
+            "db_artifact_key": artifact_key,
+            "confirmation_text": "TOI XAC NHAN",
+        },
+        headers=headers,
+    )
+    assert create_resp.status_code == 201
+    restore_id = create_resp.json()["id"]
+
+    monkeypatch.setattr(
+        backup_service,
+        "enqueue_restore_request",
+        lambda request_id: enqueued_ids.append(request_id) or True,
+    )
+    approve_resp = client.post(f"{BASE}/restore-requests/{restore_id}/approve", headers=headers)
+
+    assert approve_resp.status_code == 200
+    data = approve_resp.json()
+    assert data["status"] == "queued"
+    assert data["approved_by_id"] is not None
+    assert enqueued_ids == [restore_id]
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_restore_request_is_marked_failed_when_enqueue_fails(client: TestClient, monkeypatch):
+    headers = _admin(client)
+    artifact_key = f"postgres/pytest-enqueue-fail-{uuid4().hex}.sql.gz"
+    await _insert_successful_backup_job("db", artifact_key)
+
+    create_resp = client.post(
+        f"{BASE}/restore-requests",
+        json={
+            "kind": "db",
+            "mode": "verify_only",
+            "db_artifact_key": artifact_key,
+            "confirmation_text": "TOI XAC NHAN",
+        },
+        headers=headers,
+    )
+    assert create_resp.status_code == 201
+    restore_id = create_resp.json()["id"]
+
+    monkeypatch.setattr(backup_service, "enqueue_restore_request", lambda _request_id: False)
+
+    approve_resp = client.post(f"{BASE}/restore-requests/{restore_id}/approve", headers=headers)
+
+    assert approve_resp.status_code == 200
+    data = approve_resp.json()
+    assert data["status"] == "failed"
+    assert data["notes"] == "Không đưa được yêu cầu khôi phục vào hàng đợi xử lý."
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_admin_can_cancel_draft_restore_request(client: TestClient):
+    headers = _admin(client)
+    artifact_key = f"postgres/pytest-cancel-{uuid4().hex}.sql.gz"
+    await _insert_successful_backup_job("db", artifact_key)
+
+    create_resp = client.post(
+        f"{BASE}/restore-requests",
+        json={
+            "kind": "db",
+            "mode": "verify_only",
+            "db_artifact_key": artifact_key,
+            "confirmation_text": "TOI XAC NHAN",
+        },
+        headers=headers,
+    )
+    assert create_resp.status_code == 201
+
+    cancel_resp = client.post(
+        f"{BASE}/restore-requests/{create_resp.json()['id']}/cancel",
+        headers=headers,
+    )
+
+    assert cancel_resp.status_code == 200
+    assert cancel_resp.json()["status"] == "cancelled"
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_admin_retries_failed_restore_request(client: TestClient, monkeypatch):
+    headers = _admin(client)
+    artifact_key = f"postgres/pytest-retry-{uuid4().hex}.sql.gz"
+    await _insert_successful_backup_job("db", artifact_key)
+
+    async def create_failed_request(session):
+        row = await backup_service.create_restore_request(
+            session,
+            kind="db",
+            mode="verify_only",
+            backup_set_id=None,
+            db_artifact_key=artifact_key,
+            object_snapshot_key=None,
+            target_db_name=None,
+            target_bucket=None,
+            confirmation_text="TOI XAC NHAN",
+            notes=None,
+            user_id=None,
+        )
+        row.status = "failed"
+        row.notes = "Lỗi kiểm thử."
+        await session.commit()
+        return row.id
+
+    restore_id = await _with_isolated_session(create_failed_request)
+    enqueued_ids: list[int] = []
+    monkeypatch.setattr(
+        backup_service,
+        "enqueue_restore_request",
+        lambda request_id: enqueued_ids.append(request_id) or True,
+    )
+
+    retry_resp = client.post(f"{BASE}/restore-requests/{restore_id}/retry", headers=headers)
+
+    assert retry_resp.status_code == 200
+    data = retry_resp.json()
+    assert data["status"] == "queued"
+    assert data["approved_by_id"] is not None
+    assert enqueued_ids == [restore_id]
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -726,6 +859,7 @@ async def test_restore_runner_marks_request_verified_and_failed_without_exposing
             notes=None,
             user_id=None,
         )
+        row.status = "queued"
         await session.commit()
         return row.id
 
@@ -764,6 +898,7 @@ async def test_restore_runner_marks_request_verified_and_failed_without_exposing
             notes=None,
             user_id=None,
         )
+        row.status = "queued"
         await session.commit()
         return row.id
 
@@ -785,6 +920,48 @@ async def test_restore_runner_marks_request_verified_and_failed_without_exposing
     assert failed.notes
     assert settings.BACKUP_STORAGE_SECRET_KEY not in failed.notes
     assert "secret_key" not in failed.notes.lower()
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_restore_verify_db_restores_into_temp_database_and_cleans_up(monkeypatch):
+    artifact_key = f"postgres/pytest-verify-db-{uuid4().hex}.sql.gz"
+    await _insert_successful_backup_job("db", artifact_key)
+    commands: list[list[str]] = []
+    restored_targets: list[str] = []
+
+    async def fake_run_pg_client(command, env):
+        commands.append(command)
+        return 0, ""
+
+    async def fake_restore_sql(bucket, object_name, target_db_name, env):
+        assert bucket == "hrms-backup"
+        assert object_name == artifact_key
+        restored_targets.append(target_db_name)
+        return 123
+
+    monkeypatch.setattr(restore_runner_service, "_run_pg_client", fake_run_pg_client)
+    monkeypatch.setattr(restore_runner_service, "_restore_sql_object_to_database", fake_restore_sql)
+
+    async def run_verify(session):
+        request = RestoreRequest(
+            kind="db",
+            mode="verify_only",
+            status="queued",
+            db_artifact_key=artifact_key,
+            confirmation_text="TOI XAC NHAN",
+        )
+        session.add(request)
+        await session.flush()
+        return await restore_runner_service.run_restore_request(session, request, datetime.now(timezone.utc))
+
+    result = await _with_isolated_session(run_verify)
+
+    assert result.status == "verified"
+    assert restored_targets
+    assert restored_targets[0].startswith("hrms_restore_verify_")
+    assert commands[0][0] == "createdb"
+    assert commands[-1][0] == "dropdb"
+    assert commands[-1][-1] == restored_targets[0]
 
 
 @pytest.mark.asyncio(loop_scope="session")

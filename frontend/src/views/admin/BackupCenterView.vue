@@ -261,20 +261,32 @@
             <Column header="Thời gian" style="width: 170px">
               <template #body="{ data }">{{ formatDatetime(data.finished_at || data.created_at) }}</template>
             </Column>
-            <Column header="" style="width: 72px">
+            <Column header="Thao tác" style="width: 210px">
               <template #body="{ data }">
-                <Button
-                  v-can:create="'backups'"
-                  icon="pi pi-history"
-                  severity="secondary"
-                  text
-                  rounded
-                  size="small"
-                  :disabled="data.status !== 'success'"
-                  :aria-label="`Tạo yêu cầu khôi phục bộ sao lưu ${data.id}`"
-                  v-tooltip.top="'Tạo yêu cầu khôi phục'"
-                  @click="openRestoreDialog(undefined, data)"
-                />
+                <div class="restore-source-actions">
+                  <Button
+                    v-can:create="'backups'"
+                    label="Kiểm tra"
+                    icon="pi pi-check-circle"
+                    severity="secondary"
+                    outlined
+                    size="small"
+                    :disabled="data.status !== 'success'"
+                    :aria-label="`Tạo yêu cầu kiểm tra bộ sao lưu ${data.id}`"
+                    @click="openRestoreDialog(undefined, data, 'verify_only')"
+                  />
+                  <Button
+                    v-can:create="'backups'"
+                    label="Khôi phục"
+                    icon="pi pi-history"
+                    severity="secondary"
+                    outlined
+                    size="small"
+                    :disabled="data.status !== 'success'"
+                    :aria-label="`Tạo yêu cầu khôi phục sang đích mới cho bộ sao lưu ${data.id}`"
+                    @click="openRestoreDialog(undefined, data, 'restore_to_new_target')"
+                  />
+                </div>
               </template>
             </Column>
           </DataTable>
@@ -290,7 +302,7 @@
           <div class="backup-section-actions">
             <Button
               v-can:create="'backups'"
-              label="Tạo yêu cầu khôi phục"
+              label="Tạo yêu cầu kiểm tra/khôi phục"
               icon="pi pi-history"
               size="small"
               @click="openRestoreDialog()"
@@ -348,19 +360,30 @@
             <Column header="Thời gian" style="width: 170px">
               <template #body="{ data }">{{ formatDatetime(data.finished_at || data.created_at) }}</template>
             </Column>
-            <Column header="" style="width: 72px">
+            <Column header="Thao tác" style="width: 210px">
               <template #body="{ data }">
-                <Button
-                  v-can:create="'backups'"
-                  icon="pi pi-history"
-                  severity="secondary"
-                  text
-                  rounded
-                  size="small"
-                  :aria-label="`Tạo yêu cầu khôi phục ${data.artifact_key}`"
-                  v-tooltip.top="'Tạo yêu cầu khôi phục'"
-                  @click="openRestoreDialog(data)"
-                />
+                <div class="restore-source-actions">
+                  <Button
+                    v-can:create="'backups'"
+                    label="Kiểm tra"
+                    icon="pi pi-check-circle"
+                    severity="secondary"
+                    outlined
+                    size="small"
+                    :aria-label="`Tạo yêu cầu kiểm tra ${data.artifact_key}`"
+                    @click="openRestoreDialog(data, undefined, 'verify_only')"
+                  />
+                  <Button
+                    v-can:create="'backups'"
+                    label="Khôi phục"
+                    icon="pi pi-history"
+                    severity="secondary"
+                    outlined
+                    size="small"
+                    :aria-label="`Tạo yêu cầu khôi phục sang đích mới ${data.artifact_key}`"
+                    @click="openRestoreDialog(data, undefined, 'restore_to_new_target')"
+                  />
+                </div>
               </template>
             </Column>
           </DataTable>
@@ -415,14 +438,14 @@
             </div>
             <Button
               v-can:create="'backups'"
-              label="Tạo yêu cầu"
+              label="Tạo yêu cầu kiểm tra/khôi phục"
               icon="pi pi-history"
               size="small"
               outlined
               @click="openRestoreDialog()"
             />
           </div>
-          <div class="card">
+          <div class="card" data-testid="restore-requests-table">
             <DataTable :value="overview.latest_restore_requests" size="small" responsive-layout="scroll">
               <template #empty>
                 <div class="empty-state compact-empty">
@@ -441,8 +464,56 @@
                   <Tag :value="restoreStatusLabel(data.status)" :severity="restoreStatusSeverity(data.status)" rounded />
                 </template>
               </Column>
+              <Column header="Thao tác" style="width: 230px">
+                <template #body="{ data }">
+                  <div v-if="hasRestoreActions(data)" class="restore-request-actions">
+                    <Button
+                      v-if="canApproveRestore(data)"
+                      v-can:edit="'backups'"
+                      :label="restoreApproveLabel(data)"
+                      icon="pi pi-play"
+                      severity="success"
+                      outlined
+                      size="small"
+                      :loading="isRestoreActionLoading(data, 'approve')"
+                      :disabled="isRestoreActionDisabled(data, 'approve')"
+                      @click="approveRestoreRequest(data)"
+                    />
+                    <Button
+                      v-if="canRetryRestore(data)"
+                      v-can:edit="'backups'"
+                      label="Gửi lại"
+                      icon="pi pi-refresh"
+                      severity="secondary"
+                      outlined
+                      size="small"
+                      :loading="isRestoreActionLoading(data, 'retry')"
+                      :disabled="isRestoreActionDisabled(data, 'retry')"
+                      @click="retryRestoreRequest(data)"
+                    />
+                    <Button
+                      v-if="canCancelRestore(data)"
+                      v-can:edit="'backups'"
+                      label="Hủy"
+                      icon="pi pi-times"
+                      severity="danger"
+                      text
+                      size="small"
+                      :loading="isRestoreActionLoading(data, 'cancel')"
+                      :disabled="isRestoreActionDisabled(data, 'cancel')"
+                      @click="cancelRestoreRequest(data)"
+                    />
+                  </div>
+                  <span v-else class="muted-text">—</span>
+                </template>
+              </Column>
               <Column header="Đích">
                 <template #body="{ data }">{{ data.target_db_name || data.target_bucket || '—' }}</template>
+              </Column>
+              <Column header="Kết quả" style="min-width: 260px">
+                <template #body="{ data }">
+                  <span>{{ restoreResultText(data) }}</span>
+                </template>
               </Column>
               <Column header="Thời gian" style="width: 170px">
                 <template #body="{ data }">{{ formatDatetime(data.created_at) }}</template>
@@ -640,7 +711,7 @@
 
         <div class="backup-dialog-footer">
           <Button label="Hủy" severity="secondary" outlined :disabled="creatingRestoreRequest" @click="restoreDialogVisible = false" />
-          <Button type="submit" label="Tạo yêu cầu" icon="pi pi-check" :loading="creatingRestoreRequest" />
+          <Button type="submit" label="Tạo yêu cầu chờ duyệt" icon="pi pi-check" :loading="creatingRestoreRequest" />
         </div>
       </form>
     </Dialog>
@@ -718,6 +789,8 @@ const validatingKind = ref('')
 const creatingJobKind = ref('')
 const creatingBackupSet = ref(false)
 const creatingRestoreRequest = ref(false)
+const restoreActionId = ref<number | null>(null)
+const restoreActionName = ref('')
 const configFormError = ref('')
 const restoreFormError = ref('')
 const toast = useToast()
@@ -978,6 +1051,7 @@ function kindCodeLabel(kind: string): string {
   const labels: Record<string, string> = {
     db: 'Cấu hình cơ sở dữ liệu',
     object_storage: 'Cấu hình kho tệp ứng dụng',
+    full: 'Bộ sao lưu đầy đủ',
   }
   return labels[kind] ?? 'Cấu hình sao lưu'
 }
@@ -1329,12 +1403,16 @@ async function createFullBackupSet() {
   }
 }
 
-async function openRestoreDialog(snapshot?: BackupSnapshotSummary, backupSet?: BackupSetSummary) {
+async function openRestoreDialog(
+  snapshot?: BackupSnapshotSummary,
+  backupSet?: BackupSetSummary,
+  mode: RestoreForm['mode'] = 'verify_only',
+) {
   await Promise.all([loadSnapshots(), loadBackupSets()])
   const selectedKind = backupSet ? 'full' : snapshot?.kind ?? 'db'
   restoreForm.value = {
     kind: selectedKind,
-    mode: 'verify_only',
+    mode,
     backup_set_id: backupSet?.id ?? (selectedKind === 'full' ? firstBackupSet() : null),
     db_artifact_key: selectedKind === 'db' ? snapshot?.artifact_key ?? firstSnapshot('db') : null,
     object_snapshot_key: selectedKind === 'object_storage' ? snapshot?.artifact_key ?? firstSnapshot('object_storage') : null,
@@ -1375,7 +1453,7 @@ async function submitRestoreRequest() {
     restoreDialogVisible.value = false
     toast.add({
       severity: 'success',
-      summary: 'Đã tạo yêu cầu khôi phục',
+      summary: 'Đã tạo yêu cầu chờ duyệt',
       detail: restoreModeLabel(resp.data.mode),
       life: 5000,
     })
@@ -1384,6 +1462,126 @@ async function submitRestoreRequest() {
   } finally {
     creatingRestoreRequest.value = false
   }
+}
+
+function canApproveRestore(row: RestoreRequestSummary): boolean {
+  return row.status === 'draft'
+}
+
+function canRetryRestore(row: RestoreRequestSummary): boolean {
+  return ['failed', 'cancelled', 'queued'].includes(row.status)
+}
+
+function canCancelRestore(row: RestoreRequestSummary): boolean {
+  return ['draft', 'queued'].includes(row.status)
+}
+
+function hasRestoreActions(row: RestoreRequestSummary): boolean {
+  return canApproveRestore(row) || canRetryRestore(row) || canCancelRestore(row)
+}
+
+function restoreApproveLabel(row: RestoreRequestSummary): string {
+  if (row.mode === 'verify_only') return 'Duyệt và kiểm tra'
+  if (row.mode === 'restore_to_new_target') return 'Duyệt và khôi phục'
+  return 'Duyệt và chạy'
+}
+
+function restoreApproveConfirmMessage(row: RestoreRequestSummary): string {
+  if (row.mode === 'verify_only') {
+    return 'Duyệt và chạy kiểm tra bản sao? Dữ liệu sẽ không được khôi phục vào hệ thống đang dùng.'
+  }
+  if (row.mode === 'restore_to_new_target') {
+    return 'Duyệt và chạy khôi phục sang đích mới? Hệ thống sẽ không ghi đè cơ sở dữ liệu hoặc kho tệp đang dùng.'
+  }
+  return 'Duyệt và đưa yêu cầu vào hàng đợi xử lý?'
+}
+
+function restoreApproveSuccessSummary(row: RestoreRequestSummary): string {
+  if (row.mode === 'verify_only') return 'Đã duyệt yêu cầu kiểm tra'
+  if (row.mode === 'restore_to_new_target') return 'Đã duyệt yêu cầu khôi phục'
+  return 'Đã duyệt yêu cầu'
+}
+
+function restoreResultText(row: RestoreRequestSummary): string {
+  if (row.notes) return row.notes
+  if (row.status === 'verified') return 'Đã kiểm tra, chưa khôi phục dữ liệu.'
+  if (row.status === 'restored') return 'Đã khôi phục dữ liệu sang đích mới.'
+  if (row.status === 'running') return 'Đang xử lý yêu cầu.'
+  if (row.status === 'queued') return 'Đang chờ worker xử lý.'
+  if (row.status === 'draft') return 'Chưa chạy.'
+  if (row.status === 'cancelled') return 'Yêu cầu đã hủy.'
+  return '—'
+}
+
+function isRestoreActionLoading(row: RestoreRequestSummary, action: string): boolean {
+  return restoreActionId.value === row.id && restoreActionName.value === action
+}
+
+function isRestoreActionDisabled(row: RestoreRequestSummary, action: string): boolean {
+  return restoreActionId.value !== null && !isRestoreActionLoading(row, action)
+}
+
+async function runRestoreAction(
+  row: RestoreRequestSummary,
+  action: string,
+  confirmMessage: string,
+  submit: (id: number) => ReturnType<typeof backupService.approveRestoreRequest>,
+  successSummary: string,
+) {
+  if (!window.confirm(confirmMessage)) return
+  restoreActionId.value = row.id
+  restoreActionName.value = action
+  try {
+    const resp = await submit(row.id)
+    prependRestoreRequest(resp.data)
+    await loadOverview({ silent: true })
+    toast.add({
+      severity: 'success',
+      summary: successSummary,
+      detail: restoreStatusLabel(resp.data.status),
+      life: 5000,
+    })
+  } catch (err) {
+    toast.add({
+      severity: 'error',
+      summary: 'Không cập nhật được yêu cầu khôi phục',
+      detail: apiErrorMessage(err, 'Vui lòng thử lại.'),
+      life: 6000,
+    })
+  } finally {
+    restoreActionId.value = null
+    restoreActionName.value = ''
+  }
+}
+
+function approveRestoreRequest(row: RestoreRequestSummary) {
+  void runRestoreAction(
+    row,
+    'approve',
+    restoreApproveConfirmMessage(row),
+    backupService.approveRestoreRequest,
+    restoreApproveSuccessSummary(row),
+  )
+}
+
+function retryRestoreRequest(row: RestoreRequestSummary) {
+  void runRestoreAction(
+    row,
+    'retry',
+    'Gửi lại yêu cầu khôi phục vào hàng đợi xử lý?',
+    backupService.retryRestoreRequest,
+    'Đã gửi lại yêu cầu khôi phục',
+  )
+}
+
+function cancelRestoreRequest(row: RestoreRequestSummary) {
+  void runRestoreAction(
+    row,
+    'cancel',
+    'Hủy yêu cầu khôi phục này?',
+    backupService.cancelRestoreRequest,
+    'Đã hủy yêu cầu khôi phục',
+  )
 }
 
 function cronDescription(expression: string): string {
@@ -1454,8 +1652,8 @@ function statusSeverity(status: string): string {
 
 function restoreStatusLabel(status: string): string {
   const labels: Record<string, string> = {
-    draft: 'Bản nháp',
-    queued: 'Đang chờ',
+    draft: 'Chờ duyệt',
+    queued: 'Đã duyệt, đang chờ',
     running: 'Đang chạy',
     verified: 'Đã kiểm tra',
     restored: 'Đã khôi phục',
@@ -1639,6 +1837,30 @@ onBeforeUnmount(stopOverviewPolling)
   justify-content: flex-end;
   gap: 0.25rem;
   min-width: 88px;
+}
+
+.restore-request-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  min-width: 190px;
+}
+
+.restore-source-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  min-width: 180px;
+}
+
+.restore-request-actions :deep(.p-button) {
+  min-height: 2rem;
+}
+
+.restore-source-actions :deep(.p-button) {
+  min-height: 2rem;
 }
 
 .backup-config-form {

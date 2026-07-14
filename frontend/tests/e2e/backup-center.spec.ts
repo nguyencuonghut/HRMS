@@ -139,8 +139,8 @@ function jobStatusLabel(status: string): string {
 
 function restoreStatusLabel(status: string): string {
   const labels: Record<string, string> = {
-    draft: "Bản nháp",
-    queued: "Đang chờ",
+    draft: "Chờ duyệt",
+    queued: "Đã duyệt, đang chờ",
     running: "Đang chạy",
     verified: "Đã kiểm tra",
     restored: "Đã khôi phục",
@@ -819,6 +819,30 @@ test("admin can queue a full backup set and restore from that set", async ({ pag
     updated_at: "2026-07-14T02:00:00+07:00",
   };
   let restorePayload: Record<string, unknown> | null = null;
+  let latestRestoreRequests: Record<string, unknown>[] = [];
+  const draftRestoreRequest = {
+    id: 301,
+    backup_set_id: restorableSet.id,
+    kind: "full",
+    mode: "verify_only",
+    status: "draft",
+    db_artifact_key: restorableSet.db_artifact_key,
+    object_snapshot_key: restorableSet.object_snapshot_key,
+    target_db_name: null,
+    target_bucket: null,
+    requested_by_id: 1,
+    approved_by_id: null,
+    notes: null,
+    created_at: "2026-07-14T02:05:00+07:00",
+    updated_at: "2026-07-14T02:05:00+07:00",
+  };
+  const queuedRestoreRequest = {
+    ...draftRestoreRequest,
+    status: "queued",
+    approved_by_id: 1,
+    notes: "Đã duyệt và đưa vào hàng đợi xử lý.",
+    updated_at: "2026-07-14T02:06:00+07:00",
+  };
 
   await login(page, ADMIN_EMAIL, ADMIN_PASSWORD);
   await page.route("**/api/v1/backups/overview", async (route) => {
@@ -830,7 +854,7 @@ test("admin can queue a full backup set and restore from that set", async ({ pag
         configs,
         latest_jobs: [],
         latest_backup_sets: [restorableSet],
-        latest_restore_requests: [],
+        latest_restore_requests: latestRestoreRequests,
       }),
     });
   });
@@ -858,23 +882,19 @@ test("admin can queue a full backup set and restore from that set", async ({ pag
   });
   await page.route("**/api/v1/backups/restore-requests", async (route) => {
     restorePayload = route.request().postDataJSON();
+    latestRestoreRequests = [draftRestoreRequest];
     await route.fulfill({
       status: 201,
       contentType: "application/json",
-      body: JSON.stringify({
-        id: 301,
-        backup_set_id: restorableSet.id,
-        kind: "full",
-        mode: "verify_only",
-        status: "queued",
-        db_artifact_key: restorableSet.db_artifact_key,
-        object_snapshot_key: restorableSet.object_snapshot_key,
-        target_db_name: null,
-        target_bucket: null,
-        notes: null,
-        created_at: "2026-07-14T02:05:00+07:00",
-        updated_at: "2026-07-14T02:05:00+07:00",
-      }),
+      body: JSON.stringify(draftRestoreRequest),
+    });
+  });
+  await page.route("**/api/v1/backups/restore-requests/301/approve", async (route) => {
+    latestRestoreRequests = [queuedRestoreRequest];
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(queuedRestoreRequest),
     });
   });
 
@@ -889,13 +909,23 @@ test("admin can queue a full backup set and restore from that set", async ({ pag
   await fullBackupResponse;
   await expect(page.getByTestId("backup-set-table")).toContainText("Đang chờ");
 
-  await page.getByRole("button", { name: `Tạo yêu cầu khôi phục bộ sao lưu ${restorableSet.id}` }).click();
+  const restoreToNewTargetButton = page.getByRole("button", { name: `Tạo yêu cầu khôi phục sang đích mới cho bộ sao lưu ${restorableSet.id}` });
+  await expect(restoreToNewTargetButton).toBeVisible();
+  await restoreToNewTargetButton.click();
+  const restoreToNewTargetDialog = page.getByRole("dialog", { name: "Tạo yêu cầu khôi phục" });
+  await expect(restoreToNewTargetDialog).toContainText("Khôi phục sang đích mới");
+  await expect(restoreToNewTargetDialog).toContainText("Cơ sở dữ liệu đích mới");
+  await expect(restoreToNewTargetDialog).toContainText("Kho tệp đích mới");
+  await restoreToNewTargetDialog.getByRole("button", { name: "Hủy" }).click();
+  await expect(restoreToNewTargetDialog).toBeHidden();
+
+  await page.getByRole("button", { name: `Tạo yêu cầu kiểm tra bộ sao lưu ${restorableSet.id}` }).click();
   const dialog = page.getByRole("dialog", { name: "Tạo yêu cầu khôi phục" });
   await expect(dialog).toBeVisible();
   await expect(dialog).toContainText("Bộ sao lưu đầy đủ");
   await expect(dialog).toContainText(restorableSet.db_artifact_key!);
   await dialog.getByLabel("Nội dung xác nhận").fill("TOI XAC NHAN");
-  await dialog.getByRole("button", { name: "Tạo yêu cầu", exact: true }).click();
+  await dialog.getByRole("button", { name: "Tạo yêu cầu chờ duyệt", exact: true }).click();
 
   expect(restorePayload).toMatchObject({
     kind: "full",
@@ -904,6 +934,24 @@ test("admin can queue a full backup set and restore from that set", async ({ pag
     db_artifact_key: null,
     object_snapshot_key: null,
   });
+  const latestJobsTable = page.getByTestId("backup-latest-jobs-table");
+  const restoreRequestsTable = page.getByTestId("restore-requests-table");
+  await expect(latestJobsTable).not.toContainText("Duyệt và kiểm tra");
+  await expect(restoreRequestsTable).toContainText("Chờ duyệt");
+  await expect(restoreRequestsTable).toContainText("Duyệt và kiểm tra");
+
+  page.once("dialog", async (confirmDialog) => {
+    expect(confirmDialog.message()).toContain("kiểm tra");
+    await confirmDialog.accept();
+  });
+  const approveResponse = page.waitForResponse((response) => (
+    response.url().includes("/api/v1/backups/restore-requests/301/approve")
+    && response.request().method() === "POST"
+    && response.status() === 200
+  ));
+  await restoreRequestsTable.getByRole("button", { name: "Duyệt và kiểm tra" }).click();
+  await approveResponse;
+  await expect(restoreRequestsTable).toContainText("Đã duyệt, đang chờ");
 });
 
 test("backup schedule time remains readable in dark mode", async ({ page }) => {
@@ -1070,7 +1118,8 @@ test("admin can create a safe restore verification request from a snapshot", asy
 
   await expect(page.getByTestId("backup-snapshot-table")).toContainText(snapshot.artifact_key);
 
-  await page.getByRole("button", { name: `Tạo yêu cầu khôi phục ${snapshot.artifact_key}` }).click();
+  await expect(page.getByRole("button", { name: `Tạo yêu cầu khôi phục sang đích mới ${snapshot.artifact_key}` })).toBeVisible();
+  await page.getByRole("button", { name: `Tạo yêu cầu kiểm tra ${snapshot.artifact_key}` }).click();
   const dialog = page.getByRole("dialog", { name: "Tạo yêu cầu khôi phục" });
   await expect(dialog).toBeVisible();
   await expect(dialog).not.toContainText(ENGLISH_BACKUP_UI_PATTERN);
@@ -1083,7 +1132,7 @@ test("admin can create a safe restore verification request from a snapshot", asy
     && response.request().method() === "POST"
     && response.status() === 201
   ));
-  await dialog.getByRole("button", { name: "Tạo yêu cầu", exact: true }).click();
+  await dialog.getByRole("button", { name: "Tạo yêu cầu chờ duyệt", exact: true }).click();
   const restoreRequest = await (await restoreResponse).json();
 
   const history = page.locator(".backup-history-grid").first();

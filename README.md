@@ -223,6 +223,50 @@ docker compose exec minio mc alias set local http://localhost:9000 minioadmin mi
 docker compose exec minio mc ls local/hrms-attachments
 ```
 
+### Chạy dev với dữ liệu vừa khôi phục
+
+Trong Admin Backup Console, `Chỉ kiểm tra` chỉ xác nhận artifact restore được, không chuyển app sang dữ liệu đó. Muốn chạy dev với dữ liệu đã khôi phục, phải tạo yêu cầu `Khôi phục sang đích mới` và chờ trạng thái `Đã khôi phục`.
+
+Sau đó:
+
+1. Ghi lại `Cơ sở dữ liệu đích mới` và `Kho tệp đích mới` trên bảng **Yêu cầu khôi phục gần nhất**.
+2. Backup `.env`:
+
+```bash
+cp .env ".env.before-restore-switch-$(date +%Y%m%d_%H%M%S)"
+```
+
+3. Sửa `.env`:
+
+```env
+POSTGRES_DB=hrms_restore_20260714
+MINIO_BUCKET=hrms-attachments-restore-20260714
+```
+
+4. Restart app layer:
+
+```bash
+docker compose up -d --no-deps --force-recreate backend celery_worker celery_beat
+```
+
+5. Kiểm tra backend đã nhận đúng DB/bucket:
+
+```bash
+docker compose exec -T backend python - <<'PY'
+from app.core.config import settings
+print(settings.DATABASE_URL)
+print(settings.MINIO_BUCKET)
+PY
+```
+
+6. Nếu snapshot được restore cũ hơn source hiện tại, chạy migration trên DB đích mới:
+
+```bash
+docker compose exec -T backend alembic upgrade head
+```
+
+Không dùng `docker compose down -v` cho thao tác này, vì lệnh đó xóa volume dữ liệu dev.
+
 ### Cài thêm package
 
 ```bash

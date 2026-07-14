@@ -801,6 +801,82 @@ Cần kiểm tra log khi đã bật profile:
 docker compose -f docker-compose.lan.yml --profile backup logs backup_scheduler --tail=200
 ```
 
+### 15.1. Chạy LAN với dữ liệu vừa khôi phục
+
+Admin Backup Console có 2 chế độ khôi phục:
+
+- `Chỉ kiểm tra`: chỉ restore thử DB vào cơ sở dữ liệu tạm và kiểm tra snapshot MinIO. Chế độ này **không** chuyển hệ thống LAN sang dữ liệu khôi phục.
+- `Khôi phục sang đích mới`: restore DB vào một database mới và copy file upload sang một bucket MinIO mới. Hệ thống **không tự động ghi đè** DB/bucket đang chạy.
+
+Sau khi yêu cầu `Khôi phục sang đích mới` có trạng thái `Đã khôi phục`, làm theo các bước sau trên server LAN.
+
+1. Ghi lại 2 giá trị trên màn **Yêu cầu khôi phục gần nhất**:
+
+   - `Cơ sở dữ liệu đích mới`, ví dụ `hrms_restore_20260714`
+   - `Kho tệp đích mới`, ví dụ `hrms-attachments-restore-20260714`
+
+2. Backup file `.env` trước khi đổi:
+
+   ```bash
+   cp .env ".env.before-restore-switch-$(date +%Y%m%d_%H%M%S)"
+   ```
+
+3. Sửa `.env`:
+
+   ```env
+   POSTGRES_DB=hrms_restore_20260714
+   MINIO_BUCKET=hrms-attachments-restore-20260714
+   ```
+
+4. Restart app layer, không xóa volume và không recreate `db` / `minio`:
+
+   ```bash
+   docker compose -f docker-compose.lan.yml up -d --no-deps --force-recreate backend celery_worker celery_beat
+   ```
+
+   Nếu đang bật profile `backup` legacy, restart thêm `backup_scheduler`:
+
+   ```bash
+   docker compose -f docker-compose.lan.yml --profile backup up -d --no-deps --force-recreate backup_scheduler
+   ```
+
+5. Kiểm tra backend đã nhận đúng DB/bucket mới:
+
+   ```bash
+   docker compose -f docker-compose.lan.yml exec -T backend python - <<'PY'
+   from app.core.config import settings
+   print(settings.DATABASE_URL)
+   print(settings.MINIO_BUCKET)
+   PY
+   ```
+
+6. Kiểm tra migration của DB vừa khôi phục:
+
+   ```bash
+   docker compose -f docker-compose.lan.yml exec -T backend alembic current
+   ```
+
+   Nếu source đang chạy mới hơn snapshot được restore, chạy migration trên DB đích mới:
+
+   ```bash
+   docker compose -f docker-compose.lan.yml exec -T backend alembic upgrade head
+   ```
+
+7. Smoke test từ máy user trong LAN:
+
+   - đăng nhập
+   - mở danh sách nhân sự
+   - mở hồ sơ có file đính kèm
+   - tải thử file
+   - kiểm tra log:
+
+   ```bash
+   docker compose -f docker-compose.lan.yml logs backend --tail=100
+   docker compose -f docker-compose.lan.yml logs celery_worker --tail=100
+   ```
+
+Không dùng `docker compose down -v` hoặc xóa volume khi chỉ muốn chạy với dữ liệu vừa khôi phục, vì các lệnh đó có thể xóa dữ liệu hiện tại.
+
 ---
 
 ## 16. Known gaps cho kịch bản LAN

@@ -361,6 +361,8 @@ class RestoreRequestSummary(BaseModel):
     object_snapshot_key: Optional[str]
     target_db_name: Optional[str]
     target_bucket: Optional[str]
+    requested_by_id: Optional[int]
+    approved_by_id: Optional[int]
     notes: Optional[str]
     created_at: datetime
     updated_at: datetime

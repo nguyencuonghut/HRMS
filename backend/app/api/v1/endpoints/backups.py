@@ -285,7 +285,6 @@ async def create_restore_request(
         user_agent=request.headers.get("user-agent"),
     )
     await session.commit()
-    backup_service.enqueue_restore_request(row.id)
     return RestoreRequestSummary.model_validate(row)
 
 
@@ -303,6 +302,129 @@ async def list_restore_requests(
         status=restore_status,
         limit=limit,
     )
+
+
+@router.post("/restore-requests/{restore_request_id}/approve", response_model=RestoreRequestSummary)
+async def approve_restore_request(
+    restore_request_id: int,
+    request: Request,
+    current_user: User = require_permission("backups:edit"),
+    session: AsyncSession = Depends(get_session),
+) -> RestoreRequestSummary:
+    try:
+        row, old_data, new_data = await backup_service.approve_restore_request(
+            session,
+            restore_request_id=restore_request_id,
+            user_id=current_user.id,
+        )
+    except backup_service.RestoreRequestNotFound as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Không tìm thấy yêu cầu khôi phục",
+        ) from exc
+    except backup_service.RestoreRequestInvalidState as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
+
+    await auth_service.log_audit(
+        session,
+        current_user.id,
+        "APPROVE",
+        entity_type="restore_request",
+        entity_id=row.id,
+        entity_name=row.kind,
+        old_data=old_data,
+        new_data=new_data,
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
+    await session.commit()
+    if not backup_service.enqueue_restore_request(row.id):
+        row = await backup_service.mark_restore_enqueue_failed(session, restore_request_id=row.id)
+    return RestoreRequestSummary.model_validate(row)
+
+
+@router.post("/restore-requests/{restore_request_id}/retry", response_model=RestoreRequestSummary)
+async def retry_restore_request(
+    restore_request_id: int,
+    request: Request,
+    current_user: User = require_permission("backups:edit"),
+    session: AsyncSession = Depends(get_session),
+) -> RestoreRequestSummary:
+    try:
+        row, old_data, new_data = await backup_service.retry_restore_request(
+            session,
+            restore_request_id=restore_request_id,
+            user_id=current_user.id,
+        )
+    except backup_service.RestoreRequestNotFound as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Không tìm thấy yêu cầu khôi phục",
+        ) from exc
+    except backup_service.RestoreRequestInvalidState as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
+
+    await auth_service.log_audit(
+        session,
+        current_user.id,
+        "RETRY",
+        entity_type="restore_request",
+        entity_id=row.id,
+        entity_name=row.kind,
+        old_data=old_data,
+        new_data=new_data,
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
+    await session.commit()
+    if not backup_service.enqueue_restore_request(row.id):
+        row = await backup_service.mark_restore_enqueue_failed(session, restore_request_id=row.id)
+    return RestoreRequestSummary.model_validate(row)
+
+
+@router.post("/restore-requests/{restore_request_id}/cancel", response_model=RestoreRequestSummary)
+async def cancel_restore_request(
+    restore_request_id: int,
+    request: Request,
+    current_user: User = require_permission("backups:edit"),
+    session: AsyncSession = Depends(get_session),
+) -> RestoreRequestSummary:
+    try:
+        row, old_data, new_data = await backup_service.cancel_restore_request(
+            session,
+            restore_request_id=restore_request_id,
+        )
+    except backup_service.RestoreRequestNotFound as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Không tìm thấy yêu cầu khôi phục",
+        ) from exc
+    except backup_service.RestoreRequestInvalidState as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
+
+    await auth_service.log_audit(
+        session,
+        current_user.id,
+        "CANCEL",
+        entity_type="restore_request",
+        entity_id=row.id,
+        entity_name=row.kind,
+        old_data=old_data,
+        new_data=new_data,
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
+    await session.commit()
+    return RestoreRequestSummary.model_validate(row)
 
 
 @router.get("/overview", response_model=BackupOverviewResponse)

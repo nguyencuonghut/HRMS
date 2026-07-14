@@ -52,8 +52,8 @@ JOB_STATUS_DEFS: list[tuple[str, str, str]] = [
 JOB_STATUS_LABELS = {code: label for code, label, _severity in JOB_STATUS_DEFS}
 
 RESTORE_STATUS_DEFS: list[tuple[str, str, str]] = [
-    ("draft", "Bản nháp", "secondary"),
-    ("queued", "Đang chờ", "secondary"),
+    ("draft", "Chờ duyệt", "secondary"),
+    ("queued", "Đã duyệt, đang chờ", "secondary"),
     ("running", "Đang chạy", "info"),
     ("verified", "Đã kiểm tra", "success"),
     ("restored", "Đã khôi phục", "success"),
@@ -105,6 +105,10 @@ class ActiveBackupSetExists(Exception):
 
 
 class RestoreRequestNotFound(Exception):
+    pass
+
+
+class RestoreRequestInvalidState(Exception):
     pass
 
 
@@ -789,6 +793,8 @@ def safe_restore_snapshot(row: RestoreRequest) -> dict:
         "object_snapshot_key": row.object_snapshot_key,
         "target_db_name": row.target_db_name,
         "target_bucket": row.target_bucket,
+        "requested_by_id": row.requested_by_id,
+        "approved_by_id": row.approved_by_id,
     }
 
 
@@ -810,13 +816,15 @@ def enqueue_backup_set(backup_set_id: int) -> None:
         logger.warning("backup_set_enqueue_failed", backup_set_id=backup_set_id, error=str(exc))
 
 
-def enqueue_restore_request(restore_request_id: int) -> None:
+def enqueue_restore_request(restore_request_id: int) -> bool:
     try:
         from app.workers.backup_tasks import run_restore_request_task
 
         run_restore_request_task.apply_async(args=[restore_request_id], queue="backups")
+        return True
     except Exception as exc:  # pragma: no cover - phụ thuộc broker runtime
         logger.warning("restore_request_enqueue_failed", restore_request_id=restore_request_id, error=str(exc))
+        return False
 
 
 async def list_backup_jobs(
@@ -1016,7 +1024,7 @@ async def create_restore_request(
         mode=mode,
         target_db_name=target_db_name,
         target_bucket=target_bucket,
-        status="queued",
+        status="draft",
         requested_by_id=user_id,
         confirmation_text=confirmation_text,
         notes=notes,
@@ -1048,17 +1056,99 @@ async def list_restore_requests(
     return _restore_summaries(rows)
 
 
+async def get_restore_request(session: AsyncSession, restore_request_id: int) -> RestoreRequest:
+    row = (
+        await session.execute(select(RestoreRequest).where(RestoreRequest.id == restore_request_id))
+    ).scalar_one_or_none()
+    if row is None:
+        raise RestoreRequestNotFound(restore_request_id)
+    return row
+
+
+async def approve_restore_request(
+    session: AsyncSession,
+    *,
+    restore_request_id: int,
+    user_id: int | None,
+) -> tuple[RestoreRequest, dict, dict]:
+    row = await get_restore_request(session, restore_request_id)
+    if row.status != "draft":
+        raise RestoreRequestInvalidState("Chỉ có thể duyệt yêu cầu khôi phục đang chờ duyệt.")
+
+    old_data = safe_restore_snapshot(row)
+    now = _utcnow()
+    row.status = "queued"
+    row.approved_by_id = user_id
+    row.notes = "Đã duyệt và đưa vào hàng đợi xử lý."
+    row.updated_at = now
+    session.add(row)
+    await session.flush()
+    return row, old_data, safe_restore_snapshot(row)
+
+
+async def retry_restore_request(
+    session: AsyncSession,
+    *,
+    restore_request_id: int,
+    user_id: int | None,
+) -> tuple[RestoreRequest, dict, dict]:
+    row = await get_restore_request(session, restore_request_id)
+    if row.status not in {"failed", "cancelled", "queued"}:
+        raise RestoreRequestInvalidState("Chỉ có thể gửi lại yêu cầu khôi phục đang lỗi, đã hủy hoặc đang chờ.")
+
+    old_data = safe_restore_snapshot(row)
+    now = _utcnow()
+    row.status = "queued"
+    row.approved_by_id = user_id
+    row.notes = "Đã gửi lại yêu cầu khôi phục vào hàng đợi xử lý."
+    row.updated_at = now
+    session.add(row)
+    await session.flush()
+    return row, old_data, safe_restore_snapshot(row)
+
+
+async def cancel_restore_request(
+    session: AsyncSession,
+    *,
+    restore_request_id: int,
+) -> tuple[RestoreRequest, dict, dict]:
+    row = await get_restore_request(session, restore_request_id)
+    if row.status not in {"draft", "queued"}:
+        raise RestoreRequestInvalidState("Chỉ có thể hủy yêu cầu khôi phục đang chờ duyệt hoặc đang chờ xử lý.")
+
+    old_data = safe_restore_snapshot(row)
+    now = _utcnow()
+    row.status = "cancelled"
+    row.notes = "Đã hủy yêu cầu khôi phục."
+    row.updated_at = now
+    session.add(row)
+    await session.flush()
+    return row, old_data, safe_restore_snapshot(row)
+
+
+async def mark_restore_enqueue_failed(
+    session: AsyncSession,
+    *,
+    restore_request_id: int,
+) -> RestoreRequest:
+    row = await get_restore_request(session, restore_request_id)
+    if row.status == "queued":
+        row.status = "failed"
+        row.notes = "Không đưa được yêu cầu khôi phục vào hàng đợi xử lý."
+        row.updated_at = _utcnow()
+        session.add(row)
+        await session.commit()
+        await session.refresh(row)
+    return row
+
+
 async def run_restore_request(
     session: AsyncSession,
     *,
     restore_request_id: int,
     runner: RestoreRunner = execute_restore_request,
 ) -> RestoreRequest:
-    row = (
-        await session.execute(select(RestoreRequest).where(RestoreRequest.id == restore_request_id))
-    ).scalar_one_or_none()
-    if row is None:
-        raise RestoreRequestNotFound(restore_request_id)
+    row = await get_restore_request(session, restore_request_id)
     if row.status != "queued":
         return row
 
