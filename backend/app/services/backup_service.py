@@ -7,6 +7,7 @@ import inspect
 import structlog
 from typing import Awaitable, Callable
 from urllib.parse import urlsplit
+from zoneinfo import ZoneInfo
 
 from minio import Minio
 from sqlalchemy import select
@@ -25,6 +26,7 @@ from app.schemas.backup import (
     BackupValidateTargetResponse,
     RestoreRequestSummary,
 )
+from app.services import backup_notification_service
 from app.services.backup_runner_service import BackupRunResult, run_backup
 from app.services.restore_runner_service import RestoreRunResult, run_restore_request as execute_restore_request
 
@@ -46,6 +48,7 @@ JOB_STATUS_DEFS: list[tuple[str, str, str]] = [
     ("failed", "Thất bại", "danger"),
     ("cancelled", "Đã hủy", "warn"),
 ]
+JOB_STATUS_LABELS = {code: label for code, label, _severity in JOB_STATUS_DEFS}
 
 RESTORE_STATUS_DEFS: list[tuple[str, str, str]] = [
     ("draft", "Bản nháp", "secondary"),
@@ -334,6 +337,80 @@ def _sanitize_validation_message(message: str) -> str:
         if secret:
             sanitized = sanitized.replace(secret, "***")
     return sanitized[:500]
+
+
+def _notification_timestamp(value: datetime | None) -> str:
+    if value is None:
+        return ""
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return value.astimezone(ZoneInfo(settings.APP_TIMEZONE)).isoformat()
+
+
+def _notification_summary(row: BackupJob) -> str:
+    kind_label = KIND_LABELS.get(row.kind, row.kind)
+    if row.status == "success":
+        return f"Sao lưu {kind_label} đã hoàn tất."
+    return row.error_summary or f"Sao lưu {kind_label} thất bại."
+
+
+def _notification_details(row: BackupJob) -> str:
+    lines = [
+        f"Loại sao lưu: {KIND_LABELS.get(row.kind, row.kind)}",
+        f"Trạng thái: {JOB_STATUS_LABELS.get(row.status, row.status)}",
+    ]
+    if row.artifact_bucket:
+        lines.append(f"Kho lưu trữ: {row.artifact_bucket}")
+    if row.artifact_key:
+        lines.append(f"Đường dẫn bản sao: {row.artifact_key}")
+    if row.artifact_size_bytes is not None:
+        lines.append(f"Dung lượng: {row.artifact_size_bytes} bytes")
+    if row.object_count is not None:
+        lines.append(f"Số đối tượng: {row.object_count}")
+    if row.error_summary:
+        lines.append(f"Lỗi: {row.error_summary}")
+    if row.log_excerpt:
+        lines.extend(["", "Log rút gọn:", row.log_excerpt])
+    return "\n".join(lines)
+
+
+async def _send_backup_job_notification(
+    session: AsyncSession,
+    *,
+    config: BackupConfig,
+    row: BackupJob,
+) -> None:
+    if row.status not in {"success", "failed"}:
+        return
+
+    try:
+        result = await backup_notification_service.send_backup_status_email(
+            session,
+            job_name=KIND_LABELS.get(row.kind, row.kind),
+            status=row.status,
+            summary=_notification_summary(row),
+            details=_notification_details(row),
+            started_at=_notification_timestamp(row.started_at),
+            finished_at=_notification_timestamp(row.finished_at),
+            override_recipients=config.notify_emails,
+        )
+    except Exception as exc:  # pragma: no cover - phụ thuộc hạ tầng SMTP runtime
+        logger.warning(
+            "backup_notification_failed",
+            job_id=row.id,
+            kind=row.kind,
+            error=_sanitize_validation_message(str(exc)),
+        )
+        return
+
+    if result.get("status") in {"failed", "partial"}:
+        logger.warning(
+            "backup_notification_not_fully_sent",
+            job_id=row.id,
+            kind=row.kind,
+            notification_status=result.get("status"),
+            failed_recipients=sorted((result.get("failed") or {}).keys()),
+        )
 
 
 def job_response(row: BackupJob) -> BackupJobSummary:
@@ -707,6 +784,7 @@ async def run_backup_job(
     session.add(row)
     await session.commit()
     await session.refresh(row)
+    await _send_backup_job_notification(session, config=config, row=row)
     return row
 
 

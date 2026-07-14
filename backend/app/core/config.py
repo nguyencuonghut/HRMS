@@ -1,6 +1,7 @@
 import logging
 from pathlib import Path
 from urllib.parse import urlsplit
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -37,6 +38,17 @@ class Settings(BaseSettings):
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = False
     ENVIRONMENT: str = "development"
+    APP_TIMEZONE: str = "Asia/Ho_Chi_Minh"
+
+    @field_validator("APP_TIMEZONE")
+    @classmethod
+    def validate_app_timezone(cls, v: str) -> str:
+        value = v.strip()
+        try:
+            ZoneInfo(value)
+        except ZoneInfoNotFoundError as exc:
+            raise ValueError("APP_TIMEZONE phải là tên múi giờ IANA hợp lệ, ví dụ Asia/Ho_Chi_Minh.") from exc
+        return value
 
     # Database
     DATABASE_URL: str = "postgresql+asyncpg://postgres:password@localhost:5432/hrms"

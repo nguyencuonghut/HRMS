@@ -66,6 +66,7 @@ services:
       SECRET_KEY: ${SECRET_KEY:-dev-secret-key-change-in-prod}
       DEBUG: "true"
       ENVIRONMENT: ${ENVIRONMENT:-development}
+      APP_TIMEZONE: ${APP_TIMEZONE:-Asia/Ho_Chi_Minh}
       MINIO_ENDPOINT: minio:9000
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
@@ -101,6 +102,12 @@ services:
   celery_worker:
     build: ./backend
     command: celery -A app.core.celery_app.celery_app worker --loglevel=info -Q celery,exports,backups
+    healthcheck:
+      test: ["CMD-SHELL", 'python -c "from pathlib import Path; import sys; cmd=Path(\"/proc/1/cmdline\").read_bytes(); sys.exit(0 if b\"celery\" in cmd and b\"worker\" in cmd else 1)"']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
     volumes:
       - ./backend:/app
     environment:
@@ -108,6 +115,7 @@ services:
       REDIS_URL: redis://redis:6379/0
       SECRET_KEY: ${SECRET_KEY:-dev-secret-key-change-in-prod}
       ENVIRONMENT: ${ENVIRONMENT:-development}
+      APP_TIMEZONE: ${APP_TIMEZONE:-Asia/Ho_Chi_Minh}
       MINIO_ENDPOINT: minio:9000
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
@@ -137,6 +145,12 @@ services:
   celery_beat:
     build: ./backend
     command: celery -A app.core.celery_app.celery_app beat --loglevel=info
+    healthcheck:
+      test: ["CMD-SHELL", 'python -c "from pathlib import Path; import sys; cmd=Path(\"/proc/1/cmdline\").read_bytes(); sys.exit(0 if b\"celery\" in cmd and b\"beat\" in cmd else 1)"']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
     volumes:
       - ./backend:/app
     environment:
@@ -144,6 +158,7 @@ services:
       REDIS_URL: redis://redis:6379/0
       SECRET_KEY: ${SECRET_KEY:-dev-secret-key-change-in-prod}
       ENVIRONMENT: ${ENVIRONMENT:-development}
+      APP_TIMEZONE: ${APP_TIMEZONE:-Asia/Ho_Chi_Minh}
       BACKUP_STORAGE_ENDPOINT: ${BACKUP_STORAGE_ENDPOINT:-minio:9000}
       BACKUP_STORAGE_ACCESS_KEY: ${BACKUP_STORAGE_ACCESS_KEY:-${MINIO_ROOT_USER:-minioadmin}}
       BACKUP_STORAGE_SECRET_KEY: ${BACKUP_STORAGE_SECRET_KEY:-${MINIO_ROOT_PASSWORD:-minioadmin}}

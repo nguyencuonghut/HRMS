@@ -85,6 +85,7 @@ services:
       BACKUP_NOTIFY_EMAILS: ${BACKUP_NOTIFY_EMAILS:-}
       DEBUG: "false"
       ENVIRONMENT: ${ENVIRONMENT:-lan}
+      APP_TIMEZONE: ${APP_TIMEZONE:-Asia/Ho_Chi_Minh}
       SENTRY_DSN: ${SENTRY_DSN:-}
       HEALTHCHECK_PING_URL: ${HEALTHCHECK_PING_URL:-}
       BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
@@ -102,6 +103,12 @@ services:
     image: ${BACKEND_IMAGE}:${IMAGE_TAG}
     restart: always
     command: celery -A app.core.celery_app.celery_app worker --loglevel=info --concurrency=4 -Q celery,exports,backups
+    healthcheck:
+      test: ["CMD-SHELL", 'python -c "from pathlib import Path; import sys; cmd=Path(\"/proc/1/cmdline\").read_bytes(); sys.exit(0 if b\"celery\" in cmd and b\"worker\" in cmd else 1)"']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-hrms}
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
@@ -127,6 +134,7 @@ services:
       SOURCE_STORAGE_SECURE: ${SOURCE_STORAGE_SECURE:-${MINIO_SECURE}}
       BACKUP_NOTIFY_EMAILS: ${BACKUP_NOTIFY_EMAILS:-}
       ENVIRONMENT: ${ENVIRONMENT:-lan}
+      APP_TIMEZONE: ${APP_TIMEZONE:-Asia/Ho_Chi_Minh}
       SENTRY_DSN: ${SENTRY_DSN:-}
     depends_on:
       db:
@@ -140,6 +148,12 @@ services:
     image: ${BACKEND_IMAGE}:${IMAGE_TAG}
     restart: always
     command: celery -A app.core.celery_app.celery_app beat --loglevel=info --scheduler redbeat.RedBeatScheduler
+    healthcheck:
+      test: ["CMD-SHELL", 'python -c "from pathlib import Path; import sys; cmd=Path(\"/proc/1/cmdline\").read_bytes(); sys.exit(0 if b\"celery\" in cmd and b\"beat\" in cmd else 1)"']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-hrms}
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
@@ -152,6 +166,7 @@ services:
       MINIO_BUCKET: ${MINIO_BUCKET:-}
       MINIO_SECURE: ${MINIO_SECURE}
       ENVIRONMENT: ${ENVIRONMENT:-lan}
+      APP_TIMEZONE: ${APP_TIMEZONE:-Asia/Ho_Chi_Minh}
       SENTRY_DSN: ${SENTRY_DSN:-}
     depends_on:
       redis:
@@ -181,6 +196,7 @@ services:
       MINIO_BUCKET: ${MINIO_BUCKET:-hrms-attachments-prod}
       MINIO_SECURE: ${MINIO_SECURE}
       ENVIRONMENT: ${ENVIRONMENT:-lan}
+      APP_TIMEZONE: ${APP_TIMEZONE:-Asia/Ho_Chi_Minh}
       SMTP_HOST: ${SMTP_HOST}
       SMTP_PORT: ${SMTP_PORT}
       SMTP_USERNAME: ${SMTP_USERNAME:-}

@@ -210,6 +210,102 @@ test("admin can open read-only backup center and see backend overview", async ({
   await expect(page.locator(".backup-center")).not.toContainText(ENGLISH_BACKUP_UI_PATTERN);
 });
 
+test("latest backup job summary shows status color", async ({ page }) => {
+  const fakeOverview = {
+    config_count: 2,
+    configs: [
+      {
+        id: 1,
+        kind: "db",
+        kind_label: "Cơ sở dữ liệu PostgreSQL",
+        enabled: true,
+        cron_expression: "0 2 * * *",
+        retention_days: 90,
+        source_endpoint: null,
+        source_bucket: null,
+        source_secure: null,
+        target_endpoint: "minio:9000",
+        target_bucket: "hrms-backup",
+        target_prefix: "postgres",
+        target_secure: false,
+        notify_emails: null,
+        secret_source: "env",
+        source_configured: true,
+        target_configured: true,
+        last_validated_at: "2026-07-14T01:00:00+07:00",
+        last_validation_status: "success",
+        last_validation_error: null,
+        created_at: "2026-07-14T01:00:00+07:00",
+        updated_at: "2026-07-14T01:00:00+07:00",
+      },
+      {
+        id: 2,
+        kind: "object_storage",
+        kind_label: "Tệp tải lên trên MinIO",
+        enabled: true,
+        cron_expression: "0 3 * * *",
+        retention_days: 90,
+        source_endpoint: "minio:9000",
+        source_bucket: "hrms-attachments-dev",
+        source_secure: false,
+        target_endpoint: "minio:9000",
+        target_bucket: "hrms-backup",
+        target_prefix: "files",
+        target_secure: false,
+        notify_emails: null,
+        secret_source: "env",
+        source_configured: true,
+        target_configured: true,
+        last_validated_at: null,
+        last_validation_status: null,
+        last_validation_error: null,
+        created_at: "2026-07-14T01:00:00+07:00",
+        updated_at: "2026-07-14T01:00:00+07:00",
+      },
+    ],
+    latest_jobs: [
+      {
+        id: 501,
+        kind: "db",
+        trigger: "manual",
+        status: "failed",
+        artifact_key: null,
+        artifact_bucket: null,
+        artifact_size_bytes: null,
+        object_count: null,
+        started_at: "2026-07-14T01:01:00+07:00",
+        finished_at: "2026-07-14T01:02:00+07:00",
+        error_summary: "Không kết nối được đích sao lưu",
+        log_excerpt: null,
+        created_at: "2026-07-14T01:01:00+07:00",
+      },
+    ],
+    latest_restore_requests: [],
+  };
+
+  await login(page, ADMIN_EMAIL, ADMIN_PASSWORD);
+  await page.route("**/api/v1/backups/overview", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(fakeOverview),
+    });
+  });
+  await page.route("**/api/v1/backups/snapshots**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: "[]",
+    });
+  });
+
+  await openBackupCenter(page);
+
+  const latestStatus = page.getByTestId("latest-job-status");
+  await expect(latestStatus).toHaveText("Thất bại");
+  await expect(latestStatus).toHaveClass(/p-tag-danger/);
+});
+
 test("backup snapshots table uses the standard paginator", async ({ page }) => {
   const fakeSnapshots: BackupSnapshotSummary[] = Array.from({ length: 12 }, (_, index) => {
     const itemNumber = String(index + 1).padStart(2, "0");

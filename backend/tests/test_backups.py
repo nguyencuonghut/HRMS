@@ -1,6 +1,7 @@
 """Integration tests cho Backup & Restore Admin Console."""
 from __future__ import annotations
 
+from datetime import datetime
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
@@ -9,7 +10,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.core.config import settings
 from app.models.backup import BackupJob
-from app.services import backup_service
+from app.services import backup_notification_service, backup_service
 from app.services.backup_runner_service import BackupRunResult
 from app.services.restore_runner_service import RestoreRunResult, _prepare_sql_dump_for_restore
 
@@ -556,6 +557,74 @@ async def test_backup_runner_marks_job_success_with_artifact_metadata():
     assert row.started_at is not None
     assert row.finished_at is not None
     assert row.error_summary is None
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_backup_runner_sends_status_email_to_configured_recipients(monkeypatch):
+    notify_email = "backup-admin@hrms.local"
+    original_notify_emails: list[str] | None = None
+    sent_payloads: list[dict] = []
+
+    async def fake_send_status_email(_session, **payload):
+        sent_payloads.append(payload)
+        return {"status": "sent", "sent": payload["override_recipients"]}
+
+    monkeypatch.setattr(
+        backup_notification_service,
+        "send_backup_status_email",
+        fake_send_status_email,
+    )
+
+    async def create_job(session):
+        nonlocal original_notify_emails
+        config = await backup_service.get_backup_config_row(session, "object_storage")
+        original_notify_emails = list(config.notify_emails or []) if config.notify_emails else None
+        config.notify_emails = [notify_email]
+        session.add(config)
+        job = await backup_service.create_manual_backup_job(session, kind="object_storage", user_id=None)
+        await session.commit()
+        return job.id
+
+    job_id = await _with_isolated_session(create_job)
+
+    async def runner(_session, config, _now):
+        assert config.kind == "object_storage"
+        return BackupRunResult(
+            artifact_key="files/test-minio.tar.gz",
+            artifact_bucket="hrms-backup",
+            artifact_size_bytes=5678,
+            object_count=3,
+            log_excerpt="Đã tạo bản sao MinIO kiểm thử.",
+        )
+
+    async def run_job(session):
+        return await backup_service.run_backup_job(session, job_id=job_id, runner=runner)
+
+    async def restore_config(session):
+        config = await backup_service.get_backup_config_row(session, "object_storage")
+        config.notify_emails = original_notify_emails
+        session.add(config)
+        await session.commit()
+
+    try:
+        row = await _with_isolated_session(run_job)
+    finally:
+        await _with_isolated_session(restore_config)
+
+    assert row.status == "success"
+    assert sent_payloads
+    assert sent_payloads[0]["job_name"] == "Tệp tải lên trên MinIO"
+    assert sent_payloads[0]["status"] == "success"
+    assert sent_payloads[0]["started_at"].endswith("+07:00")
+    assert sent_payloads[0]["finished_at"].endswith("+07:00")
+    assert sent_payloads[0]["override_recipients"] == [notify_email]
+    assert "files/test-minio.tar.gz" in sent_payloads[0]["details"]
+
+
+def test_backup_notification_timestamp_uses_configured_timezone():
+    value = backup_service._notification_timestamp(datetime(2026, 7, 13, 18, 0, 0))
+
+    assert value == "2026-07-14T01:00:00+07:00"
 
 
 @pytest.mark.asyncio(loop_scope="session")

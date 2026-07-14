@@ -14,7 +14,7 @@ celery_app = Celery(
 )
 
 celery_app.conf.update(
-    timezone="Asia/Ho_Chi_Minh",
+    timezone=settings.APP_TIMEZONE,
     enable_utc=True,
     task_serializer="json",
     result_serializer="json",

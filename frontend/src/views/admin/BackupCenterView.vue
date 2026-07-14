@@ -43,7 +43,13 @@
         </div>
         <div class="backup-summary-item">
           <span class="summary-label">Tác vụ gần nhất</span>
-          <strong>{{ latestJobStatus }}</strong>
+          <Tag
+            data-testid="latest-job-status"
+            :value="latestJobStatus"
+            :severity="latestJobStatusSeverity"
+            rounded
+            class="summary-status-tag"
+          />
         </div>
       </section>
 
@@ -649,6 +655,10 @@ const latestJobStatus = computed(() => {
   const status = overview.value?.latest_jobs[0]?.status
   return status ? statusLabel(status) : 'Chưa có'
 })
+const latestJobStatusSeverity = computed(() => {
+  const status = overview.value?.latest_jobs[0]?.status
+  return status ? statusSeverity(status) : 'secondary'
+})
 const editDialogTitle = computed(() => (
   editingConfig.value ? `Sửa cấu hình sao lưu: ${editingConfig.value.kind_label}` : 'Sửa cấu hình sao lưu'
 ))
@@ -1249,6 +1259,13 @@ onBeforeUnmount(stopOverviewPolling)
 .backup-summary-item strong {
   font-size: 1.45rem;
   line-height: 1.1;
+}
+
+.summary-status-tag {
+  align-self: flex-start;
+  font-size: 0.95rem;
+  min-height: 2rem;
+  padding: 0.35rem 0.7rem;
 }
 
 .backup-section {
