@@ -7,7 +7,7 @@ import structlog
 
 logger = structlog.get_logger(__name__)
 import unicodedata
-from datetime import date
+from datetime import date, datetime
 from io import BytesIO
 from typing import Optional
 
@@ -395,7 +395,13 @@ async def process_import(session: AsyncSession, file_bytes: bytes) -> ImportResu
         if idx is None:
             return ""
         v = row_vals[idx] if idx < len(row_vals) else None
-        return str(v).strip() if v is not None else ""
+        if v is None:
+            return ""
+        if isinstance(v, datetime):
+            return v.strftime("%d/%m/%Y")
+        if isinstance(v, date):
+            return v.strftime("%d/%m/%Y")
+        return str(v).strip()
 
     if len(data_rows) > IMPORT_MAX_ROWS:
         raise ValueError(f"File có quá nhiều dòng. Tối đa {IMPORT_MAX_ROWS} dòng mỗi lần import.")
