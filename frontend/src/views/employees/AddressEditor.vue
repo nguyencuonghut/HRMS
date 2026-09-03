@@ -2,25 +2,21 @@
   <div class="address-editor">
     <template v-if="!editMode">
       <div v-if="initial" class="address-display">
-        <div class="address-text" v-if="initial.full_address_text">{{ initial.full_address_text }}</div>
-
-        <div class="system-block" v-if="hasOldAddress">
-          <div class="system-row">
-            <span class="label-chip">Hệ cũ</span>
-            <span class="unit-path">{{ oldAddressPath }}</span>
-          </div>
-          <div class="detail-line" v-if="initial.old_address_line">{{ initial.old_address_line }}</div>
+        <div class="addr-row" v-if="hasOldAddress">
+          <span class="label-chip">Hệ cũ</span>
+          <span class="info-value addr-text">
+            {{ oldAddressPath }}<template v-if="initial.old_address_line"> — {{ initial.old_address_line }}</template>
+          </span>
         </div>
 
-        <div class="system-block" v-if="hasNewAddress">
-          <div class="system-row">
-            <span class="label-chip is-new">Hệ mới</span>
-            <span class="unit-path">{{ newAddressPath }}</span>
-          </div>
-          <div class="detail-line" v-if="initial.new_address_line">{{ initial.new_address_line }}</div>
+        <div class="addr-row" v-if="hasNewAddress">
+          <span class="label-chip is-new">Hệ mới</span>
+          <span class="info-value addr-text">
+            {{ newAddressPath }}<template v-if="initial.new_address_line"> — {{ initial.new_address_line }}</template>
+          </span>
         </div>
 
-        <div v-if="!initial.full_address_text && !hasOldAddress && !hasNewAddress" class="empty-address">
+        <div v-if="!hasOldAddress && !hasNewAddress" class="empty-address">
           <i class="pi pi-map-marker" />
           <span>Chưa có địa chỉ</span>
         </div>
@@ -185,11 +181,13 @@ const props = defineProps<{
   disabled?: boolean
 }>()
 
-const emit = defineEmits<{ saved: [] }>()
+const emit = defineEmits<{ saved: []; 'edit-mode-change': [boolean] }>()
 
 const toast    = useToast()
 const editMode = ref(false)
 const saving   = ref(false)
+
+watch(editMode, (value) => emit('edit-mode-change', value))
 
 const hasOldAddress = computed(() =>
   !!(props.initial?.old_province_unit_id || props.initial?.old_address_line),
@@ -366,27 +364,17 @@ watch(() => props.initial, () => { editMode.value = false })
 .address-display {
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  gap: 0.5rem;
 }
 
-.address-text { font-size: 0.9rem; line-height: 1.5; }
-
-.system-block { display: flex; flex-direction: column; gap: 0.2rem; }
-
-.system-row {
+.addr-row {
   display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-size: 0.8rem;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-wrap: wrap;
 }
 
-.unit-path { color: var(--l-text-muted); }
-
-.detail-line {
-  font-size: 0.8rem;
-  color: var(--l-text-muted);
-  padding-left: 2.2rem;
-}
+.addr-text { line-height: 1.5; }
 
 .empty-address {
   display: flex;

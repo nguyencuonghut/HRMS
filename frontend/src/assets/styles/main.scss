@@ -965,9 +965,18 @@ $topbar-height: 4rem;
   }
 }
 
+.address-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.5rem 2rem;
+
+  @media (max-width: 900px) { grid-template-columns: 1fr; }
+}
+
 .address-section {
-  margin-bottom: 2rem;
   h4 { margin: 0 0 1rem; font-size: 1rem; font-weight: 600; }
+
+  &.full-span { grid-column: 1 / -1; }
 }
 
 .bank-section { padding: 0.5rem 0; }

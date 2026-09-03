@@ -379,25 +379,29 @@
               Tạo nhân viên trước, sau đó quay lại tab này để nhập địa chỉ.
             </div>
             <template v-else>
-              <div class="address-section">
-                <h4>Hộ khẩu thường trú</h4>
-                <AddressEditor
-                  :employee-id="employeeId!"
-                  address-type="permanent"
-                  :initial="permanentAddress"
-                  :disabled="viewOnly"
-                  @saved="loadAddresses"
-                />
-              </div>
-              <div class="address-section">
-                <h4>Địa chỉ liên lạc</h4>
-                <AddressEditor
-                  :employee-id="employeeId!"
-                  address-type="contact"
-                  :initial="contactAddress"
-                  :disabled="viewOnly"
-                  @saved="loadAddresses"
-                />
+              <div class="address-grid">
+                <div class="address-section" :class="{ 'full-span': permanentAddressEditing }">
+                  <h4>Hộ khẩu thường trú</h4>
+                  <AddressEditor
+                    :employee-id="employeeId!"
+                    address-type="permanent"
+                    :initial="permanentAddress"
+                    :disabled="viewOnly"
+                    @saved="loadAddresses"
+                    @edit-mode-change="permanentAddressEditing = $event"
+                  />
+                </div>
+                <div class="address-section" :class="{ 'full-span': contactAddressEditing }">
+                  <h4>Địa chỉ liên lạc</h4>
+                  <AddressEditor
+                    :employee-id="employeeId!"
+                    address-type="contact"
+                    :initial="contactAddress"
+                    :disabled="viewOnly"
+                    @saved="loadAddresses"
+                    @edit-mode-change="contactAddressEditing = $event"
+                  />
+                </div>
               </div>
             </template>
           </TabPanel>
@@ -664,6 +668,8 @@ const filteredPositions = ref<JobPositionListItem[]>([])
 
 const permanentAddress = computed(() => addresses.value.find(a => a.address_type === 'permanent') ?? null)
 const contactAddress   = computed(() => addresses.value.find(a => a.address_type === 'contact') ?? null)
+const permanentAddressEditing = ref(false)
+const contactAddressEditing   = ref(false)
 
 // ── Edit state ─────────────────────────────────────────────────────────────────
 const editing   = ref(false)
