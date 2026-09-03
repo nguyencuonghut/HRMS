@@ -534,7 +534,7 @@ def test_list_and_lookup_fall_back_to_department_code_when_prefix_missing(client
 
 
 @pytest.mark.asyncio
-async def test_prefixed_display_code_uses_four_digits_even_if_sequence_min_digits_is_higher(client: TestClient):
+async def test_prefixed_display_code_respects_sequence_min_digits_when_higher(client: TestClient):
     headers = _admin(client)
     id_number = "TEST999LOOKUP003"
     created = client.post(BASE, json=_valid_payload(id_number), headers=headers).json()
@@ -551,17 +551,17 @@ async def test_prefixed_display_code_uses_four_digits_even_if_sequence_min_digit
 
     detail_resp = client.get(f"{BASE}/{created['id']}", headers=headers)
     assert detail_resp.status_code == 200
-    assert detail_resp.json()["display_code"] == f"HC{created['employee_seq']:04d}"
+    assert detail_resp.json()["display_code"] == f"HC{created['employee_seq']:07d}"
 
     list_resp = client.get(f"{BASE}?keyword={id_number}", headers=headers)
     assert list_resp.status_code == 200
     list_item = next(item for item in list_resp.json()["items"] if item["id"] == created["id"])
-    assert list_item["display_code"] == f"HC{created['employee_seq']:04d}"
+    assert list_item["display_code"] == f"HC{created['employee_seq']:07d}"
 
     lookup_resp = client.get(f"{BASE}/lookup?keyword={id_number}", headers=headers)
     assert lookup_resp.status_code == 200
     lookup_item = next(item for item in lookup_resp.json() if item["id"] == created["id"])
-    assert lookup_item["display_code"] == f"HC{created['employee_seq']:04d}"
+    assert lookup_item["display_code"] == f"HC{created['employee_seq']:07d}"
 
 
 @pytest.mark.asyncio

@@ -35,12 +35,18 @@ IMPORT_COLUMNS = [
     "Mã NV hiện hữu",
     "Ngày bắt đầu thử việc",
     "Ngày kết thúc thử việc",
+    "Địa chỉ thường trú (Hệ mới 2 cấp)",
+    "Địa chỉ thường trú (Hệ cũ 3 cấp)",
+    "Địa chỉ liên lạc (Hệ mới 2 cấp)",
+    "Địa chỉ liên lạc (Hệ cũ 3 cấp)",
 ]
 
 REQUIRED_COLUMNS = {
     "Họ và tên", "Họ", "Tên", "Ngày sinh", "Giới tính",
     "Số CCCD/CMND", "Ngày cấp CCCD", "Nơi cấp CCCD",
     "Trạng thái", "Ngày vào làm",
+    "Địa chỉ thường trú (Hệ mới 2 cấp)",
+    "Địa chỉ liên lạc (Hệ mới 2 cấp)",
 }
 
 

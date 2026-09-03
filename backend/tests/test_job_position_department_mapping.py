@@ -142,6 +142,8 @@ def _make_import_row(*, suffix: str, department_code: str, position_name: str) -
             "Phòng ban": department_code,
             "Vị trí công việc": position_name,
             "Hệ mã nhân viên": "SYS1",
+            "Địa chỉ thường trú (Hệ mới 2 cấp)": "thôn Vạc, Phường An Bình, Thành phố Cần Thơ",
+            "Địa chỉ liên lạc (Hệ mới 2 cấp)": "thôn Vạc, Phường An Bình, Thành phố Cần Thơ",
         }
     )
     return [values[column] for column in IMPORT_COLUMNS]

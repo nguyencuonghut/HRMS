@@ -40,8 +40,9 @@ def _content_disposition(filename: str) -> str:
 )
 async def download_import_template(
     _: User = require_permission("employees:edit"),
+    session: AsyncSession = Depends(get_session),
 ):
-    content = generate_template()
+    content = await generate_template(session)
     return Response(
         content=content,
         media_type=_XLSX_MEDIA,

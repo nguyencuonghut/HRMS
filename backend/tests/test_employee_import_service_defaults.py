@@ -38,6 +38,10 @@ def _make_xlsx(rows: list[list[str]]) -> bytes:
     return buf.getvalue()
 
 
+VALID_NEW_ADDRESS = "thôn Vạc, Phường An Bình, Thành phố Cần Thơ"
+VALID_OLD_ADDRESS = "thôn Vạc, Xã Thạnh Phú, Huyện Cờ Đỏ, Thành phố Cần Thơ"
+
+
 def _make_import_row(
     *,
     id_number: str,
@@ -68,6 +72,8 @@ def _make_import_row(
             "Tôn giáo": religion,
             "Số thứ tự mã NV": employee_seq,
             "Mã NV hiện hữu": display_code,
+            "Địa chỉ thường trú (Hệ mới 2 cấp)": VALID_NEW_ADDRESS,
+            "Địa chỉ liên lạc (Hệ mới 2 cấp)": VALID_NEW_ADDRESS,
         }
     )
     return [values[column] for column in IMPORT_COLUMNS]
@@ -132,8 +138,15 @@ async def test_employee_import_defaults_nationality_to_vn():
         await engine.dispose()
 
 
-def test_employee_import_template_explains_employee_code_sequences():
-    workbook = openpyxl.load_workbook(io.BytesIO(generate_template()))
+@pytest.mark.asyncio
+async def test_employee_import_template_explains_employee_code_sequences():
+    engine, session_factory = _make_engine_and_sessionmaker()
+    try:
+        async with session_factory() as session:
+            content = await generate_template(session)
+    finally:
+        await engine.dispose()
+    workbook = openpyxl.load_workbook(io.BytesIO(content))
     guide = workbook["Hướng dẫn"]
 
     sequence_row = None

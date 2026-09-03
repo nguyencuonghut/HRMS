@@ -87,6 +87,9 @@ def _make_xlsx(rows: list[list]) -> bytes:
     return buf.getvalue()
 
 
+_VALID_NEW_ADDRESS = "thôn Vạc, Phường An Bình, Thành phố Cần Thơ"
+
+
 def _valid_row(suffix: str, dept_code: str = "", sequence_code: str = "SYS1") -> list:
     today = date.today()
     return [
@@ -101,6 +104,8 @@ def _valid_row(suffix: str, dept_code: str = "", sequence_code: str = "SYS1") ->
         sequence_code,
         "", "",
         "", "",
+        _VALID_NEW_ADDRESS, "",
+        _VALID_NEW_ADDRESS, "",
     ]
 
 

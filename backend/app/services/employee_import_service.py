@@ -11,18 +11,20 @@ from datetime import date, datetime
 from io import BytesIO
 from typing import Optional
 
+from fastapi import HTTPException
 from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from app.core.encryption import hash_sensitive
-from app.models.catalog import Ethnicity, Nationality, Religion
+from app.models.catalog import AdministrativeHierarchy, AdministrativeUnit, Ethnicity, Nationality, Religion
 from app.models.employee import Employee
 from app.models.employee_code import EmployeeCodeSequence
 from app.models.org import Department, DepartmentJobPosition, JobPosition, JobTitle
-from app.schemas.employee import EmployeeCreate
+from app.schemas.employee import EmployeeAddressWrite, EmployeeCreate
 from app.schemas.employee_import import (
     GENDER_MAP,
     IMPORT_COLUMNS,
@@ -32,14 +34,75 @@ from app.schemas.employee_import import (
     ImportResult,
     ImportRowError,
 )
-from app.services import employee_service
+from app.services import administrative_unit_service, employee_service
 from app.services.employee_code_service import compute_employee_display_code
 from app.services.import_excel_helper import extract_header_and_non_blank_rows
 
 
 # ── Template generation ───────────────────────────────────────────────────────
 
-def generate_template() -> bytes:
+async def _fetch_new_system_rows(session: AsyncSession) -> list[tuple[str, str]]:
+    Province = aliased(AdministrativeUnit)
+    Ward = aliased(AdministrativeUnit)
+    q = (
+        select(Province.name, Ward.name)
+        .select_from(AdministrativeHierarchy)
+        .join(Province, Province.id == AdministrativeHierarchy.parent_unit_id)
+        .join(Ward, Ward.id == AdministrativeHierarchy.child_unit_id)
+        .where(
+            AdministrativeHierarchy.system_type == "new",
+            AdministrativeHierarchy.is_active == True,
+            Province.is_active == True,
+            Ward.is_active == True,
+        )
+        .order_by(Province.name, Ward.name)
+    )
+    return list((await session.execute(q)).all())
+
+
+async def _fetch_old_system_rows(session: AsyncSession) -> list[tuple[str, str, str]]:
+    h_province_district = aliased(AdministrativeHierarchy)
+    h_district_ward = aliased(AdministrativeHierarchy)
+    Province = aliased(AdministrativeUnit)
+    District = aliased(AdministrativeUnit)
+    Ward = aliased(AdministrativeUnit)
+    q = (
+        select(Province.name, District.name, Ward.name)
+        .select_from(h_province_district)
+        .join(h_district_ward, h_district_ward.parent_unit_id == h_province_district.child_unit_id)
+        .join(Province, Province.id == h_province_district.parent_unit_id)
+        .join(District, District.id == h_province_district.child_unit_id)
+        .join(Ward, Ward.id == h_district_ward.child_unit_id)
+        .where(
+            h_province_district.system_type == "old",
+            h_district_ward.system_type == "old",
+            h_province_district.is_active == True,
+            h_district_ward.is_active == True,
+            Province.is_active == True,
+            District.is_active == True,
+            Ward.is_active == True,
+        )
+        .order_by(Province.name, District.name, Ward.name)
+    )
+    return list((await session.execute(q)).all())
+
+
+def _build_reference_sheet(wb: Workbook, title: str, headers: list[str], rows: list[tuple]) -> None:
+    ws = wb.create_sheet(title)
+    header_fill = PatternFill("solid", fgColor="4B6B8A")
+    header_font = Font(color="FFFFFF", bold=True)
+    for col_idx, name in enumerate(headers, start=1):
+        cell = ws.cell(row=1, column=col_idx, value=name)
+        cell.font = header_font
+        cell.fill = header_fill
+    for row in rows:
+        ws.append(list(row))
+    for i in range(1, len(headers) + 1):
+        ws.column_dimensions[ws.cell(row=1, column=i).column_letter].width = 28
+    ws.freeze_panes = "A2"
+
+
+async def generate_template(session: AsyncSession) -> bytes:
     wb = Workbook()
 
     # Sheet 1: Data
@@ -67,12 +130,16 @@ def generate_template() -> bytes:
         "1234567890", "BHXH123456", "Việt Nam", "Kinh", "Không",
         "HC", "Chuyên viên nhân sự", "", "SYS1", "1024", "HC1024",
         "01/01/2026", "31/03/2026",
+        "thôn Vạc, Xã Đường An, Thành phố Hải Phòng",
+        "thôn Vạc, Xã Thái Học, Huyện Bình Giang, Tỉnh Hải Dương",
+        "Số 12, Xã Đường An, Thành phố Hải Phòng",
+        "",
     ]
     for col_idx, val in enumerate(sample, start=1):
         ws.cell(row=2, column=col_idx, value=val)
 
     # Column widths
-    widths = [20, 12, 12, 14, 10, 16, 14, 24, 12, 14, 14, 22, 14, 14, 16, 16, 16, 14, 22, 22, 18, 16, 18, 20, 20]
+    widths = [20, 12, 12, 14, 10, 16, 14, 24, 12, 14, 14, 22, 14, 14, 16, 16, 16, 14, 22, 22, 18, 16, 18, 20, 20, 45, 55, 45, 55]
     for i, w in enumerate(widths, start=1):
         ws.column_dimensions[ws.cell(row=1, column=i).column_letter].width = w
 
@@ -112,9 +179,36 @@ def generate_template() -> bytes:
         ["Mã NV hiện hữu", "", "Dùng để đối chiếu. Hệ thống sẽ báo lỗi nếu mã tính ra không khớp", "HC1024"],
         ["Ngày bắt đầu thử việc", "", "Định dạng dd/mm/yyyy", "01/01/2026"],
         ["Ngày kết thúc thử việc", "", "Định dạng dd/mm/yyyy", "31/03/2026"],
+        [
+            "Địa chỉ thường trú (Hệ mới 2 cấp)",
+            "✅",
+            "Các phần cách nhau bởi dấu phẩy, theo thứ tự: chi tiết (số nhà/thôn xóm), Xã/Phường, Tỉnh/Thành. "
+            "PHẢI copy đúng chính tả tên Xã/Phường và Tỉnh/Thành từ sheet 'DM Hệ mới'.",
+            "thôn Vạc, Xã Đường An, Thành phố Hải Phòng",
+        ],
+        [
+            "Địa chỉ thường trú (Hệ cũ 3 cấp)",
+            "",
+            "Tùy chọn — để trống nếu không có địa chỉ hệ cũ. Nếu điền thì phải đủ 3 cấp, cách nhau bởi dấu phẩy: "
+            "chi tiết, Xã/Phường, Huyện/Quận, Tỉnh/Thành. PHẢI copy đúng chính tả từ sheet 'DM Hệ cũ'.",
+            "thôn Vạc, Xã Thái Học, Huyện Bình Giang, Tỉnh Hải Dương",
+        ],
+        [
+            "Địa chỉ liên lạc (Hệ mới 2 cấp)",
+            "✅",
+            "Địa chỉ liên lạc/tạm trú — cùng định dạng và quy tắc với 'Địa chỉ thường trú (Hệ mới 2 cấp)'.",
+            "Số 12, Xã Đường An, Thành phố Hải Phòng",
+        ],
+        [
+            "Địa chỉ liên lạc (Hệ cũ 3 cấp)",
+            "",
+            "Địa chỉ liên lạc/tạm trú hệ cũ — tùy chọn, cùng quy tắc với 'Địa chỉ thường trú (Hệ cũ 3 cấp)'.",
+            "",
+        ],
         [],
         ["LƯU Ý:", "", "Cột header màu xanh đậm = bắt buộc; xanh nhạt = không bắt buộc. Dòng trống sẽ bị bỏ qua.", ""],
         ["", "", f"Tối đa {IMPORT_MAX_ROWS} dòng dữ liệu mỗi lần import.", ""],
+        ["", "", "Tên Tỉnh/Huyện/Xã phải khớp chính xác (không phân biệt hoa/thường, có dấu/không dấu) với danh mục ở sheet 'DM Hệ mới' và 'DM Hệ cũ'.", ""],
     ]
     for row in guide_rows:
         guide.append(row)
@@ -124,6 +218,14 @@ def generate_template() -> bytes:
     guide.column_dimensions["D"].width = 30
     for cell in guide["1"]:
         cell.font = Font(bold=True)
+
+    # Sheet 3: Danh mục địa chỉ hệ mới (tham chiếu)
+    new_rows = await _fetch_new_system_rows(session)
+    _build_reference_sheet(wb, "DM Hệ mới", ["Tỉnh/Thành phố", "Xã/Phường"], new_rows)
+
+    # Sheet 4: Danh mục địa chỉ hệ cũ (tham chiếu)
+    old_rows = await _fetch_old_system_rows(session)
+    _build_reference_sheet(wb, "DM Hệ cũ", ["Tỉnh/Thành phố", "Huyện/Quận", "Xã/Phường"], old_rows)
 
     buf = BytesIO()
     wb.save(buf)
@@ -136,6 +238,162 @@ def _norm(s: str) -> str:
     """Chuẩn hoá Unicode NFC, bỏ dấu, lowercase — dùng để tra cứu fuzzy."""
     nfkd = unicodedata.normalize("NFKD", s)
     return "".join(c for c in nfkd if not unicodedata.combining(c)).lower().strip()
+
+
+# ── Địa chỉ (thường trú / liên lạc) ────────────────────────────────────────────
+
+def _split_address_text(raw: str, admin_levels: int) -> tuple[str, list[str]]:
+    """Tách chuỗi địa chỉ tự do theo dấu phẩy, lấy N phần cuối làm địa danh.
+
+    Tách từ phải sang trái để phần chi tiết (số nhà/thôn xóm) có chứa dấu phẩy
+    không làm lệch vị trí các cấp hành chính.
+    """
+    parts = [p.strip() for p in raw.split(",") if p.strip()]
+    if len(parts) < admin_levels:
+        raise ValueError(
+            f"Địa chỉ cần tối thiểu {admin_levels} phần cách nhau bởi dấu phẩy, "
+            f"chỉ thấy {len(parts)} phần: '{raw}'"
+        )
+    admin_parts = parts[-admin_levels:]
+    detail = ", ".join(parts[:-admin_levels])
+    return detail, admin_parts
+
+
+async def _find_province_exact(
+    session: AsyncSession, system_type: str, name: str
+) -> Optional[AdministrativeUnit]:
+    candidates = await administrative_unit_service.list_provinces(session, system_type=system_type)
+    target = _norm(name)
+    for c in candidates:
+        if _norm(c.name) == target:
+            return c
+    return None
+
+
+async def _find_child_exact(
+    session: AsyncSession, system_type: str, parent_id: int, name: str
+) -> Optional[AdministrativeUnit]:
+    candidates = await administrative_unit_service.list_children(
+        session, system_type=system_type, parent_id=parent_id
+    )
+    target = _norm(name)
+    for c in candidates:
+        if _norm(c.name) == target:
+            return c
+    return None
+
+
+async def _resolve_address_column(
+    session: AsyncSession,
+    raw_text: str,
+    *,
+    system_type: str,
+    admin_levels: int,
+    column_name: str,
+    excel_row: int,
+    errors: list[ImportRowError],
+) -> Optional[dict]:
+    """Parse + resolve 1 cột địa chỉ tự do thành các field id/text của EmployeeAddress."""
+    raw_text = (raw_text or "").strip()
+    if not raw_text:
+        return None
+
+    try:
+        detail, admin_parts = _split_address_text(raw_text, admin_levels)
+    except ValueError as exc:
+        errors.append(ImportRowError(row=excel_row, column=column_name, message=str(exc)))
+        return None
+
+    sheet_name = "DM Hệ mới" if system_type == "new" else "DM Hệ cũ"
+
+    if admin_levels == 2:
+        ward_name, province_name = admin_parts
+        province = await _find_province_exact(session, system_type, province_name)
+        if not province:
+            errors.append(ImportRowError(
+                row=excel_row, column=column_name,
+                message=f"Không tìm thấy tỉnh/thành '{province_name}' — chuỗi gốc: '{raw_text}'. Đối chiếu sheet '{sheet_name}'.",
+            ))
+            return None
+        ward = await _find_child_exact(session, system_type, province.id, ward_name)
+        if not ward:
+            errors.append(ImportRowError(
+                row=excel_row, column=column_name,
+                message=f"Không tìm thấy xã/phường '{ward_name}' thuộc tỉnh '{province.name}' — chuỗi gốc: '{raw_text}'. Đối chiếu sheet '{sheet_name}'.",
+            ))
+            return None
+        return {
+            "province_unit_id": province.id,
+            "ward_unit_id": ward.id,
+            "address_line": detail or None,
+        }
+
+    # Hệ cũ — 3 cấp: xã, huyện, tỉnh
+    ward_name, district_name, province_name = admin_parts
+    province = await _find_province_exact(session, system_type, province_name)
+    if not province:
+        errors.append(ImportRowError(
+            row=excel_row, column=column_name,
+            message=f"Không tìm thấy tỉnh/thành '{province_name}' — chuỗi gốc: '{raw_text}'. Đối chiếu sheet '{sheet_name}'.",
+        ))
+        return None
+    district = await _find_child_exact(session, system_type, province.id, district_name)
+    if not district:
+        errors.append(ImportRowError(
+            row=excel_row, column=column_name,
+            message=f"Không tìm thấy huyện/quận '{district_name}' thuộc tỉnh '{province.name}' — chuỗi gốc: '{raw_text}'. Đối chiếu sheet '{sheet_name}'.",
+        ))
+        return None
+    ward = await _find_child_exact(session, system_type, district.id, ward_name)
+    if not ward:
+        errors.append(ImportRowError(
+            row=excel_row, column=column_name,
+            message=f"Không tìm thấy xã/phường '{ward_name}' thuộc huyện '{district.name}' — chuỗi gốc: '{raw_text}'. Đối chiếu sheet '{sheet_name}'.",
+        ))
+        return None
+    return {
+        "province_unit_id": province.id,
+        "district_unit_id": district.id,
+        "ward_unit_id": ward.id,
+        "address_line": detail or None,
+    }
+
+
+async def _build_address_payload(
+    session: AsyncSession,
+    *,
+    address_type: str,
+    new_raw: str,
+    old_raw: str,
+    new_column_name: str,
+    old_column_name: str,
+    excel_row: int,
+    errors: list[ImportRowError],
+) -> Optional[EmployeeAddressWrite]:
+    new_resolved = await _resolve_address_column(
+        session, new_raw, system_type="new", admin_levels=2,
+        column_name=new_column_name, excel_row=excel_row, errors=errors,
+    )
+    if not (new_raw or "").strip():
+        errors.append(ImportRowError(row=excel_row, column=new_column_name, message="Trường bắt buộc không được để trống"))
+    if new_resolved is None:
+        return None
+
+    old_resolved = await _resolve_address_column(
+        session, old_raw, system_type="old", admin_levels=3,
+        column_name=old_column_name, excel_row=excel_row, errors=errors,
+    )
+
+    return EmployeeAddressWrite(
+        address_type=address_type,
+        new_province_unit_id=new_resolved["province_unit_id"],
+        new_ward_unit_id=new_resolved["ward_unit_id"],
+        new_address_line=new_resolved["address_line"],
+        old_province_unit_id=old_resolved["province_unit_id"] if old_resolved else None,
+        old_district_unit_id=old_resolved["district_unit_id"] if old_resolved else None,
+        old_ward_unit_id=old_resolved["ward_unit_id"] if old_resolved else None,
+        old_address_line=old_resolved["address_line"] if old_resolved else None,
+    )
 
 
 def _parse_date(val: str, col: str, row: int, errors: list[ImportRowError]) -> Optional[date]:
@@ -468,6 +726,10 @@ async def process_import(session: AsyncSession, file_bytes: bytes) -> ImportResu
         sequence_raw = get(row_vals, "Hệ mã nhân viên")
         employee_seq_raw = get(row_vals, "Số thứ tự mã NV")
         display_code_raw = get(row_vals, "Mã NV hiện hữu")
+        permanent_new_raw = get(row_vals, "Địa chỉ thường trú (Hệ mới 2 cấp)")
+        permanent_old_raw = get(row_vals, "Địa chỉ thường trú (Hệ cũ 3 cấp)")
+        contact_new_raw   = get(row_vals, "Địa chỉ liên lạc (Hệ mới 2 cấp)")
+        contact_old_raw   = get(row_vals, "Địa chỉ liên lạc (Hệ cũ 3 cấp)")
         employee_seq = _parse_positive_int(
             employee_seq_raw,
             "Số thứ tự mã NV",
@@ -599,6 +861,32 @@ async def process_import(session: AsyncSession, file_bytes: bytes) -> ImportResu
                 failed += 1
                 continue
 
+        addr_errors: list[ImportRowError] = []
+        permanent_payload = await _build_address_payload(
+            session,
+            address_type="permanent",
+            new_raw=permanent_new_raw,
+            old_raw=permanent_old_raw,
+            new_column_name="Địa chỉ thường trú (Hệ mới 2 cấp)",
+            old_column_name="Địa chỉ thường trú (Hệ cũ 3 cấp)",
+            excel_row=excel_row,
+            errors=addr_errors,
+        )
+        contact_payload = await _build_address_payload(
+            session,
+            address_type="contact",
+            new_raw=contact_new_raw,
+            old_raw=contact_old_raw,
+            new_column_name="Địa chỉ liên lạc (Hệ mới 2 cấp)",
+            old_column_name="Địa chỉ liên lạc (Hệ cũ 3 cấp)",
+            excel_row=excel_row,
+            errors=addr_errors,
+        )
+        if addr_errors:
+            errors.extend(addr_errors)
+            failed += 1
+            continue
+
         # ── Create employee ───────────────────────────────────────────
         try:
             payload = EmployeeCreate(
@@ -629,6 +917,8 @@ async def process_import(session: AsyncSession, file_bytes: bytes) -> ImportResu
                 initial_probation_end_date=prob_end,
             )
             emp = await employee_service.create_employee(session, payload)
+            await employee_service.upsert_employee_address(session, emp.id, permanent_payload)
+            await employee_service.upsert_employee_address(session, emp.id, contact_payload)
 
             await session.commit()
             created_ids.append(emp.id)
@@ -637,6 +927,11 @@ async def process_import(session: AsyncSession, file_bytes: bytes) -> ImportResu
         except IntegrityError:
             await session.rollback()
             errors.append(ImportRowError(row=excel_row, column="Số CCCD/CMND", message=f"Số CCCD/CMND '{id_number}' bị trùng (race condition)"))
+            failed += 1
+        except HTTPException as exc:
+            await session.rollback()
+            column = "Vị trí công việc" if "vị trí công việc" in str(exc.detail).lower() else "—"
+            errors.append(ImportRowError(row=excel_row, column=column, message=str(exc.detail)))
             failed += 1
         except Exception as exc:
             await session.rollback()

@@ -3,7 +3,10 @@ from __future__ import annotations
 from io import BytesIO
 
 import openpyxl
+import pytest
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
+from app.core.config import settings
 from app.services import (
     contract_import_service,
     department_import_service,
@@ -13,6 +16,11 @@ from app.services import (
     job_title_import_service,
     leave_record_import_service,
 )
+
+
+def _make_engine_and_sessionmaker():
+    engine = create_async_engine(settings.DATABASE_URL, connect_args={"ssl": False})
+    return engine, async_sessionmaker(engine, expire_on_commit=False)
 
 
 def _font_rgb(cell) -> str | None:
@@ -93,9 +101,16 @@ def test_insurance_template_optional_headers_use_dark_text():
     )
 
 
-def test_employee_template_optional_headers_use_dark_text():
+@pytest.mark.asyncio
+async def test_employee_template_optional_headers_use_dark_text():
+    engine, session_factory = _make_engine_and_sessionmaker()
+    try:
+        async with session_factory() as session:
+            content = await employee_import_service.generate_template(session)
+    finally:
+        await engine.dispose()
     _assert_header_colors(
-        employee_import_service.generate_template(),
+        content,
         required_col=1,
         optional_col=11,
     )
