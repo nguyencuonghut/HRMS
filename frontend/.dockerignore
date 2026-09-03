@@ -1,0 +1,27 @@
+# node_modules của máy dev KHÔNG được copy đè lên node_modules vừa `npm ci`
+# trong image (khác OS/arch → lỗi binary native, đồng thời context rất nặng)
+node_modules/
+
+# Build output cũ trên máy dev
+dist/
+dist_owned_by_nobody_backup/
+.vite-verify-cache/
+
+# Git
+.git
+.gitignore
+
+# Test artifacts
+playwright-report/
+test-results/
+tests/
+.tmp-playwright-verify.config.ts
+.tmp-vite-verify.config.ts
+
+# Env/secrets
+.env
+.env.*
+
+# IDE
+.idea/
+.vscode/

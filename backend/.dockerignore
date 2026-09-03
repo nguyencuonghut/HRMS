@@ -1,0 +1,35 @@
+# Secrets — KHÔNG BAO GIỜ được copy vào image
+.env
+.env.*
+!.env.example
+
+# Git
+.git
+.gitignore
+
+# Python dev/venv
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Test/lint/coverage artifacts
+.pytest_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+.coverage.*
+debug_traceback.txt
+
+# pip/tool caches (Docker bind-mount artifacts trên máy dev)
+.cache/
+.local/
+
+# Celery runtime state (tự sinh lại khi chạy)
+celerybeat-schedule
+celerybeat.pid
+
+# IDE
+.idea/
+.vscode/

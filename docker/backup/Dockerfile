@@ -1,10 +1,19 @@
+# syntax=docker/dockerfile:1
 FROM python:3.12-slim
 
 ENV DEBIAN_FRONTEND=noninteractive
 
 WORKDIR /app
 
-RUN apt-get update && \
+# Nguồn apt mặc định (deb.debian.org qua HTTP) bị mạng VN chặn/rất chậm —
+# xem giải thích chi tiết trong backend/Dockerfile.
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    sed -i \
+        -e 's|URIs: http://deb.debian.org/debian$|URIs: https://mirror.bizflycloud.vn/debian|' \
+        -e 's|URIs: http://deb.debian.org/debian-security$|URIs: https://deb.debian.org/debian-security|' \
+        /etc/apt/sources.list.d/*.sources && \
+    apt-get update && \
     apt-get install -y --no-install-recommends \
       bash \
       ca-certificates \
@@ -12,11 +21,11 @@ RUN apt-get update && \
       gcc \
       libpq-dev \
       postgresql-client \
-      procps && \
-    rm -rf /var/lib/apt/lists/*
+      procps
 
 COPY backend/requirements.txt /app/requirements.txt
-RUN pip install --no-cache-dir -r /app/requirements.txt
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install -r /app/requirements.txt
 
 COPY backend/app /app/app
 COPY scripts/backup_db.sh /scripts/backup_db.sh

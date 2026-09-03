@@ -509,6 +509,13 @@ Lưu ý:
 
 - backend image phải được build lại sau mỗi lần thay đổi dependency Python
 - nếu trước đó đã build một image cũ thiếu `gunicorn`, cần rebuild lại backend image trước khi `docker compose up -d`
+- **Tốc độ build:** `deb.debian.org` (nguồn apt mặc định của base image) bị mạng VN chặn/rất chậm ở port 80 —
+  `backend/Dockerfile`, `docker/backup/Dockerfile` đã trỏ archive chính sang mirror đặt tại VN
+  (`mirror.bizflycloud.vn`) + cache mount cho apt/pip, `frontend/Dockerfile` cache mount cho npm.
+  Vì vậy **không chạy `docker builder prune` / `docker system prune -a`** trên server này — lệnh đó xoá
+  cache BuildKit, khiến lần build kế tiếp phải tải lại toàn bộ package dù code Python/JS không đổi.
+  Docker CE (đã cài `docker-buildx-plugin` ở bước 2) dùng BuildKit làm builder mặc định nên cache mount
+  hoạt động ngay không cần cấu hình thêm.
 
 Kiểm tra image đã có:
 

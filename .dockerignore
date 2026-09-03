@@ -1,0 +1,33 @@
+# Dùng khi build với context "." (ví dụ docker/backup/Dockerfile).
+# Không loại các thư mục con của backend/frontend ở đây — mỗi thư mục đó
+# đã có .dockerignore riêng áp dụng khi build với context ./backend, ./frontend.
+
+.git
+.gitignore
+
+# Frontend — không cần cho backend/backup image, rất nặng (node_modules)
+frontend/node_modules/
+frontend/dist/
+frontend/dist_owned_by_nobody_backup/
+
+# Backend dev/test artifacts
+backend/.venv/
+backend/.pytest_cache/
+backend/.ruff_cache/
+backend/htmlcov/
+backend/.coverage
+backend/.coverage.*
+backend/.cache/
+backend/.local/
+
+# Secrets
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+
+# IDE
+.idea/
+.vscode/
