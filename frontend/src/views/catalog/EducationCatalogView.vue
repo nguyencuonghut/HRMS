@@ -241,6 +241,15 @@
                 v-tooltip.top="'Làm mới danh sách trường học'"
                 @click="loadInstitutions"
               />
+              <Button
+                label="Export"
+                icon="pi pi-file-export"
+                severity="secondary"
+                outlined
+                :loading="exportingInstitutions"
+                v-tooltip.top="'Xuất danh sách trường học ra Excel'"
+                @click="exportInstitutions"
+              />
             </div>
 
             <DataTable
@@ -349,6 +358,15 @@
                 :loading="majorState.loading"
                 v-tooltip.top="'Làm mới danh sách chuyên ngành'"
                 @click="loadMajors"
+              />
+              <Button
+                label="Export"
+                icon="pi pi-file-export"
+                severity="secondary"
+                outlined
+                :loading="exportingMajors"
+                v-tooltip.top="'Xuất danh sách chuyên ngành ra Excel'"
+                @click="exportMajors"
               />
             </div>
 
@@ -653,6 +671,9 @@ const majorState = ref<BaseListState<EducationMajorRead> & {
   group: null,
 })
 
+const exportingInstitutions = ref(false)
+const exportingMajors = ref(false)
+
 const levelForm = ref<LevelFormState>({
   code: '',
   name: '',
@@ -826,6 +847,37 @@ async function loadMajors() {
     toast.add({ severity: 'error', summary: 'Lỗi', detail: apiError(error), life: 4000 })
   } finally {
     majorState.value.loading = false
+  }
+}
+
+async function exportInstitutions() {
+  exportingInstitutions.value = true
+  try {
+    await educationCatalogService.exportEducationalInstitutions({
+      keyword: institutionState.value.keyword.trim() || null,
+      institution_type: institutionState.value.type,
+      country_code: institutionState.value.countryCode.trim() || null,
+      is_active: institutionState.value.isActive,
+    })
+  } catch (error) {
+    toast.add({ severity: 'error', summary: 'Lỗi', detail: apiError(error), life: 4000 })
+  } finally {
+    exportingInstitutions.value = false
+  }
+}
+
+async function exportMajors() {
+  exportingMajors.value = true
+  try {
+    await educationCatalogService.exportEducationMajors({
+      keyword: majorState.value.keyword.trim() || null,
+      major_group: majorState.value.group,
+      is_active: majorState.value.isActive,
+    })
+  } catch (error) {
+    toast.add({ severity: 'error', summary: 'Lỗi', detail: apiError(error), life: 4000 })
+  } finally {
+    exportingMajors.value = false
   }
 }
 

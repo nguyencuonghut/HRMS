@@ -1,6 +1,8 @@
+import unicodedata
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import get_current_active_user, require_permission
@@ -20,7 +22,19 @@ from app.schemas.catalog import (
     EducationalInstitutionRead,
     EducationalInstitutionUpdate,
 )
-from app.services import auth_service, education_catalog_service
+from app.services import auth_service, education_catalog_export_service, education_catalog_service
+
+_XLSX_MEDIA = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+
+def _content_disposition(filename: str) -> str:
+    encoded = unicodedata.normalize("NFC", filename)
+    try:
+        encoded.encode("latin-1")
+        return f'attachment; filename="{encoded}"'
+    except (UnicodeEncodeError, ValueError):
+        from urllib.parse import quote
+        return f"attachment; filename*=UTF-8''{quote(encoded)}"
 
 level_router = APIRouter()
 institution_router = APIRouter()
@@ -184,6 +198,32 @@ async def create_educational_institution(
     return row
 
 
+@institution_router.get("/export", summary="Export danh sách trường học ra Excel")
+async def export_educational_institutions(
+    keyword: Optional[str] = Query(None),
+    institution_type: Optional[str] = Query(None),
+    country_code: Optional[str] = Query(None),
+    is_active: Optional[bool] = Query(None),
+    _: User = require_permission("catalog:view"),
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    try:
+        content = await education_catalog_export_service.export_institutions(
+            session,
+            keyword=keyword,
+            institution_type=institution_type,
+            country_code=country_code,
+            is_active=is_active,
+        )
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    return Response(
+        content=content,
+        media_type=_XLSX_MEDIA,
+        headers={"Content-Disposition": _content_disposition("danh_sach_truong_hoc.xlsx")},
+    )
+
+
 @institution_router.get("/{institution_id}", response_model=EducationalInstitutionRead, summary="Chi tiết trường học")
 async def get_educational_institution(
     institution_id: int,
@@ -302,6 +342,30 @@ async def create_education_major(
     await session.commit()
     await session.refresh(row)
     return row
+
+
+@major_router.get("/export", summary="Export danh sách chuyên ngành ra Excel")
+async def export_education_majors(
+    keyword: Optional[str] = Query(None),
+    major_group: Optional[str] = Query(None),
+    is_active: Optional[bool] = Query(None),
+    _: User = require_permission("catalog:view"),
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    try:
+        content = await education_catalog_export_service.export_majors(
+            session,
+            keyword=keyword,
+            major_group=major_group,
+            is_active=is_active,
+        )
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    return Response(
+        content=content,
+        media_type=_XLSX_MEDIA,
+        headers={"Content-Disposition": _content_disposition("danh_sach_chuyen_nganh.xlsx")},
+    )
 
 
 @major_router.get("/{major_id}", response_model=EducationMajorRead, summary="Chi tiết chuyên ngành")

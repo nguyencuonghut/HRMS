@@ -102,6 +102,16 @@ export interface EducationMajorUpdate {
   is_active?: boolean
 }
 
+async function downloadBlob(url: string, params: Record<string, unknown> | undefined, filename: string) {
+  const res = await api.get(url, { params, responseType: 'blob' })
+  const href = URL.createObjectURL(res.data)
+  const a = document.createElement('a')
+  a.href = href
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(href)
+}
+
 export default {
   getEducationLevels: (params?: {
     keyword?: string | null
@@ -143,6 +153,13 @@ export default {
   deleteEducationalInstitution: (id: number) =>
     api.delete<{ message: string }>(`/educational-institutions/${id}`),
 
+  exportEducationalInstitutions: (params?: {
+    keyword?: string | null
+    institution_type?: string | null
+    country_code?: string | null
+    is_active?: boolean | null
+  }) => downloadBlob('/educational-institutions/export', params, 'danh_sach_truong_hoc.xlsx'),
+
   getEducationMajors: (params?: {
     keyword?: string | null
     major_group?: string | null
@@ -162,6 +179,12 @@ export default {
 
   deleteEducationMajor: (id: number) =>
     api.delete<{ message: string }>(`/education-majors/${id}`),
+
+  exportEducationMajors: (params?: {
+    keyword?: string | null
+    major_group?: string | null
+    is_active?: boolean | null
+  }) => downloadBlob('/education-majors/export', params, 'danh_sach_chuyen_nganh.xlsx'),
 
   lookupEducationLevels: (params?: {
     keyword?: string | null

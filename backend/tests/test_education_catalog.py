@@ -1,3 +1,5 @@
+import io
+
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -252,4 +254,35 @@ def test_officer_can_view_and_edit_but_not_delete_catalog_rows(client: TestClien
 
 def test_education_catalog_admin_endpoints_require_token(client: TestClient):
     resp = client.get(INSTITUTION_BASE)
+    assert resp.status_code == 401
+
+
+def test_export_educational_institutions_returns_xlsx(client: TestClient):
+    import openpyxl
+
+    resp = client.get(f"{INSTITUTION_BASE}/export", headers=_admin(client))
+    assert resp.status_code == 200, resp.text
+    assert "spreadsheetml" in resp.headers["content-type"]
+    wb = openpyxl.load_workbook(io.BytesIO(resp.content))
+    ws = wb.active
+    assert ws.title == "Trường học"
+    assert [c.value for c in ws[1]] == [
+        "Mã trường", "Tên trường", "Tên viết tắt", "Loại hình", "Mã quốc gia", "Mã tỉnh/thành", "Trạng thái",
+    ]
+
+
+def test_export_education_majors_returns_xlsx(client: TestClient):
+    import openpyxl
+
+    resp = client.get(f"{MAJOR_BASE}/export", headers=_admin(client))
+    assert resp.status_code == 200, resp.text
+    assert "spreadsheetml" in resp.headers["content-type"]
+    wb = openpyxl.load_workbook(io.BytesIO(resp.content))
+    ws = wb.active
+    assert ws.title == "Chuyên ngành"
+    assert [c.value for c in ws[1]] == ["Mã chuyên ngành", "Tên chuyên ngành", "Nhóm ngành", "Trạng thái"]
+
+
+def test_export_educational_institutions_requires_token(client: TestClient):
+    resp = client.get(f"{INSTITUTION_BASE}/export")
     assert resp.status_code == 401
