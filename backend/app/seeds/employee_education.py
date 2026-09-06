@@ -25,15 +25,17 @@ async def seed_sample_education(session: AsyncSession) -> dict:
     }
 
     # ── 1. Học vấn ────────────────────────────────────────────────────────────
-    # (employee_id_number, institution_id, institution_name, major_id, major_name,
-    #  level_id, grad_year, diploma_type, is_main)
+    # Tra cứu institution/major/level theo MÃ (code) thay vì id cứng — id tự tăng
+    # có thể lệch giữa các môi trường tuỳ lịch sử insert/delete của danh mục.
+    # (employee_id_number, institution_code, institution_name, major_code, major_name,
+    #  level_code, grad_year, diploma_type, is_main)
     EDUCATIONS = [
         # seq=1: Học viện Nông nghiệp VN, Thú y, Đại học 2012 — bằng chính
-        ("001088123456", 1, None, 2, None, 6, 2012, "chính quy", True),
+        ("001088123456", "VNUA", None, "veterinary_medicine", None, "bachelor", 2012, "chính quy", True),
         # seq=3: ĐH Nông Lâm HCM, Kinh doanh nông nghiệp (free text), ĐH 2015
-        ("001085654321", 2, None, None, "Kinh doanh nông nghiệp", 6, 2015, "chính quy", True),
+        ("001085654321", "NLU_HCMC", None, None, "Kinh doanh nông nghiệp", "bachelor", 2015, "chính quy", True),
     ]
-    for employee_id_number, inst_id, inst_name, major_id, major_name, level_id, grad_year, diploma, is_main in EDUCATIONS:
+    for employee_id_number, inst_code, inst_name, major_code, major_name, level_code, grad_year, diploma, is_main in EDUCATIONS:
         result = await session.execute(
             text("""
                 INSERT INTO employee_education_histories (
@@ -43,8 +45,11 @@ async def seed_sample_education(session: AsyncSession) -> dict:
                 )
                 SELECT
                     e.id,
-                    :inst_id, :inst_name,
-                    :major_id, :major_name, :level_id,
+                    (SELECT id FROM educational_institutions WHERE code = CAST(:inst_code AS varchar)),
+                    :inst_name,
+                    (SELECT id FROM education_majors WHERE code = CAST(:major_code AS varchar)),
+                    :major_name,
+                    (SELECT id FROM education_levels WHERE code = :level_code),
                     :grad_year, :diploma, :is_main, now()
                 FROM employees e
                 WHERE e.id_number_hash = :employee_id_number_hash
@@ -52,18 +57,18 @@ async def seed_sample_education(session: AsyncSession) -> dict:
                       SELECT 1 FROM employee_education_histories h
                       WHERE h.employee_id = e.id
                         AND (
-                            (CAST(:inst_id AS integer) IS NOT NULL AND h.institution_id = CAST(:inst_id AS integer))
+                            (CAST(:inst_code AS varchar) IS NOT NULL AND h.institution_id = (SELECT id FROM educational_institutions WHERE code = CAST(:inst_code AS varchar)))
                             OR (CAST(:inst_name AS varchar) IS NOT NULL AND h.institution_name = CAST(:inst_name AS varchar))
                         )
                   )
             """),
             {
                 "employee_id_number_hash": hash_sensitive(employee_id_number),
-                "inst_id": inst_id,
+                "inst_code": inst_code,
                 "inst_name": inst_name,
-                "major_id": major_id,
+                "major_code": major_code,
                 "major_name": major_name,
-                "level_id": level_id,
+                "level_code": level_code,
                 "grad_year": grad_year,
                 "diploma": diploma,
                 "is_main": is_main,
@@ -107,52 +112,54 @@ async def seed_sample_education(session: AsyncSession) -> dict:
         counts["work_experiences"] += result.rowcount
 
     # ── 3. Kỹ năng ────────────────────────────────────────────────────────────
-    # (employee_id_number, skill_id, proficiency_level)
+    # (employee_id_number, skill_code, proficiency_level)
     SKILLS = [
-        ("001088123456", 4, "expert"),    # QA/QC — Thành thạo
-        ("001085654321", 8, "advanced"),  # Nghiệp vụ xuất nhập khẩu — Khá
+        ("001088123456", "qa_qc", "expert"),               # QA/QC — Thành thạo
+        ("001085654321", "import_export_ops", "advanced"),  # Nghiệp vụ xuất nhập khẩu — Khá
     ]
-    for employee_id_number, skill_id, level in SKILLS:
+    for employee_id_number, skill_code, level in SKILLS:
         result = await session.execute(
             text("""
                 INSERT INTO employee_skills (
                     employee_id, skill_id, proficiency_level, created_at
                 )
-                SELECT e.id, :skill_id, :level, now()
-                FROM employees e
+                SELECT e.id, sk.id, :level, now()
+                FROM employees e, skills sk
                 WHERE e.id_number_hash = :employee_id_number_hash
+                  AND sk.code = :skill_code
                   AND NOT EXISTS (
                       SELECT 1 FROM employee_skills s
-                      WHERE s.employee_id = e.id AND s.skill_id = :skill_id
+                      WHERE s.employee_id = e.id AND s.skill_id = sk.id
                   )
             """),
-            {"employee_id_number_hash": hash_sensitive(employee_id_number), "skill_id": skill_id, "level": level},
+            {"employee_id_number_hash": hash_sensitive(employee_id_number), "skill_code": skill_code, "level": level},
         )
         counts["skills"] += result.rowcount
 
     # ── 4. Chứng chỉ ──────────────────────────────────────────────────────────
-    # (employee_id_number, certificate_id, issued_date, expires_on)
+    # (employee_id_number, certificate_code, issued_date, expires_on)
     CERTIFICATES = [
-        ("001088123456", 2, "2024-01-15", "2027-01-15"),  # HACCP
-        ("001085654321", 1, "2023-06-01", None),          # An toàn vệ sinh lao động
+        ("001088123456", "HACCP", "2024-01-15", "2027-01-15"),
+        ("001085654321", "OSH", "2023-06-01", None),  # An toàn vệ sinh lao động
     ]
-    for employee_id_number, cert_id, issued, expires in CERTIFICATES:
+    for employee_id_number, cert_code, issued, expires in CERTIFICATES:
         result = await session.execute(
             text("""
                 INSERT INTO employee_certificates (
                     employee_id, certificate_id, issued_date, expires_on, created_at
                 )
-                SELECT e.id, :cert_id, :issued, :expires, now()
-                FROM employees e
+                SELECT e.id, c.id, :issued, :expires, now()
+                FROM employees e, certificates c
                 WHERE e.id_number_hash = :employee_id_number_hash
+                  AND c.code = :cert_code
                   AND NOT EXISTS (
-                      SELECT 1 FROM employee_certificates c
-                      WHERE c.employee_id = e.id AND c.certificate_id = :cert_id
+                      SELECT 1 FROM employee_certificates ec
+                      WHERE ec.employee_id = e.id AND ec.certificate_id = c.id
                   )
             """),
             {
                 "employee_id_number_hash": hash_sensitive(employee_id_number),
-                "cert_id": cert_id,
+                "cert_code": cert_code,
                 "issued": _d(issued),
                 "expires": _d(expires) if expires else None,
             },

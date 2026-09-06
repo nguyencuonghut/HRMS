@@ -89,6 +89,16 @@ def _create_employee(client: TestClient, headers: dict, id_number: str = "TESTED
     return resp.json()
 
 
+def _get_institution_id(client: TestClient, headers: dict) -> int:
+    """Id trường học thật trong DB — không hardcode vì id tự tăng có thể lệch giữa các môi trường."""
+    resp = client.get("/api/v1/educational-institutions", params={"page_size": 1}, headers=headers)
+    assert resp.status_code == 200, resp.text
+    payload = resp.json()
+    items = payload["items"] if isinstance(payload, dict) else payload
+    assert items, "Cần ít nhất 1 trường học đã seed để chạy test này"
+    return items[0]["id"]
+
+
 # ── Education Histories ────────────────────────────────────────────────────────
 
 def test_list_education_empty(client: TestClient):
@@ -102,8 +112,9 @@ def test_list_education_empty(client: TestClient):
 def test_create_education_with_institution_fk(client: TestClient):
     headers = _admin(client)
     emp = _create_employee(client, headers)
+    institution_id = _get_institution_id(client, headers)
     payload = {
-        "institution_id": 1,
+        "institution_id": institution_id,
         "education_level_id": 6,
         "graduation_year": 2015,
         "is_main_education": True,
@@ -111,7 +122,7 @@ def test_create_education_with_institution_fk(client: TestClient):
     resp = client.post(f"{BASE}/{emp['id']}/education-histories", json=payload, headers=headers)
     assert resp.status_code == 201
     data = resp.json()
-    assert data["institution_id"] == 1
+    assert data["institution_id"] == institution_id
     assert data["education_level_id"] == 6
     assert data["education_level_name"] == "Đại học"
     assert data["is_main_education"] is True
@@ -130,7 +141,7 @@ def test_update_education_success(client: TestClient):
     emp = _create_employee(client, headers)
     edu = client.post(
         f"{BASE}/{emp['id']}/education-histories",
-        json={"institution_id": 1, "education_level_id": 6},
+        json={"institution_id": _get_institution_id(client, headers), "education_level_id": 6},
         headers=headers,
     ).json()
     resp = client.put(
@@ -147,7 +158,7 @@ def test_delete_education_success(client: TestClient):
     emp = _create_employee(client, headers)
     edu = client.post(
         f"{BASE}/{emp['id']}/education-histories",
-        json={"institution_id": 1, "education_level_id": 6},
+        json={"institution_id": _get_institution_id(client, headers), "education_level_id": 6},
         headers=headers,
     ).json()
     resp = client.delete(f"{BASE}/{emp['id']}/education-histories/{edu['id']}", headers=headers)
@@ -162,7 +173,7 @@ def test_delete_education_wrong_employee_404(client: TestClient):
     emp2 = _create_employee(client, headers, "TESTEDU0000002")
     edu = client.post(
         f"{BASE}/{emp1['id']}/education-histories",
-        json={"institution_id": 1, "education_level_id": 6},
+        json={"institution_id": _get_institution_id(client, headers), "education_level_id": 6},
         headers=headers,
     ).json()
     resp = client.delete(f"{BASE}/{emp2['id']}/education-histories/{edu['id']}", headers=headers)
@@ -174,7 +185,7 @@ def test_education_audit_log(client: TestClient):
     emp = _create_employee(client, headers)
     client.post(
         f"{BASE}/{emp['id']}/education-histories",
-        json={"institution_id": 1, "education_level_id": 6},
+        json={"institution_id": _get_institution_id(client, headers), "education_level_id": 6},
         headers=headers,
     )
     resp = client.get("/api/v1/audit-logs", headers=headers, params={"entity_type": "employee_education"}).json()
@@ -435,7 +446,7 @@ def test_employee_detail_includes_all_education_fields(client: TestClient):
     emp = _create_employee(client, headers)
 
     client.post(f"{BASE}/{emp['id']}/education-histories",
-                json={"institution_id": 1, "education_level_id": 6}, headers=headers)
+                json={"institution_id": _get_institution_id(client, headers), "education_level_id": 6}, headers=headers)
     client.post(f"{BASE}/{emp['id']}/work-experiences",
                 json={"company_name": "Cty ABC", "start_date": "2020-01-01"}, headers=headers)
     client.post(f"{BASE}/{emp['id']}/skills",
