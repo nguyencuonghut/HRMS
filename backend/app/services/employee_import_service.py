@@ -20,11 +20,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from app.core.encryption import hash_sensitive
-from app.models.catalog import AdministrativeHierarchy, AdministrativeUnit, Ethnicity, Nationality, Religion
+from app.models.catalog import (
+    AdministrativeHierarchy,
+    AdministrativeUnit,
+    EducationalInstitution,
+    EducationLevel,
+    EducationMajor,
+    Ethnicity,
+    Nationality,
+    Religion,
+)
 from app.models.employee import Employee
 from app.models.employee_code import EmployeeCodeSequence
 from app.models.org import Department, DepartmentJobPosition, JobPosition, JobTitle
-from app.schemas.employee import EmployeeAddressWrite, EmployeeCreate
+from app.schemas.employee import EducationHistoryCreate, EmployeeAddressWrite, EmployeeCreate
 from app.schemas.employee_import import (
     GENDER_MAP,
     IMPORT_COLUMNS,
@@ -34,7 +43,7 @@ from app.schemas.employee_import import (
     ImportResult,
     ImportRowError,
 )
-from app.services import administrative_unit_service, employee_service
+from app.services import administrative_unit_service, employee_education_service, employee_service
 from app.services.employee_code_service import compute_employee_display_code
 from app.services.import_excel_helper import extract_header_and_non_blank_rows
 
@@ -134,12 +143,13 @@ async def generate_template(session: AsyncSession) -> bytes:
         "thôn Vạc, Xã Thái Học, Huyện Bình Giang, Tỉnh Hải Dương",
         "Số 12, Xã Đường An, Thành phố Hải Phòng",
         "",
+        "Đại học", "Học viện Nông nghiệp Việt Nam", "Thú y", "2015", "chính quy",
     ]
     for col_idx, val in enumerate(sample, start=1):
         ws.cell(row=2, column=col_idx, value=val)
 
     # Column widths
-    widths = [20, 12, 12, 14, 10, 16, 14, 24, 12, 14, 14, 22, 14, 14, 16, 16, 16, 14, 22, 22, 18, 16, 18, 20, 20, 45, 55, 45, 55]
+    widths = [20, 12, 12, 14, 10, 16, 14, 24, 12, 14, 14, 22, 14, 14, 16, 16, 16, 14, 22, 22, 18, 16, 18, 20, 20, 45, 55, 45, 55, 16, 32, 24, 14, 18]
     for i, w in enumerate(widths, start=1):
         ws.column_dimensions[ws.cell(row=1, column=i).column_letter].width = w
 
@@ -205,6 +215,27 @@ async def generate_template(session: AsyncSession) -> bytes:
             "Địa chỉ liên lạc/tạm trú hệ cũ — tùy chọn, cùng quy tắc với 'Địa chỉ thường trú (Hệ cũ 3 cấp)'.",
             "",
         ],
+        [
+            "Trường học",
+            "",
+            "Tùy chọn — để trống nếu không nhập học vấn. Tên phải khớp danh mục Trường học "
+            "(Danh mục học vấn, hoặc Import Trường học trước nếu chưa có).",
+            "Học viện Nông nghiệp Việt Nam",
+        ],
+        [
+            "Trình độ học vấn",
+            "",
+            "Bắt buộc nếu đã nhập Trường học. Tên hoặc mã cấp học.",
+            "Đại học / Cao đẳng / Trung cấp / bachelor / college...",
+        ],
+        [
+            "Chuyên ngành",
+            "",
+            "Tùy chọn. Tên phải khớp danh mục Chuyên ngành (Danh mục học vấn, hoặc Import Chuyên ngành trước nếu chưa có).",
+            "Thú y",
+        ],
+        ["Năm tốt nghiệp", "", "Tùy chọn", "2015"],
+        ["Loại hình đào tạo", "", "Tùy chọn — tự do", "chính quy / tại chức / vừa học vừa làm"],
         [],
         ["LƯU Ý:", "", "Cột header màu xanh đậm = bắt buộc; xanh nhạt = không bắt buộc. Dòng trống sẽ bị bỏ qua.", ""],
         ["", "", f"Tối đa {IMPORT_MAX_ROWS} dòng dữ liệu mỗi lần import.", ""],
@@ -235,8 +266,13 @@ async def generate_template(session: AsyncSession) -> bytes:
 # ── Parse helpers ─────────────────────────────────────────────────────────────
 
 def _norm(s: str) -> str:
-    """Chuẩn hoá Unicode NFC, bỏ dấu, lowercase — dùng để tra cứu fuzzy."""
-    nfkd = unicodedata.normalize("NFKD", s)
+    """Chuẩn hoá Unicode NFC, bỏ dấu, lowercase — dùng để tra cứu fuzzy.
+
+    "Đ"/"đ" không phải ký tự tổ hợp (không có dạng cơ sở + dấu) nên NFKD không
+    tách được — phải thay thế thủ công để khớp với normalized_name lưu trong DB
+    (xem administrative_import_service.normalize_text, dùng cùng quy tắc này).
+    """
+    nfkd = unicodedata.normalize("NFKD", s.replace("Đ", "D").replace("đ", "d"))
     return "".join(c for c in nfkd if not unicodedata.combining(c)).lower().strip()
 
 
@@ -631,6 +667,42 @@ async def _find_religion(session: AsyncSession, raw_value: str) -> Optional[int]
     return None
 
 
+async def _find_institution(session: AsyncSession, raw_value: str) -> Optional[int]:
+    if not raw_value:
+        return None
+    raw = raw_value.strip()
+    norm_val = _norm(raw)
+    rows = await session.execute(select(EducationalInstitution).where(EducationalInstitution.is_active.is_(True)))
+    for inst in rows.scalars().all():
+        if (inst.code and inst.code.lower() == raw.lower()) or inst.normalized_name == norm_val:
+            return inst.id
+    return None
+
+
+async def _find_major(session: AsyncSession, raw_value: str) -> Optional[int]:
+    if not raw_value:
+        return None
+    raw = raw_value.strip()
+    norm_val = _norm(raw)
+    rows = await session.execute(select(EducationMajor).where(EducationMajor.is_active.is_(True)))
+    for major in rows.scalars().all():
+        if (major.code and major.code.lower() == raw.lower()) or major.normalized_name == norm_val:
+            return major.id
+    return None
+
+
+async def _find_education_level(session: AsyncSession, raw_value: str) -> Optional[int]:
+    if not raw_value:
+        return None
+    raw = raw_value.strip()
+    norm_val = _norm(raw)
+    rows = await session.execute(select(EducationLevel).where(EducationLevel.is_active.is_(True)))
+    for level in rows.scalars().all():
+        if level.code.lower() == raw.lower() or level.normalized_name == norm_val:
+            return level.id
+    return None
+
+
 # ── Main import ───────────────────────────────────────────────────────────────
 
 async def process_import(session: AsyncSession, file_bytes: bytes) -> ImportResult:
@@ -730,6 +802,11 @@ async def process_import(session: AsyncSession, file_bytes: bytes) -> ImportResu
         permanent_old_raw = get(row_vals, "Địa chỉ thường trú (Hệ cũ 3 cấp)")
         contact_new_raw   = get(row_vals, "Địa chỉ liên lạc (Hệ mới 2 cấp)")
         contact_old_raw   = get(row_vals, "Địa chỉ liên lạc (Hệ cũ 3 cấp)")
+        education_level_raw = get(row_vals, "Trình độ học vấn")
+        institution_raw     = get(row_vals, "Trường học")
+        major_raw            = get(row_vals, "Chuyên ngành")
+        graduation_year_raw = get(row_vals, "Năm tốt nghiệp")
+        diploma_type_raw    = get(row_vals, "Loại hình đào tạo") or None
         employee_seq = _parse_positive_int(
             employee_seq_raw,
             "Số thứ tự mã NV",
@@ -887,6 +964,45 @@ async def process_import(session: AsyncSession, file_bytes: bytes) -> ImportResu
             failed += 1
             continue
 
+        education_payload: Optional[EducationHistoryCreate] = None
+        if institution_raw:
+            edu_errors: list[ImportRowError] = []
+            institution_id = await _find_institution(session, institution_raw)
+            if not institution_id:
+                edu_errors.append(ImportRowError(
+                    row=excel_row, column="Trường học",
+                    message=f"Không tìm thấy trường học '{institution_raw}' trong danh mục — hãy thêm trước qua Import Trường học",
+                ))
+            if not education_level_raw:
+                edu_errors.append(ImportRowError(row=excel_row, column="Trình độ học vấn", message="Bắt buộc khi đã nhập Trường học"))
+            education_level_id = await _find_education_level(session, education_level_raw) if education_level_raw else None
+            if education_level_raw and not education_level_id:
+                edu_errors.append(ImportRowError(
+                    row=excel_row, column="Trình độ học vấn",
+                    message=f"Không tìm thấy trình độ học vấn '{education_level_raw}' trong danh mục",
+                ))
+            major_id = await _find_major(session, major_raw) if major_raw else None
+            if major_raw and not major_id:
+                edu_errors.append(ImportRowError(
+                    row=excel_row, column="Chuyên ngành",
+                    message=f"Không tìm thấy chuyên ngành '{major_raw}' trong danh mục — hãy thêm trước qua Import Chuyên ngành",
+                ))
+            graduation_year = _parse_positive_int(graduation_year_raw, "Năm tốt nghiệp", excel_row, edu_errors)
+
+            if edu_errors:
+                errors.extend(edu_errors)
+                failed += 1
+                continue
+
+            education_payload = EducationHistoryCreate(
+                institution_id=institution_id,
+                major_id=major_id,
+                education_level_id=education_level_id,
+                graduation_year=graduation_year,
+                diploma_type=diploma_type_raw,
+                is_main_education=True,
+            )
+
         # ── Create employee ───────────────────────────────────────────
         try:
             payload = EmployeeCreate(
@@ -919,6 +1035,8 @@ async def process_import(session: AsyncSession, file_bytes: bytes) -> ImportResu
             emp = await employee_service.create_employee(session, payload)
             await employee_service.upsert_employee_address(session, emp.id, permanent_payload)
             await employee_service.upsert_employee_address(session, emp.id, contact_payload)
+            if education_payload is not None:
+                await employee_education_service.create_education_history(session, emp.id, education_payload)
 
             await session.commit()
             created_ids.append(emp.id)

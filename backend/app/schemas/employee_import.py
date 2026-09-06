@@ -39,6 +39,11 @@ IMPORT_COLUMNS = [
     "Địa chỉ thường trú (Hệ cũ 3 cấp)",
     "Địa chỉ liên lạc (Hệ mới 2 cấp)",
     "Địa chỉ liên lạc (Hệ cũ 3 cấp)",
+    "Trình độ học vấn",
+    "Trường học",
+    "Chuyên ngành",
+    "Năm tốt nghiệp",
+    "Loại hình đào tạo",
 ]
 
 REQUIRED_COLUMNS = {
