@@ -49,6 +49,26 @@
           />
         </TabPanel>
 
+        <!-- ── Trường học ──────────────────────────────────────────────── -->
+        <TabPanel v-if="canImportCatalog" value="educational-institutions">
+          <ImportPanel
+            title="Import trường học"
+            description="Nhập hoặc cập nhật danh mục trường học/cơ sở đào tạo dùng cho hồ sơ học vấn nhân viên."
+            :download-template="svc.downloadInstitutionTemplate"
+            :upload-fn="svc.importInstitutions"
+          />
+        </TabPanel>
+
+        <!-- ── Chuyên ngành ────────────────────────────────────────────── -->
+        <TabPanel v-if="canImportCatalog" value="education-majors">
+          <ImportPanel
+            title="Import chuyên ngành"
+            description="Nhập hoặc cập nhật danh mục chuyên ngành dùng cho hồ sơ học vấn nhân viên."
+            :download-template="svc.downloadMajorTemplate"
+            :upload-fn="svc.importMajors"
+          />
+        </TabPanel>
+
         <TabPanel v-if="canImportEmployees" value="employees">
           <ImportPanel
             title="Import nhân viên"
@@ -109,6 +129,7 @@ const svc = dataImportService
 const permissionGate = usePermissionGate()
 
 const canImportOrg = computed(() => permissionGate.canEdit('org'))
+const canImportCatalog = computed(() => permissionGate.canEdit('catalog'))
 const canImportEmployees = computed(() => permissionGate.canEdit('employees'))
 const canImportLeaves = computed(() => permissionGate.canEdit('leaves'))
 const canImportContracts = computed(() => permissionGate.canEdit('contracts'))
@@ -118,6 +139,8 @@ const visibleTabs = computed(() => [
   canImportOrg.value ? { value: 'departments', label: 'Phòng ban' } : null,
   canImportOrg.value ? { value: 'job-titles', label: 'Chức danh' } : null,
   canImportOrg.value ? { value: 'job-positions', label: 'Vị trí công việc' } : null,
+  canImportCatalog.value ? { value: 'educational-institutions', label: 'Trường học' } : null,
+  canImportCatalog.value ? { value: 'education-majors', label: 'Chuyên ngành' } : null,
   canImportEmployees.value ? { value: 'employees', label: 'Nhân viên' } : null,
   canImportLeaves.value ? { value: 'leave-records', label: 'Nghỉ phép' } : null,
   canImportContracts.value ? { value: 'contracts', label: 'Hợp đồng' } : null,

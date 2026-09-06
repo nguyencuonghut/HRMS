@@ -57,6 +57,20 @@ export default {
   importJobPositions: (file: File) =>
     uploadXlsx(`${BASE}/job-positions`, file),
 
+  // ── Trường học ─────────────────────────────────────────────────────────────
+  downloadInstitutionTemplate: () =>
+    downloadBlob(`${BASE}/educational-institutions/template`, 'mau_import_truong_hoc.xlsx'),
+
+  importInstitutions: (file: File) =>
+    uploadXlsx(`${BASE}/educational-institutions`, file),
+
+  // ── Chuyên ngành ───────────────────────────────────────────────────────────
+  downloadMajorTemplate: () =>
+    downloadBlob(`${BASE}/education-majors/template`, 'mau_import_chuyen_nganh.xlsx'),
+
+  importMajors: (file: File) =>
+    uploadXlsx(`${BASE}/education-majors`, file),
+
   // ── Nhân viên ──────────────────────────────────────────────────────────────
   downloadEmployeeTemplate: () =>
     employeeService.downloadImportTemplate(),

@@ -12,6 +12,7 @@ from app.schemas.employee_import import ImportResult
 from app.services import (
     contract_import_service,
     department_import_service,
+    education_catalog_import_service,
     insurance_import_service,
     job_position_import_service,
     job_title_import_service,
@@ -142,6 +143,78 @@ async def import_job_positions(
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="File quá lớn (tối đa 5MB)")
     try:
         return await job_position_import_service.process_import(session, content)
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+
+# ── Danh mục học vấn ─────────────────────────────────────────────────────────
+
+@router.get(
+    "/educational-institutions/template",
+    summary="Tải file mẫu import trường học (.xlsx)",
+)
+async def download_institution_template(
+    _: User = require_permission("catalog:edit"),
+) -> Response:
+    content = education_catalog_import_service.generate_institution_template()
+    return Response(
+        content=content,
+        media_type=_XLSX_MEDIA,
+        headers={"Content-Disposition": _content_disposition("mau_import_truong_hoc.xlsx")},
+    )
+
+
+@router.post(
+    "/educational-institutions",
+    response_model=ImportResult,
+    summary="Import trường học hàng loạt từ file Excel",
+)
+async def import_educational_institutions(
+    file: UploadFile = File(...),
+    _: User = require_permission("catalog:edit"),
+    session: AsyncSession = Depends(get_session),
+) -> ImportResult:
+    _validate_xlsx(file)
+    content = await file.read()
+    if len(content) > _MAX_FILE_BYTES:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="File quá lớn (tối đa 5MB)")
+    try:
+        return await education_catalog_import_service.process_institution_import(session, content)
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+
+@router.get(
+    "/education-majors/template",
+    summary="Tải file mẫu import chuyên ngành (.xlsx)",
+)
+async def download_major_template(
+    _: User = require_permission("catalog:edit"),
+) -> Response:
+    content = education_catalog_import_service.generate_major_template()
+    return Response(
+        content=content,
+        media_type=_XLSX_MEDIA,
+        headers={"Content-Disposition": _content_disposition("mau_import_chuyen_nganh.xlsx")},
+    )
+
+
+@router.post(
+    "/education-majors",
+    response_model=ImportResult,
+    summary="Import chuyên ngành hàng loạt từ file Excel",
+)
+async def import_education_majors(
+    file: UploadFile = File(...),
+    _: User = require_permission("catalog:edit"),
+    session: AsyncSession = Depends(get_session),
+) -> ImportResult:
+    _validate_xlsx(file)
+    content = await file.read()
+    if len(content) > _MAX_FILE_BYTES:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="File quá lớn (tối đa 5MB)")
+    try:
+        return await education_catalog_import_service.process_major_import(session, content)
     except ValueError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc))
 

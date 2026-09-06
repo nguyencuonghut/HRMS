@@ -10,6 +10,7 @@ from app.core.config import settings
 from app.services import (
     contract_import_service,
     department_import_service,
+    education_catalog_import_service,
     employee_import_service,
     insurance_import_service,
     job_position_import_service,
@@ -98,6 +99,22 @@ def test_insurance_template_optional_headers_use_dark_text():
         insurance_import_service.generate_template(),
         required_col=1,
         optional_col=2,
+    )
+
+
+def test_institution_template_optional_headers_use_dark_text():
+    _assert_header_colors(
+        education_catalog_import_service.generate_institution_template(),
+        required_col=2,
+        optional_col=1,
+    )
+
+
+def test_major_template_optional_headers_use_dark_text():
+    _assert_header_colors(
+        education_catalog_import_service.generate_major_template(),
+        required_col=2,
+        optional_col=1,
     )
 
 
