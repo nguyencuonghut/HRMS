@@ -9,7 +9,7 @@ Trạng thái: **Đề xuất, chưa triển khai.** Mọi lệnh và cấu hìn
 Thay MinIO (kho tệp ứng dụng + đích sao lưu) bằng **Garage** chạy một node, với các ràng buộc:
 
 - Không đổi hành vi nhìn thấy được của người dùng: tải lên, tải xuống, xóa tệp đính kèm; Backup Console tiếp tục chạy sao lưu DB và kho tệp.
-- Không mất dữ liệu: mọi object hiện có được chép sang Garage với **cùng tên object**, đối chiếu bằng kích thước và `sha256`.
+- Không mất dữ liệu tệp: kiểm kê ngay trước cutover. Production hiện **không có tệp nào** (0 object, kiểm kê 2026-10-30), nên không có gì để chép; nếu lúc đó có object thì dừng và quyết định (mục 9.0 và 10).
 - Có đường lui rõ ràng trong suốt giai đoạn cutover.
 - Loại bỏ mọi phụ thuộc vào thứ không còn kéo được từ internet (image `minio/minio`, `minio/mc`, `dl.min.io`).
 
@@ -112,10 +112,10 @@ Bản sao DB production (nạp 2026-10-30), bảng `backup_configs`:
 ### 4.1. Trong phạm vi
 
 - Dựng Garage một node cho dev, LAN, và (nếu cần) compose HTTPS.
-- Chuyển dữ liệu từ MinIO sang Garage, giữ nguyên tên object, có kiểm chứng.
-- Chuẩn hóa chỗ khởi tạo client S3 và nhãn giao diện.
-- Cập nhật CI, tài liệu vận hành, và loại bỏ phụ thuộc `mc`.
-- Runbook cutover production, diễn tập và quay lui.
+- Chuyển production sang Garage. Production không có tệp nào cần chép nên **không** có công cụ chuyển dữ liệu (Slice 4 đã bỏ, xem 9.0).
+- Đổi nhãn giao diện (Slice 3); gom chỗ khởi tạo client S3 hoãn sang Slice 10.
+- Cập nhật compose production, loại bỏ phụ thuộc `mc` (Slice 6), tài liệu vận hành và CI (Slice 9).
+- Runbook cutover production ngắn và quay lui (mục 10); không diễn tập riêng (xem 9.0).
 
 ### 4.2. Ngoài phạm vi
 
@@ -177,7 +177,7 @@ Image Garage dựng `FROM scratch`, **không có shell** (tài liệu chính th�
 
 ### 5.7. Chuẩn hóa client S3
 
-Tạo một hàm duy nhất `build_s3_client(endpoint, access_key, secret_key, secure, region=None)` (ví dụ ở `backend/app/core/s3_client.py`) và thay 4 chỗ `Minio(...)` ở mục 3.2. Tham số `region` **bắt buộc, đã xác nhận bằng chạy thật ở Slice 1** (xem "Kết quả Slice 1"). Theo mã nguồn v2.5.0, Garage từ chối chữ ký có region khác `s3_region` (`AuthorizationHeaderMalformed`), còn `minio-py` khi không có `region` sẽ dò bằng yêu cầu `GetBucketLocation` ký cho `us-east-1`; trang hướng dẫn Python của Garage cũng dặn đặt `region="garage"` (U5). Hiện `core/storage.py:_client()` tạo một `Minio(...)` mới cho **mỗi lần gọi**, nên không truyền `region` còn làm thêm một yêu cầu dò region mỗi lần; truyền `region` loại bỏ cả hai vấn đề.
+(**Hoãn sang Slice 10**, xem 9.0; `region` đã được truyền ở 4 chỗ từ Slice 2.) Tạo một hàm duy nhất `build_s3_client(endpoint, access_key, secret_key, secure, region=None)` (ví dụ ở `backend/app/core/s3_client.py`) và thay 4 chỗ `Minio(...)` ở mục 3.2. Tham số `region` **bắt buộc, đã xác nhận bằng chạy thật ở Slice 1** (xem "Kết quả Slice 1"). Theo mã nguồn v2.5.0, Garage từ chối chữ ký có region khác `s3_region` (`AuthorizationHeaderMalformed`), còn `minio-py` khi không có `region` sẽ dò bằng yêu cầu `GetBucketLocation` ký cho `us-east-1`; trang hướng dẫn Python của Garage cũng dặn đặt `region="garage"` (U5). Hiện `core/storage.py:_client()` tạo một `Minio(...)` mới cho **mỗi lần gọi**, nên không truyền `region` còn làm thêm một yêu cầu dò region mỗi lần; truyền `region` loại bỏ cả hai vấn đề.
 
 ### 5.8. Healthcheck
 
@@ -189,7 +189,7 @@ Bỏ `backup_scheduler` và image sao lưu cũ (quyết định D3). Thủ tục
 
 ### 5.10. Chuỗi cung ứng image
 
-Mirror `dxflrs/garage:v2.5.0` lên `ghcr.io/nguyencuonghut/hrms/` và ghim theo **digest**, vì bài học MinIO: một image công khai có thể biến mất. Không dùng tag `latest`.
+Mirror `dxflrs/garage:v2.5.0` lên `ghcr.io/nguyencuonghut/hrms/` và ghim theo **digest**, vì bài học MinIO: một image công khai có thể biến mất. Không dùng tag `latest`. Compose mặc định kéo thẳng từ Docker Hub theo digest (image công khai, không cần đăng nhập); bản mirror ghcr chỉ là **dự phòng** nếu Docker Hub xóa image (khi đó đổi `GARAGE_IMAGE` và đăng nhập ghcr bằng token chỉ đọc).
 
 ## 6. Bản đồ luồng dữ liệu
 
@@ -201,10 +201,10 @@ Mirror `dxflrs/garage:v2.5.0` lên `ghcr.io/nguyencuonghut/hrms/` và ghim theo 
 | F2 | Tải xuống | Trình duyệt, `backend`, `get_object` (stream), trả `StreamingResponse` | Như trên |
 | F3 | Xóa | `backend`, `remove_object` (nuốt `S3Error`) | Như trên |
 | F4 | Khởi động | `lifespan`, `ensure_bucket()` (`bucket_exists`, `make_bucket`) | **Cần bucket + quyền có sẵn** (bootstrap trước) |
-| F5 | Health | `/health`, `bucket_exists(bucket)` | Giữ khóa `checks["minio"]` (có thể thêm `checks["storage"]`, Slice 3) |
+| F5 | Health | `/health`, `bucket_exists(bucket)` | Giữ khóa `checks["minio"]` |
 | F6 | Sao lưu DB | `celery_worker`, `pg_dump` rồi nén gzip, `put_object` vào `BACKUP_STORAGE_*` | Đổi endpoint/khóa sao lưu |
 | F7 | Sao lưu kho tệp | `celery_worker`, `list_objects` + `get_object` từ **nguồn** (`backup_configs.source_*` hoặc `SOURCE_STORAGE_*`/`MINIO_*`), `put_object` sang **đích** (`files/files-<ts>/`) kèm manifest | **Phải sửa `backup_configs.source_endpoint` trong DB** |
-| F8 | Khôi phục | `restore_runner`, `get_object` từ bucket sao lưu, ghi sang đích (`make_bucket` nếu đích mới) | Khóa `hrms-backup` cần quyền tạo bucket |
+| F8 | Khôi phục | `restore_runner`, `get_object` từ bucket sao lưu, ghi sang đích (`make_bucket` nếu đích mới, bằng khóa **ứng dụng**) | Cả hai khóa cần quyền tạo bucket (Slice 2) |
 | F9 | Kiểm tra đích | Nút dấu tích trong Backup Console, `bucket_exists` | Kết quả cũ lưu trong DB, **phải bấm kiểm tra lại sau cutover** |
 | F10 | CI | `pytest`, `TestClient`, `lifespan`, `ensure_bucket()` | Cần Garage thật trong job |
 
@@ -219,7 +219,7 @@ celery (F6/F7 đích) --BACKUP_STORAGE_*-> minio:9000      celery (F6/F7 đích)
 volume minio_data (định dạng MinIO)                      volumes garage_meta + garage_data (định dạng Garage)
 ```
 
-Hai định dạng lưu trữ **không tương thích**, nên dữ liệu được chuyển bằng sao chép đối tượng qua S3 (Slice 4), không phải sao chép volume.
+Hai định dạng lưu trữ **không tương thích**, nên nếu có dữ liệu cần giữ thì phải chép đối tượng qua S3, không phải sao chép volume (hiện production không có tệp nào, nên không cần).
 
 ## 7. Ánh xạ cấu hình
 
@@ -265,7 +265,7 @@ Nhãn hiển thị `"Kho tệp ứng dụng trên MinIO"` đổi thành `"Kho t�
 3. Bấm tải xuống; nhận đúng tệp (so `sha256`).
 4. Xóa; tệp biến mất khỏi danh sách.
 
-Kiểm chứng ở mức trình duyệt (Slice 2, 7, 8), đọc DOM và request mạng. Nếu hạ tầng e2e hiện chỉ giả lập API, dùng kiểm tra thủ công bằng trình duyệt thật và ghi lại kết quả; **không viết test giả**.
+Kiểm chứng ở mức trình duyệt (Slice 2, 8), đọc DOM và request mạng. Nếu hạ tầng e2e hiện chỉ giả lập API, dùng kiểm tra thủ công bằng trình duyệt thật và ghi lại kết quả; **không viết test giả**.
 
 ### 8.2. Quản trị viên: Backup Console
 
@@ -276,11 +276,31 @@ Kiểm chứng ở mức trình duyệt (Slice 2, 7, 8), đọc DOM và request 
 
 ### 8.3. Vận hành: cutover (tóm tắt, chi tiết ở mục 10)
 
-Sao lưu trước, dựng Garage, chép dữ liệu lần 1 khi hệ thống còn chạy, dừng ứng dụng, chép bù lần cuối và đối chiếu, đổi cấu hình (`.env` và DB), khởi động, kiểm chứng, giữ MinIO cũ ở trạng thái dừng để quay lui.
+Kiểm kê (phải 0 tệp), sao lưu DB, dựng Garage song song và bootstrap, đổi cấu hình (`.env` và DB), khởi động lại `backend` và `celery_*`, kiểm chứng, dừng MinIO nhưng giữ lại để quay lui. Không có bước chép dữ liệu.
 
 ## 9. Kế hoạch triển khai theo slice
 
 Mỗi slice có cổng kiểm chứng riêng. Quy tắc chung (theo `AGENTS.md`): kết luận phải có bằng chứng; thay đổi ảnh hưởng giao diện phải kiểm bằng trình duyệt; báo cáo cuối slice nêu rõ **đã kiểm chứng gì và chưa kiểm chứng gì**. **Không chạy `pytest` trên DB `hrms` đang là bản sao production**: chạy trên bản clone (`CREATE DATABASE x TEMPLATE hrms`) rồi xóa, vì `test_administrative_import.py` xóa danh mục hành chính thật.
+
+### 9.0. Bản rút gọn (2026-10-30)
+
+**Tiền đề do chủ hệ thống nêu:** DB production thực tế mới có Phòng/ban, Chức danh, Vị trí công việc và 4 nhân viên thử; DB đã sao lưu và các tệp dữ liệu import vẫn còn, nên import lại được bất kỳ lúc nào; nếu mất cũng chấp nhận được. Cùng với kiểm kê ngày 2026-10-30 (bucket tệp 0 object; `hrms-backup` có 3 object là bản sao lưu thử), **không có dữ liệu tệp nào cần bảo toàn**. Đây là điều kiện để rút gọn: nếu trước cutover người dùng đã tải tệp lên (kiểm kê lại), kế hoạch phải được xem lại.
+
+| Slice | Trạng thái | Thay đổi so với bản đầu |
+|---|---|---|
+| 0, 1, 2 | **Đã làm** | Không đổi |
+| 3 | Giữ, rút gọn | Chỉ đổi nhãn "Kho tệp ứng dụng" kèm test/e2e. Bỏ `build_s3_client` và `checks["storage"]`: 4 chỗ tạo client đã nhận `region` và có test từ Slice 2, gom lại chỉ là dọn mã, hoãn sang Slice 10 |
+| 4 | **Bỏ** | Không có gì để chép (0 tệp). 3 bản sao lưu thử không cần chuyển; chạy sao lưu mới sau cutover |
+| 5 | **Dời sang Slice 9, tùy chọn** | CI vẫn cần một S3 sống: chạy toàn bộ `pytest` khi S3 không tồn tại cho 231 test qua, 8 thất bại, 1.385 lỗi (mẫu đã xem: `MaxRetryError` ở `ensure_bucket()` trong `lifespan` của `TestClient`), nên không thể chỉ xóa service MinIO. Nhưng CI đang chạy tốt với MinIO, nên không chặn cutover. Production kéo image Garage từ Docker Hub theo digest (công khai) nên không còn cần token chỉ đọc cho ghcr (U16) |
+| 6 | Giữ, mở rộng | **Compose production**: thêm `garage`, truyền `region`, đổi `depends_on`, đưa `minio` vào profile, gỡ `backup_scheduler` và `mc` (D3) |
+| 7 | **Bỏ** | Không có bước chép dữ liệu để diễn tập; các thành phần đã chạy thật ở Slice 2. Thay bằng kiểm tra tĩnh (`docker compose config`) ở Slice 6 |
+| 8 | Giữ, rút gọn | Runbook ngắn (mục 10): không snapshot MinIO, không chép dữ liệu, không cửa sổ bảo trì riêng (khởi động lại backend khoảng 1 phút) |
+| 9 | Mở rộng | Dọn dẹp sau cutover: gỡ MinIO, viết lại `restore_procedure.md`, cập nhật tài liệu, CI (tùy chọn) |
+| 10 | Tùy chọn | Không đổi; thêm việc gom `build_s3_client` |
+
+**Quyết định bị tác động:** D1 (cửa sổ bảo trì) không còn cần riêng. D4 (giữ MinIO cũ): **chủ hệ thống đã xác nhận (2026-10-30) rút xuống "đến khi sao lưu theo lịch đêm đầu tiên thành công trên Garage"** thay cho 7 ngày, vì MinIO không còn dữ liệu cần giữ. D2 (bản sao lưu ngoài máy) vẫn nên làm.
+
+**Không rút gọn được:** kiểm kê lại ngay trước cutover; sửa `backup_configs.source_endpoint` trong DB (R2, đã gặp thật ở Slice 2); thêm `MINIO_REGION`/`BACKUP_STORAGE_REGION` vào compose production (Slice 6; hiện hai file đó không truyền hai biến này); kiểm tra bằng trình duyệt thật sau cutover; không xóa MinIO cũ trước khi có sao lưu theo lịch thành công trên Garage (đường lui gần như miễn phí).
 
 ### Slice 0 - Kiểm kê và bảo toàn (không đổi code)
 
@@ -361,7 +381,7 @@ Mất khoảng 2 phút. Đầu ra không chứa bí mật (khóa chỉ nằm tro
 | U10 | so thời gian dòng "1050 objects" và "12 MiB" giữa `garage` và `garage_nofsync` |
 | U11 | bộ `snapshot` của `scripts/garage_spike_crash.sh` (đã chạy; kết quả ở "Kết quả Slice 1") |
 | U15 | các dòng "tài nguyên" khi rảnh và sau probe |
-| U12, U16 | **không kiểm được cục bộ**: kiểm ở Slice 5 trên GitHub Actions thật |
+| U12, U16 | **không kiểm được cục bộ**: U12 chỉ liên quan CI (tùy chọn, Slice 9, cần GitHub Actions thật); U16 không còn chặn (xem 9.0) |
 
 Script chẩn đoán đi kèm: `scripts/garage_spike_crash.sh` (hai bộ `crash` và `snapshot` đều đã chạy; xem "Kết quả Slice 1").
 
@@ -384,7 +404,7 @@ Chạy `scripts/garage_spike.sh` trên máy dev (Docker 29.8.2, Compose 5.6.0) v
 - bucket của ứng dụng do bootstrap tạo bằng CLI; quyền tạo bucket chỉ cần cho "Khôi phục sang đích mới" vào bucket chưa có (U4), và theo kết quả Slice 2 phải cấp cho **cả hai khóa** vì khóa ứng dụng mới là khóa tạo bucket đích;
 - `metadata_auto_snapshot_interval` phải từ 10 phút trở lên (U11); crash ở lần chạy 1 là do đặt `1min`, không phải do fsync hay lỗi dữ liệu.
 
-Còn mở (không chặn cổng, xử lý ở slice sau): `health -q` có thoát 1 khi cụm chưa sẵn sàng không (U2), độ trễ khi tắt fsync (U10; ta dùng fsync bật nên không cần), token Admin API có được áp dụng không (U17), và U12, U16 chỉ kiểm được ở Slice 5.
+Còn mở (không chặn cổng, xử lý ở slice sau): `health -q` có thoát 1 khi cụm chưa sẵn sàng không (U2), độ trễ khi tắt fsync (U10; ta dùng fsync bật nên không cần), token Admin API có được áp dụng không (U17), và U12 chỉ liên quan CI (tùy chọn, Slice 9) và U16 không còn chặn (9.0).
 
 | Mục | Kết quả quan sát được | Trạng thái |
 |---|---|---|
@@ -398,7 +418,7 @@ Còn mở (không chặn cổng, xử lý ở slice sau): `health -q` có thoát
 | U9 | Ghi được vào volume có tên; file trong volume thuộc `root:root`. Cấu hình image không có khóa `User` | Đạt (chạy root) |
 | U10 | Với fsync **bật** (cấu hình ta dùng): put + get 12 MiB mất 0,12 giây; 1.050 put đồng thời + liệt kê mất 1,20 giây (MinIO dev: 0,09 và 1,21 giây). **Chưa có** số liệu fsync tắt để so (instance đó crash) | Đạt một phần |
 | U11 | Snapshot hoạt động với `sqlite`: lệnh thủ công `garage meta snapshot` tạo `snapshots/<UTC>/db.sqlite` (573.440 byte); chu kỳ tự động `10min` chụp đúng sau nửa chu kỳ (5 phút) và node vẫn khỏe. Chu kỳ dưới 600 giây bị từ chối. Lần chụp đầu của `6h` (khoảng 3 giờ sau khởi động) chưa quan sát, nhưng cơ chế đã chạy ở `10min` | Đạt (xem chẩn đoán bên dưới) |
-| U12, U16 | Không kiểm được cục bộ | Để Slice 5 |
+| U12, U16 | Không kiểm được cục bộ | U12: CI tùy chọn ở Slice 9; U16: không còn chặn (9.0) |
 | U13 | `up gate` chờ dòng `garage ... Healthy` rồi mới khởi động `gate`; log `gate` có dòng "đã chạy" | Đạt |
 | U14 | Thiếu khóa: `NoSuchKey`. `stat` trên bucket không tồn tại: **`NoSuchKey`** (không phải `NoSuchBucket` như MinIO; `minio-py` suy mã từ HEAD không có thân). Ứng dụng chỉ bắt `S3Error` chung (`core/storage.py:258`) nên không ảnh hưởng | Đạt |
 | U15 | Rảnh: RAM 7,6 MiB, CPU 0,01%. Sau probe: RAM 15 MiB, CPU 0,02% | Đạt |
@@ -473,126 +493,96 @@ Kiểm tra ngoài cổng: khôi phục kho tệp (`_restore_object_snapshot_sync
 
 **Chưa kiểm**: luồng 8.1 bằng nút "Tải xuống" thật trên giao diện (xem phát hiện 4); nhãn mới ở giao diện (Slice 3); bootstrap trên `docker-compose.lan.yml` và `docker-compose.prod.yml` (Slice 6); sao lưu theo lịch 02:00/03:00 của celery beat (chỉ chạy tay); khôi phục kho tệp qua giao diện thật (chỉ gọi hàm của ứng dụng); hành vi sau nhiều ngày chạy liên tục.
 
-### Slice 3 - Chuẩn hóa client S3, nhãn UI và test
+### Slice 3 - Nhãn giao diện "Kho tệp ứng dụng" (rút gọn)
 
-**Việc làm (TDD)**
-- Viết test cho `build_s3_client` trước (truyền `secure`, `region`, chuẩn hóa endpoint), rồi cài đặt; thay 4 chỗ `Minio(...)`.
-- `MINIO_REGION` và `BACKUP_STORAGE_REGION` **đã được thêm và truyền vào cả 4 chỗ tạo client ở Slice 2** (Slice 1 cho thấy backend không khởi động được với Garage nếu thiếu). Slice 3 chỉ còn gom 4 chỗ đó vào một `build_s3_client` và giữ nguyên hành vi đã có test ở `backend/tests/test_s3_client_region.py`.
+**Việc làm**
 - Đổi nhãn `"Kho tệp ứng dụng trên MinIO"` thành **`"Kho tệp ứng dụng"`** (thuật ngữ đã chốt trong `CONTEXT.md`, không nêu tên công nghệ): `backup_service.py:42`, `BackupCenterView.vue:6, 827, 1061, 1066` (dòng 6 và 1066 còn câu chữ "trên MinIO"/"kết nối MinIO" cần viết lại không nêu công nghệ), và các fixture/assert tương ứng trong `backup-center.spec.ts`.
-- Health: giữ `checks["minio"]` để không phá giám sát; thêm `checks["storage"]` cùng giá trị.
+- Không làm (hoãn sang Slice 10): hàm `build_s3_client`, `checks["storage"]`.
 
 **Kiểm chứng (cổng)**
-- `pytest` đầy đủ trên **bản clone DB**, với Garage thật.
-- `npm run build` và `vue-tsc`; chạy `backup-center.spec.ts`.
-- Trình duyệt thật: nhãn mới hiển thị ở danh sách, form và dropdown.
-- Backend + UI là thay đổi full-stack: nêu rõ cả hai mức đã kiểm.
+- `npm run build` và `vue-tsc`.
+- `backup-center.spec.ts`: chạy **từng test** (chế độ `serial` bỏ qua các test sau khi một test lỗi). Hai test `:589` và `:742` đang lỗi selector có sẵn (`"Sao lưu đầy đủ"` khớp hai nút, xem kết quả Slice 2) nên không dùng làm bằng chứng cho slice này; sửa bằng `exact: true` nếu chủ hệ thống đồng ý.
+- Trình duyệt thật: nhãn mới hiển thị ở danh sách, form và dropdown. Đây là thay đổi full-stack: nêu rõ cả hai mức đã kiểm.
 
 **Rollback**: revert commit; không đổi dữ liệu.
 
-### Slice 4 - Công cụ chuyển dữ liệu
+### Slice 4 - Công cụ chuyển dữ liệu (ĐÃ BỎ, xem 9.0)
 
-**Việc làm (TDD)**: `backend/app/scripts/s3_migrate.py` (chạy bằng `python -m app.scripts.s3_migrate`, có trong image backend).
-- Tham số: endpoint và bucket nguồn/đích **tách riêng** (`--src-bucket`, `--dst-bucket`, vì production đổi tên bucket khi cutover), `--prefix`, `--dry-run`, `--verify`. **Khóa truy cập đọc từ biến môi trường, không đưa lên dòng lệnh.**
-- Thuật toán: liệt kê nguồn; với mỗi object, bỏ qua nếu đích đã có cùng kích thước; nếu không thì đọc streaming từ nguồn, ghi sang đích với cùng tên và `content_type`; sau đó (nếu `--verify`) đọc lại hai phía, so kích thước và `sha256`.
-- Idempotent, **không bao giờ xóa**, in báo cáo (số đã chép/bỏ qua/lỗi), thoát khác 0 nếu có sai lệch.
+Production không có tệp nào (0 object tệp; `hrms-backup` chỉ có 3 bản sao lưu thử), nên không có gì để chép. Nếu kiểm kê ngay trước cutover thấy bucket tệp có object: **dừng và quyết định**. Với dữ liệu nhỏ, cách nhanh nhất là tải lại bằng giao diện hoặc import. Chỉ viết công cụ chép khi số lượng đủ lớn (thuật toán đã nghĩ sẵn: liệt kê nguồn; bỏ qua nếu đích đã có cùng kích thước; đọc streaming và ghi sang đích cùng tên và `content_type`; đối chiếu `sha256`; không bao giờ xóa).
 
-**Kiểm chứng (cổng)**
-- Test đơn vị với client giả (đủ nhánh: bỏ qua, chép, lệch hash, lỗi giữa chừng).
-- Tích hợp thật trên dev: MinIO (profile legacy) sang Garage cho cả hai bucket; số object, kích thước và `sha256` trùng khớp.
-- Chạy lần hai: 0 object phải chép.
-- Có ít nhất một object lớn hơn 5 MiB và một tên có dấu tiếng Việt trong bộ dữ liệu thử.
+### Slice 5 - CI và chuỗi cung ứng image (DỜI sang Slice 9, tùy chọn, xem 9.0)
 
-**Rollback**: xóa bucket đích rồi chạy lại (nguồn không bị thay đổi).
+CI **không** chặn cutover và vẫn chạy với MinIO. CI cần một S3 sống vì `TestClient` chạy `lifespan` và `ensure_bucket()` (đã kiểm ở bản rút gọn), nên khi làm thì phải thay bằng Garage chứ không thể chỉ xóa service. Nội dung công việc nằm ở Slice 9. Chuỗi cung ứng: production kéo trực tiếp từ Docker Hub theo digest; bản mirror ghcr (đã làm ở Slice 0) là dự phòng, không cần token chỉ đọc (U16).
 
-### Slice 5 - CI và chuỗi cung ứng image
+### Slice 6 - Compose production và gỡ `mc`
 
-**Việc làm**
-- Thay service `minio` (`ci.yml:45-58`) bằng bước khởi động Garage bằng `docker run` từ image mirror (theo tài liệu GitHub và mã nguồn runner, `command` và `entrypoint` có tồn tại trong `services`, nhưng service khởi động **trước bước checkout** nên không gắn được `garage.toml` từ repo, và `--health-cmd` làm job hỏng trên image không có shell; xem U12), kèm bước chờ sẵn sàng và bootstrap. Có thể dùng chế độ `--single-node --default-bucket` với `GARAGE_DEFAULT_*` cho CI nếu Slice 1 xác nhận.
-- Đổi `MINIO_ENDPOINT` (`ci.yml:81, 93, 105`) và thêm khóa tương ứng.
-- Xử lý bước build image backup (`ci.yml:164`) theo D3.
-
-**Kiểm chứng (cổng)**: chạy workflow trên một nhánh (cần GitHub Actions): `test-backend` xanh; `build-and-push` xanh. Máy dev hiện không có `gh`, nên bước này cần người vận hành xác nhận kết quả.
-
-**Rollback**: revert workflow.
-
-### Slice 6 - Gỡ phụ thuộc `mc` và cập nhật tài liệu
-
-**Việc làm (theo D3, khuyến nghị gỡ)**
-- Gỡ `backup_scheduler` khỏi 3 file compose; xóa `docker/backup/Dockerfile`, `scripts/backup_minio.sh`, `scripts/backup-entrypoint.sh`, `scripts/backup_db.sh`.
-- Viết lại `scripts/restore_procedure.md` bằng SDK Python (và `s3_migrate`).
-- Cập nhật tài liệu vận hành: `docs/deploy_noi_bo_lan_ubuntu_26_04.md`, `docs/production_deploy_ubuntu_26_04.md`, `docs/production_go_live_runbook.md`, `docs/TECHSTACK.md`, `docs/FEATURES.md`, `README.md`, `.env.example`.
-- Với các `plan_*.md` lịch sử: thêm một dòng ghi chú trỏ sang tài liệu này, không viết lại nội dung.
+**Việc làm** (cho `docker-compose.lan.yml` và `docker-compose.prod.yml`, theo D6)
+- Thêm service `garage` và volume `garage_meta`, `garage_data` theo mẫu `docker-compose.yml`. Khác ở production: `restart: always`; `GARAGE_RPC_SECRET` và `GARAGE_ADMIN_TOKEN` dùng `${VAR:?...}` (bắt buộc đặt, không có giá trị mặc định); image ghim digest.
+- **Truyền `MINIO_REGION` và `BACKUP_STORAGE_REGION`** cho `backend`, `celery_worker`, `celery_beat`. Hai file này liệt kê từng biến môi trường (không dùng `env_file`) và hiện **không có** hai biến này (đã `grep`); thiếu chúng thì backend không khởi động được với Garage (Slice 1, 2).
+- Đổi `depends_on: minio` thành `garage` (ở LAN: `backend`, `celery_worker`, `celery_beat`).
+- Đưa `minio` vào profile `legacy-minio` (còn dùng cho quay lui).
+- Gỡ `backup_scheduler` khỏi cả hai file (nó cũng `depends_on: minio`), xóa `docker/backup/Dockerfile`, `scripts/backup_minio.sh`, `scripts/backup-entrypoint.sh`, `scripts/backup_db.sh`, và bước build image backup trong `ci.yml` (D3: không chạy trên production, không build được vì `dl.min.io` trả 410).
+- Ghi chú trong `.env.example` (mục Garage đã có từ Slice 2): production phải đặt `GARAGE_RPC_SECRET`, `GARAGE_ADMIN_TOKEN` ngẫu nhiên riêng.
 
 **Kiểm chứng (cổng)**
-- `grep` không còn `mc `, `dl.min.io`, `minio/mc` ngoài tài liệu lịch sử.
-- `docker compose -f <từng file> config` hợp lệ.
-- **Làm theo đúng `restore_procedure.md` mới từ đầu đến cuối** trên dev (khôi phục dump DB từ Garage và tải tệp): chứng minh tài liệu chạy được.
+- `docker compose -f <từng file> config` hợp lệ với một `.env` mẫu đủ biến; so `config` của `backend` giữa LAN và dev để chắc `MINIO_REGION` và `BACKUP_STORAGE_REGION` đều có mặt.
+- `grep` không còn `backup_scheduler`, `minio/mc`, `dl.min.io` trong compose, CI và Dockerfile.
+- **Không khởi động trên production ở slice này.**
 
-**Rollback**: revert commit.
+**Rollback**: `git revert`.
 
-### Slice 7 - Diễn tập cutover trên dev với bản sao production
+### Slice 7 - Diễn tập cutover trên dev với bản sao production (ĐÃ BỎ, xem 9.0)
 
-**Việc làm**: dựng lại hiện trạng "MinIO + dữ liệu" (profile `legacy-minio`), DB là bản sao production; chạy **đúng runbook mục 10, bằng đúng lệnh** sẽ dùng ở production; đo thời gian từng bước; diễn tập quay lui.
+Không có bước chép dữ liệu để diễn tập; Garage, bootstrap, backend, Backup Console, sao lưu, khôi phục và khởi động lại đã chạy thật ở Slice 2. Phần còn lại khác dev (tên file compose, tên bucket production) được kiểm tĩnh bằng `docker compose config` ở Slice 6.
 
-**Kiểm chứng (cổng)**: checklist sau cutover (mục 10.4) toàn PASS; sau quay lui, hệ thống về đúng trạng thái cũ, xác nhận bằng giao diện; thời gian gián đoạn thực đo được ghi lại để chốt cửa sổ bảo trì (D1).
+### Slice 8 - Cutover production (rút gọn)
 
-**Rollback**: bỏ container/volume của buổi diễn tập.
+**Điều kiện tiên quyết**: Slice 3 và 6 đạt cổng và đã `git pull` trên production; kiểm kê lại cho **0 object tệp**; bản sao lưu DB gần nhất `success` (khuyến nghị, vì rất rẻ).
 
-### Slice 8 - Cutover production
+**Việc làm**: thực hiện runbook mục 10 (khoảng 15 phút, gián đoạn khoảng 1-2 phút).
 
-**Điều kiện tiên quyết**: Slice 0-7 đạt cổng; bản sao lưu DB tạo **trong vòng 1 giờ** trước khi bắt đầu; snapshot volume MinIO mới; đã chốt cửa sổ bảo trì. Theo quyết định ngày 2026-10-30 (mục 12.3), **không bắt buộc** có bản sao lưu ngoài máy production.
+**Kiểm chứng (cổng)**: checklist 10.3 PASS; đêm đầu: sao lưu theo lịch 02:00 (`db`) và 03:00 (`object_storage`) thành công.
 
-**Việc làm**: thực hiện runbook mục 10.
+**Rollback**: 10.4.
 
-**Kiểm chứng (cổng)**: checklist 10.4 PASS; theo dõi 24 giờ đầu (đăng nhập, tải tệp, lần sao lưu theo lịch 02:00 kế tiếp thành công cho cả `db` và `object_storage`).
+### Slice 9 - Dọn dẹp sau cutover
 
-**Rollback**: quy trình 10.5.
-
-### Slice 9 - Hậu kiểm và dọn dẹp (7 ngày sau cutover, theo D4)
+**Điều kiện**: sao lưu theo lịch đêm đầu tiên thành công cho cả `db` và `object_storage` trên Garage (đề xuất cho D4, xem 9.0).
 
 **Việc làm**
-- Xác nhận sao lưu theo lịch chạy thành công nhiều ngày liền; chạy thử một lần khôi phục thật sang đích mới (kiểm tra quyền tạo bucket, U4).
-- Gỡ service, volume và image MinIO khỏi compose và khỏi máy chủ (sau khi lưu bản nén cuối cùng theo D4).
-- Cập nhật tài liệu thành trạng thái cuối; chốt giải pháp đích sao lưu ngoài máy (D2).
-- Thêm giám sát cơ bản: dung lượng đĩa của `garage_data`, `garage status`.
+- Gỡ container, volume và image MinIO khỏi máy chủ và khỏi compose. Giữ bản nén ở Slice 0 ngoài thư mục repo cho đến khi chủ hệ thống cho phép xóa.
+- Viết lại `scripts/restore_procedure.md` bằng SDK Python và **làm theo đúng từ đầu đến cuối** trên dev (khôi phục dump DB từ Garage và tải tệp), để chứng minh tài liệu chạy được.
+- Cập nhật tài liệu vận hành: `docs/deploy_noi_bo_lan_ubuntu_26_04.md`, `docs/production_deploy_ubuntu_26_04.md`, `docs/production_go_live_runbook.md`, `docs/TECHSTACK.md`, `docs/FEATURES.md`, `README.md`. Với các `plan_*.md` lịch sử chỉ thêm một dòng ghi chú trỏ sang tài liệu này.
+- Giám sát cơ bản: dung lượng đĩa của `garage_data`, `garage health`.
+- **(Tùy chọn, làm sau được)** CI: thay service `minio` (`ci.yml:45-58`) bằng Garage khởi động bằng `docker run` **sau bước checkout** (service chạy trước checkout nên không gắn được `garage.toml` từ repo; `--health-cmd` làm job hỏng trên image không có shell; `command` phải bắt đầu bằng `/garage`; xem U12), kèm bước chờ sẵn sàng và bootstrap; đổi `MINIO_ENDPOINT` (`ci.yml:81, 93, 105`), thêm khóa và `MINIO_REGION=garage`.
 
-**Kiểm chứng**: `docker ps -a` và `docker volume ls` không còn tài nguyên MinIO; một lần khôi phục thử thành công.
+**Kiểm chứng**: `docker ps -a` và `docker volume ls` không còn tài nguyên MinIO; `grep` không còn `mc `, `dl.min.io`, `minio/mc` ngoài tài liệu lịch sử; `restore_procedure.md` chạy được từ đầu đến cuối; nếu làm CI thì workflow xanh (người vận hành xác nhận, máy dev không có `gh`).
 
 ### Slice 10 (tùy chọn) - Đổi tên biến `MINIO_*` thành `S3_*`
 
-Làm riêng sau khi hệ thống ổn định: thêm biến mới với dự phòng đọc biến cũ, đổi dần compose/CI/tài liệu, rồi gỡ biến cũ ở một đợt sau. Không thuộc phạm vi cutover.
+Làm riêng sau khi hệ thống ổn định: thêm biến mới với dự phòng đọc biến cũ, đổi dần compose/CI/tài liệu, rồi gỡ biến cũ ở một đợt sau. Có thể gộp việc gom 4 chỗ tạo client vào một `build_s3_client` (hoãn từ Slice 3; hành vi đã có test ở `backend/tests/test_s3_client_region.py`) và thêm `checks["storage"]`. Không thuộc phạm vi cutover.
 
-## 10. Runbook cutover production (phác thảo, chưa chạy)
+## 10. Runbook cutover production (bản rút gọn)
 
-Chạy trong `/opt/hrms/HRMS` với `docker-compose.lan.yml`. **Mọi lệnh phải được kiểm chứng ở Slice 7 trước khi dùng thật.**
+Chạy trong `/opt/hrms/HRMS` với `docker-compose.lan.yml`. Các lệnh về Garage, bootstrap, backend và Backup Console đã chạy thật ở dev (Slice 2); phần khác biệt production (tên file compose, tên bucket) được kiểm tĩnh bằng `docker compose config` ở Slice 6. Không có bước chép dữ liệu (production không có tệp nào, xem 9.0). Không cần cửa sổ bảo trì riêng: gián đoạn chỉ là lần khởi động lại `backend` và `celery_*` (khoảng 1-2 phút); nên làm ngoài giờ làm việc.
 
-### 10.1. Chuẩn bị (trước cửa sổ bảo trì, hệ thống còn chạy)
+### 10.1. Chuẩn bị (hệ thống còn chạy, chưa ảnh hưởng người dùng)
 
 1. `git pull origin master` (nhớ: nhánh là `master`, không phải `main`).
-2. Đảm bảo `.env` có `GARAGE_RPC_SECRET`, `GARAGE_ADMIN_TOKEN` (sinh bằng `openssl rand -hex 32`), `GARAGE_IMAGE`/`GARAGE_TAG` ghim theo digest; `chmod 600 .env`.
-3. Backup Console: ▶ sao lưu PostgreSQL và xác nhận `success` (truy vấn `backup_jobs`).
-4. Snapshot volume MinIO:
+2. **Kiểm kê (Phụ lục D)** và ghi lại số object của bucket tệp. Phải là **0**. Nếu lớn hơn 0: dừng, quyết định (tải lại bằng giao diện hoặc import, hoặc chép tay); không tiếp tục theo runbook này.
+3. Backup Console: ▶ sao lưu PostgreSQL và xác nhận `success`. (Khuyến nghị, vì rất rẻ.)
+4. Sao lưu `.env` hiện tại ra ngoài thư mục repo với quyền `600`. Thêm vào `.env`: `GARAGE_RPC_SECRET` và `GARAGE_ADMIN_TOKEN` (sinh bằng `openssl rand -hex 32`); `chmod 600 .env`.
+5. Bật Garage song song với MinIO: `docker compose -f docker-compose.lan.yml up -d garage`; chờ `healthy`.
+6. Bootstrap, lấy khóa vào tệp tạm, **chưa động vào khóa cũ trong `.env`**:
    ```bash
-   docker volume ls | grep minio_data      # xác nhận tên volume, ví dụ hrms_minio_data
-   docker run --rm -e UIDGID="$(id -u):$(id -g)" -v <tên_volume>:/d:ro -v "$PWD":/out alpine@sha256:be2656061b536c1883c4034790e21d0a09c5aaaf51968b89368a3c0371ea2c9a \
-     sh -c 'umask 077 && tar czf /out/minio_data_$(date +%F).tgz -C /d . && chown "$UIDGID" /out/minio_data_*.tgz'
-   ```
-5. Bật Garage song song với MinIO: `docker compose -f docker-compose.lan.yml up -d garage`, rồi `scripts/garage_bootstrap.sh`. Ghi hai cặp khóa vào nơi tạm an toàn (chưa đưa vào `.env`).
-6. **Chép dữ liệu lần 1 khi hệ thống còn chạy** (khóa nguồn/đích truyền bằng biến môi trường cho lệnh). Kiểm kê ngày 2026-10-30: bucket tệp có 0 object và `hrms-backup` có 3 object; bước chép bucket tệp có thể không chép gì, vẫn chạy để xác nhận. **Chạy lại kiểm kê (Phụ lục D) ngay trước khi bắt đầu**, vì người dùng có thể đã tải tệp lên:
-   ```bash
-   docker compose -f docker-compose.lan.yml run --rm --no-deps \
-     -e SRC_ENDPOINT=minio:9000 -e DST_ENDPOINT=garage:3900 ... \
-     backend python -m app.scripts.s3_migrate --src-bucket hrms-attachments-dev --dst-bucket hrms-attachments-prod --verify
-   docker compose -f docker-compose.lan.yml run --rm --no-deps ... \
-     backend python -m app.scripts.s3_migrate --src-bucket hrms-backup --dst-bucket hrms-backup --verify
+   (umask 077; COMPOSE_FILE=docker-compose.lan.yml MINIO_BUCKET=hrms-attachments-prod bash scripts/garage_bootstrap.sh > /tmp/garage_keys.env)
+   wc -l /tmp/garage_keys.env      # phải là 4 dòng
    ```
 
-### 10.2. Cắt chuyển (trong cửa sổ bảo trì)
+### 10.2. Cắt chuyển (gián đoạn khoảng 1-2 phút)
 
-1. Dừng ứng dụng: `docker compose -f docker-compose.lan.yml stop backend celery_worker celery_beat`. Sau đó chụp **snapshot volume MinIO lần cuối** bằng lệnh ở 10.1 bước 4 (tên tệp khác): lúc này MinIO không còn ghi nên snapshot nhất quán.
-2. **Chép bù lần cuối** cả hai bucket (như 10.1 bước 6); báo cáo phải là 0 lỗi, số object/kích thước/hash trùng.
-3. Sửa `.env`: `MINIO_ENDPOINT`, `MINIO_BUCKET=hrms-attachments-prod`, `MINIO_ACCESS_KEY/SECRET_KEY` (khóa `hrms-app`), `BACKUP_STORAGE_ENDPOINT`, `BACKUP_STORAGE_ACCESS_KEY/SECRET_KEY` (khóa `hrms-backup`) theo bảng 7.1. Sao lưu `.env` cũ ra ngoài thư mục repo với quyền `600`.
-4. Sửa cấu hình sao lưu **trong DB** (hoặc bằng form ở mục 7.2):
+1. Sửa `.env` (không in giá trị bí mật ra màn hình): đặt `MINIO_ENDPOINT=garage:3900`, `MINIO_BUCKET=hrms-attachments-prod`, `MINIO_REGION=garage`, `MINIO_SECURE=false`, `BACKUP_STORAGE_ENDPOINT=garage:3900`, `BACKUP_STORAGE_REGION=garage`, `BACKUP_STORAGE_SECURE=false`; xóa 4 dòng khóa cũ (`MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `BACKUP_STORAGE_ACCESS_KEY`, `BACKUP_STORAGE_SECRET_KEY`) rồi nối nội dung `/tmp/garage_keys.env`; sau đó `shred -u /tmp/garage_keys.env`. Lưu ý: ở compose LAN, MinIO đọc tài khoản gốc từ chính `MINIO_ACCESS_KEY`/`MINIO_SECRET_KEY`, nên sau bước này `.env` không còn dùng được cho MinIO; quay lui (10.4) vì vậy phải trả `.env` bản cũ.
+2. Sửa cấu hình sao lưu **trong DB** (hoặc bằng form ở mục 7.2):
    ```sql
    update backup_configs
       set source_endpoint = 'garage:3900',
@@ -602,32 +592,28 @@ Chạy trong `/opt/hrms/HRMS` với `docker-compose.lan.yml`. **Mọi lệnh ph�
       and source_bucket   = 'hrms-attachments-dev';
    select kind, source_endpoint, source_bucket, target_endpoint, target_bucket from backup_configs order by kind;
    ```
-5. Khởi động lại: `docker compose -f docker-compose.lan.yml up -d --force-recreate --no-deps backend celery_worker celery_beat`.
-6. Ngăn MinIO tự bật lại sau khởi động máy: `docker compose -f docker-compose.lan.yml stop minio` và `docker update --restart=no <container_minio>`; **chưa xóa** container và volume.
+3. Khởi động lại: `docker compose -f docker-compose.lan.yml up -d --force-recreate --no-deps backend celery_worker celery_beat`.
+4. Dừng MinIO và ngăn nó tự bật lại sau khởi động máy: `docker compose -f docker-compose.lan.yml stop minio` rồi `docker update --restart=no <container_minio>`. **Chưa xóa** container và volume.
 
-### 10.3. Kiểm chứng
+### 10.3. Checklist sau cutover
 
-Chạy checklist 10.4.
-
-### 10.4. Checklist sau cutover
-
-1. `docker compose ... ps`: `garage`, `backend`, `celery_*` healthy.
-2. `GET /health`: `database`, `redis`, `minio` đều `ok`.
-3. Trình duyệt thật: luồng 8.1; mở lại một tệp đính kèm **cũ** (đã có trước cutover) và so `sha256` với bản gốc.
-4. Backup Console: nút "Kiểm tra đích sao lưu" Thành công cho cả hai dòng; ▶ sao lưu DB và kho tệp `success`; `backup_jobs` có `artifact_bucket = hrms-backup`.
-5. `select` từ `backup_configs` đúng như 10.2 bước 4 (**cả `source_endpoint` lẫn `source_bucket`**); `GET /health` cũng kiểm tra bucket `hrms-attachments-prod`, nên `ok` là bằng chứng `MINIO_BUCKET` đã nạp đúng.
+1. `docker compose -f docker-compose.lan.yml ps`: `garage`, `backend`, `celery_*` chạy và healthy.
+2. `GET /health`: `database`, `redis`, `minio` đều `ok` (kiểm cả bucket `hrms-attachments-prod`, nên `ok` là bằng chứng `MINIO_BUCKET` đã nạp đúng).
+3. Trình duyệt thật (luồng 8.1): tải lên một tệp, mở bằng nút **Xem file**, xóa. Nút "Tải xuống" chỉ kiểm sau khi lỗi `401` của nó đã được sửa (xem kết quả Slice 2, phát hiện 4).
+4. Backup Console: "Kiểm tra đích sao lưu" Thành công cho cả hai dòng; ▶ sao lưu DB và kho tệp đều `success`; `backup_jobs` có `artifact_bucket = hrms-backup`.
+5. `select` từ `backup_configs` đúng như 10.2 bước 2 (**cả `source_endpoint` lẫn `source_bucket`**).
 6. Log `backend` không có `S3Error`/`Traceback` bất thường trong 15 phút đầu.
 
-### 10.5. Quay lui
+### 10.4. Quay lui
 
-Điều kiện kích hoạt: bất kỳ mục nào của 10.4 FAIL mà không sửa được trong thời hạn đã định trước.
+Điều kiện kích hoạt: bất kỳ mục nào của 10.3 FAIL mà không sửa được nhanh.
 
 1. Dừng `backend`, `celery_worker`, `celery_beat`.
-2. **Nếu đã có ghi mới vào Garage** sau cutover: chép ngược các object mới từ Garage về MinIO bằng `s3_migrate` (hướng ngược); nếu không sẽ mất các tệp đó.
-3. Trả `.env` về bản cũ (gồm bỏ `MINIO_BUCKET`); trả `backup_configs.source_endpoint` về `minio:9000` và `source_bucket` về `hrms-attachments-dev`.
-4. `docker compose ... start minio`; khởi động lại ba dịch vụ; chạy lại 10.4 mục 1-4 với MinIO.
+2. Trả `.env` về bản đã sao lưu ở 10.1 bước 4; trả `backup_configs.source_endpoint` về `minio:9000` và `source_bucket` về `hrms-attachments-dev`.
+3. `docker compose -f docker-compose.lan.yml --profile legacy-minio up -d minio`; khởi động lại ba dịch vụ; chạy lại 10.3 mục 1-4 với MinIO.
+4. Tệp nào người dùng tải lên Garage sau cutover sẽ không có ở MinIO: theo tiền đề ở 9.0 thì tải lại hoặc chấp nhận mất (nếu cần giữ thì chép tay trước bước 1).
 
-Việc quay lui chỉ dùng được khi container và volume MinIO còn nguyên, nên không xóa chúng trước Slice 9.
+Quay lui chỉ dùng được khi container và volume MinIO còn nguyên, nên không xóa chúng trước Slice 9.
 
 ## 11. Rủi ro và đường lui
 
@@ -635,17 +621,17 @@ Việc quay lui chỉ dùng được khi container và volume MinIO còn nguyên
 |---|---|---|---|
 | R1 | Garage không tương thích một hành vi ứng dụng cần | Cao | Slice 1 là cổng go/no-go; dự phòng Silo |
 | R2 | Quên cập nhật `backup_configs.source_endpoint` trong DB | Cao | Bước SQL cụ thể trong 10.2; checklist 10.4 mục 5; nhãn lỗi rõ ở Backup Console |
-| R3 | Backend không khởi động vì `ensure_bucket()` (bucket chưa có/thiếu quyền) | Cao | Bootstrap trước khi khởi động dịch vụ; kiểm trong diễn tập (Slice 7) |
+| R3 | Backend không khởi động vì `ensure_bucket()` (bucket chưa có/thiếu quyền) hoặc vì thiếu `region` | Cao | Bootstrap trước khi khởi động dịch vụ; compose production truyền `region` (Slice 6); checklist 10.3 |
 | R4 | Hỏng/mất dữ liệu Garage khi mất điện | Trung bình | `sqlite` + `fsync` + snapshot `6h` (chu kỳ tối thiểu 10 phút, U11); snapshot nằm cùng volume với DB nên vẫn cần sao lưu ngoài máy (D2) |
 | R5 | Sao lưu và dữ liệu thật nằm cùng một kho, cùng một ổ đĩa, và **hiện chưa có nơi nào ngoài máy production** (xác nhận 2026-10-30) | Cao | **Chủ hệ thống đã chấp nhận rủi ro khi cutover** (mục 12.3). Vẫn nên có ít nhất một bản ngoài máy (D2); không giải quyết trong đợt này |
-| R6 | Mất dữ liệu khi chép | Thấp hiện tại (production có 0 tệp và 3 object sao lưu, kiểm kê 2026-10-30); có thể tăng nếu người dùng tải tệp lên trước cutover | `--verify` theo `sha256`, chép hai lần, không xóa nguồn, giữ snapshot và container MinIO cũ; kiểm kê lại ngay trước cutover |
+| R6 | Mất dữ liệu tệp khi cutover | Rất thấp (production có 0 tệp, kiểm kê 2026-10-30; dữ liệu còn lại khôi phục được bằng import) | Kiểm kê lại ngay trước cutover; nếu có tệp thì dừng và quyết định; container và volume MinIO cũ không bị xóa cho tới Slice 9 |
 | R7 | Image Garage biến mất khỏi registry công khai | Trung bình | Mirror lên ghcr, ghim digest (5.10) |
 | R8 | Lộ khóa truy cập | Trung bình | Khóa chỉ in một lần ra terminal; `.env` quyền `600`; không đưa khóa lên dòng lệnh script |
-| R9 | CI không khởi động được Garage | Trung bình | Dùng `docker run` trong bước riêng (U12); chạy thử trên nhánh trước khi gộp |
-| R10 | Gián đoạn dịch vụ lâu hơn dự kiến | Trung bình | Chép lần 1 khi chạy; chỉ chép bù lần cuối trong cửa sổ; đo thời gian ở Slice 7 |
+| R9 | CI không khởi động được Garage | Thấp (không chặn cutover) | CI vẫn dùng MinIO cho tới khi làm bước tùy chọn ở Slice 9; khi làm: `docker run` sau checkout (U12), chạy thử trên nhánh trước khi gộp |
+| R10 | Gián đoạn dịch vụ lâu hơn dự kiến | Thấp | Garage và bootstrap chạy trước khi động vào ứng dụng; gián đoạn chỉ là lần khởi động lại `backend` và `celery_*`; có quay lui 10.4 |
 | R11 | AGPLv3 của Garage | Thấp | Dùng nội bộ, không sửa mã; (không phải tư vấn pháp lý, cần chốt nếu có phân phối lại) |
 | R12 | Test hạ tầng làm hỏng DB bản sao production | Trung bình | Luôn chạy test trên bản clone DB (mục 9) |
-| R13 | Đổi tên bucket cùng lúc cutover làm tăng số điểm phải đúng (`MINIO_BUCKET`, `backup_configs.source_bucket`, bucket mới trong Garage, quyền của khóa `hrms-app`) | Trung bình | Một SQL duy nhất cập nhật cả endpoint lẫn bucket; checklist 10.4 mục 5; diễn tập đúng tên bucket ở Slice 7. Manifest của các bản sao lưu cũ vẫn ghi `source_bucket = hrms-attachments-dev` nhưng khôi phục đọc từ bucket sao lưu, không dùng giá trị này (đã đọc `restore_runner_service.py:336-355`, chưa chạy thử; **kiểm chứng ở Slice 7 bằng một lần khôi phục thật**) |
+| R13 | Đổi tên bucket cùng lúc cutover làm tăng số điểm phải đúng (`MINIO_BUCKET`, `backup_configs.source_bucket`, bucket mới trong Garage, quyền của khóa `hrms-app`) | Thấp (bucket trống) | Một SQL cập nhật cả endpoint lẫn bucket; checklist 10.3 mục 5 |
 
 ## 12. Điểm chưa xác minh và quyết định cần chốt
 
@@ -664,11 +650,11 @@ Việc quay lui chỉ dùng được khi container và volume MinIO còn nguyên
 | U9 | Quyền ghi lên volume. Cấu hình image cho thấy tiến trình chạy bằng root (không có `User`), nên nhiều khả năng không vướng; vẫn cần xác nhận khi chạy thật |
 | U10 | Độ trễ khi bật `metadata_fsync` và `data_fsync` |
 | U11 | `metadata_auto_snapshot_interval` có áp dụng cho `sqlite` **(đã xác minh ở Slice 1: có; tối thiểu 600 giây)** |
-| U12 | GitHub Actions có hỗ trợ khóa `command` trong `services` (`ci.yml` đang dùng nhưng tôi tin là không có tác dụng) |
+| U12 | GitHub Actions có hỗ trợ khóa `command` trong `services` (`ci.yml` đang dùng nhưng tôi tin là không có tác dụng) **Chỉ liên quan CI (tùy chọn, Slice 9).** |
 | U13 | `depends_on: condition: service_healthy` hoạt động với healthcheck của Garage |
 | U14 | Mã/ngữ nghĩa lỗi khi object hoặc bucket không tồn tại (ứng dụng chỉ bắt `S3Error` chung nên rủi ro thấp) |
 | U15 | Mức dùng RAM và CPU khi rảnh và khi sao lưu |
-| U16 | Gói mirror trên ghcr là **riêng tư** (xác nhận: không đăng nhập thì `401`) và do token cá nhân đẩy lên, image không có nhãn `org.opencontainers.image.source` nên có thể **chưa được liên kết với repo**. Kiểm tra `GITHUB_TOKEN` trong Actions có kéo được không; nếu không thì kết nối gói với repo (Manage Actions access). Production cần token chỉ đọc để kéo (Slice 5, 8) |
+| U16 | Gói mirror trên ghcr là **riêng tư** (xác nhận: không đăng nhập thì `401`) và do token cá nhân đẩy lên, image không có nhãn `org.opencontainers.image.source` nên có thể **chưa được liên kết với repo**. Kiểm tra `GITHUB_TOKEN` trong Actions có kéo được không; nếu không thì kết nối gói với repo (Manage Actions access). Production cần token chỉ đọc để kéo (Slice 5, 8) **Không còn chặn** (bản rút gọn): production kéo thẳng từ Docker Hub theo digest; mirror ghcr chỉ là dự phòng. |
 | U17 | `GARAGE_RPC_SECRET` và `GARAGE_ADMIN_TOKEN` có được Garage đọc từ biến môi trường khi `garage.toml` không có `rpc_secret`/`admin_token` (Phụ lục A và compose đang dựa vào điều này; trang cấu hình chỉ thấy liệt kê biến môi trường của log, chưa thấy hai biến này). Nếu không: dùng `rpc_secret_file` hoặc ghi vào file cấu hình quyền 600 |
 
 ### 12.1a. Bằng chứng đọc từ mã nguồn Garage v2.5.0 (trước khi chạy, chưa kiểm chứng)
@@ -685,7 +671,7 @@ Nguồn: agent nghiên cứu đọc tài liệu và mã nguồn (GitHub mirror, 
 | U8 | Tài liệu không nói gì về `[::]` so với `0.0.0.0` trong mạng bridge; ví dụ quick-start dùng `[::]`. Chỉ suy luận: nếu kernel tắt IPv6 thì `[::]` có thể lỗi | Phụ lục A giữ `0.0.0.0`; spike xác nhận |
 | U9 | Dockerfile gốc `FROM scratch`, không có `USER`/`VOLUME`/`HEALTHCHECK`; image đã phát hành nhiều khả năng chạy root (suy luận, chưa kiểm image) | Spike xem quyền volume |
 | U11 | Snapshot hoạt động với sqlite (`VACUUM INTO`), mặc định ở `<metadata_dir>/snapshots`, giữ 2 bản gần nhất, mỗi bản là bản sao đầy đủ | Snapshot nằm **cùng volume** với DB nên không chống được mất volume; volume metadata cần chỗ cho khoảng 3 bản. Đã xác nhận bằng chạy thật; chu kỳ tối thiểu 600 giây |
-| U12 | `command` và `entrypoint` có trong `services`; service khởi động trước checkout; không gắn được tệp từ repo; `--health-cmd` làm job hỏng; `command` phải bắt đầu bằng `/garage` | Slice 5 dùng `docker run` sau checkout |
+| U12 | `command` và `entrypoint` có trong `services`; service khởi động trước checkout; không gắn được tệp từ repo; `--health-cmd` làm job hỏng; `command` phải bắt đầu bằng `/garage` | CI (Slice 9, tùy chọn) dùng `docker run` sau checkout |
 | U14 | Thiếu object: 404 `NoSuchKey`; thiếu bucket: 404 `NoSuchBucket`; bucket có sẵn nhưng khóa thiếu quyền: 403 `AccessDenied` (`bucket_exists` ném lại lỗi này thay vì trả False) | Khớp ứng dụng chỉ bắt `S3Error` chung |
 | X1 | Garage không có giới hạn phần tối thiểu 5 MiB (khác MinIO); `ListObjectsV2` mã hóa `encoding-type=url`, tài liệu Garage tự cảnh báo "có thể có lỗi mã hóa"; `minio-py` qua HTTP gửi SHA-256 thật của nội dung (issue #1196 liên quan, chưa đọc được trạng thái) | Probe thử tên có `+ % & ? '`, multipart 12 MiB, 1.050 object |
 
@@ -695,10 +681,10 @@ Nguồn: agent nghiên cứu đọc tài liệu và mã nguồn (GitHub mirror, 
 
 | # | Câu hỏi | Đề xuất |
 |---|---|---|
-| D1 | Cửa sổ bảo trì cho cutover (đo thực tế ở Slice 7) | Ngoài giờ làm việc; chốt sau Slice 7 |
+| D1 | Cửa sổ bảo trì cho cutover | **Không cần riêng** (bản rút gọn, 9.0): khởi động lại `backend` khoảng 1-2 phút, làm ngoài giờ làm việc |
 | D2 | Đích sao lưu ngoài máy (offsite) | Cần quyết định riêng; ít nhất sao chép định kỳ bucket `hrms-backup` sang máy khác |
 | D3 | Gỡ image/script sao lưu cũ dùng `mc` | **Gỡ** (Backup Console đã thay thế) |
-| D4 | Thời gian giữ MinIO cũ ở trạng thái dừng sau cutover | 14 ngày |
+| D4 | Thời gian giữ MinIO cũ ở trạng thái dừng sau cutover | **Đã chốt (2026-10-30): đến khi sao lưu theo lịch đêm đầu tiên thành công trên Garage** (thay cho 7 ngày đã chọn trước đó; bản rút gọn) |
 | D5 | Đổi tên `MINIO_*` thành `S3_*` | Để sau, Slice 10 |
 | D6 | `docker-compose.prod.yml` (HTTPS) hiện không có service MinIO, trỏ endpoint ngoài | Thêm service `garage` tương tự LAN nếu compose này còn được dùng |
 
@@ -717,17 +703,18 @@ Nguồn: agent nghiên cứu đọc tài liệu và mã nguồn (GitHub mirror, 
 | 2026-10-30 | **D5: để sau.** Cutover chỉ đổi giá trị biến `MINIO_*`, không đổi tên | Slice 10 vẫn là tùy chọn, làm riêng sau khi Garage ổn định |
 | 2026-10-30 | **D6: thêm service `garage` vào `docker-compose.prod.yml`** theo cùng mẫu với file LAN (workflow deploy mặc định dùng file này; server thật chạy `docker-compose.lan.yml`) | Slice 2 và Slice 6 sửa cả ba file compose; hai file không được lệch nhau |
 | 2026-10-30 | **Cổng Slice 1: GO có điều kiện** (theo đề xuất; chủ hệ thống chấp thuận). Điều kiện: (1) SDK truyền `region="garage"`; (2) bucket do bootstrap tạo bằng CLI, khóa chỉ có quyền tạo bucket khi cần khôi phục vào bucket chưa có; (3) `metadata_auto_snapshot_interval` từ 10 phút trở lên (giữ `6h`) | Slice 2 làm theo ba điều kiện này; độ chín của Garage v2.5.0 (mới ra vài ngày) tiếp tục là rủi ro theo dõi ở Slice 2 và 7; U2, U10, U17 còn mở một phần, U12 và U16 để Slice 5 |
+| 2026-10-30 | **Rút gọn kế hoạch theo tiền đề của chủ hệ thống**: dữ liệu production nhỏ và khôi phục được bằng import (chỉ có Phòng/ban, Chức danh, Vị trí, 4 nhân viên thử). Bỏ Slice 4 và 7; dời CI (Slice 5) sang Slice 9 và để tùy chọn; bỏ snapshot MinIO, bước chép dữ liệu và cửa sổ bảo trì ở cutover; rút D4 | Chi tiết ở 9.0. Điều kiện: kiểm kê lại ngay trước cutover phải cho 0 tệp. Tìm thấy thêm: compose production chưa truyền `region` (Slice 6 phải làm); CI vẫn cần S3 sống nên không thể chỉ xóa service MinIO |
+| 2026-10-30 | **D4 chốt: giữ MinIO cũ ở trạng thái dừng cho đến khi sao lưu theo lịch đêm đầu tiên (02:00 `db`, 03:00 `object_storage`) thành công trên Garage, rồi gỡ** (thay cho 7 ngày đã chọn trước đó) | Slice 9 bắt đầu sau đêm đầu tiên thay vì ngày thứ 7; đường lui (10.4) vẫn còn nguyên cho tới lúc đó |
 | 2026-10-30 | *(Điều chỉnh theo bằng chứng, không phải quyết định mới của chủ hệ thống)* Kéo tham số `region` từ Slice 3 sang Slice 2; cấp quyền tạo bucket cho **cả hai** khóa thay vì chỉ `hrms-backup` | Cả hai đều do bằng chứng chạy thật: backend không khởi động được với Garage nếu thiếu `region` (Slice 1, Slice 2); khôi phục kho tệp tạo bucket đích bằng khóa ứng dụng (`AccessDenied` khi thiếu quyền). Cần chủ hệ thống xem lại nếu muốn hạn chế quyền tạo bucket của khóa ứng dụng |
 
 ## 13. Tiêu chí hoàn thành
 
-- Không còn tham chiếu tới `minio/minio`, `minio/mc`, `dl.min.io` trong compose, CI, Dockerfile và kịch bản vận hành.
-- Production chạy trên Garage: tải lên, tải xuống, xóa, sao lưu DB, sao lưu kho tệp, khôi phục đều hoạt động, kiểm chứng ở trình duyệt thật.
-- Mọi object cũ có mặt trong Garage với đúng tên, kích thước và `sha256` (biên bản kiểm chứng đính kèm).
-- Sao lưu theo lịch chạy thành công nhiều ngày liền sau cutover; đã khôi phục thử thật một lần.
-- CI xanh, dùng Garage từ image đã mirror và ghim digest.
-- Tài liệu vận hành cập nhật; thủ tục khôi phục đã được làm theo từ đầu đến cuối.
-- MinIO cũ đã được gỡ (Slice 9) sau thời gian giữ lại đã chốt.
+- Production chạy trên Garage: tải lên, xem, xóa, sao lưu DB, sao lưu kho tệp hoạt động, kiểm chứng ở trình duyệt thật (checklist 10.3); khôi phục kho tệp đã được kiểm ở dev (Slice 2) và `restore_procedure.md` mới được làm theo từ đầu đến cuối (Slice 9).
+- Kiểm kê ngay trước cutover cho 0 tệp (hoặc đã xử lý theo 10.1 bước 2), biên bản ghi lại.
+- Sao lưu theo lịch đêm đầu tiên thành công cho cả `db` và `object_storage` trên Garage.
+- Không còn tham chiếu tới `minio/mc`, `dl.min.io`, `backup_scheduler` trong compose, CI, Dockerfile và kịch bản vận hành (Slice 6); MinIO cũ đã được gỡ (Slice 9).
+- Tài liệu vận hành cập nhật.
+- (Tùy chọn) CI dùng Garage từ image ghim digest, xanh.
 
 ## Phụ lục A. Cấu hình Garage đề xuất (phác thảo)
 
