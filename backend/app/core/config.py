@@ -134,6 +134,9 @@ class Settings(BaseSettings):
     MINIO_SECRET_KEY: str  = "minioadmin"
     MINIO_BUCKET:     str  = ""
     MINIO_SECURE:     bool = False
+    # Region ký yêu cầu S3 của kho tệp ứng dụng và nguồn sao lưu. Để trống = SDK tự dò (MinIO).
+    # Garage từ chối chữ ký sai region nên phải đặt "garage" (kế hoạch 15.7, Slice 1).
+    MINIO_REGION:     str  = ""
 
     @model_validator(mode="after")
     def validate_minio_configuration(self) -> "Settings":
@@ -224,6 +227,7 @@ class Settings(BaseSettings):
     BACKUP_STORAGE_SECRET_KEY: str = ""
     BACKUP_STORAGE_SECURE: bool = True
     BACKUP_STORAGE_BUCKET: str = "hrms-backup"
+    BACKUP_STORAGE_REGION: str = ""   # như MINIO_REGION nhưng cho đích sao lưu
     BACKUP_TEMP_DIR: str = "/backups/tmp"
     BACKUP_RETENTION_DAYS: int = 90
     DB_BACKUP_CRON: str = "0 2 * * *"

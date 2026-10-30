@@ -546,6 +546,7 @@ def _probe_target_bucket(endpoint: str, bucket: str, secure: bool) -> tuple[bool
         access_key=settings.BACKUP_STORAGE_ACCESS_KEY.strip(),
         secret_key=settings.BACKUP_STORAGE_SECRET_KEY.strip(),
         secure=secure,
+        region=settings.BACKUP_STORAGE_REGION or None,
         http_client=http_client,
     )
     if not client.bucket_exists(bucket):

@@ -41,12 +41,13 @@ def _source_secure_fallback() -> bool:
     return settings.MINIO_SECURE
 
 
-def _minio_client(endpoint: str, access_key: str, secret_key: str, secure: bool) -> Minio:
+def _minio_client(endpoint: str, access_key: str, secret_key: str, secure: bool, region: str = "") -> Minio:
     return Minio(
         endpoint=endpoint,
         access_key=access_key,
         secret_key=secret_key,
         secure=secure,
+        region=region or None,
         http_client=PoolManager(
             timeout=Timeout(connect=5.0, read=180.0),
             retries=False,
@@ -60,6 +61,7 @@ def _backup_target_client() -> Minio:
         settings.BACKUP_STORAGE_ACCESS_KEY.strip(),
         settings.BACKUP_STORAGE_SECRET_KEY.strip(),
         settings.BACKUP_STORAGE_SECURE,
+        settings.BACKUP_STORAGE_REGION,
     )
 
 
@@ -69,6 +71,7 @@ def _source_client() -> Minio:
         (settings.SOURCE_STORAGE_ACCESS_KEY or settings.MINIO_ACCESS_KEY).strip(),
         (settings.SOURCE_STORAGE_SECRET_KEY or settings.MINIO_SECRET_KEY).strip(),
         _source_secure_fallback(),
+        settings.MINIO_REGION,
     )
 
 

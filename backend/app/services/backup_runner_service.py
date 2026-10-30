@@ -83,17 +83,23 @@ def _source_secure_fallback() -> bool:
     return settings.MINIO_SECURE
 
 
-def _minio_client(endpoint: str, access_key: str, secret_key: str, secure: bool) -> Minio:
+def _minio_client(endpoint: str, access_key: str, secret_key: str, secure: bool, region: str = "") -> Minio:
     return Minio(
         endpoint=endpoint,
         access_key=access_key,
         secret_key=secret_key,
         secure=secure,
+        region=region or None,
         http_client=PoolManager(
             timeout=Timeout(connect=5.0, read=120.0),
             retries=False,
         ),
     )
+
+
+def _source_client(config: BackupConfig) -> tuple[Minio, str]:
+    endpoint, bucket, secure, access_key, secret_key = _source_values(config)
+    return _minio_client(endpoint, access_key, secret_key, secure, settings.MINIO_REGION), bucket
 
 
 def _target_client(config: BackupConfig) -> tuple[Minio, str]:
@@ -103,6 +109,7 @@ def _target_client(config: BackupConfig) -> tuple[Minio, str]:
         settings.BACKUP_STORAGE_ACCESS_KEY.strip(),
         settings.BACKUP_STORAGE_SECRET_KEY.strip(),
         secure,
+        settings.BACKUP_STORAGE_REGION,
     )
     if not client.bucket_exists(bucket):
         client.make_bucket(bucket)
@@ -294,13 +301,7 @@ async def run_database_backup(session: AsyncSession, config: BackupConfig, now: 
 
 
 def _run_object_storage_backup_sync(config: BackupConfig, now: datetime) -> BackupRunResult:
-    source_endpoint, source_bucket, source_secure, source_access_key, source_secret_key = _source_values(config)
-    source_client = _minio_client(
-        source_endpoint,
-        source_access_key,
-        source_secret_key,
-        source_secure,
-    )
+    source_client, source_bucket = _source_client(config)
     target_client, target_bucket = _target_client(config)
 
     if not source_client.bucket_exists(source_bucket):
