@@ -205,8 +205,9 @@ async def generate_template(session: AsyncSession) -> bytes:
         ],
         [
             "Địa chỉ liên lạc (Hệ mới 2 cấp)",
-            "✅",
-            "Địa chỉ liên lạc/tạm trú — cùng định dạng và quy tắc với 'Địa chỉ thường trú (Hệ mới 2 cấp)'.",
+            "",
+            "Địa chỉ liên lạc/tạm trú — tùy chọn, để trống nếu không có (hệ thống không tự lấy theo địa chỉ thường trú). "
+            "Nếu điền thì cùng định dạng và quy tắc với 'Địa chỉ thường trú (Hệ mới 2 cấp)'.",
             "Số 12, Xã Đường An, Thành phố Hải Phòng",
         ],
         [
@@ -405,26 +406,36 @@ async def _build_address_payload(
     old_column_name: str,
     excel_row: int,
     errors: list[ImportRowError],
+    required: bool = True,
 ) -> Optional[EmployeeAddressWrite]:
+    """Trả None nếu không có địa chỉ để lưu (cột tùy chọn bỏ trống) hoặc đã ghi lỗi vào `errors`.
+
+    required=False: cột hệ mới được phép trống; khi đó vẫn lưu địa chỉ nếu chỉ có hệ cũ.
+    Cột đã điền mà sai thì vẫn báo lỗi như bình thường.
+    """
     new_resolved = await _resolve_address_column(
         session, new_raw, system_type="new", admin_levels=2,
         column_name=new_column_name, excel_row=excel_row, errors=errors,
     )
-    if not (new_raw or "").strip():
+    new_blank = not (new_raw or "").strip()
+    if new_blank and required:
         errors.append(ImportRowError(row=excel_row, column=new_column_name, message="Trường bắt buộc không được để trống"))
-    if new_resolved is None:
+    if new_resolved is None and not (new_blank and not required):
         return None
 
     old_resolved = await _resolve_address_column(
         session, old_raw, system_type="old", admin_levels=3,
         column_name=old_column_name, excel_row=excel_row, errors=errors,
     )
+    if new_resolved is None and old_resolved is None:
+        return None
 
+    new_resolved = new_resolved or {}
     return EmployeeAddressWrite(
         address_type=address_type,
-        new_province_unit_id=new_resolved["province_unit_id"],
-        new_ward_unit_id=new_resolved["ward_unit_id"],
-        new_address_line=new_resolved["address_line"],
+        new_province_unit_id=new_resolved.get("province_unit_id"),
+        new_ward_unit_id=new_resolved.get("ward_unit_id"),
+        new_address_line=new_resolved.get("address_line"),
         old_province_unit_id=old_resolved["province_unit_id"] if old_resolved else None,
         old_district_unit_id=old_resolved["district_unit_id"] if old_resolved else None,
         old_ward_unit_id=old_resolved["ward_unit_id"] if old_resolved else None,
@@ -958,6 +969,7 @@ async def process_import(session: AsyncSession, file_bytes: bytes) -> ImportResu
             old_column_name="Địa chỉ liên lạc (Hệ cũ 3 cấp)",
             excel_row=excel_row,
             errors=addr_errors,
+            required=False,
         )
         if addr_errors:
             errors.extend(addr_errors)
@@ -1034,7 +1046,8 @@ async def process_import(session: AsyncSession, file_bytes: bytes) -> ImportResu
             )
             emp = await employee_service.create_employee(session, payload)
             await employee_service.upsert_employee_address(session, emp.id, permanent_payload)
-            await employee_service.upsert_employee_address(session, emp.id, contact_payload)
+            if contact_payload is not None:
+                await employee_service.upsert_employee_address(session, emp.id, contact_payload)
             if education_payload is not None:
                 await employee_education_service.create_education_history(session, emp.id, education_payload)
 

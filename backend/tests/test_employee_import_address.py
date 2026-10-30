@@ -20,6 +20,9 @@ TEST_ID_NUMBER_ADDR_DETAIL_COMMA = "IMPORTADDR003"
 TEST_ID_NUMBER_ADDR_MISSING_NEW = "IMPORTADDR004"
 TEST_ID_NUMBER_ADDR_OLD_TOO_SHORT = "IMPORTADDR005"
 TEST_ID_NUMBER_ADDR_UNKNOWN_NAME = "IMPORTADDR006"
+TEST_ID_NUMBER_ADDR_CONTACT_BLANK = "IMPORTADDR007"
+TEST_ID_NUMBER_ADDR_CONTACT_OLD_ONLY = "IMPORTADDR008"
+TEST_ID_NUMBER_ADDR_CONTACT_UNKNOWN_NAME = "IMPORTADDR009"
 
 VALID_NEW_ADDRESS = "thôn Vạc, Phường An Bình, Thành phố Cần Thơ"
 VALID_OLD_ADDRESS = "thôn Vạc, Xã Thạnh Phú, Huyện Cờ Đỏ, Thành phố Cần Thơ"
@@ -80,6 +83,9 @@ async def _cleanup(session: AsyncSession) -> None:
         TEST_ID_NUMBER_ADDR_MISSING_NEW,
         TEST_ID_NUMBER_ADDR_OLD_TOO_SHORT,
         TEST_ID_NUMBER_ADDR_UNKNOWN_NAME,
+        TEST_ID_NUMBER_ADDR_CONTACT_BLANK,
+        TEST_ID_NUMBER_ADDR_CONTACT_OLD_ONLY,
+        TEST_ID_NUMBER_ADDR_CONTACT_UNKNOWN_NAME,
     ):
         employee = (
             await session.execute(
@@ -300,6 +306,140 @@ async def test_import_address_unknown_name_fails_with_clear_message():
             )
     finally:
         await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_import_contact_address_new_system_blank_is_optional():
+    engine, session_factory = _make_engine_and_sessionmaker()
+    try:
+        async with session_factory() as session:
+            await _cleanup(session)
+            sequence = (
+                await session.execute(select(EmployeeCodeSequence).where(EmployeeCodeSequence.code == "SYS1"))
+            ).scalar_one()
+
+            workbook = _make_xlsx([
+                IMPORT_COLUMNS,
+                _make_row(
+                    id_number=TEST_ID_NUMBER_ADDR_CONTACT_BLANK,
+                    sequence_code=sequence.code,
+                    contact_new="",
+                ),
+            ])
+
+            result = await process_import(session, workbook)
+            assert result.success == 1, result.errors
+            assert result.failed == 0
+
+            addresses = (
+                await session.execute(
+                    select(EmployeeAddress).where(EmployeeAddress.employee_id == result.created_ids[0])
+                )
+            ).scalars().all()
+            assert [a.address_type for a in addresses] == ["permanent"]
+
+            await _cleanup(session)
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_import_contact_address_old_system_only_is_kept_when_new_is_blank():
+    engine, session_factory = _make_engine_and_sessionmaker()
+    try:
+        async with session_factory() as session:
+            await _cleanup(session)
+            sequence = (
+                await session.execute(select(EmployeeCodeSequence).where(EmployeeCodeSequence.code == "SYS1"))
+            ).scalar_one()
+
+            workbook = _make_xlsx([
+                IMPORT_COLUMNS,
+                _make_row(
+                    id_number=TEST_ID_NUMBER_ADDR_CONTACT_OLD_ONLY,
+                    sequence_code=sequence.code,
+                    contact_new="",
+                    contact_old=VALID_OLD_ADDRESS,
+                ),
+            ])
+
+            result = await process_import(session, workbook)
+            assert result.success == 1, result.errors
+
+            contact = (
+                await session.execute(
+                    select(EmployeeAddress).where(
+                        EmployeeAddress.employee_id == result.created_ids[0],
+                        EmployeeAddress.address_type == "contact",
+                    )
+                )
+            ).scalar_one()
+            assert contact.new_province_unit_id is None
+            assert contact.new_ward_unit_id is None
+            assert contact.old_province_unit_id is not None
+            assert contact.old_district_unit_id is not None
+            assert contact.old_ward_unit_id is not None
+            assert contact.old_address_line == "thôn Vạc"
+            assert contact.full_address_text
+
+            await _cleanup(session)
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_import_contact_address_new_system_filled_but_unknown_still_fails():
+    engine, session_factory = _make_engine_and_sessionmaker()
+    try:
+        async with session_factory() as session:
+            await _cleanup(session)
+            sequence = (
+                await session.execute(select(EmployeeCodeSequence).where(EmployeeCodeSequence.code == "SYS1"))
+            ).scalar_one()
+
+            bogus = "thôn Vạc, Phường Không Tồn Tại Xyz, Thành phố Cần Thơ"
+            workbook = _make_xlsx([
+                IMPORT_COLUMNS,
+                _make_row(
+                    id_number=TEST_ID_NUMBER_ADDR_CONTACT_UNKNOWN_NAME,
+                    sequence_code=sequence.code,
+                    contact_new=bogus,
+                ),
+            ])
+
+            result = await process_import(session, workbook)
+            assert result.success == 0
+            assert result.failed == 1
+            assert any(
+                error.column == "Địa chỉ liên lạc (Hệ mới 2 cấp)"
+                and "Không tìm thấy xã/phường" in error.message
+                for error in result.errors
+            )
+            assert not any("bắt buộc" in error.message for error in result.errors)
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_generate_template_marks_contact_address_new_system_as_optional():
+    engine, session_factory = _make_engine_and_sessionmaker()
+    try:
+        async with session_factory() as session:
+            content = await generate_template(session)
+    finally:
+        await engine.dispose()
+
+    workbook = openpyxl.load_workbook(io.BytesIO(content))
+    data_sheet = workbook["Nhân viên"]
+    header_cells = {cell.value: cell for cell in data_sheet[1]}
+    required_fill = header_cells["Địa chỉ thường trú (Hệ mới 2 cấp)"].fill.fgColor.rgb
+    optional_fill = header_cells["Địa chỉ liên lạc (Hệ cũ 3 cấp)"].fill.fgColor.rgb
+    assert required_fill != optional_fill
+    assert header_cells["Địa chỉ liên lạc (Hệ mới 2 cấp)"].fill.fgColor.rgb == optional_fill
+
+    guide_rows = {row[0].value: row for row in workbook["Hướng dẫn"].iter_rows(min_row=2)}
+    assert guide_rows["Địa chỉ thường trú (Hệ mới 2 cấp)"][1].value == "✅"
+    assert not guide_rows["Địa chỉ liên lạc (Hệ mới 2 cấp)"][1].value
 
 
 @pytest.mark.asyncio

@@ -51,7 +51,6 @@ REQUIRED_COLUMNS = {
     "Số CCCD/CMND", "Ngày cấp CCCD", "Nơi cấp CCCD",
     "Trạng thái", "Ngày vào làm",
     "Địa chỉ thường trú (Hệ mới 2 cấp)",
-    "Địa chỉ liên lạc (Hệ mới 2 cấp)",
 }
 
 
