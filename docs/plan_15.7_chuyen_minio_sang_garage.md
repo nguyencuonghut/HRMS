@@ -506,6 +506,22 @@ Kiểm tra ngoài cổng: khôi phục kho tệp (`_restore_object_snapshot_sync
 
 **Rollback**: revert commit; không đổi dữ liệu.
 
+### Kết quả Slice 3 (2026-10-30)
+
+**Thay đổi (chưa commit):** nhãn `"Kho tệp ứng dụng trên MinIO"` thành `"Kho tệp ứng dụng"` ở `backup_service.py:42` (cũng là tên việc trong email thông báo sao lưu: `job_name`), `BackupCenterView.vue` (tiêu đề phụ, dropdown "Loại khôi phục", hai giá trị dự phòng; câu "Địa chỉ kết nối MinIO" thành "Địa chỉ kết nối nguồn"), và các kỳ vọng trong `backup-center.spec.ts`. **Ngoài danh sách ban đầu**: thông báo lỗi khi nhập sai tên kho (`schemas/backup.py`) từ "kho lưu trữ MinIO/S3 không hợp lệ" thành "kho lưu trữ không hợp lệ", vì quản trị viên nhìn thấy nó trong form.
+
+**Đã kiểm chứng**
+- Backend (TDD, trên clone DB): 2 test (nhãn trong email: `test_backups.py`, đã sửa kỳ vọng và thấy đỏ trước; thông báo lỗi: test mới, đỏ trước); 38 test của `test_backups.py` và `test_backup_runner_service.py` qua; lint không phát sinh cảnh báo mới.
+- Frontend: `vue-tsc --noEmit` thoát 0; `vite build` thành công (build ra `/tmp` trong container, không đụng `frontend/dist`).
+- Trình duyệt thật (clone DB sạch, backend thật chạy trên Garage): API trả `kind_label = "Kho tệp ứng dụng"`; danh sách có nhãn mới và nút "Chạy sao lưu Kho tệp ứng dụng"; form có tiêu đề "Sửa cấu hình sao lưu: Kho tệp ứng dụng"; dropdown "Loại khôi phục" gồm đúng 3 lựa chọn `Cơ sở dữ liệu PostgreSQL`, `Kho tệp ứng dụng`, `Bộ sao lưu đầy đủ`; toàn trang không còn chữ "minio" ở phần giao diện (đã loại trừ khóa artifact là dữ liệu).
+- `backup-center.spec.ts` chạy từng test: 13/15 qua.
+
+**Không liên quan nhãn, chưa sửa**
+- Hai test `:589` và `:742` vẫn lỗi selector (`"Sao lưu đầy đủ"` khớp hai nút), như ở Slice 2.
+- **Dữ liệu thử làm hỏng một phép kiểm có sẵn**: khi chạy `pytest` lên **cùng** một clone rồi chạy e2e, 3 test (`:209`, `:1091`, `:1111`) lỗi ở phép kiểm "giao diện không chứa từ tiếng Anh", vì bảng "Yêu cầu khôi phục" hiện thông báo của backend "Đã kiểm tra artifact DB." (có từ `artifact`). Trên clone sạch cả ba đều qua. Hệ quả: chạy e2e Backup Console phải dùng clone chưa chạy `pytest`. Thông báo này là chữ tiếng Anh thật do `restore_runner_service` sinh ra, nên khi quản trị viên chạy một yêu cầu kiểm tra khôi phục thật, phép kiểm đó sẽ lỗi; chưa sửa (ngoài phạm vi).
+
+**Chưa kiểm**: hiển thị nhãn trong email thật (chỉ kiểm giá trị `job_name` ở test); các màn hình khác ngoài Backup Console (đã `grep`: không còn "trên MinIO"/"kết nối MinIO"/"MinIO/S3" ở `frontend/src`, `frontend/tests`, `backend/app/services/backup_service.py`, `backend/app/schemas`, `backend/tests`); chế độ tối và khổ hẹp của form sau khi đổi nhãn (hai test e2e có sẵn về việc này `:957`, `:994` đều qua).
+
 ### Slice 4 - Công cụ chuyển dữ liệu (ĐÃ BỎ, xem 9.0)
 
 Production không có tệp nào (0 object tệp; `hrms-backup` chỉ có 3 bản sao lưu thử), nên không có gì để chép. Nếu kiểm kê ngay trước cutover thấy bucket tệp có object: **dừng và quyết định**. Với dữ liệu nhỏ, cách nhanh nhất là tải lại bằng giao diện hoặc import. Chỉ viết công cụ chép khi số lượng đủ lớn (thuật toán đã nghĩ sẵn: liệt kê nguồn; bỏ qua nếu đích đã có cùng kích thước; đọc streaming và ghi sang đích cùng tên và `content_type`; đối chiếu `sha256`; không bao giờ xóa).
@@ -547,7 +563,7 @@ Không có bước chép dữ liệu để diễn tập; Garage, bootstrap, back
 
 ### Slice 9 - Dọn dẹp sau cutover
 
-**Điều kiện**: sao lưu theo lịch đêm đầu tiên thành công cho cả `db` và `object_storage` trên Garage (đề xuất cho D4, xem 9.0).
+**Điều kiện**: sao lưu theo lịch đêm đầu tiên thành công cho cả `db` và `object_storage` trên Garage (D4 đã chốt, xem 9.0).
 
 **Việc làm**
 - Gỡ container, volume và image MinIO khỏi máy chủ và khỏi compose. Giữ bản nén ở Slice 0 ngoài thư mục repo cho đến khi chủ hệ thống cho phép xóa.
