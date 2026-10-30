@@ -25,7 +25,29 @@ services:
       timeout: 3s
       retries: 5
 
+  garage:
+    # Kho tệp ứng dụng và đích sao lưu (kế hoạch 15.7). Ghim theo digest của manifest list đã mirror lên ghcr.
+    image: ${GARAGE_IMAGE:-dxflrs/garage:v2.5.0@sha256:677e5b758e4425a325b811c425c026bf35a4bf42f7ddbaa773de3f4fd779a5a5}
+    command: ["/garage", "server", "--single-node"]
+    environment:
+      # Chỉ lưu thông trong mạng compose (không publish cổng). Production phải đặt giá trị ngẫu nhiên riêng.
+      GARAGE_RPC_SECRET: ${GARAGE_RPC_SECRET:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}
+      GARAGE_ADMIN_TOKEN: ${GARAGE_ADMIN_TOKEN:-dev-admin-token-change-me}
+    volumes:
+      - ./docker/garage/garage.toml:/etc/garage.toml:ro
+      - garage_meta:/var/lib/garage/meta
+      - garage_data:/var/lib/garage/data
+    healthcheck:
+      # Image không có shell/curl; `garage health -q` thoát 1 khi cụm chưa sẵn sàng (đã chạy được ở Slice 1).
+      test: ["CMD", "/garage", "health", "-q"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
   minio:
+    # Giữ lại để diễn tập chép dữ liệu sang Garage (Slice 4, 7): docker compose --profile legacy-minio up -d minio
+    profiles: ["legacy-minio"]
     image: minio/minio:latest
     command: server /data --console-address ":9001"
     environment:
@@ -69,14 +91,16 @@ services:
       DEBUG: "true"
       ENVIRONMENT: ${ENVIRONMENT:-development}
       APP_TIMEZONE: ${APP_TIMEZONE:-Asia/Ho_Chi_Minh}
-      MINIO_ENDPOINT: minio:9000
-      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      MINIO_ENDPOINT: garage:3900
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-}
+      MINIO_REGION: ${MINIO_REGION:-garage}
       MINIO_BUCKET: ${MINIO_BUCKET:-}
       MINIO_SECURE: "false"
-      BACKUP_STORAGE_ENDPOINT: ${BACKUP_STORAGE_ENDPOINT:-minio:9000}
-      BACKUP_STORAGE_ACCESS_KEY: ${BACKUP_STORAGE_ACCESS_KEY:-${MINIO_ROOT_USER:-minioadmin}}
-      BACKUP_STORAGE_SECRET_KEY: ${BACKUP_STORAGE_SECRET_KEY:-${MINIO_ROOT_PASSWORD:-minioadmin}}
+      BACKUP_STORAGE_ENDPOINT: ${BACKUP_STORAGE_ENDPOINT:-garage:3900}
+      BACKUP_STORAGE_ACCESS_KEY: ${BACKUP_STORAGE_ACCESS_KEY:-}
+      BACKUP_STORAGE_SECRET_KEY: ${BACKUP_STORAGE_SECRET_KEY:-}
+      BACKUP_STORAGE_REGION: ${BACKUP_STORAGE_REGION:-garage}
       BACKUP_STORAGE_SECURE: ${BACKUP_STORAGE_SECURE:-false}
       BACKUP_STORAGE_BUCKET: ${BACKUP_STORAGE_BUCKET:-hrms-backup}
       BACKUP_TEMP_DIR: ${BACKUP_TEMP_DIR:-/backups/tmp}
@@ -97,7 +121,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      minio:
+      garage:
         condition: service_healthy
       mailpit:
         condition: service_healthy
@@ -121,14 +145,16 @@ services:
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
       ENVIRONMENT: ${ENVIRONMENT:-development}
       APP_TIMEZONE: ${APP_TIMEZONE:-Asia/Ho_Chi_Minh}
-      MINIO_ENDPOINT: minio:9000
-      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      MINIO_ENDPOINT: garage:3900
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-}
+      MINIO_REGION: ${MINIO_REGION:-garage}
       MINIO_BUCKET: ${MINIO_BUCKET:-}
       MINIO_SECURE: "false"
-      BACKUP_STORAGE_ENDPOINT: ${BACKUP_STORAGE_ENDPOINT:-minio:9000}
-      BACKUP_STORAGE_ACCESS_KEY: ${BACKUP_STORAGE_ACCESS_KEY:-${MINIO_ROOT_USER:-minioadmin}}
-      BACKUP_STORAGE_SECRET_KEY: ${BACKUP_STORAGE_SECRET_KEY:-${MINIO_ROOT_PASSWORD:-minioadmin}}
+      BACKUP_STORAGE_ENDPOINT: ${BACKUP_STORAGE_ENDPOINT:-garage:3900}
+      BACKUP_STORAGE_ACCESS_KEY: ${BACKUP_STORAGE_ACCESS_KEY:-}
+      BACKUP_STORAGE_SECRET_KEY: ${BACKUP_STORAGE_SECRET_KEY:-}
+      BACKUP_STORAGE_REGION: ${BACKUP_STORAGE_REGION:-garage}
       BACKUP_STORAGE_SECURE: ${BACKUP_STORAGE_SECURE:-false}
       BACKUP_STORAGE_BUCKET: ${BACKUP_STORAGE_BUCKET:-hrms-backup}
       BACKUP_TEMP_DIR: ${BACKUP_TEMP_DIR:-/backups/tmp}
@@ -166,9 +192,10 @@ services:
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
       ENVIRONMENT: ${ENVIRONMENT:-development}
       APP_TIMEZONE: ${APP_TIMEZONE:-Asia/Ho_Chi_Minh}
-      BACKUP_STORAGE_ENDPOINT: ${BACKUP_STORAGE_ENDPOINT:-minio:9000}
-      BACKUP_STORAGE_ACCESS_KEY: ${BACKUP_STORAGE_ACCESS_KEY:-${MINIO_ROOT_USER:-minioadmin}}
-      BACKUP_STORAGE_SECRET_KEY: ${BACKUP_STORAGE_SECRET_KEY:-${MINIO_ROOT_PASSWORD:-minioadmin}}
+      BACKUP_STORAGE_ENDPOINT: ${BACKUP_STORAGE_ENDPOINT:-garage:3900}
+      BACKUP_STORAGE_ACCESS_KEY: ${BACKUP_STORAGE_ACCESS_KEY:-}
+      BACKUP_STORAGE_SECRET_KEY: ${BACKUP_STORAGE_SECRET_KEY:-}
+      BACKUP_STORAGE_REGION: ${BACKUP_STORAGE_REGION:-garage}
       BACKUP_STORAGE_SECURE: ${BACKUP_STORAGE_SECURE:-false}
       BACKUP_STORAGE_BUCKET: ${BACKUP_STORAGE_BUCKET:-hrms-backup}
       BACKUP_TEMP_DIR: ${BACKUP_TEMP_DIR:-/backups/tmp}
@@ -200,4 +227,6 @@ services:
 volumes:
   postgres_data:
   minio_data:
+  garage_meta:
+  garage_data:
   backup_temp:

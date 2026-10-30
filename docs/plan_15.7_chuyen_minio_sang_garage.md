@@ -158,8 +158,8 @@ Garage dùng mô hình quyền riêng (khóa x bucket), không có ACL/policy c�
 
 | Khóa | Bucket | Quyền | Dùng cho |
 |---|---|---|---|
-| `hrms-app` | `hrms-attachments-<env>` (production: **`hrms-attachments-prod`**, xem 12.3) | đọc, ghi, owner | `MINIO_*` và `SOURCE_STORAGE_*` (tệp đính kèm, nguồn sao lưu kho tệp) |
-| `hrms-backup` | `hrms-backup` | đọc, ghi, owner, **tạo bucket** (xem U4) | `BACKUP_STORAGE_*` (đích sao lưu, khôi phục sang đích mới) |
+| `hrms-app` | `hrms-attachments-<env>` (production: **`hrms-attachments-prod`**, xem 12.3) | đọc, ghi, owner, **tạo bucket** (xem U4 và Slice 2) | `MINIO_*` và `SOURCE_STORAGE_*` (tệp đính kèm, nguồn sao lưu kho tệp, **và bucket đích khi khôi phục kho tệp sang đích mới**) |
+| `hrms-backup` | `hrms-backup` | đọc, ghi, owner, **tạo bucket** (xem U4) | `BACKUP_STORAGE_*` (đích sao lưu; đọc bản sao lưu khi khôi phục) |
 
 Định dạng khóa của Garage: access key `GK` + 24 ký tự hex, secret 64 ký tự hex. Khóa **tự sinh bằng `garage key create`**; lệnh `import` chỉ dành cho di trú/khôi phục theo tài liệu Garage, không dùng để đặt khóa tùy ý.
 
@@ -381,7 +381,7 @@ Chạy `scripts/garage_spike.sh` trên máy dev (Docker 29.8.2, Compose 5.6.0) v
 
 **Kết luận: tương thích S3 ĐẠT; GO có điều kiện (chủ hệ thống đã chấp thuận ngày 2026-10-30, xem 12.3).** Mọi FAIL đều khắc phục được bằng cấu hình hoặc tham số SDK, đúng tiêu chí cổng:
 - truyền `region="garage"` cho SDK `minio` (U5);
-- bucket của ứng dụng do bootstrap tạo bằng CLI; khóa chỉ cần quyền tạo bucket cho "Khôi phục sang đích mới" vào bucket chưa có (U4);
+- bucket của ứng dụng do bootstrap tạo bằng CLI; quyền tạo bucket chỉ cần cho "Khôi phục sang đích mới" vào bucket chưa có (U4), và theo kết quả Slice 2 phải cấp cho **cả hai khóa** vì khóa ứng dụng mới là khóa tạo bucket đích;
 - `metadata_auto_snapshot_interval` phải từ 10 phút trở lên (U11); crash ở lần chạy 1 là do đặt `1min`, không phải do fsync hay lỗi dữ liệu.
 
 Còn mở (không chặn cổng, xử lý ở slice sau): `health -q` có thoát 1 khi cụm chưa sẵn sàng không (U2), độ trễ khi tắt fsync (U10; ta dùng fsync bật nên không cần), token Admin API có được áp dụng không (U17), và U12, U16 chỉ kiểm được ở Slice 5.
@@ -446,11 +446,38 @@ Kết luận:
 
 **Rollback**: `git checkout` các file compose/`.env.example`; dùng lại profile `legacy-minio`.
 
+### Kết quả Slice 2 (2026-10-30)
+
+**Thay đổi đã làm (chưa commit):** `docker/garage/garage.toml`; service `garage` trong `docker-compose.yml` (ghim digest, không publish cổng, healthcheck `garage health -q`); `minio` chuyển vào profile `legacy-minio`; `backend`, `celery_worker`, `celery_beat` trỏ sang `garage:3900`; `scripts/garage_bootstrap.sh`; `.env.example`; và, **ngoài phạm vi ban đầu của slice**, tham số `region` (`MINIO_REGION`, `BACKUP_STORAGE_REGION`) ở 4 chỗ tạo client, làm theo TDD (7 test, `backend/tests/test_s3_client_region.py`). Lý do kéo `region` lên Slice 2: Slice 1 cho thấy mọi lệnh cần bucket lỗi `AuthorizationHeaderMalformed` nếu thiếu `region`, và `ensure_bucket()` chạy ngay trong `lifespan`, nên backend không khởi động được với Garage; cổng 2 đến 4 không thể đạt nếu thiếu.
+
+**Cách kiểm chứng:** Garage chạy thật từ `docker-compose.yml`. Phần trình duyệt chạy trên **bản clone DB** (`CREATE DATABASE ... TEMPLATE hrms`, thêm user thử chỉ vào clone), không chạm DB `hrms`; clone đã xóa sau khi xong.
+
+| Cổng (mục Slice 2) | Kết quả | Bằng chứng |
+|---|---|---|
+| 1. `up -d`: `garage` healthy; bootstrap hai lần không lỗi | Đạt | healthy sau ~2 giây; lần 1 tạo 2 bucket + 2 khóa và in 4 dòng; lần 2 báo "đã có" cho tất cả, stdout rỗng |
+| 2. `backend` khởi động; `/health` có `checks.minio = ok` | Đạt | `{"database":"ok","redis":"ok","minio":"ok"}`. Đối chứng âm trên Garage thật: bỏ trống `MINIO_REGION` thì `S3Error: AuthorizationHeaderMalformed` |
+| 3. Trình duyệt: luồng 8.1 (tải lên, tải xuống đúng nội dung, xóa) | Đạt một phần | Tải lên qua giao diện (tệp 20 KB tên `Hợp đồng lao động (bản 1) #2+A&B 100% [..].pdf` và tệp 6 MiB đi đường multipart): object có trong Garage với `sha256` khớp từng byte; API tải xuống (có token) trả đúng nội dung và tên tệp; xóa qua giao diện làm mất dòng và mất object trong Garage. **Nút "Tải xuống" trên giao diện không tải được** (xem phát hiện 4) |
+| 4. Trình duyệt: luồng 8.2 (Backup Console) | Đạt | Sửa nguồn `minio:9000` thành `garage:3900` qua form (PUT 200); kiểm tra đích Thành công cho cả hai dòng; ▶ sao lưu DB (617 KB) và kho tệp `success` vào `hrms-backup`. Với 13 object nguồn (31,6 MB, gồm tệp 6 MiB), mọi object có trong bản sao lưu với size và `sha256` giống hệt (thêm 1 tệp manifest). Nhãn vẫn là "Kho tệp ứng dụng trên MinIO" (đổi ở Slice 3) |
+| 5. Khởi động lại Garage: dữ liệu còn | Đạt | danh sách tên và kích thước của cả hai bucket giống hệt trước và sau (mã băm danh sách trùng); healthy sau ~8 giây; `/health` vẫn ok |
+
+Kiểm tra ngoài cổng: khôi phục kho tệp (`_restore_object_snapshot_sync`) sang bucket mới: **trước** khi cấp quyền tạo bucket cho khóa ứng dụng thì `AccessDenied`; **sau** khi cấp thì chép đủ 13 object (31.600.877 byte), không thiếu và không khác (thêm 1 tệp đánh dấu `.hrms-restore/request-N.json`), bucket thử đã dọn được bằng khóa ứng dụng. Test: 65 test (7 mới + 58 có sẵn của `test_backups`, `test_backup_runner_service`, `test_security`) qua trên clone DB; lint không phát sinh cảnh báo mới. E2E `backup-center.spec.ts` trên stack dùng Garage: 13/15 qua.
+
+**Phát hiện và hệ quả**
+1. **Khóa ứng dụng cũng cần quyền tạo bucket** (sửa lỗi của §5.4 và Phụ lục B): `restore_runner_service.py` tạo bucket đích bằng `_source_client()`, tức khóa `MINIO_*`, không phải khóa sao lưu. Bootstrap đã cấp cho cả hai khóa.
+2. **Cấu hình sao lưu nằm trong DB (R2) đã gặp thật**: bản sao production có `object_storage.source_endpoint = minio:9000`; phải sửa bằng form (hoặc SQL) thì sao lưu kho tệp mới chạy trên Garage. Ở production, bước này nằm trong cutover (mục 10).
+3. **`.env` dev đặt tường minh `BACKUP_STORAGE_ENDPOINT=minio:9000`** cùng khóa sao lưu của MinIO, nên đổi mặc định trong compose chưa đủ: người dùng phải sửa `.env` (xóa các dòng `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `BACKUP_STORAGE_ACCESS_KEY`, `BACKUP_STORAGE_SECRET_KEY` cũ rồi nối đầu ra bootstrap, đổi hoặc xóa `BACKUP_STORAGE_ENDPOINT`). Script không tự sửa `.env`.
+4. **Nút "Tải xuống" ở tab "Tệp đính kèm hồ sơ" không hoạt động** (`AttachmentsTab.vue`, hàm `download`): tạo thẻ `<a>` tới `/api/v1/employees/{id}/attachments/{id}/download` không kèm token nên backend trả `401` (kiểm bằng `curl`: không token `401`, có token `200` đúng nội dung); trình duyệt hủy tải. Xảy ra ở lớp xác thực, trước khi chạm tới kho tệp, nên không do Garage; frontend không bị sửa trong slice này. **Chưa kiểm** trên MinIO, và **chưa sửa** (ngoài phạm vi).
+5. **Hai test e2e có sẵn lỗi selector** (`backup-center.spec.ts:589` và `:742`): `getByRole('button', { name: 'Sao lưu đầy đủ' })` khớp hai nút (không `exact`); test 589 giả lập toàn bộ API. Không liên quan kho tệp; chưa sửa. Vì chế độ `serial`, một test lỗi làm 9 test sau bị bỏ qua khi chạy cả file, nên phải chạy từng test.
+6. **Ghi chú hạ tầng kiểm thử**: Vite proxy `/api` tới host `backend:8000`, nên backend thay thế phải mang alias `backend` trên mạng compose; `@playwright/test` không có trong `frontend/node_modules` trên máy chủ (nằm trong volume của container `frontend`).
+7. **Kế hoạch §5.8 chưa chính xác**: chỉ `backend` có `depends_on: minio`; `celery_worker` và `celery_beat` không có, nên không có gì để đổi cho hai service này.
+
+**Chưa kiểm**: luồng 8.1 bằng nút "Tải xuống" thật trên giao diện (xem phát hiện 4); nhãn mới ở giao diện (Slice 3); bootstrap trên `docker-compose.lan.yml` và `docker-compose.prod.yml` (Slice 6); sao lưu theo lịch 02:00/03:00 của celery beat (chỉ chạy tay); khôi phục kho tệp qua giao diện thật (chỉ gọi hàm của ứng dụng); hành vi sau nhiều ngày chạy liên tục.
+
 ### Slice 3 - Chuẩn hóa client S3, nhãn UI và test
 
 **Việc làm (TDD)**
 - Viết test cho `build_s3_client` trước (truyền `secure`, `region`, chuẩn hóa endpoint), rồi cài đặt; thay 4 chỗ `Minio(...)`.
-- Nếu Slice 1 cần: thêm biến `MINIO_REGION` (mặc định rỗng), truyền vào factory.
+- `MINIO_REGION` và `BACKUP_STORAGE_REGION` **đã được thêm và truyền vào cả 4 chỗ tạo client ở Slice 2** (Slice 1 cho thấy backend không khởi động được với Garage nếu thiếu). Slice 3 chỉ còn gom 4 chỗ đó vào một `build_s3_client` và giữ nguyên hành vi đã có test ở `backend/tests/test_s3_client_region.py`.
 - Đổi nhãn `"Kho tệp ứng dụng trên MinIO"` thành **`"Kho tệp ứng dụng"`** (thuật ngữ đã chốt trong `CONTEXT.md`, không nêu tên công nghệ): `backup_service.py:42`, `BackupCenterView.vue:6, 827, 1061, 1066` (dòng 6 và 1066 còn câu chữ "trên MinIO"/"kết nối MinIO" cần viết lại không nêu công nghệ), và các fixture/assert tương ứng trong `backup-center.spec.ts`.
 - Health: giữ `checks["minio"]` để không phá giám sát; thêm `checks["storage"]` cùng giá trị.
 
@@ -690,6 +717,7 @@ Nguồn: agent nghiên cứu đọc tài liệu và mã nguồn (GitHub mirror, 
 | 2026-10-30 | **D5: để sau.** Cutover chỉ đổi giá trị biến `MINIO_*`, không đổi tên | Slice 10 vẫn là tùy chọn, làm riêng sau khi Garage ổn định |
 | 2026-10-30 | **D6: thêm service `garage` vào `docker-compose.prod.yml`** theo cùng mẫu với file LAN (workflow deploy mặc định dùng file này; server thật chạy `docker-compose.lan.yml`) | Slice 2 và Slice 6 sửa cả ba file compose; hai file không được lệch nhau |
 | 2026-10-30 | **Cổng Slice 1: GO có điều kiện** (theo đề xuất; chủ hệ thống chấp thuận). Điều kiện: (1) SDK truyền `region="garage"`; (2) bucket do bootstrap tạo bằng CLI, khóa chỉ có quyền tạo bucket khi cần khôi phục vào bucket chưa có; (3) `metadata_auto_snapshot_interval` từ 10 phút trở lên (giữ `6h`) | Slice 2 làm theo ba điều kiện này; độ chín của Garage v2.5.0 (mới ra vài ngày) tiếp tục là rủi ro theo dõi ở Slice 2 và 7; U2, U10, U17 còn mở một phần, U12 và U16 để Slice 5 |
+| 2026-10-30 | *(Điều chỉnh theo bằng chứng, không phải quyết định mới của chủ hệ thống)* Kéo tham số `region` từ Slice 3 sang Slice 2; cấp quyền tạo bucket cho **cả hai** khóa thay vì chỉ `hrms-backup` | Cả hai đều do bằng chứng chạy thật: backend không khởi động được với Garage nếu thiếu `region` (Slice 1, Slice 2); khôi phục kho tệp tạo bucket đích bằng khóa ứng dụng (`AccessDenied` khi thiếu quyền). Cần chủ hệ thống xem lại nếu muốn hạn chế quyền tạo bucket của khóa ứng dụng |
 
 ## 13. Tiêu chí hoàn thành
 
@@ -771,6 +799,7 @@ ensure_key hrms-backup
 
 G bucket allow --read --write --owner "${MINIO_BUCKET:-hrms-attachments-dev}" --key hrms-app
 G bucket allow --read --write --owner "${BACKUP_STORAGE_BUCKET:-hrms-backup}"  --key hrms-backup
+G key allow --create-bucket hrms-app                                                 # U4: khôi phục kho tệp tạo bucket đích bằng khóa ứng dụng
 G key allow --create-bucket hrms-backup                                              # U4
 
 echo "Khóa được in MỘT LẦN dưới đây; chép vào .env (quyền 600), không lưu nơi khác:"

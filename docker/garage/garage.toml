@@ -1,0 +1,27 @@
+# Cấu hình Garage một node cho kho tệp ứng dụng (kế hoạch 15.7, Phụ lục A).
+# Không chứa bí mật: `rpc_secret` và `admin_token` lấy từ biến môi trường GARAGE_RPC_SECRET, GARAGE_ADMIN_TOKEN.
+
+metadata_dir = "/var/lib/garage/meta"
+data_dir = "/var/lib/garage/data"
+
+# Một node duy nhất không có bản sao, nên chọn sqlite (an toàn hơn lmdb khi mất điện) và bật fsync.
+db_engine = "sqlite"
+metadata_fsync = true
+data_fsync = true
+
+# Giá trị tối thiểu là 10 phút: nhỏ hơn thì Garage v2.5.0 không khởi động được, và có thể kèm thông báo panic
+# gây hiểu nhầm (đã quan sát ở Slice 1). Snapshot nằm trong metadata_dir, tức cùng volume với cơ sở dữ liệu.
+metadata_auto_snapshot_interval = "6h"
+
+replication_factor = 1
+
+rpc_bind_addr = "0.0.0.0:3901"
+rpc_public_addr = "127.0.0.1:3901"
+
+[s3_api]
+# SDK phải ký yêu cầu bằng đúng region này (MINIO_REGION, BACKUP_STORAGE_REGION trong .env).
+s3_region = "garage"
+api_bind_addr = "0.0.0.0:3900"
+
+[admin]
+api_bind_addr = "0.0.0.0:3903"
