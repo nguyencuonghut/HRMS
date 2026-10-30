@@ -24,5 +24,7 @@ RUN chown -R nginx:nginx /var/cache/nginx /var/log/nginx /etc/nginx/conf.d && \
 
 EXPOSE 80
 
+# Dùng 127.0.0.1 thay vì localhost: wget (busybox) phân giải localhost ra ::1 trước,
+# trong khi nginx chỉ `listen 80;` (IPv4) nên healthcheck luôn báo "Connection refused".
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD wget -qO- http://localhost/index.html || exit 1
+    CMD wget -qO- http://127.0.0.1/index.html || exit 1
