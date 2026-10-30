@@ -1,5 +1,7 @@
 # syntax=docker/dockerfile:1
-FROM python:3.12-slim
+# Ghim theo digest (Python 3.12.16, Debian 13) để dev/CI/production build ra cùng một base.
+# Tag `3.12-slim` trôi theo bản vá; nâng cấp có chủ đích: đổi digest ở đây và ở docker/backup/Dockerfile, rồi chạy test.
+FROM python:3.12-slim@sha256:aa943ce411423c7582288f18707ff66eddcbaeb510502d747a72aeb34f30d159
 
 ENV DEBIAN_FRONTEND=noninteractive
 
