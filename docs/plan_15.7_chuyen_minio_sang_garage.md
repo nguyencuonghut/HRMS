@@ -547,6 +547,27 @@ CI **không** chặn cutover và vẫn chạy với MinIO. CI cần một S3 s�
 
 **Rollback**: `git revert`.
 
+### Kết quả Slice 6 (2026-10-30)
+
+**Thay đổi (chưa commit)**
+- `docker-compose.lan.yml` và `docker-compose.prod.yml`: thêm service `garage` (ghim digest, `restart: always`, không publish cổng, `GARAGE_RPC_SECRET` và `GARAGE_ADMIN_TOKEN` bắt buộc, không có mặc định); truyền `MINIO_REGION` (cho `backend`, `celery_worker`, `celery_beat`) và `BACKUP_STORAGE_REGION` (cho `backend`, `celery_worker`); `depends_on` chuyển sang `garage`; gỡ `backup_scheduler` và hai volume `backup_data`, `backup_logs` chỉ nó dùng; thêm volume `garage_meta`, `garage_data`. Ở file LAN, `minio` chuyển vào profile `legacy-minio`; ở file HTTPS bỏ volume `minio_data` không ai dùng.
+- Xóa `docker/backup/Dockerfile`, `scripts/backup_minio.sh`, `scripts/backup-entrypoint.sh`, `scripts/backup_db.sh`.
+- Workflow: bỏ bước build image backup và `IMAGE_BACKUP`/`BACKUP_IMAGE` khỏi `ci.yml` và `deploy-production.yml` (cả hai chỉ `pull`/`up` đúng `backend celery_worker celery_beat frontend`, không bao giờ dùng image backup). `.env.example`: bỏ `BACKUP_IMAGE`, ghi rõ production không có mặc định cho Garage. Sửa các comment trỏ tới thứ đã gỡ (`.dockerignore`, `backend/Dockerfile`, `verify_backup.sh`) và thêm cảnh báo đầu `scripts/restore_procedure.md` (viết lại ở Slice 9).
+
+**Đã kiểm chứng**
+- `docker compose config` hợp lệ cho cả hai file với một `.env` mẫu giả; thiếu `GARAGE_*` thì dừng ngay với thông báo tiếng Việt. Cấu trúc đã giải: `minio` chỉ có khi bật `legacy-minio`; không còn `backup_scheduler`; `region` có ở cả ba service; `garage` không có cổng; biến S3 của `backend` không thiếu cái nào so với compose dev.
+- `docker compose stop minio` nhắm được service nằm sau profile, `ps` vẫn liệt kê nó, `up -d --remove-orphans` không đụng nó (`--dry-run`, ở dev).
+- `grep` không còn `backup_scheduler`, `docker/backup`, `backup_minio`, `backup_db.sh`, `BACKUP_IMAGE`, `IMAGE_BACKUP`, `minio/mc`, `dl.min.io` trong compose, workflow, Dockerfile, `.env.example`, `scripts/` (trừ `restore_procedure.md`, Slice 9); hai workflow vẫn parse được.
+- **Chạy thật, cô lập khỏi dev** (project `hrmslan_t`, volume riêng, đã xóa): từ **chính `docker-compose.lan.yml`** dựng `db`, `redis`, `garage`, `backend`, `celery_worker`, `celery_beat`; `garage` healthy sau ~8 giây; bootstrap bằng `COMPOSE_FILE=docker-compose.lan.yml MINIO_BUCKET=hrms-attachments-prod` hai lần (lần 2 idempotent); `backend` healthy sau ~9 giây, `GET /health` trả `database/redis/minio = ok` (kiểm cả bucket `hrms-attachments-prod`), `region` và bốn khóa có trong môi trường, 0 `S3Error`/`Traceback`; `celery_worker` và `celery_beat` healthy, 0 lỗi. Garage dev không bị ảnh hưởng (vẫn 2 bucket, 2 khóa).
+
+**Phát hiện**
+1. **Image backend dựng trước commit `8f427c5` làm backend lặp khởi động lại** khi trỏ vào Garage (`ensure_bucket()` đi qua `_get_region`, không có `region`). Lần thử đầu của tôi dính đúng lỗi này vì `hrms-backend:latest` trên máy dev dựng lúc 12:10, trước Slice 2; sau khi dựng lại thì hết. Production cũng chạy image dựng sẵn, nên runbook 10.1 đã thêm bước dựng lại image và kiểm tra nó có mã `region`.
+2. **`docker compose` trên file LAN/HTTPS dừng hẳn nếu `.env` thiếu `GARAGE_RPC_SECRET`/`GARAGE_ADMIN_TOKEN`**, kể cả `ps`, `pull`, `up` cho dịch vụ khác. Đó là chủ ý (dừng sớm, không bao giờ chạy Garage với bí mật rỗng), nên 10.1 đặt việc sửa `.env` **trước** `git pull`. **Tác động ngoài production LAN**: máy staging (job `deploy-staging` trong `ci.yml`, dùng `docker-compose.prod.yml`) và mọi nơi dùng `docker-compose.prod.yml` phải có hai biến này trong `.env` trước lần deploy kế tiếp, nếu không `pull`/`up` sẽ dừng với thông báo trên. Tôi không biết staging có đang tồn tại không.
+3. **Cổng 5432 trên máy dev đang bận**, nên không thể dựng `db` của file LAN nguyên trạng (nó publish `127.0.0.1:5432`); phải ghi đè `ports` khi thử.
+4. **Script bootstrap dùng tên project mặc định của thư mục**: nếu chạy với `COMPOSE_FILE` khác mà không đặt `COMPOSE_PROJECT_NAME`, nó sẽ nhắm vào Garage của project `hrms` (Garage dev). Khi thử tôi phải đặt `COMPOSE_PROJECT_NAME` và `COMPOSE_ENV_FILES`. Trên production chỉ có một project nên không sao.
+
+**Chưa kiểm**: khởi động trên production thật (đúng kế hoạch, không làm ở slice này); `docker-compose.prod.yml` chỉ kiểm bằng `config` (không dựng thật, kể cả nginx/certbot); `nginx` và `frontend` của file LAN; staging; sao lưu thật và khôi phục thật chạy dưới file LAN (đã kiểm ở dev với compose dev, Slice 2); các tài liệu vận hành còn nhắc những thứ đã gỡ (danh sách ở Slice 9).
+
 ### Slice 7 - Diễn tập cutover trên dev với bản sao production (ĐÃ BỎ, xem 9.0)
 
 Không có bước chép dữ liệu để diễn tập; Garage, bootstrap, backend, Backup Console, sao lưu, khôi phục và khởi động lại đã chạy thật ở Slice 2. Phần còn lại khác dev (tên file compose, tên bucket production) được kiểm tĩnh bằng `docker compose config` ở Slice 6.
@@ -568,7 +589,7 @@ Không có bước chép dữ liệu để diễn tập; Garage, bootstrap, back
 **Việc làm**
 - Gỡ container, volume và image MinIO khỏi máy chủ và khỏi compose. Giữ bản nén ở Slice 0 ngoài thư mục repo cho đến khi chủ hệ thống cho phép xóa.
 - Viết lại `scripts/restore_procedure.md` bằng SDK Python và **làm theo đúng từ đầu đến cuối** trên dev (khôi phục dump DB từ Garage và tải tệp), để chứng minh tài liệu chạy được.
-- Cập nhật tài liệu vận hành: `docs/deploy_noi_bo_lan_ubuntu_26_04.md`, `docs/production_deploy_ubuntu_26_04.md`, `docs/production_go_live_runbook.md`, `docs/TECHSTACK.md`, `docs/FEATURES.md`, `README.md`. Với các `plan_*.md` lịch sử chỉ thêm một dòng ghi chú trỏ sang tài liệu này.
+- Cập nhật tài liệu vận hành. Đã tìm thấy ở Slice 6 các chỗ còn nhắc `backup_scheduler`, `BACKUP_IMAGE`, `hrms-backup`, `backup_db.sh`, `backup_minio.sh` hoặc `mc`: `docs/deploy_noi_bo_lan_ubuntu_26_04.md` (nhiều chỗ), `docs/production_deploy_ubuntu_26_04.md`, `docs/github_actions_ghcr_master.md`, `docs/sla.md`, `docs/production_go_live_runbook.md`, `docs/production_improvements.md`, `README.md` (hướng dẫn `mc` trong container minio), cùng `docs/TECHSTACK.md` và `docs/FEATURES.md`. Với các `plan_*.md` lịch sử chỉ thêm một dòng ghi chú trỏ sang tài liệu này.
 - Giám sát cơ bản: dung lượng đĩa của `garage_data`, `garage health`.
 - **(Tùy chọn, làm sau được)** CI: thay service `minio` (`ci.yml:45-58`) bằng Garage khởi động bằng `docker run` **sau bước checkout** (service chạy trước checkout nên không gắn được `garage.toml` từ repo; `--health-cmd` làm job hỏng trên image không có shell; `command` phải bắt đầu bằng `/garage`; xem U12), kèm bước chờ sẵn sàng và bootstrap; đổi `MINIO_ENDPOINT` (`ci.yml:81, 93, 105`), thêm khóa và `MINIO_REGION=garage`.
 
@@ -584,12 +605,13 @@ Chạy trong `/opt/hrms/HRMS` với `docker-compose.lan.yml`. Các lệnh về G
 
 ### 10.1. Chuẩn bị (hệ thống còn chạy, chưa ảnh hưởng người dùng)
 
-1. `git pull origin master` (nhớ: nhánh là `master`, không phải `main`).
-2. **Kiểm kê (Phụ lục D)** và ghi lại số object của bucket tệp. Phải là **0**. Nếu lớn hơn 0: dừng, quyết định (tải lại bằng giao diện hoặc import, hoặc chép tay); không tiếp tục theo runbook này.
-3. Backup Console: ▶ sao lưu PostgreSQL và xác nhận `success`. (Khuyến nghị, vì rất rẻ.)
-4. Sao lưu `.env` hiện tại ra ngoài thư mục repo với quyền `600`. Thêm vào `.env`: `GARAGE_RPC_SECRET` và `GARAGE_ADMIN_TOKEN` (sinh bằng `openssl rand -hex 32`); `chmod 600 .env`.
-5. Bật Garage song song với MinIO: `docker compose -f docker-compose.lan.yml up -d garage`; chờ `healthy`.
-6. Bootstrap, lấy khóa vào tệp tạm, **chưa động vào khóa cũ trong `.env`**:
+1. **Sửa `.env` trước, rồi mới `git pull`.** Sao lưu `.env` hiện tại ra ngoài thư mục repo với quyền `600`. Thêm vào `.env`: `GARAGE_RPC_SECRET` và `GARAGE_ADMIN_TOKEN` (sinh bằng `openssl rand -hex 32`); `chmod 600 .env`. Thứ tự này bắt buộc: compose mới **không có giá trị mặc định** cho hai biến đó, nên thiếu chúng thì mọi lệnh `docker compose` trên file mới (kể cả `ps`, `pull`, `up`) dừng ngay với thông báo (đã kiểm ở Slice 6). Hai biến này vô hại với compose cũ.
+2. `git pull origin master` (nhớ: nhánh là `master`, không phải `main`).
+3. **Dựng lại image backend từ mã mới** (bắt buộc). File LAN chạy image dựng sẵn, không gắn mã nguồn như compose dev; một image dựng trước commit `8f427c5` không truyền `region`, và backend sẽ **lặp khởi động lại** với `S3Error` ngay ở `ensure_bucket()` khi trỏ vào Garage (đã gặp thật ở Slice 6). Với triển khai dựng tại chỗ: `docker build -t "$BACKEND_IMAGE:$IMAGE_TAG" ./backend` (giá trị lấy từ `.env`; production hiện dùng `hrms-backend:local`). Kiểm tra image có mã mới: `docker run --rm --entrypoint grep "$BACKEND_IMAGE:$IMAGE_TAG" -n region /app/app/core/storage.py` phải in ra một dòng `region=settings.MINIO_REGION or None`. Dựng image không ảnh hưởng container đang chạy; chúng chỉ dùng image mới khi được tạo lại ở 10.2.
+4. **Kiểm kê (Phụ lục D)** và ghi lại số object của bucket tệp. Phải là **0**. Nếu lớn hơn 0: dừng, quyết định (tải lại bằng giao diện hoặc import, hoặc chép tay); không tiếp tục theo runbook này.
+5. Backup Console: ▶ sao lưu PostgreSQL và xác nhận `success`. (Khuyến nghị, vì rất rẻ.)
+6. Bật Garage song song với MinIO: `docker compose -f docker-compose.lan.yml up -d garage`; chờ `healthy`. (Compose mới đưa `minio` vào profile `legacy-minio`, nhưng container MinIO đang chạy vẫn chạy tiếp và vẫn được `ps` liệt kê; `up -d --remove-orphans` không xóa nó. Đã kiểm bằng `--dry-run`.)
+7. Bootstrap, lấy khóa vào tệp tạm, **chưa động vào khóa cũ trong `.env`**:
    ```bash
    (umask 077; COMPOSE_FILE=docker-compose.lan.yml MINIO_BUCKET=hrms-attachments-prod bash scripts/garage_bootstrap.sh > /tmp/garage_keys.env)
    wc -l /tmp/garage_keys.env      # phải là 4 dòng
@@ -609,7 +631,7 @@ Chạy trong `/opt/hrms/HRMS` với `docker-compose.lan.yml`. Các lệnh về G
    select kind, source_endpoint, source_bucket, target_endpoint, target_bucket from backup_configs order by kind;
    ```
 3. Khởi động lại: `docker compose -f docker-compose.lan.yml up -d --force-recreate --no-deps backend celery_worker celery_beat`.
-4. Dừng MinIO và ngăn nó tự bật lại sau khởi động máy: `docker compose -f docker-compose.lan.yml stop minio` rồi `docker update --restart=no <container_minio>`. **Chưa xóa** container và volume.
+4. Dừng MinIO và ngăn nó tự bật lại sau khởi động máy: `docker compose -f docker-compose.lan.yml stop minio` (lệnh này nhắm được service nằm sau profile `legacy-minio`; đã kiểm bằng `--dry-run` ở dev) rồi `docker update --restart=no <container_minio>`. **Chưa xóa** container và volume.
 
 ### 10.3. Checklist sau cutover
 
