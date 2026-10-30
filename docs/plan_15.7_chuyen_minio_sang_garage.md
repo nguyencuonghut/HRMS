@@ -144,7 +144,7 @@ Theo tài liệu cấu hình của Garage:
 
 - `db_engine = "sqlite"`. `lmdb` (mặc định) dễ hỏng sau khi mất điện và không chuyển được giữa kiến trúc CPU; lợi thế của nó dựa vào việc có bản sao trên node khác. Một node duy nhất không có bản sao nên chọn `sqlite` (chậm hơn nhưng an toàn hơn). `sqlite` cũng không bị giới hạn độ dài khóa 511 byte của `lmdb`.
 - `metadata_fsync = true`, `data_fsync = true`: giảm rủi ro hỏng dữ liệu khi mất điện, đổi lấy tốc độ ghi. Với quy mô tệp đính kèm hồ sơ, chi phí này chấp nhận được (đo ở Slice 1, xem U10).
-- `metadata_auto_snapshot_interval = "6h"`: Garage chỉ giữ hai snapshot gần nhất (xem U11 về việc có áp dụng cho `sqlite` không).
+- `metadata_auto_snapshot_interval = "6h"`: Garage chỉ giữ hai snapshot gần nhất. Theo mã nguồn v2.5.0 và lần chạy thật ở Slice 1, giá trị tối thiểu là **600 giây (10 phút)**; giá trị nhỏ hơn làm Garage không khởi động được (và có thể kèm thông báo panic gây hiểu nhầm, xem "Kết quả Slice 1"). Snapshot dùng `VACUUM INTO` và nằm trong `<metadata_dir>/snapshots`, tức **cùng volume** với cơ sở dữ liệu nên không chống được mất cả volume.
 - Bí mật (`rpc_secret`, `admin_token`) truyền bằng biến môi trường `GARAGE_RPC_SECRET`, `GARAGE_ADMIN_TOKEN`, **không ghi vào file cấu hình trong repo**.
 
 ### 5.3. Mạng
@@ -163,6 +163,8 @@ Garage dùng mô hình quyền riêng (khóa x bucket), không có ACL/policy c�
 
 Định dạng khóa của Garage: access key `GK` + 24 ký tự hex, secret 64 ký tự hex. Khóa **tự sinh bằng `garage key create`**; lệnh `import` chỉ dành cho di trú/khôi phục theo tài liệu Garage, không dùng để đặt khóa tùy ý.
 
+Theo mã nguồn v2.5.0 (đã đọc, chưa chạy): bucket tạo qua S3 (`make_bucket`) chỉ có **alias cục bộ** của khóa tạo ra nó, khóa khác không thấy theo tên; bucket tạo bằng CLI có alias toàn cục, và `make_bucket` trên tên đó trả `BucketAlreadyExists`/`BucketAlreadyOwnedByYou`. Vì vậy mọi bucket của ứng dụng nên do bootstrap tạo bằng CLI. Khóa `hrms-backup` chỉ cần quyền tạo bucket cho chức năng "Khôi phục sang đích mới" khi bucket đích chưa có (`restore_runner_service.py:373`), và bucket tạo kiểu đó chỉ khóa này thấy được. Probe C của Slice 1 kiểm điều này. Lệnh `garage key import <id> <secret>` tồn tại (id từ 8 ký tự, secret từ 16 ký tự theo mã nguồn), nên có thể đặt khóa xác định thay vì để `key create` tự sinh.
+
 Bucket được tạo bằng script bootstrap **trước khi** `backend` khởi động, vì `ensure_bucket()` (`main.py:81`) làm backend lỗi nếu bucket chưa có và khóa không có quyền tạo.
 
 ### 5.5. Giữ tên biến `MINIO_*` trong đợt này
@@ -175,11 +177,11 @@ Image Garage dựng `FROM scratch`, **không có shell** (tài liệu chính th�
 
 ### 5.7. Chuẩn hóa client S3
 
-Tạo một hàm duy nhất `build_s3_client(endpoint, access_key, secret_key, secure, region=None)` (ví dụ ở `backend/app/core/s3_client.py`) và thay 4 chỗ `Minio(...)` ở mục 3.2. Tham số `region` mặc định rỗng; chỉ bật nếu Slice 1 cho thấy việc tự dò region qua `GetBucketLocation` không hoạt động với `s3_region = "garage"` (U5).
+Tạo một hàm duy nhất `build_s3_client(endpoint, access_key, secret_key, secure, region=None)` (ví dụ ở `backend/app/core/s3_client.py`) và thay 4 chỗ `Minio(...)` ở mục 3.2. Tham số `region` **bắt buộc, đã xác nhận bằng chạy thật ở Slice 1** (xem "Kết quả Slice 1"). Theo mã nguồn v2.5.0, Garage từ chối chữ ký có region khác `s3_region` (`AuthorizationHeaderMalformed`), còn `minio-py` khi không có `region` sẽ dò bằng yêu cầu `GetBucketLocation` ký cho `us-east-1`; trang hướng dẫn Python của Garage cũng dặn đặt `region="garage"` (U5). Hiện `core/storage.py:_client()` tạo một `Minio(...)` mới cho **mỗi lần gọi**, nên không truyền `region` còn làm thêm một yêu cầu dò region mỗi lần; truyền `region` loại bỏ cả hai vấn đề.
 
 ### 5.8. Healthcheck
 
-Image không có `curl`/`wget`/shell. Đề xuất `["CMD", "/garage", "status"]` (U2 phải kiểm chứng). Giữ được `depends_on: condition: service_healthy` cho `backend` và `celery_*` như hiện nay với MinIO.
+Image không có `curl`/`wget`/shell. Đề xuất `["CMD", "/garage", "health", "-q"]` (U2: đã chạy được dưới compose ở Slice 1, container lên `Healthy`). Theo mã nguồn v2.5.0, `garage health` thoát 1 khi cụm "unavailable" hoặc RPC không nối được, còn `garage status` chỉ thoát khác 0 khi RPC hỏng nên **không** phản ánh sức khỏe. Không dùng `docker run --health-cmd` (luôn bọc `CMD-SHELL`, hỏng trên image không có shell). Giữ được `depends_on: condition: service_healthy` cho `backend` và `celery_*` như hiện nay với MinIO.
 
 ### 5.9. Dừng dùng `mc`
 
@@ -331,15 +333,101 @@ PY
 ### Slice 1 - Spike tương thích (cổng quyết định go/no-go)
 
 **Việc làm**
-- Đưa bộ kiểm tra vào repo: `backend/app/scripts/s3_conformance_probe.py` (dùng chính SDK của ứng dụng; kiểm 7 thao tác, multipart 12 MiB, phân trang trên 1.000 object, tên có dấu tiếng Việt/khoảng trắng/`#`/`()`, ghi đè, mã lỗi).
-- Chạy với Garage `v2.5.0` trong mạng Docker riêng, cấu hình đề xuất ở Phụ lục A.
-- Trả lời toàn bộ mục "Điểm chưa xác minh" U1-U15 (mục 12) bằng bằng chứng; ghi kết quả vào mục "Kết quả Slice 1" của tài liệu này.
+- Đưa bộ kiểm tra vào repo: `backend/app/scripts/s3_conformance_probe.py` (dùng chính SDK `minio` của ứng dụng; 12 kiểm tra: `bucket_exists` cho bucket có và không có, `make_bucket`, put/stat/get, multipart 12 MiB so `sha256`, tên có dấu tiếng Việt/khoảng trắng/`#`/`()`/`+`/`%`/`&`/`?`/`'` (ứng dụng đặt tên object bằng nguyên tên tệp người dùng tải lên), ghi đè, 1.050 object đồng thời + phân trang, liệt kê không đệ quy, xóa, mã lỗi, dọn dẹp). Test của chính bộ kiểm tra: `backend/tests/test_s3_conformance_probe.py` (31 test dùng S3 giả có lỗi cố ý, không cần Docker).
+- Đưa script chạy vào repo: `scripts/garage_spike.sh`. Script dựng hai instance Garage `v2.5.0` trong một project compose tạm (mạng và volume riêng, tự dọn): `garage` đúng cấu hình Phụ lục A (fsync bật, snapshot `6h`), và `garage_nofsync` (như trên nhưng tắt fsync) để so độ trễ. Với mỗi instance, script chạy probe hai lần: **A** là kịch bản production (bucket tạo sẵn, khóa không có quyền tạo bucket) **B** sau khi cấp `key allow --create-bucket`, và **C** giữ lại bucket tạo qua S3 để xem alias. Healthcheck của compose tạm là `garage health -q`. Nếu lỗi có dấu hiệu liên quan region, script tự chạy lại với `--region garage`.
+- Chủ hệ thống tự chạy (xem mục "Cách chạy" bên dưới) và gửi lại đầu ra; người lập kế hoạch phân tích và ghi kết quả vào mục "Kết quả Slice 1".
 
-**Kiểm chứng (cổng)**: mọi bài kiểm tra PASS, hoặc mọi FAIL đều khắc phục được bằng cấu hình/tham số SDK. Nếu không: dừng và đánh giá phương án dự phòng (Silo) trước khi sang slice sau.
+**Cách chạy** (trên máy dev, không phải production; cần image `hrms-backend:latest` có sẵn, vì chứa SDK `minio`):
 
-**Lưu ý**: bước này chạy image bên thứ ba và cần phê duyệt của người vận hành.
+```bash
+cd /run/media/cuong/DATA/02_Project/166_HonghaHRM/HRMS
+bash scripts/garage_spike.sh 2>&1 | tee /tmp/garage_spike.out
+```
 
-**Rollback**: xóa container/volume thử nghiệm.
+Mất khoảng 2 phút. Đầu ra không chứa bí mật (khóa chỉ nằm trong biến shell; mọi chuỗi hex 64 ký tự bị che), nên dán nguyên văn được. Dùng `KEEP=1` để giữ lại container xem thủ công, `GARAGE_IMAGE=<digest của bản mirror>` để thử đúng image sẽ dùng thật.
+
+**Cách đọc kết quả (mỗi điểm chưa xác minh lấy bằng chứng ở đâu)** (U1-U17, mục 12.1)
+
+| Mục | Bằng chứng trong đầu ra |
+|---|---|
+| U1 | bước "U1": `garage status`, `layout show` (dung lượng, zone do `--single-node` tạo) |
+| U2, U13 | bước "U13/U2": `up gate` thành công, log `gate` có dòng "đã chạy", và trạng thái healthcheck `healthy` của cả hai instance |
+| U3 | mã thoát của `bucket info`/`key info` với đối tượng có và không có |
+| U4 | probe A: `make_bucket` FAIL (mong đợi), sau `key allow --create-bucket` probe B: `make_bucket` PASS |
+| U5 | probe không có `--region` vượt qua kiểm tra đầu tiên; nếu không thì xem lần chạy lại với `--region garage` |
+| U6, U7, U14 | các dòng PASS/FAIL tương ứng của probe, kèm mã lỗi trong cột chi tiết |
+| U8 | probe kết nối được qua mạng bridge khi Garage bind `0.0.0.0` (chưa so với `[::]`) |
+| U9, U17 | log khởi động của từng instance và nội dung volume metadata; Garage khởi động được dù `garage.toml` không có `rpc_secret` (secret lấy từ biến môi trường) |
+| U10 | so thời gian dòng "1050 objects" và "12 MiB" giữa `garage` và `garage_nofsync` |
+| U11 | bộ `snapshot` của `scripts/garage_spike_crash.sh` (đã chạy; kết quả ở "Kết quả Slice 1") |
+| U15 | các dòng "tài nguyên" khi rảnh và sau probe |
+| U12, U16 | **không kiểm được cục bộ**: kiểm ở Slice 5 trên GitHub Actions thật |
+
+Script chẩn đoán đi kèm: `scripts/garage_spike_crash.sh` (hai bộ `crash` và `snapshot` đều đã chạy; xem "Kết quả Slice 1").
+
+**Kiểm chứng (cổng)**: mọi bài kiểm tra PASS, hoặc mọi FAIL đều khắc phục được bằng cấu hình/tham số SDK. Riêng probe A có đúng một FAIL được chấp nhận trước: `make_bucket`, vì khóa của ứng dụng không có quyền tạo bucket. Nếu không đạt: dừng và đánh giá phương án dự phòng (Silo) trước khi sang slice sau.
+
+**Đã xác minh trước khi chạy**
+- Probe đạt 12/12 trên MinIO dev thật và dọn sạch bucket thử (đối chứng dương); sai khóa cho `SignatureDoesNotMatch` thoát mã 1 (đối chứng âm).
+- `scripts/garage_spike.sh`: chạy trọn luồng với `docker` giả (không có Garage thật): đọc đúng khóa, bí mật 0 lần trong đầu ra và 0 lần trên dòng lệnh, dọn sạch thư mục tạm; file compose sinh ra qua `docker compose config` thật. **Chưa xác minh**: định dạng đầu ra thật của `garage key create` (script lấy khóa bằng mẫu `GK` + 24 hex và chuỗi 64 hex nên không phụ thuộc nhãn, nhưng chưa thấy đầu ra thật), và mọi hành vi của Garage.
+
+**Lưu ý**: bước này chạy image bên thứ ba và cần phê duyệt của người vận hành, nên do người vận hành tự chạy.
+
+**Rollback**: script tự dọn (`down -v`); nếu dùng `KEEP=1` thì chạy lệnh dọn mà script in ra.
+
+### Kết quả Slice 1 (lần chạy 1, 2026-10-30 15:15 +07)
+
+Chạy `scripts/garage_spike.sh` trên máy dev (Docker 29.8.2, Compose 5.6.0) với `dxflrs/garage:v2.5.0`. Lần chạy này không ghi được digest vì bộ che bí mật của script che luôn mọi chuỗi 64 hex (đã sửa); lần chạy chẩn đoán sau đó in digest của image đã kéo là `dxflrs/garage@sha256:677e5b758e4425a325b811c425c026bf35a4bf42f7ddbaa773de3f4fd779a5a5`, **trùng từng ký tự** với manifest list đã ghim ở Slice 0 và đã mirror lên ghcr.
+
+**Kết luận: tương thích S3 ĐẠT; GO có điều kiện (chủ hệ thống đã chấp thuận ngày 2026-10-30, xem 12.3).** Mọi FAIL đều khắc phục được bằng cấu hình hoặc tham số SDK, đúng tiêu chí cổng:
+- truyền `region="garage"` cho SDK `minio` (U5);
+- bucket của ứng dụng do bootstrap tạo bằng CLI; khóa chỉ cần quyền tạo bucket cho "Khôi phục sang đích mới" vào bucket chưa có (U4);
+- `metadata_auto_snapshot_interval` phải từ 10 phút trở lên (U11); crash ở lần chạy 1 là do đặt `1min`, không phải do fsync hay lỗi dữ liệu.
+
+Còn mở (không chặn cổng, xử lý ở slice sau): `health -q` có thoát 1 khi cụm chưa sẵn sàng không (U2), độ trễ khi tắt fsync (U10; ta dùng fsync bật nên không cần), token Admin API có được áp dụng không (U17), và U12, U16 chỉ kiểm được ở Slice 5.
+
+| Mục | Kết quả quan sát được | Trạng thái |
+|---|---|---|
+| U1 | `--single-node` tự tạo layout: phiên bản 1, zone `dc1`, dung lượng 465,5 GiB (bằng tổng đĩa); không cần `--default-bucket` | Đạt |
+| U2 | Healthcheck `["CMD","/garage","health","-q"]` dưới compose: container lên `Healthy`; `health -q` và `status` đều thoát 0 khi cụm khỏe. **Chưa kiểm** `health -q` có thoát 1 khi chưa sẵn sàng | Đạt một phần |
+| U3 | `bucket info`/`key info` với đối tượng không có: thoát 1 (`NoSuchBucket (404)`, `NoSuchAccessKey (404)`); có: thoát 0. Khóa tự sinh dạng `GK` + 24 hex, secret 64 ký tự. `key info` không có `--show-secret` in `(redacted)`. Đầu ra CLI kèm dòng `INFO garage_net::netapp` (script gộp stdout và stderr nên chưa biết dòng đó ở luồng nào) | Đạt |
+| U4 | Probe A: khóa không có quyền tạo bucket thì `make_bucket` bị `AccessDenied` ("is not allowed to create buckets"), đúng một FAIL dự kiến, mọi kiểm tra còn lại đạt. Sau `key allow --create-bucket`, probe B đạt 12/12 và dọn được bucket. Bucket tạo qua S3 (`probe-c`) chỉ có **alias cục bộ** `GK...:probe-c`; `bucket info probe-c` theo tên trả `NoSuchBucket` | Đạt; có hệ quả thiết kế (5.4) |
+| U5 | Không truyền `region`: mọi kiểm tra cần bucket lỗi `AuthorizationHeaderMalformed` (ký cho `us-east-1`, server mong `garage`). Truyền `region="garage"`: đạt hết | Đạt: **cần `region="garage"`** |
+| U6, U7 | 1.050 object đồng thời + phân trang: `1050/1050`; 3 tên có dấu tiếng Việt, khoảng trắng, `# ( ) + % & ? '` đọc lại nguyên vẹn; multipart 12 MiB `sha256` khớp | Đạt |
+| U8 | Garage bind `0.0.0.0` (log: `Listening on 0.0.0.0:3901`, S3 `:3900`, admin `:3903`) và probe nối được qua mạng bridge. Chưa so với `[::]` | Đạt cho `0.0.0.0` |
+| U9 | Ghi được vào volume có tên; file trong volume thuộc `root:root`. Cấu hình image không có khóa `User` | Đạt (chạy root) |
+| U10 | Với fsync **bật** (cấu hình ta dùng): put + get 12 MiB mất 0,12 giây; 1.050 put đồng thời + liệt kê mất 1,20 giây (MinIO dev: 0,09 và 1,21 giây). **Chưa có** số liệu fsync tắt để so (instance đó crash) | Đạt một phần |
+| U11 | Snapshot hoạt động với `sqlite`: lệnh thủ công `garage meta snapshot` tạo `snapshots/<UTC>/db.sqlite` (573.440 byte); chu kỳ tự động `10min` chụp đúng sau nửa chu kỳ (5 phút) và node vẫn khỏe. Chu kỳ dưới 600 giây bị từ chối. Lần chụp đầu của `6h` (khoảng 3 giờ sau khởi động) chưa quan sát, nhưng cơ chế đã chạy ở `10min` | Đạt (xem chẩn đoán bên dưới) |
+| U12, U16 | Không kiểm được cục bộ | Để Slice 5 |
+| U13 | `up gate` chờ dòng `garage ... Healthy` rồi mới khởi động `gate`; log `gate` có dòng "đã chạy" | Đạt |
+| U14 | Thiếu khóa: `NoSuchKey`. `stat` trên bucket không tồn tại: **`NoSuchKey`** (không phải `NoSuchBucket` như MinIO; `minio-py` suy mã từ HEAD không có thân). Ứng dụng chỉ bắt `S3Error` chung (`core/storage.py:258`) nên không ảnh hưởng | Đạt |
+| U15 | Rảnh: RAM 7,6 MiB, CPU 0,01%. Sau probe: RAM 15 MiB, CPU 0,02% | Đạt |
+| U17 | Garage khởi động và lắng nghe dù `garage.toml` không có `rpc_secret`/`admin_token` (lấy từ biến môi trường); CLI gọi `GetClusterHealth` qua Admin API được. **Chưa kiểm** token có được áp dụng | Đạt một phần |
+
+**Chẩn đoán crash (lần chạy 2 và 3, 2026-10-30 15:26 và 15:33 +07; máy dev Intel i7-1355U, kernel 6.6.156, Docker dùng containerd snapshotter).** Ở lần chạy 1, instance `garage_nofsync` (fsync tắt + snapshot mỗi 1 phút) thoát mã 139. `scripts/garage_spike_crash.sh` chạy từng cấu hình riêng (mỗi cấu hình một container và volume mới):
+
+| Biến thể | fsync | Chu kỳ snapshot | Kết quả quan sát được |
+|---|---|---|---|
+| A | bật | `6h` | chạy ổn 30 giây, `health -q` thoát 0 |
+| B | tắt | không đặt | chạy ổn 30 giây, `health -q` thoát 0 |
+| C | bật | `1min` | **crash**, mã 139, sau chưa tới 1 giây |
+| D1, D2 | tắt | `1min` | **crash**, mã 139, sau chưa tới 1 giây (cả hai lần) |
+| M | bật | không đặt, gọi `garage meta snapshot` | chạy ổn; "Snapshot created"; có `snapshots/2026-10-30T08:33:13Z/db.sqlite` (573.440 byte) |
+| I60 | bật | `60s` | **thoát mã 1 sạch**: `Error: metadata_auto_snapshot_interval too small or negative` |
+| I2 | bật | `2min` | **crash**, mã 139, giống C |
+| I10 | bật | `10min` | chạy ổn 330 giây; snapshot tự động lúc 08:38:42, đúng 5 phút sau khi khởi động (08:33:41); log có `Metadata db snapshot finished`; `health -q` thoát 0 |
+| I1H | bật | `1h` | chạy ổn 20 giây |
+
+Thông báo panic ở C, D1, D2, I2 giống hệt: `panicked at src/table/merkle.rs:326:4: called Result::unwrap() on an Err value: JoinError::Cancelled(Id(19))`.
+
+Kết luận:
+- **Nguyên nhân: chu kỳ snapshot nhỏ hơn 600 giây.** Quan sát: mọi giá trị dưới 600 giây (`60s`, `1min`, `2min`) thất bại, mọi giá trị từ 600 giây trở lên (`10min`, `1h`, `6h`) chạy được. Mã nguồn v2.5.0 (đọc qua công cụ tóm tắt, `Garage::spawn_workers`) có đúng điều kiện `if interval < Duration::from_secs(600)` trả lỗi trên. Chỉ `60s` cho thấy thông báo lỗi sạch trong dữ liệu ta có.
+- **Panic ở `1min` và `2min` là biểu hiện phụ (suy luận, chưa thấy trực tiếp)**: lỗi trả về khi dựng worker làm tiến trình thoát trong lúc `MerkleWorker` đang chờ một tác vụ `spawn_blocking`, nên tác vụ bị hủy (`JoinError::Cancelled`) rồi `.unwrap()` gây panic. Ta chưa thấy dòng "too small" trong log của `1min`/`2min` vì script đã cắt log.
+- **fsync không liên quan**: C (fsync bật) crash như D (fsync tắt); B (fsync tắt, không snapshot) chạy ổn.
+- **`6h` trong Phụ lục A hợp lệ.** Lần chụp đầu của nó (khoảng 3 giờ sau) chưa quan sát, nhưng cơ chế đã chạy đúng ở `10min`; snapshot đầu luôn được lên lịch sau nửa chu kỳ.
+- **Hệ quả vận hành**: cấu hình sai chu kỳ không cho thông báo dễ hiểu và với `restart: always` sẽ lặp crash. Slice 2 cần một bước khởi động thử cấu hình (hoặc đọc log) trước khi coi là xong.
+
+**Lỗi của script ở lần chạy này (đã sửa)**: lệnh `docker image inspect` lỗi template; che nhầm digest và ID bucket; không lấy được trạng thái container đã chết; `--tail 40` cắt mất thông báo panic; kiểm tra "thiếu khóa/bucket" của probe chấp nhận mọi `S3Error` nên PASS sai lý do trong lần chạy không có `region` (nay đòi đúng mã `NoSuchKey`/`NoSuchBucket`).
 
 ### Slice 2 - Garage trong môi trường dev
 
@@ -392,7 +480,7 @@ PY
 ### Slice 5 - CI và chuỗi cung ứng image
 
 **Việc làm**
-- Thay service `minio` (`ci.yml:45-58`) bằng bước khởi động Garage bằng `docker run` từ image mirror (khóa `command` trong `services` có thể không có tác dụng, xem U12), kèm bước chờ sẵn sàng và bootstrap. Có thể dùng chế độ `--single-node --default-bucket` với `GARAGE_DEFAULT_*` cho CI nếu Slice 1 xác nhận.
+- Thay service `minio` (`ci.yml:45-58`) bằng bước khởi động Garage bằng `docker run` từ image mirror (theo tài liệu GitHub và mã nguồn runner, `command` và `entrypoint` có tồn tại trong `services`, nhưng service khởi động **trước bước checkout** nên không gắn được `garage.toml` từ repo, và `--health-cmd` làm job hỏng trên image không có shell; xem U12), kèm bước chờ sẵn sàng và bootstrap. Có thể dùng chế độ `--single-node --default-bucket` với `GARAGE_DEFAULT_*` cho CI nếu Slice 1 xác nhận.
 - Đổi `MINIO_ENDPOINT` (`ci.yml:81, 93, 105`) và thêm khóa tương ứng.
 - Xử lý bước build image backup (`ci.yml:164`) theo D3.
 
@@ -521,7 +609,7 @@ Việc quay lui chỉ dùng được khi container và volume MinIO còn nguyên
 | R1 | Garage không tương thích một hành vi ứng dụng cần | Cao | Slice 1 là cổng go/no-go; dự phòng Silo |
 | R2 | Quên cập nhật `backup_configs.source_endpoint` trong DB | Cao | Bước SQL cụ thể trong 10.2; checklist 10.4 mục 5; nhãn lỗi rõ ở Backup Console |
 | R3 | Backend không khởi động vì `ensure_bucket()` (bucket chưa có/thiếu quyền) | Cao | Bootstrap trước khi khởi động dịch vụ; kiểm trong diễn tập (Slice 7) |
-| R4 | Hỏng/mất dữ liệu Garage khi mất điện | Trung bình | `sqlite` + `fsync` + snapshot; vẫn chỉ một node nên cần sao lưu ngoài máy (D2) |
+| R4 | Hỏng/mất dữ liệu Garage khi mất điện | Trung bình | `sqlite` + `fsync` + snapshot `6h` (chu kỳ tối thiểu 10 phút, U11); snapshot nằm cùng volume với DB nên vẫn cần sao lưu ngoài máy (D2) |
 | R5 | Sao lưu và dữ liệu thật nằm cùng một kho, cùng một ổ đĩa, và **hiện chưa có nơi nào ngoài máy production** (xác nhận 2026-10-30) | Cao | **Chủ hệ thống đã chấp nhận rủi ro khi cutover** (mục 12.3). Vẫn nên có ít nhất một bản ngoài máy (D2); không giải quyết trong đợt này |
 | R6 | Mất dữ liệu khi chép | Thấp hiện tại (production có 0 tệp và 3 object sao lưu, kiểm kê 2026-10-30); có thể tăng nếu người dùng tải tệp lên trước cutover | `--verify` theo `sha256`, chép hai lần, không xóa nguồn, giữ snapshot và container MinIO cũ; kiểm kê lại ngay trước cutover |
 | R7 | Image Garage biến mất khỏi registry công khai | Trung bình | Mirror lên ghcr, ghim digest (5.10) |
@@ -539,21 +627,42 @@ Việc quay lui chỉ dùng được khi container và volume MinIO còn nguyên
 | # | Nội dung |
 |---|---|
 | U1 | `garage server --single-node` có tự tạo layout mà không cần `--default-bucket`; dung lượng layout mặc định |
-| U2 | Healthcheck `["CMD", "/garage", "status"]` chạy được trong image `FROM scratch` dưới compose |
+| U2 | Healthcheck `["CMD", "/garage", "health", "-q"]` chạy được trong image `FROM scratch` dưới compose (và thoát khác 0 khi chưa sẵn sàng); `status` đã bị loại, xem 5.8 |
 | U3 | Lệnh `garage bucket info`, `garage key info` tồn tại và có mã thoát phân biệt "có/không" (để bootstrap idempotent) |
 | U4 | `garage key allow --create-bucket` tồn tại và đủ để `make_bucket` qua S3 (`backup_runner_service.py:108`, `restore_runner_service.py:373`); tài liệu hướng dẫn nhanh không nói rõ |
-| U5 | SDK `minio` tự dò region qua `GetBucketLocation` với `s3_region = "garage"`; nếu không thì cần tham số `region` |
+| U5 | SDK `minio` tự dò region qua `GetBucketLocation` với `s3_region = "garage"`. Mã nguồn cho thấy **không** (cần `region="garage"`); chờ xác nhận chạy thật |
 | U6 | Liệt kê trên 1.000 object và tên có dấu tiếng Việt (tài liệu Garage ghi có trường hợp đặc biệt với `encoding-type=url`) |
 | U7 | Multipart 12 MiB và `sha256` khớp |
 | U8 | Bind `0.0.0.0` (phác thảo ở Phụ lục A) so với `[::]` trong mạng bridge của Docker |
 | U9 | Quyền ghi lên volume. Cấu hình image cho thấy tiến trình chạy bằng root (không có `User`), nên nhiều khả năng không vướng; vẫn cần xác nhận khi chạy thật |
 | U10 | Độ trễ khi bật `metadata_fsync` và `data_fsync` |
-| U11 | `metadata_auto_snapshot_interval` có áp dụng cho `sqlite` |
+| U11 | `metadata_auto_snapshot_interval` có áp dụng cho `sqlite` **(đã xác minh ở Slice 1: có; tối thiểu 600 giây)** |
 | U12 | GitHub Actions có hỗ trợ khóa `command` trong `services` (`ci.yml` đang dùng nhưng tôi tin là không có tác dụng) |
 | U13 | `depends_on: condition: service_healthy` hoạt động với healthcheck của Garage |
 | U14 | Mã/ngữ nghĩa lỗi khi object hoặc bucket không tồn tại (ứng dụng chỉ bắt `S3Error` chung nên rủi ro thấp) |
 | U15 | Mức dùng RAM và CPU khi rảnh và khi sao lưu |
 | U16 | Gói mirror trên ghcr là **riêng tư** (xác nhận: không đăng nhập thì `401`) và do token cá nhân đẩy lên, image không có nhãn `org.opencontainers.image.source` nên có thể **chưa được liên kết với repo**. Kiểm tra `GITHUB_TOKEN` trong Actions có kéo được không; nếu không thì kết nối gói với repo (Manage Actions access). Production cần token chỉ đọc để kéo (Slice 5, 8) |
+| U17 | `GARAGE_RPC_SECRET` và `GARAGE_ADMIN_TOKEN` có được Garage đọc từ biến môi trường khi `garage.toml` không có `rpc_secret`/`admin_token` (Phụ lục A và compose đang dựa vào điều này; trang cấu hình chỉ thấy liệt kê biến môi trường của log, chưa thấy hai biến này). Nếu không: dùng `rpc_secret_file` hoặc ghi vào file cấu hình quyền 600 |
+
+### 12.1a. Bằng chứng đọc từ mã nguồn Garage v2.5.0 (trước khi chạy, chưa kiểm chứng)
+
+Nguồn: agent nghiên cứu đọc tài liệu và mã nguồn (GitHub mirror, tag `v2.5.0`; một số tệp chỉ lấy được ở nhánh `main-v2`), qua công cụ tóm tắt nên chỉ là chỉ dẫn, **không phải bằng chứng chạy thật**. Trình theo dõi lỗi của Garage chặn truy cập nên không đọc được các issue.
+
+| Mục | Điều mã nguồn cho thấy | Tác động |
+|---|---|---|
+| U1 | `--single-node` tự tạo layout (zone `dc1`, dung lượng lấy từ ổ đĩa, dự phòng 1 GiB) khi layout chưa có; yêu cầu `replication_factor = 1`. `--default-bucket` tạo khóa với quyền tạo bucket và bucket mặc định, idempotent khi khởi động lại | Không cần bước layout thủ công |
+| U2 | `garage health -q` thoát 1 khi cụm không sẵn sàng; `garage status` thoát 0 khi RPC chạy được. Admin API `GET /health` không cần xác thực nhưng cần curl nên không chạy được trong image | Đổi healthcheck sang `health -q` |
+| U3 | `bucket info`/`key info` với đối tượng không tồn tại thoát 1; `bucket create` và `key create` **không** idempotent (`key create` luôn sinh khóa mới); `key info` khớp theo tiền tố ID hoặc tên chính xác (không phân biệt hoa thường); `bucket allow`, `key allow` idempotent | Phụ lục B giữ nguyên mẫu `info \|\| create`; chỉ trùng khóa nếu đã có hai khóa cùng tên |
+| U4 | `CreateBucket` cần cờ cấp khóa `allow_create_bucket` (`key allow --create-bucket`), nếu không trả 403; bucket tạo qua S3 chỉ có alias cục bộ; `DeleteBucket` cần owner và bucket rỗng | Xem 5.4 |
+| U5 | Chữ ký sai region trả 400 `AuthorizationHeaderMalformed`; `minio-py` không truyền `region` sẽ ký dò cho `us-east-1` và không thử lại | Xem 5.7: truyền `region="garage"` |
+| U8 | Tài liệu không nói gì về `[::]` so với `0.0.0.0` trong mạng bridge; ví dụ quick-start dùng `[::]`. Chỉ suy luận: nếu kernel tắt IPv6 thì `[::]` có thể lỗi | Phụ lục A giữ `0.0.0.0`; spike xác nhận |
+| U9 | Dockerfile gốc `FROM scratch`, không có `USER`/`VOLUME`/`HEALTHCHECK`; image đã phát hành nhiều khả năng chạy root (suy luận, chưa kiểm image) | Spike xem quyền volume |
+| U11 | Snapshot hoạt động với sqlite (`VACUUM INTO`), mặc định ở `<metadata_dir>/snapshots`, giữ 2 bản gần nhất, mỗi bản là bản sao đầy đủ | Snapshot nằm **cùng volume** với DB nên không chống được mất volume; volume metadata cần chỗ cho khoảng 3 bản. Đã xác nhận bằng chạy thật; chu kỳ tối thiểu 600 giây |
+| U12 | `command` và `entrypoint` có trong `services`; service khởi động trước checkout; không gắn được tệp từ repo; `--health-cmd` làm job hỏng; `command` phải bắt đầu bằng `/garage` | Slice 5 dùng `docker run` sau checkout |
+| U14 | Thiếu object: 404 `NoSuchKey`; thiếu bucket: 404 `NoSuchBucket`; bucket có sẵn nhưng khóa thiếu quyền: 403 `AccessDenied` (`bucket_exists` ném lại lỗi này thay vì trả False) | Khớp ứng dụng chỉ bắt `S3Error` chung |
+| X1 | Garage không có giới hạn phần tối thiểu 5 MiB (khác MinIO); `ListObjectsV2` mã hóa `encoding-type=url`, tài liệu Garage tự cảnh báo "có thể có lỗi mã hóa"; `minio-py` qua HTTP gửi SHA-256 thật của nội dung (issue #1196 liên quan, chưa đọc được trạng thái) | Probe thử tên có `+ % & ? '`, multipart 12 MiB, 1.050 object |
+
+**Đã xác minh phía ứng dụng**: ứng dụng chỉ gọi 7 hàm (`put_object`, `get_object`, `stat_object`, `list_objects`, `remove_object`, `bucket_exists`, `make_bucket`); không dùng `remove_objects`, presigned URL, tagging, policy hay versioning, nên các endpoint Garage trả 501 không ảnh hưởng.
 
 ### 12.2. Quyết định cần chốt trước Slice 0
 
@@ -580,6 +689,7 @@ Việc quay lui chỉ dùng được khi container và volume MinIO còn nguyên
 | 2026-10-30 | *(Phát hiện, không phải quyết định)* **Kho tệp ứng dụng production trống (0 object)**; `hrms-backup` có 3 object (1,18 MiB) | Việc chuyển dữ liệu thực tế chỉ còn 3 object; đổi tên bucket không tốn về dữ liệu; Slice 1 và Slice 4 là nơi duy nhất kiểm các trường hợp biên; kiểm kê lại trước cutover |
 | 2026-10-30 | **D5: để sau.** Cutover chỉ đổi giá trị biến `MINIO_*`, không đổi tên | Slice 10 vẫn là tùy chọn, làm riêng sau khi Garage ổn định |
 | 2026-10-30 | **D6: thêm service `garage` vào `docker-compose.prod.yml`** theo cùng mẫu với file LAN (workflow deploy mặc định dùng file này; server thật chạy `docker-compose.lan.yml`) | Slice 2 và Slice 6 sửa cả ba file compose; hai file không được lệch nhau |
+| 2026-10-30 | **Cổng Slice 1: GO có điều kiện** (theo đề xuất; chủ hệ thống chấp thuận). Điều kiện: (1) SDK truyền `region="garage"`; (2) bucket do bootstrap tạo bằng CLI, khóa chỉ có quyền tạo bucket khi cần khôi phục vào bucket chưa có; (3) `metadata_auto_snapshot_interval` từ 10 phút trở lên (giữ `6h`) | Slice 2 làm theo ba điều kiện này; độ chín của Garage v2.5.0 (mới ra vài ngày) tiếp tục là rủi ro theo dõi ở Slice 2 và 7; U2, U10, U17 còn mở một phần, U12 và U16 để Slice 5 |
 
 ## 13. Tiêu chí hoàn thành
 
@@ -602,7 +712,7 @@ data_dir = "/var/lib/garage/data"
 db_engine = "sqlite"
 metadata_fsync = true
 data_fsync = true
-metadata_auto_snapshot_interval = "6h"
+metadata_auto_snapshot_interval = "6h"   # tối thiểu 10min; nhỏ hơn thì Garage không khởi động được (xem "Kết quả Slice 1")
 
 replication_factor = 1
 
@@ -632,7 +742,7 @@ Service compose (phác thảo, lấy theo `docker-compose.lan.yml`):
       - garage_meta:/var/lib/garage/meta
       - garage_data:/var/lib/garage/data
     healthcheck:
-      test: ["CMD", "/garage", "status"]      # U2
+      test: ["CMD", "/garage", "health", "-q"]      # U2 (không dùng `status`, xem 5.8)
       interval: 10s
       timeout: 5s
       retries: 5
