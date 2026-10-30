@@ -159,7 +159,7 @@ class BackupConfigUpdate(BaseModel):
     @classmethod
     def _validate_bucket(cls, value: str) -> str:
         if not _BUCKET_RE.match(value) or ".." in value or ".-" in value or "-." in value:
-            raise ValueError("kho lưu trữ MinIO/S3 không hợp lệ")
+            raise ValueError("kho lưu trữ không hợp lệ")
         return value
 
     @field_validator("target_prefix")

@@ -39,7 +39,7 @@ RestoreRunner = Callable[[AsyncSession, RestoreRequest, datetime], Awaitable[Res
 
 BACKUP_KIND_DEFS: list[tuple[str, str]] = [
     ("db", "Cơ sở dữ liệu PostgreSQL"),
-    ("object_storage", "Kho tệp ứng dụng trên MinIO"),
+    ("object_storage", "Kho tệp ứng dụng"),
 ]
 
 JOB_STATUS_DEFS: list[tuple[str, str, str]] = [

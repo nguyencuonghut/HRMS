@@ -217,7 +217,7 @@ test("admin can open read-only backup center and see backend overview", async ({
 
   await expect(page.getByTestId("backup-config-count")).toContainText(String(overview.config_count));
   await expect(page.getByTestId("backup-config-table")).toContainText("Cơ sở dữ liệu PostgreSQL");
-  await expect(page.getByTestId("backup-config-table")).toContainText("Kho tệp ứng dụng trên MinIO");
+  await expect(page.getByTestId("backup-config-table")).toContainText("Kho tệp ứng dụng");
   await expect(page.getByTestId("backup-config-table")).toContainText("hrms-backup");
   await expect(page.getByTestId("backup-config-table")).toContainText("Hằng ngày lúc 02:00");
   await expect(page.getByText(/access_key|secret_key|password/i)).toHaveCount(0);
@@ -257,7 +257,7 @@ test("latest backup job summary shows status color", async ({ page }) => {
       {
         id: 2,
         kind: "object_storage",
-        kind_label: "Kho tệp ứng dụng trên MinIO",
+        kind_label: "Kho tệp ứng dụng",
         enabled: true,
         cron_expression: "0 3 * * *",
         retention_days: 90,
@@ -401,7 +401,7 @@ test("full backup sets table uses the standard paginator", async ({ page }) => {
       {
         id: 2,
         kind: "object_storage",
-        kind_label: "Kho tệp ứng dụng trên MinIO",
+        kind_label: "Kho tệp ứng dụng",
         enabled: true,
         cron_expression: "0 3 * * *",
         retention_days: 90,
@@ -768,7 +768,7 @@ test("admin can queue a full backup set and restore from that set", async ({ pag
     {
       id: 2,
       kind: "object_storage",
-      kind_label: "Kho tệp ứng dụng trên MinIO",
+      kind_label: "Kho tệp ứng dụng",
       enabled: true,
       cron_expression: "0 3 * * *",
       retention_days: 90,

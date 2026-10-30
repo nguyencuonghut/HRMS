@@ -1124,7 +1124,7 @@ async def test_backup_runner_sends_status_email_to_configured_recipients(monkeyp
 
     assert row.status == "success"
     assert sent_payloads
-    assert sent_payloads[0]["job_name"] == "Kho tệp ứng dụng trên MinIO"
+    assert sent_payloads[0]["job_name"] == "Kho tệp ứng dụng"
     assert sent_payloads[0]["status"] == "success"
     assert sent_payloads[0]["started_at"].endswith("+07:00")
     assert sent_payloads[0]["finished_at"].endswith("+07:00")
@@ -1160,3 +1160,24 @@ async def test_backup_runner_marks_job_failed_without_exposing_secrets():
     assert row.error_summary
     assert settings.BACKUP_STORAGE_SECRET_KEY not in row.error_summary
     assert "secret_key" not in row.error_summary.lower()
+
+
+def test_invalid_bucket_name_message_does_not_name_the_storage_technology():
+    """Thông báo hiện cho quản trị viên: gọi theo vai trò (kho lưu trữ), không nêu tên công nghệ (CONTEXT.md)."""
+    import pytest
+    from pydantic import ValidationError
+
+    from app.schemas.backup import BackupConfigUpdate
+
+    with pytest.raises(ValidationError) as caught:
+        BackupConfigUpdate(
+            enabled=True,
+            cron_expression="0 3 * * *",
+            retention_days=90,
+            target_bucket="Bad_Bucket!",
+            target_secure=False,
+        )
+
+    message = str(caught.value)
+    assert "kho lưu trữ không hợp lệ" in message
+    assert "MinIO" not in message

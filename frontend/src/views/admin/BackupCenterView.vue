@@ -3,7 +3,7 @@
     <div class="page-header">
       <div>
         <h2>Sao lưu & khôi phục</h2>
-        <span class="subtitle">Theo dõi cấu hình sao lưu cơ sở dữ liệu và kho tệp ứng dụng trên MinIO.</span>
+        <span class="subtitle">Theo dõi cấu hình sao lưu cơ sở dữ liệu và kho tệp ứng dụng.</span>
       </div>
       <Button
         icon="pi pi-refresh"
@@ -824,7 +824,7 @@ const restoreForm = ref<RestoreForm>({
 
 const restoreKindOptions = [
   { label: 'Cơ sở dữ liệu PostgreSQL', value: 'db' },
-  { label: 'Kho tệp ứng dụng trên MinIO', value: 'object_storage' },
+  { label: 'Kho tệp ứng dụng', value: 'object_storage' },
   { label: 'Bộ sao lưu đầy đủ', value: 'full' },
 ]
 
@@ -1058,12 +1058,12 @@ function kindCodeLabel(kind: string): string {
 
 function sourceName(config: BackupConfigRead): string {
   if (config.kind === 'db') return 'Cơ sở dữ liệu ứng dụng PostgreSQL'
-  return config.source_bucket || 'Kho tệp ứng dụng trên MinIO'
+  return config.source_bucket || 'Kho tệp ứng dụng'
 }
 
 function sourceLocation(config: BackupConfigRead): string {
   if (config.kind === 'db') return 'Biến môi trường cơ sở dữ liệu'
-  return config.source_endpoint || 'Địa chỉ kết nối MinIO'
+  return config.source_endpoint || 'Địa chỉ kết nối nguồn'
 }
 
 function secretSourceLabel(source: string): string {
