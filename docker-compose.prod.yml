@@ -33,6 +33,28 @@ services:
       timeout: 3s
       retries: 5
 
+  garage:
+    # Kho tệp ứng dụng và đích sao lưu (kế hoạch 15.7). Ghim theo digest của manifest list đã mirror lên ghcr.
+    # Không publish cổng: chỉ backend và celery truy cập qua mạng compose (garage:3900).
+    image: ${GARAGE_IMAGE:-dxflrs/garage:v2.5.0@sha256:677e5b758e4425a325b811c425c026bf35a4bf42f7ddbaa773de3f4fd779a5a5}
+    restart: always
+    command: ["/garage", "server", "--single-node"]
+    environment:
+      # Bắt buộc đặt trong .env (không có giá trị mặc định): openssl rand -hex 32
+      GARAGE_RPC_SECRET: ${GARAGE_RPC_SECRET:?đặt GARAGE_RPC_SECRET trong .env (openssl rand -hex 32)}
+      GARAGE_ADMIN_TOKEN: ${GARAGE_ADMIN_TOKEN:?đặt GARAGE_ADMIN_TOKEN trong .env (openssl rand -hex 32)}
+    volumes:
+      - ./docker/garage/garage.toml:/etc/garage.toml:ro
+      - garage_meta:/var/lib/garage/meta
+      - garage_data:/var/lib/garage/data
+    healthcheck:
+      # Image không có shell/curl; `garage health -q` thoát 1 khi cụm chưa sẵn sàng (đã chạy được ở Slice 1).
+      test: ["CMD", "/garage", "health", "-q"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
   backend:
     image: ${BACKEND_IMAGE}:${IMAGE_TAG}
     restart: always
@@ -57,9 +79,11 @@ services:
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
       MINIO_BUCKET: ${MINIO_BUCKET:-}
       MINIO_SECURE: ${MINIO_SECURE}
+      MINIO_REGION: ${MINIO_REGION:-garage}
       BACKUP_STORAGE_ENDPOINT: ${BACKUP_STORAGE_ENDPOINT}
       BACKUP_STORAGE_ACCESS_KEY: ${BACKUP_STORAGE_ACCESS_KEY}
       BACKUP_STORAGE_SECRET_KEY: ${BACKUP_STORAGE_SECRET_KEY}
+      BACKUP_STORAGE_REGION: ${BACKUP_STORAGE_REGION:-garage}
       BACKUP_STORAGE_SECURE: ${BACKUP_STORAGE_SECURE:-true}
       BACKUP_STORAGE_BUCKET: ${BACKUP_STORAGE_BUCKET:-hrms-backup}
       BACKUP_TEMP_DIR: ${BACKUP_TEMP_DIR:-/backups/tmp}
@@ -86,6 +110,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      garage:
+        condition: service_healthy
 
   celery_worker:
     image: ${BACKEND_IMAGE}:${IMAGE_TAG}
@@ -110,9 +136,11 @@ services:
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
       MINIO_BUCKET: ${MINIO_BUCKET:-}
       MINIO_SECURE: ${MINIO_SECURE}
+      MINIO_REGION: ${MINIO_REGION:-garage}
       BACKUP_STORAGE_ENDPOINT: ${BACKUP_STORAGE_ENDPOINT}
       BACKUP_STORAGE_ACCESS_KEY: ${BACKUP_STORAGE_ACCESS_KEY}
       BACKUP_STORAGE_SECRET_KEY: ${BACKUP_STORAGE_SECRET_KEY}
+      BACKUP_STORAGE_REGION: ${BACKUP_STORAGE_REGION:-garage}
       BACKUP_STORAGE_SECURE: ${BACKUP_STORAGE_SECURE:-true}
       BACKUP_STORAGE_BUCKET: ${BACKUP_STORAGE_BUCKET:-hrms-backup}
       BACKUP_TEMP_DIR: ${BACKUP_TEMP_DIR:-/backups/tmp}
@@ -131,6 +159,8 @@ services:
       db:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      garage:
         condition: service_healthy
 
   celery_beat:
@@ -155,71 +185,21 @@ services:
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
       MINIO_BUCKET: ${MINIO_BUCKET:-}
       MINIO_SECURE: ${MINIO_SECURE}
+      MINIO_REGION: ${MINIO_REGION:-garage}
       ENVIRONMENT: production
       APP_TIMEZONE: ${APP_TIMEZONE:-Asia/Ho_Chi_Minh}
       SENTRY_DSN: ${SENTRY_DSN:-}
     depends_on:
-      - redis
-      - celery_worker
+      redis:
+        condition: service_started
+      celery_worker:
+        condition: service_started
+      garage:
+        condition: service_healthy
 
   frontend:
     image: ${FRONTEND_IMAGE}:${IMAGE_TAG}
     restart: always
-
-  backup_scheduler:
-    image: ${BACKUP_IMAGE}:${IMAGE_TAG}
-    restart: always
-    profiles: ["legacy-backup"]
-    environment:
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-hrms}
-      SECRET_KEY: ${SECRET_KEY}
-      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
-      CORS_ORIGINS: ${CORS_ORIGINS}
-      REFRESH_TOKEN_COOKIE_SECURE: ${REFRESH_TOKEN_COOKIE_SECURE}
-      MINIO_ENDPOINT: ${MINIO_ENDPOINT}
-      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
-      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
-      MINIO_BUCKET: ${MINIO_BUCKET:-hrms-attachments-prod}
-      MINIO_SECURE: ${MINIO_SECURE}
-      ENVIRONMENT: production
-      APP_TIMEZONE: ${APP_TIMEZONE:-Asia/Ho_Chi_Minh}
-      SMTP_HOST: ${SMTP_HOST}
-      SMTP_PORT: ${SMTP_PORT}
-      SMTP_USERNAME: ${SMTP_USERNAME:-}
-      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
-      SMTP_USE_TLS: ${SMTP_USE_TLS:-false}
-      SMTP_USE_STARTTLS: ${SMTP_USE_STARTTLS:-false}
-      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL}
-      SMTP_FROM_NAME: ${SMTP_FROM_NAME}
-      BACKUP_NOTIFY_EMAILS: ${BACKUP_NOTIFY_EMAILS:-}
-      DB_HOST: db
-      DB_PORT: 5432
-      DB_USER: ${POSTGRES_USER}
-      DB_NAME: ${POSTGRES_DB:-hrms}
-      DB_PASSWORD: ${POSTGRES_PASSWORD}
-      BACKUP_DIR: /backups/postgres
-      LOG_DIR: /logs
-      RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-90}
-      DB_BACKUP_CRON: ${DB_BACKUP_CRON:-0 2 * * *}
-      MINIO_BACKUP_CRON: ${MINIO_BACKUP_CRON:-0 3 * * *}
-      SOURCE_ALIAS: ${SOURCE_ALIAS:-local}
-      SOURCE_BUCKET: ${MINIO_BUCKET:-hrms-attachments-prod}
-      SOURCE_STORAGE_ENDPOINT: ${SOURCE_STORAGE_ENDPOINT:-${MINIO_ENDPOINT}}
-      SOURCE_STORAGE_ACCESS_KEY: ${SOURCE_STORAGE_ACCESS_KEY:-${MINIO_ACCESS_KEY}}
-      SOURCE_STORAGE_SECRET_KEY: ${SOURCE_STORAGE_SECRET_KEY:-${MINIO_SECRET_KEY}}
-      SOURCE_STORAGE_SECURE: ${SOURCE_STORAGE_SECURE:-${MINIO_SECURE}}
-      DEST_ALIAS: ${DEST_ALIAS:-backup}
-      DEST_BUCKET: ${BACKUP_STORAGE_BUCKET:-hrms-backup}
-      BACKUP_STORAGE_ENDPOINT: ${BACKUP_STORAGE_ENDPOINT}
-      BACKUP_STORAGE_ACCESS_KEY: ${BACKUP_STORAGE_ACCESS_KEY}
-      BACKUP_STORAGE_SECRET_KEY: ${BACKUP_STORAGE_SECRET_KEY}
-      BACKUP_STORAGE_SECURE: ${BACKUP_STORAGE_SECURE:-true}
-    volumes:
-      - backup_data:/backups/postgres
-      - backup_logs:/logs
-    depends_on:
-      db:
-        condition: service_healthy
 
   nginx:
     image: nginx:alpine
@@ -256,9 +236,8 @@ services:
     profiles: ["certbot"]   # chỉ chạy khi gọi trực tiếp
 
 volumes:
-  backup_data:
-  backup_logs:
   backup_temp:
+  garage_meta:
+  garage_data:
   postgres_data:
-  minio_data:
   certbot_www:

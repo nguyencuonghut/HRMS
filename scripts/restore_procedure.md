@@ -1,3 +1,5 @@
+> **Lưu ý (kế hoạch 15.7, Slice 6):** các script `backup_db.sh`, `backup_minio.sh`, `backup-entrypoint.sh` và image `hrms-backup` đã bị gỡ; sao lưu hiện chạy bằng Backup Console (`celery_worker` và `celery_beat`). Tài liệu này đang chờ được viết lại ở Slice 9 và còn nhắc các script đó (các dòng dùng `backup_db.sh`, `backup_minio.sh`): **không làm theo những bước ấy**.
+
 # Hướng dẫn Restore — HRMS (Plan 15.4)
 
 > **Lưu ý:** Luôn restore sang DB/bucket MỚI trước khi swap sang production. Không overwrite trực tiếp.

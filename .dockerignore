@@ -1,4 +1,4 @@
-# Dùng khi build với context "." (ví dụ docker/backup/Dockerfile).
+# Dùng khi build với context "." (hiện không còn image nào build với context này).
 # Không loại các thư mục con của backend/frontend ở đây — mỗi thư mục đó
 # đã có .dockerignore riêng áp dụng khi build với context ./backend, ./frontend.
 

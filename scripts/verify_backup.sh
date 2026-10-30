@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# verify_backup.sh — verify PostgreSQL plain-SQL backup created by backup_db.sh
+# verify_backup.sh — verify PostgreSQL plain-SQL backup created by the Backup Console (pg_dump, celery_worker)
 #
 # Dùng:
 #   bash scripts/verify_backup.sh /path/to/hrms_20260101_020000.sql.gz

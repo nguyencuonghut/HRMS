@@ -29,7 +29,6 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAMESPACE: nguyencuonghut/hrms
   IMAGE_BACKEND: hrms-backend
-  IMAGE_BACKUP: hrms-backup
   IMAGE_FRONTEND: hrms-frontend
 
 jobs:
@@ -53,7 +52,6 @@ jobs:
           INPUT_DEPLOY_PATH: ${{ inputs.deploy_path }}
           INPUT_RUN_MIGRATE: ${{ inputs.run_migrate }}
           BACKEND_IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/${{ env.IMAGE_BACKEND }}
-          BACKUP_IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/${{ env.IMAGE_BACKUP }}
           FRONTEND_IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/${{ env.IMAGE_FRONTEND }}
           GHCR_USERNAME: ${{ secrets.PRODUCTION_GHCR_USERNAME }}
           GHCR_TOKEN: ${{ secrets.PRODUCTION_GHCR_TOKEN }}
@@ -61,13 +59,12 @@ jobs:
           host: ${{ secrets.PRODUCTION_HOST }}
           username: ${{ secrets.PRODUCTION_USER }}
           key: ${{ secrets.PRODUCTION_SSH_KEY }}
-          envs: INPUT_IMAGE_TAG,INPUT_COMPOSE_FILE,INPUT_DEPLOY_PATH,INPUT_RUN_MIGRATE,BACKEND_IMAGE,BACKUP_IMAGE,FRONTEND_IMAGE,GHCR_USERNAME,GHCR_TOKEN
+          envs: INPUT_IMAGE_TAG,INPUT_COMPOSE_FILE,INPUT_DEPLOY_PATH,INPUT_RUN_MIGRATE,BACKEND_IMAGE,FRONTEND_IMAGE,GHCR_USERNAME,GHCR_TOKEN
           script: |
             set -e
             cd "$INPUT_DEPLOY_PATH"
 
             export BACKEND_IMAGE="$BACKEND_IMAGE"
-            export BACKUP_IMAGE="$BACKUP_IMAGE"
             export FRONTEND_IMAGE="$FRONTEND_IMAGE"
             export IMAGE_TAG="$INPUT_IMAGE_TAG"
 

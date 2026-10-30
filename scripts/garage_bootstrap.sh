@@ -27,6 +27,9 @@
 #   APP_KEY_NAME          hrms-app
 #   BACKUP_KEY_NAME       hrms-backup
 #   WAIT_SECONDS          60                        thời gian tối đa chờ Garage sẵn sàng
+#
+# Script nhắm vào project compose mặc định của thư mục (và `.env` trong thư mục). Để nhắm project hoặc file env khác (ví dụ khi thử
+# song song với dev), đặt COMPOSE_PROJECT_NAME và COMPOSE_ENV_FILES; nếu không, nó sẽ tác động vào Garage của project `hrms`.
 
 set -euo pipefail
 cd "$(dirname "$0")/.."
