@@ -65,6 +65,7 @@ services:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-hrms}
       REDIS_URL: redis://redis:6379/0
       SECRET_KEY: ${SECRET_KEY:-dev-secret-key-change-in-prod}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
       DEBUG: "true"
       ENVIRONMENT: ${ENVIRONMENT:-development}
       APP_TIMEZONE: ${APP_TIMEZONE:-Asia/Ho_Chi_Minh}
@@ -117,6 +118,7 @@ services:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-hrms}
       REDIS_URL: redis://redis:6379/0
       SECRET_KEY: ${SECRET_KEY:-dev-secret-key-change-in-prod}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
       ENVIRONMENT: ${ENVIRONMENT:-development}
       APP_TIMEZONE: ${APP_TIMEZONE:-Asia/Ho_Chi_Minh}
       MINIO_ENDPOINT: minio:9000
@@ -161,6 +163,7 @@ services:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-hrms}
       REDIS_URL: redis://redis:6379/0
       SECRET_KEY: ${SECRET_KEY:-dev-secret-key-change-in-prod}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
       ENVIRONMENT: ${ENVIRONMENT:-development}
       APP_TIMEZONE: ${APP_TIMEZONE:-Asia/Ho_Chi_Minh}
       BACKUP_STORAGE_ENDPOINT: ${BACKUP_STORAGE_ENDPOINT:-minio:9000}
