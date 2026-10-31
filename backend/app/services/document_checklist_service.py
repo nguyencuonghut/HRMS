@@ -195,7 +195,7 @@ async def upload_document_file(
     upload: UploadFile,
     user_id: int,
 ) -> ChecklistItemRead:
-    """Upload file tài liệu lên MinIO và gắn vào mục checklist."""
+    """Upload file tài liệu lên kho tệp và gắn vào mục checklist."""
     item, dtype = await _get_item_with_dtype(session, employee_id, item_id)
 
     content = await upload.read()
@@ -214,7 +214,7 @@ async def upload_document_file(
         content_type=content_type,
     )
 
-    # If there was an old file, delete it from MinIO
+    # If there was an old file, delete it from the file store
     if item.file_path and item.file_path != object_name:
         delete_attachment(item.file_path)
 
@@ -255,7 +255,7 @@ async def delete_document_file(
     item_id: int,
     user_id: int,
 ) -> ChecklistItemRead:
-    """Xóa file đính kèm khỏi MinIO và mục checklist."""
+    """Xóa file đính kèm khỏi kho tệp và mục checklist."""
     item, dtype = await _get_item_with_dtype(session, employee_id, item_id)
     if not item.file_path:
         raise HTTPException(

@@ -957,7 +957,7 @@ async def remove_contract_file(
     employee_id: int,
     contract_id: int,
 ) -> tuple[EmployeeContract, str]:
-    """Trả về (contract, old_file_path) để caller xóa file trên MinIO."""
+    """Trả về (contract, old_file_path) để caller xóa file trong kho tệp."""
     c = await _get_contract_or_404(session, employee_id, contract_id)
     if not c.file_path:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Hợp đồng chưa có file đính kèm")

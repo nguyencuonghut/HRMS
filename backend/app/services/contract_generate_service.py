@@ -295,7 +295,7 @@ async def generate_contract_document(
             detail=f"Loại mẫu '{template.document_kind}' không khớp với loại hợp đồng '{contract.document_kind}'",
         )
 
-    # Thử MinIO trước; fallback sang đường dẫn local (seed data)
+    # Thử kho tệp trước; fallback sang đường dẫn local (seed data)
     try:
         docx_source: Union[Path, bytes] = get_object_bytes(template.storage_path)
     except Exception as exc:

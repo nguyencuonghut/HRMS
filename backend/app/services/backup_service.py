@@ -566,7 +566,7 @@ async def validate_backup_target(
         try:
             ok, message = await asyncio.to_thread(_probe_target_bucket, endpoint, bucket, secure)
             status = "success" if ok else "failed"
-        except Exception as exc:  # pragma: no cover - phụ thuộc hạ tầng MinIO runtime
+        except Exception as exc:  # pragma: no cover - phụ thuộc hạ tầng kho tệp runtime
             status = "failed"
             message = _sanitize_validation_message(f"Không kết nối được đích sao lưu: {exc}")
 

@@ -88,7 +88,7 @@ interface Attachment {
   file_path:    string
   file_size:    number | null
   uploaded_at:  string
-  download_url: string   // presigned URL từ MinIO, hết hạn sau 1h
+  download_url: string   // đường dẫn API tải xuống (cần token xác thực)
 }
 
 const props = defineProps<{ positionId: number | null }>()

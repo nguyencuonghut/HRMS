@@ -279,7 +279,7 @@ def resolve_template_storage_path(storage_path: str) -> Path:
 
 
 def _read_docx_xml_parts(source: Union[Path, bytes]) -> dict[str, str]:
-    """Đọc các XML part cần thiết từ DOCX (Path hoặc bytes từ MinIO)."""
+    """Đọc các XML part cần thiết từ DOCX (Path hoặc bytes từ kho tệp)."""
     parts: dict[str, str] = {}
     zip_source: Union[Path, BytesIO] = BytesIO(source) if isinstance(source, bytes) else source
     with ZipFile(zip_source) as archive:

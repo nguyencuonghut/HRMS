@@ -1,4 +1,4 @@
-"""MinIO object storage helper."""
+"""Kho tệp ứng dụng (S3 API): tải lên, đọc và xóa tệp."""
 from __future__ import annotations
 
 import uuid
@@ -101,7 +101,7 @@ def _client() -> Minio:
 
 @minio_circuit.call
 def _minio_put(object_name: str, data: BytesIO, length: int, content_type: str) -> None:
-    """Circuit-protected MinIO put. Raises CircuitOpenError khi MinIO đang down."""
+    """Circuit-protected put lên kho tệp. Raises CircuitOpenError khi kho tệp đang down."""
     _client().put_object(
         bucket_name=bucket_name(),
         object_name=object_name,
@@ -113,7 +113,7 @@ def _minio_put(object_name: str, data: BytesIO, length: int, content_type: str) 
 
 @minio_circuit.call
 def _minio_get(object_name: str):  # type: ignore[return]
-    """Circuit-protected MinIO get. Raises CircuitOpenError khi MinIO đang down.
+    """Circuit-protected get từ kho tệp. Raises CircuitOpenError khi kho tệp đang down.
 
     Trả None nếu object không tồn tại: kho vẫn trả lời bình thường nên đó không phải sự cố kho và không được tính
     vào mạch ngắt (3 lần liền sẽ làm mọi thao tác tải/tải lên trả 503 trong 30 giây).
@@ -139,7 +139,7 @@ def ensure_bucket() -> None:
 
 async def save_employee_attachment(employee_id: int, upload: UploadFile) -> tuple[str, int]:
     """
-    Upload file hồ sơ nhân viên lên MinIO.
+    Upload file hồ sơ nhân viên lên kho tệp.
     Trả về (object_name, file_size).
     """
     content = await validate_upload(upload)
@@ -156,7 +156,7 @@ async def save_employee_attachment(employee_id: int, upload: UploadFile) -> tupl
 
 async def save_attachment(position_id: int, upload: UploadFile) -> tuple[str, int]:
     """
-    Upload file lên MinIO.
+    Upload file lên kho tệp.
     Trả về (object_name, file_size).
     """
     content = await validate_upload(upload)
@@ -183,7 +183,7 @@ def _open_object(object_name: str):
 
 
 def get_object_stream(object_name: str) -> Generator[bytes, None, None]:
-    """Stream object từ MinIO, dùng cho StreamingResponse.
+    """Stream object từ kho tệp, dùng cho StreamingResponse.
 
     Object được mở NGAY khi hàm này được gọi (không đợi tới lúc bắt đầu stream), để lỗi 404/503 được trả về trước khi
     StreamingResponse gửi dòng trạng thái 200. Nếu mở bên trong generator, lỗi nổ sau khi đã gửi 200 và người dùng
@@ -202,7 +202,7 @@ def get_object_stream(object_name: str) -> Generator[bytes, None, None]:
 
 
 def get_object_bytes(object_name: str) -> bytes:
-    """Tải toàn bộ object từ MinIO về bytes. Dùng cho xử lý in-memory (DOCX inspection)."""
+    """Tải toàn bộ object từ kho tệp về bytes. Dùng cho xử lý in-memory (DOCX inspection)."""
     response = _open_object(object_name)
     try:
         return response.read()
@@ -212,7 +212,7 @@ def get_object_bytes(object_name: str) -> bytes:
 
 
 async def save_contract_file(contract_id: int, upload: UploadFile) -> tuple[str, int]:
-    """Upload file hợp đồng (scan/PDF) lên MinIO. Trả về (object_name, file_size)."""
+    """Upload file hợp đồng (scan/PDF) lên kho tệp. Trả về (object_name, file_size)."""
     content = await validate_upload(upload)
     safe_name = Path(upload.filename or "file").name
     object_name = f"contracts/{contract_id}/{uuid.uuid4().hex[:8]}_{safe_name}"
@@ -225,7 +225,7 @@ async def save_contract_file(contract_id: int, upload: UploadFile) -> tuple[str,
 
 
 async def save_template_file(template_id: int, upload: UploadFile) -> tuple[str, int]:
-    """Upload file DOCX mẫu hợp đồng lên MinIO. Trả về (object_name, file_size)."""
+    """Upload file DOCX mẫu hợp đồng lên kho tệp. Trả về (object_name, file_size)."""
     content = await validate_upload(upload)
     safe_name = Path(upload.filename or "template.docx").name
     object_name = f"templates/{template_id}/{uuid.uuid4().hex[:8]}_{safe_name}"
@@ -238,7 +238,7 @@ async def save_template_file(template_id: int, upload: UploadFile) -> tuple[str,
 
 
 async def save_reward_file(reward_id: int, upload: UploadFile) -> tuple[str, int]:
-    """Upload file quyết định khen thưởng lên MinIO. Trả về (object_name, file_size)."""
+    """Upload file quyết định khen thưởng lên kho tệp. Trả về (object_name, file_size)."""
     content = await validate_upload(upload)
     safe_name = Path(upload.filename or "file").name
     object_name = f"rewards/{reward_id}/{uuid.uuid4().hex[:8]}_{safe_name}"
@@ -251,7 +251,7 @@ async def save_reward_file(reward_id: int, upload: UploadFile) -> tuple[str, int
 
 
 async def save_discipline_file(discipline_id: int, upload: UploadFile) -> tuple[str, int]:
-    """Upload file quyết định kỷ luật lên MinIO. Trả về (object_name, file_size)."""
+    """Upload file quyết định kỷ luật lên kho tệp. Trả về (object_name, file_size)."""
     content = await validate_upload(upload)
     safe_name = Path(upload.filename or "file").name
     object_name = f"disciplines/{discipline_id}/{uuid.uuid4().hex[:8]}_{safe_name}"
@@ -264,7 +264,7 @@ async def save_discipline_file(discipline_id: int, upload: UploadFile) -> tuple[
 
 
 async def save_certificate_file(cert_id: int, upload: UploadFile) -> tuple[str, int]:
-    """Upload file chứng chỉ lên MinIO. Trả về (object_name, file_size)."""
+    """Upload file chứng chỉ lên kho tệp. Trả về (object_name, file_size)."""
     content = await validate_upload(upload)
     safe_name = Path(upload.filename or "file").name
     object_name = f"certificates/{cert_id}/{uuid.uuid4().hex[:8]}_{safe_name}"
@@ -277,7 +277,7 @@ async def save_certificate_file(cert_id: int, upload: UploadFile) -> tuple[str, 
 
 
 def delete_attachment(object_name: str) -> None:
-    """Xóa object khỏi MinIO; bỏ qua nếu không tồn tại."""
+    """Xóa object khỏi kho tệp; bỏ qua nếu không tồn tại."""
     try:
         _client().remove_object(bucket_name(), object_name)
     except S3Error:

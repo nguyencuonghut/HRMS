@@ -861,7 +861,7 @@ async def update_template_file_meta(
     file_size: int,
     file_checksum: str,
 ) -> ContractTemplate:
-    """Cập nhật metadata file sau khi upload lên MinIO."""
+    """Cập nhật metadata file sau khi upload lên kho tệp."""
     template = await get_contract_template_by_id(session, template_id)
     template.storage_path = object_name
     template.file_name = file_name
@@ -880,7 +880,7 @@ async def inspect_contract_template_docx(session: AsyncSession, template_id: int
     if template.mime_type != DOCX_MIME:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Chỉ hỗ trợ quét file .docx trong bước này")
 
-    # Ưu tiên đọc từ MinIO; fallback sang local path (backward compatibility)
+    # Ưu tiên đọc từ kho tệp; fallback sang local path (backward compatibility)
     from app.core.storage import get_object_bytes
     try:
         docx_source = get_object_bytes(template.storage_path)

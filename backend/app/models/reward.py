@@ -50,7 +50,7 @@ class EmployeeReward(SQLModel, table=True):
     )
     note:            Optional[str]  = Field(default=None, sa_column=Column(sa.Text(), nullable=True))
 
-    # File đính kèm (MinIO)
+    # File đính kèm (kho tệp)
     file_path:  Optional[str] = Field(default=None, sa_column=Column(sa.String(500), nullable=True))
     file_name:  Optional[str] = Field(default=None, sa_column=Column(sa.String(255), nullable=True))
     file_size:  Optional[int] = Field(default=None)

@@ -152,7 +152,7 @@ for i in $(seq 1 30); do
 done
 ```
 
-Kết quả phải có `"status":"ok"` và `database`, `redis`, `minio` đều `ok`. Cuối cùng đăng nhập bằng trình duyệt, mở một hồ sơ nhân viên và tải một tệp đính kèm (xem lưu ý ở mục 7 về tệp thiếu).
+Kết quả phải có `"status":"ok"` và `database`, `redis`, `storage` đều `ok`. Cuối cùng đăng nhập bằng trình duyệt, mở một hồ sơ nhân viên và tải một tệp đính kèm (xem lưu ý ở mục 7 về tệp thiếu).
 
 ### 2.7 Quay lui (khi bản mới có vấn đề)
 

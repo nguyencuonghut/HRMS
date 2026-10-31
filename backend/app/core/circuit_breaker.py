@@ -1,6 +1,6 @@
 """Circuit Breaker cho external services (H4 — Production Improvements).
 
-Ngăn cascading failure khi MinIO / SMTP bị gián đoạn.
+Ngăn cascading failure khi kho tệp (S3) / SMTP bị gián đoạn.
 
 States:
   CLOSED     → hoạt động bình thường, mọi call đều pass
@@ -141,7 +141,7 @@ class CircuitOpenError(RuntimeError):
 minio_circuit = CircuitBreaker(
     name="minio",
     failure_threshold=3,
-    recovery_timeout=30,   # 30s — MinIO thường hồi phục nhanh
+    recovery_timeout=30,   # 30s — chờ rồi thử lại (HALF-OPEN)
 )
 
 smtp_circuit = CircuitBreaker(

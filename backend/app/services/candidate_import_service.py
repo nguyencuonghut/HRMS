@@ -35,7 +35,7 @@ _ALLOWED_MIME = {
     "image/png",
 }
 
-# ── MinIO attachment ──────────────────────────────────────────────────────────
+# ── File store attachment ──────────────────────────────────────────────────────────
 
 
 async def save_candidate_attachment(

@@ -758,7 +758,7 @@ async def upload_contract_template_file(
 
     checksum = hashlib.md5(content).hexdigest()
 
-    # Lấy template, xóa file cũ trên MinIO nếu có
+    # Lấy template, xóa file cũ trong kho tệp nếu có
     template = await other_business_catalog_service.get_contract_template_by_id(session, template_id)
     old_path = template.storage_path
 

@@ -148,7 +148,7 @@ class AttachmentRead(BaseModel):
     """File đính kèm của vị trí công việc."""
     id:           int
     file_name:    str
-    file_path:    str          # object_name trong MinIO
+    file_path:    str          # object_name trong kho tệp
     file_size:    Optional[int]
     uploaded_at:  datetime
-    download_url: str          # presigned URL, hết hạn sau 1 giờ
+    download_url: str          # đường dẫn API tải xuống (cần token xác thực)
