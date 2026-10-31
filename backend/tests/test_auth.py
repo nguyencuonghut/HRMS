@@ -370,8 +370,8 @@ def test_settings_rejects_insecure_refresh_cookie_in_production():
             SECRET_KEY="e" * 64,
             ENCRYPTION_KEY="prod-encryption-key",
             REFRESH_TOKEN_COOKIE_SECURE=False,
-            MINIO_ENDPOINT="s3.example.com",
-            MINIO_ACCESS_KEY="prod-access-key",
-            MINIO_SECRET_KEY="prod-secret-key",
+            S3_ENDPOINT="s3.example.com",
+            S3_ACCESS_KEY="prod-access-key",
+            S3_SECRET_KEY="prod-secret-key",
             CORS_ORIGINS=["https://hrms.example.com"],
         )

@@ -38,7 +38,7 @@ def _source_secure_fallback() -> bool:
         return True
     if raw in {"0", "false", "no", "off"}:
         return False
-    return settings.MINIO_SECURE
+    return settings.S3_SECURE
 
 
 def _minio_client(endpoint: str, access_key: str, secret_key: str, secure: bool, region: str = "") -> Minio:
@@ -67,11 +67,11 @@ def _backup_target_client() -> Minio:
 
 def _source_client() -> Minio:
     return _minio_client(
-        _normalize_endpoint(settings.SOURCE_STORAGE_ENDPOINT or settings.MINIO_ENDPOINT),
-        (settings.SOURCE_STORAGE_ACCESS_KEY or settings.MINIO_ACCESS_KEY).strip(),
-        (settings.SOURCE_STORAGE_SECRET_KEY or settings.MINIO_SECRET_KEY).strip(),
+        _normalize_endpoint(settings.SOURCE_STORAGE_ENDPOINT or settings.S3_ENDPOINT),
+        (settings.SOURCE_STORAGE_ACCESS_KEY or settings.S3_ACCESS_KEY).strip(),
+        (settings.SOURCE_STORAGE_SECRET_KEY or settings.S3_SECRET_KEY).strip(),
         _source_secure_fallback(),
-        settings.MINIO_REGION,
+        settings.S3_REGION,
     )
 
 

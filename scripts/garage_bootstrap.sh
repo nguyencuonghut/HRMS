@@ -11,7 +11,7 @@
 #
 # Việc script làm (đều theo kết quả Slice 1):
 #   - bucket do CLI tạo (alias toàn cục); bucket tạo qua S3 chỉ có alias cục bộ của khóa tạo ra nó
-#   - hrms-app    đọc/ghi/owner trên MINIO_BUCKET                 -> MINIO_ACCESS_KEY, MINIO_SECRET_KEY
+#   - hrms-app    đọc/ghi/owner trên S3_BUCKET                    -> S3_ACCESS_KEY, S3_SECRET_KEY
 #   - hrms-backup đọc/ghi/owner trên BACKUP_STORAGE_BUCKET         -> BACKUP_STORAGE_ACCESS_KEY, BACKUP_STORAGE_SECRET_KEY
 #   - CẢ HAI khóa có quyền tạo bucket, vì mã ứng dụng gọi make_bucket ở hai nơi bằng hai khóa khác nhau:
 #       backup_runner_service.py  tạo bucket đích sao lưu            (khóa hrms-backup)
@@ -23,7 +23,7 @@
 #   COMPOSE_FILE          docker-compose.yml        (production LAN: docker-compose.lan.yml)
 #   GARAGE_SERVICE        garage
 #   GARAGE_CONTAINER      (trống)                    đặt tên container nếu Garage chạy bằng `docker run` (CI); khi đặt thì bỏ qua COMPOSE_FILE
-#   MINIO_BUCKET          hrms-attachments-dev      (production: hrms-attachments-prod)
+#   S3_BUCKET             hrms-attachments-dev      (production: hrms-attachments-prod; tên cũ MINIO_BUCKET vẫn được đọc)
 #   BACKUP_STORAGE_BUCKET hrms-backup
 #   APP_KEY_NAME          hrms-app
 #   BACKUP_KEY_NAME       hrms-backup
@@ -37,7 +37,7 @@ cd "$(dirname "$0")/.."
 
 COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.yml}"
 GARAGE_SERVICE="${GARAGE_SERVICE:-garage}"
-APP_BUCKET="${MINIO_BUCKET:-hrms-attachments-dev}"
+APP_BUCKET="${S3_BUCKET:-${MINIO_BUCKET:-hrms-attachments-dev}}"
 BACKUP_BUCKET="${BACKUP_STORAGE_BUCKET:-hrms-backup}"
 APP_KEY="${APP_KEY_NAME:-hrms-app}"
 BACKUP_KEY="${BACKUP_KEY_NAME:-hrms-backup}"
@@ -110,7 +110,7 @@ log "Garage sẵn sàng"
 
 ensure_bucket "$APP_BUCKET"
 ensure_bucket "$BACKUP_BUCKET"
-ensure_key "$APP_KEY" MINIO
+ensure_key "$APP_KEY" S3
 ensure_key "$BACKUP_KEY" BACKUP_STORAGE
 
 # Các lệnh cấp quyền đều idempotent.

@@ -4,7 +4,7 @@ Chạy bằng chính container backend (đã có SDK và biến môi trường k
 
     docker compose -f docker-compose.lan.yml exec -T backend python - < scripts/s3_inventory.py
 
-Chỉ đọc cấu hình từ MINIO_ENDPOINT, MINIO_ACCESS_KEY, MINIO_SECRET_KEY, MINIO_SECURE, MINIO_REGION; không import gì từ ứng dụng;
+Chỉ đọc cấu hình từ S3_ENDPOINT, S3_ACCESS_KEY, S3_SECRET_KEY, S3_SECURE, S3_REGION (tên cũ MINIO_* vẫn được đọc); không import gì từ ứng dụng;
 không in khóa. Chỉ in ba tên object (cắt ngắn) cho mỗi bucket vì tên có thể chứa dữ liệu cá nhân.
 """
 import os
@@ -16,17 +16,18 @@ from minio import Minio
 MIB5 = 5 * 1024 * 1024
 
 
-def env(name, default=None):
-    v = os.environ.get(name, default)
+def env(suffix, default=None):
+    """S3_<suffix> là tên chính; MINIO_<suffix> là tên cũ vẫn được đọc (kế hoạch 15.7, Slice 10)."""
+    v = os.environ.get(f"S3_{suffix}", os.environ.get(f"MINIO_{suffix}", default))
     if v is None or v == "":
-        sys.exit(f"missing env var {name}")
+        sys.exit(f"missing env var S3_{suffix}")
     return v
 
 
-endpoint = env("MINIO_ENDPOINT")
-secure = os.environ.get("MINIO_SECURE", "false").strip().lower() in ("1", "true", "yes", "on")
-region = os.environ.get("MINIO_REGION", "").strip() or None   # Garage cần region; MinIO thì không
-client = Minio(endpoint, access_key=env("MINIO_ACCESS_KEY"), secret_key=env("MINIO_SECRET_KEY"), secure=secure, region=region)
+endpoint = env("ENDPOINT")
+secure = os.environ.get("S3_SECURE", os.environ.get("MINIO_SECURE", "false")).strip().lower() in ("1", "true", "yes", "on")
+region = os.environ.get("S3_REGION", os.environ.get("MINIO_REGION", "")).strip() or None   # Garage cần region; MinIO thì không
+client = Minio(endpoint, access_key=env("ACCESS_KEY"), secret_key=env("SECRET_KEY"), secure=secure, region=region)
 
 print(f"endpoint={endpoint} secure={secure} region={region}")
 buckets = client.list_buckets()

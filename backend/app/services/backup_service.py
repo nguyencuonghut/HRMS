@@ -226,24 +226,24 @@ def _target_configured(row: BackupConfig | None = None) -> bool:
 
 
 def _object_source_configured(row: BackupConfig | None = None) -> bool:
-    access_key = settings.SOURCE_STORAGE_ACCESS_KEY.strip() or settings.MINIO_ACCESS_KEY.strip()
-    secret_key = settings.SOURCE_STORAGE_SECRET_KEY.strip() or settings.MINIO_SECRET_KEY.strip()
+    access_key = settings.SOURCE_STORAGE_ACCESS_KEY.strip() or settings.S3_ACCESS_KEY.strip()
+    secret_key = settings.SOURCE_STORAGE_SECRET_KEY.strip() or settings.S3_SECRET_KEY.strip()
     endpoint = (
         (row.source_endpoint if row and row.source_endpoint else None)
         or settings.SOURCE_STORAGE_ENDPOINT
-        or settings.MINIO_ENDPOINT
+        or settings.S3_ENDPOINT
     ).strip()
     bucket = (
         (row.source_bucket if row and row.source_bucket else None)
-        or settings.MINIO_BUCKET
-        or settings.minio_bucket_name
+        or settings.S3_BUCKET
+        or settings.s3_bucket_name
     ).strip()
     return bool(endpoint and bucket and access_key and secret_key)
 
 
 def _seed_rows() -> list[BackupConfig]:
     notify_emails = _split_emails(settings.BACKUP_NOTIFY_EMAILS)
-    source_secure = _optional_bool(settings.SOURCE_STORAGE_SECURE, settings.MINIO_SECURE)
+    source_secure = _optional_bool(settings.SOURCE_STORAGE_SECURE, settings.S3_SECURE)
 
     return [
         BackupConfig(
@@ -261,10 +261,10 @@ def _seed_rows() -> list[BackupConfig]:
         BackupConfig(
             kind="object_storage",
             enabled=True,
-            cron_expression=settings.MINIO_BACKUP_CRON,
+            cron_expression=settings.S3_BACKUP_CRON,
             retention_days=settings.BACKUP_RETENTION_DAYS,
-            source_endpoint=settings.SOURCE_STORAGE_ENDPOINT.strip() or settings.MINIO_ENDPOINT.strip() or None,
-            source_bucket=settings.MINIO_BUCKET.strip() or settings.minio_bucket_name,
+            source_endpoint=settings.SOURCE_STORAGE_ENDPOINT.strip() or settings.S3_ENDPOINT.strip() or None,
+            source_bucket=settings.S3_BUCKET.strip() or settings.s3_bucket_name,
             source_secure=source_secure,
             target_endpoint=settings.BACKUP_STORAGE_ENDPOINT.strip() or None,
             target_bucket=settings.BACKUP_STORAGE_BUCKET.strip() or "hrms-backup",
@@ -436,8 +436,8 @@ def _secrets_for_sanitization() -> tuple[str, ...]:
         settings.BACKUP_STORAGE_SECRET_KEY,
         settings.SOURCE_STORAGE_ACCESS_KEY,
         settings.SOURCE_STORAGE_SECRET_KEY,
-        settings.MINIO_ACCESS_KEY,
-        settings.MINIO_SECRET_KEY,
+        settings.S3_ACCESS_KEY,
+        settings.S3_SECRET_KEY,
         settings.DATABASE_URL,
     ]
     try:
@@ -942,8 +942,8 @@ def _current_database_name() -> str:
 
 async def _production_object_buckets(session: AsyncSession) -> set[str]:
     buckets = {
-        settings.MINIO_BUCKET.strip(),
-        settings.minio_bucket_name.strip(),
+        settings.S3_BUCKET.strip(),
+        settings.s3_bucket_name.strip(),
         settings.BACKUP_STORAGE_BUCKET.strip(),
     }
     try:

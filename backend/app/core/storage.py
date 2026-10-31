@@ -90,11 +90,11 @@ async def validate_upload(upload: UploadFile, *, check_type: bool = True) -> byt
 
 def _client() -> Minio:
     return Minio(
-        endpoint=settings.MINIO_ENDPOINT,
-        access_key=settings.MINIO_ACCESS_KEY,
-        secret_key=settings.MINIO_SECRET_KEY,
-        secure=settings.MINIO_SECURE,
-        region=settings.MINIO_REGION or None,
+        endpoint=settings.S3_ENDPOINT,
+        access_key=settings.S3_ACCESS_KEY,
+        secret_key=settings.S3_SECRET_KEY,
+        secure=settings.S3_SECURE,
+        region=settings.S3_REGION or None,
     )
 
 
@@ -126,7 +126,7 @@ def _minio_get(object_name: str):  # type: ignore[return]
 
 
 def bucket_name() -> str:
-    return settings.minio_bucket_name
+    return settings.s3_bucket_name
 
 
 def ensure_bucket() -> None:

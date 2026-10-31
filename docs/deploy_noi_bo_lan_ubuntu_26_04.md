@@ -311,21 +311,32 @@ IMAGE_TAG=local
 GARAGE_RPC_SECRET=<openssl rand -hex 32>
 GARAGE_ADMIN_TOKEN=<openssl rand -hex 32>
 
-MINIO_ENDPOINT=garage:3900
-MINIO_REGION=garage
-MINIO_SECURE=false
-MINIO_BUCKET=hrms-attachments-prod
+S3_ENDPOINT=garage:3900
+S3_REGION=garage
+S3_SECURE=false
+S3_BUCKET=hrms-attachments-prod
 BACKUP_STORAGE_ENDPOINT=garage:3900
 BACKUP_STORAGE_REGION=garage
 BACKUP_STORAGE_SECURE=false
-# MINIO_ACCESS_KEY, MINIO_SECRET_KEY, BACKUP_STORAGE_ACCESS_KEY, BACKUP_STORAGE_SECRET_KEY: do script bootstrap sinh ở mục 8.1b, không tự gõ
+# S3_ACCESS_KEY, S3_SECRET_KEY, BACKUP_STORAGE_ACCESS_KEY, BACKUP_STORAGE_SECRET_KEY: do script bootstrap sinh ở mục 8.1b, không tự gõ
 
 BOOTSTRAP_ADMIN_EMAIL=admin@company.local
 BOOTSTRAP_ADMIN_FULL_NAME=System Administrator
 BOOTSTRAP_ADMIN_PASSWORD=<mat-khau-admin-dau-tien>
 ```
 
-Sinh hai giá trị Garage bằng `openssl rand -hex 32` (mỗi lần chạy một chuỗi 64 ký tự hex) và dán vào `.env`. Khóa truy cập S3 **không tự gõ**: script bootstrap sinh chúng (mục 8.1b). Dòng `MINIO_*` vẫn giữ tên cũ dù kho đã là Garage (đổi sang `S3_*` là Slice 10, tùy chọn).
+Sinh hai giá trị Garage bằng `openssl rand -hex 32` (mỗi lần chạy một chuỗi 64 ký tự hex) và dán vào `.env`. Khóa truy cập S3 **không tự gõ**: script bootstrap sinh chúng (mục 8.1b). Tên biến kho tệp là `S3_*`; tên cũ `MINIO_*` vẫn được đọc khi không có tên mới (có cả hai thì `S3_*` thắng).
+
+**Đổi tên biến trong `.env` hiện có (tùy chọn).** Mã vẫn đọc tên cũ `MINIO_*` khi không có tên mới nên `.env` đang chạy không bắt buộc phải đổi. Nếu muốn đổi cho thống nhất, chỉ làm khi `.env` chưa có dòng `S3_*` nào, rồi tạo lại container để nhận tên mới:
+
+```bash
+cd /opt/hrms/HRMS
+grep -c '^S3_' .env                       # phải in 0; khác 0 nghĩa là đã có tên mới, đừng chạy lệnh dưới
+cp -p .env ~/hrms_env_before_s3rename_$(date +%Y%m%d-%H%M%S) && chmod 600 ~/hrms_env_before_s3rename_*
+sed -i 's/^MINIO_\(ENDPOINT\|ACCESS_KEY\|SECRET_KEY\|BUCKET\|SECURE\|REGION\|BACKUP_CRON\)=/S3_\1=/' .env
+grep -c '^MINIO_' .env                    # phải in 0
+```
+
 
 Giải thích:
 
@@ -341,11 +352,11 @@ Làm sau khi `.env` đã có `GARAGE_RPC_SECRET`, `GARAGE_ADMIN_TOKEN` (mục 8.
 ```bash
 cd /opt/hrms/HRMS    # thư mục repo trên server
 docker compose -f docker-compose.lan.yml up -d garage
-COMPOSE_FILE=docker-compose.lan.yml MINIO_BUCKET=hrms-attachments-prod bash scripts/garage_bootstrap.sh >> .env
+COMPOSE_FILE=docker-compose.lan.yml S3_BUCKET=hrms-attachments-prod bash scripts/garage_bootstrap.sh >> .env
 chmod 600 .env
 ```
 
-Script tạo hai bucket (`hrms-attachments-prod`, `hrms-backup`) và hai khóa (`hrms-app`, `hrms-backup`), rồi in đúng **một lần** bốn dòng `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `BACKUP_STORAGE_ACCESS_KEY`, `BACKUP_STORAGE_SECRET_KEY` ra stdout (bí mật, nên nối thẳng vào `.env`, không dán vào chat hay ticket). Chạy lại script là an toàn: không tạo thêm và không in gì. Nếu mất khóa: `docker compose -f docker-compose.lan.yml exec garage /garage key info hrms-app --show-secret`. Chi tiết và các quyền của khóa: phần đầu `scripts/garage_bootstrap.sh`.
+Script tạo hai bucket (`hrms-attachments-prod`, `hrms-backup`) và hai khóa (`hrms-app`, `hrms-backup`), rồi in đúng **một lần** bốn dòng `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `BACKUP_STORAGE_ACCESS_KEY`, `BACKUP_STORAGE_SECRET_KEY` ra stdout (bí mật, nên nối thẳng vào `.env`, không dán vào chat hay ticket). Chạy lại script là an toàn: không tạo thêm và không in gì. Nếu mất khóa: `docker compose -f docker-compose.lan.yml exec garage /garage key info hrms-app --show-secret`. Chi tiết và các quyền của khóa: phần đầu `scripts/garage_bootstrap.sh`.
 
 Script bootstrap đã chạy thật trên production LAN; dạng nối thẳng `>> .env` ở trên chưa được thử từ một máy trống với file LAN.
 
@@ -845,7 +856,7 @@ Sau khi yêu cầu `Khôi phục sang đích mới` có trạng thái `Đã khô
 
    ```env
    POSTGRES_DB=hrms_restore_20260714
-   MINIO_BUCKET=hrms-attachments-restore-20260714
+   S3_BUCKET=hrms-attachments-restore-20260714
    ```
 
 4. Restart app layer, không xóa volume và không recreate `db` / `garage`:
@@ -854,7 +865,7 @@ Sau khi yêu cầu `Khôi phục sang đích mới` có trạng thái `Đã khô
    docker compose -f docker-compose.lan.yml up -d --no-deps --force-recreate backend celery_worker celery_beat
    ```
 
-   Đồng thời vào Backup Console, mục "Cấu hình sao lưu", dòng kho tệp ứng dụng: nếu trường "Kho lưu trữ nguồn" đang có một tên kho cụ thể thì đổi sang kho mới (hoặc để trống để dùng `MINIO_BUCKET`), vì giá trị cấu hình trong DB **ghi đè** `MINIO_BUCKET` trong `.env`.
+   Đồng thời vào Backup Console, mục "Cấu hình sao lưu", dòng kho tệp ứng dụng: nếu trường "Kho lưu trữ nguồn" đang có một tên kho cụ thể thì đổi sang kho mới (hoặc để trống để dùng `S3_BUCKET`), vì giá trị cấu hình trong DB **ghi đè** `S3_BUCKET` trong `.env`.
 
 5. Kiểm tra backend đã nhận đúng DB/bucket mới:
 
@@ -862,7 +873,7 @@ Sau khi yêu cầu `Khôi phục sang đích mới` có trạng thái `Đã khô
    docker compose -f docker-compose.lan.yml exec -T backend python - <<'PY'
    from app.core.config import settings
    print(settings.DATABASE_URL)
-   print(settings.MINIO_BUCKET)
+   print(settings.S3_BUCKET)
    PY
    ```
 

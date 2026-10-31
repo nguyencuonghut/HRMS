@@ -99,7 +99,7 @@ Downtime có lịch **không tính** vào SLA nếu đã thông báo đúng hạ
 - [ ] Restore drill đã thực hiện trên staging
 - [ ] `DEBUG=false`, `ENVIRONMENT=production`
 - [ ] CORS origins chỉ cho phép domain production
-- [ ] Garage: cổng S3 (3900) không publish ra máy chủ và `GARAGE_RPC_SECRET`, `GARAGE_ADMIN_TOKEN` là giá trị ngẫu nhiên riêng của production (`MINIO_SECURE=false` là đúng: lưu lượng chỉ trong mạng compose; TLS do nginx cho người dùng)
+- [ ] Garage: cổng S3 (3900) không publish ra máy chủ và `GARAGE_RPC_SECRET`, `GARAGE_ADMIN_TOKEN` là giá trị ngẫu nhiên riêng của production (`S3_SECURE=false` là đúng: lưu lượng chỉ trong mạng compose; TLS do nginx cho người dùng)
 - [ ] Load test k6 pass (p95 < 800ms / 200 users)
 - [ ] Production seed đã chạy đúng flow: `python -m app.seeds` → `python -m app.seeds --bootstrap` → `python -m app.seeds --bootstrap-admin`
 - [ ] Không chạy `--local-users` hoặc `--sample` trên production

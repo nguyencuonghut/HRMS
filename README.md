@@ -26,14 +26,14 @@ cd HRMS
 cp .env.example .env
 ```
 
-File `.env` mặc định đã dùng được cho dev, **trừ khóa truy cập kho tệp**: các dòng `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `BACKUP_STORAGE_ACCESS_KEY`, `BACKUP_STORAGE_SECRET_KEY` để trống và phải sinh bằng script bootstrap (một lần, ở bước 1b).
+File `.env` mặc định đã dùng được cho dev, **trừ khóa truy cập kho tệp**: các dòng `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `BACKUP_STORAGE_ACCESS_KEY`, `BACKUP_STORAGE_SECRET_KEY` để trống và phải sinh bằng script bootstrap (một lần, ở bước 1b). Tên biến kho tệp là `S3_*`; tên cũ `MINIO_*` vẫn được đọc khi không có tên mới (có cả hai thì `S3_*` thắng).
 
 ### Bước 1b — Tạo bucket và khóa cho kho tệp (Garage)
 
 ```bash
 docker compose up -d garage
 # Xóa 4 dòng khóa rỗng trong .env trước khi nối khóa thật
-sed -i '/^\(MINIO_ACCESS_KEY\|MINIO_SECRET_KEY\|BACKUP_STORAGE_ACCESS_KEY\|BACKUP_STORAGE_SECRET_KEY\)=/d' .env
+sed -i '/^\(S3_ACCESS_KEY\|S3_SECRET_KEY\|MINIO_ACCESS_KEY\|MINIO_SECRET_KEY\|BACKUP_STORAGE_ACCESS_KEY\|BACKUP_STORAGE_SECRET_KEY\)=/d' .env
 bash scripts/garage_bootstrap.sh >> .env     # tạo bucket + 2 khóa; in khóa MỘT lần vào .env
 chmod 600 .env
 ```
@@ -256,7 +256,7 @@ cp .env ".env.before-restore-switch-$(date +%Y%m%d_%H%M%S)"
 
 ```env
 POSTGRES_DB=hrms_restore_20260714
-MINIO_BUCKET=hrms-attachments-restore-20260714
+S3_BUCKET=hrms-attachments-restore-20260714
 ```
 
 4. Restart app layer:
@@ -271,7 +271,7 @@ docker compose up -d --no-deps --force-recreate backend celery_worker celery_bea
 docker compose exec -T backend python - <<'PY'
 from app.core.config import settings
 print(settings.DATABASE_URL)
-print(settings.MINIO_BUCKET)
+print(settings.S3_BUCKET)
 PY
 ```
 
@@ -346,14 +346,14 @@ docker compose ps garage
 docker compose logs garage
 docker compose exec garage /garage health
 
-# Kiểm tra backend mở được bucket cấu hình (MINIO_BUCKET) bằng khóa trong .env
+# Kiểm tra backend mở được bucket cấu hình (S3_BUCKET) bằng khóa trong .env
 docker compose exec backend python -c "from app.core.storage import ensure_bucket; ensure_bucket(); print('OK')"
 
 # Nếu backend khởi động trước khi Garage healthy, restart backend
 docker compose restart backend
 ```
 
-Hai lỗi đã gặp: `AuthorizationHeaderMalformed` khi thiếu `MINIO_REGION=garage` (hoặc `BACKUP_STORAGE_REGION=garage`); `AccessDenied` khi khóa không có quyền trên bucket, hoặc khi cấu hình trong Backup Console (`source_endpoint`, `source_bucket`) còn trỏ về nơi cũ vì cấu hình này **ghi đè** `.env` (xem `scripts/restore_procedure.md`, mục 7).
+Hai lỗi đã gặp: `AuthorizationHeaderMalformed` khi thiếu `S3_REGION=garage` (hoặc `BACKUP_STORAGE_REGION=garage`); `AccessDenied` khi khóa không có quyền trên bucket, hoặc khi cấu hình trong Backup Console (`source_endpoint`, `source_bucket`) còn trỏ về nơi cũ vì cấu hình này **ghi đè** `.env` (xem `scripts/restore_procedure.md`, mục 7).
 
 ### Reset hoàn toàn để bắt đầu lại
 

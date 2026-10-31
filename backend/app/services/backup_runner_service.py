@@ -57,20 +57,20 @@ def _source_values(config: BackupConfig) -> tuple[str, str, bool, str, str]:
     endpoint = _normalize_endpoint(
         config.source_endpoint
         or settings.SOURCE_STORAGE_ENDPOINT
-        or settings.MINIO_ENDPOINT
+        or settings.S3_ENDPOINT
     )
     bucket = (
         config.source_bucket
-        or settings.MINIO_BUCKET
-        or settings.minio_bucket_name
+        or settings.S3_BUCKET
+        or settings.s3_bucket_name
     ).strip()
     secure = (
         config.source_secure
         if config.source_secure is not None
         else _source_secure_fallback()
     )
-    access_key = (settings.SOURCE_STORAGE_ACCESS_KEY or settings.MINIO_ACCESS_KEY).strip()
-    secret_key = (settings.SOURCE_STORAGE_SECRET_KEY or settings.MINIO_SECRET_KEY).strip()
+    access_key = (settings.SOURCE_STORAGE_ACCESS_KEY or settings.S3_ACCESS_KEY).strip()
+    secret_key = (settings.SOURCE_STORAGE_SECRET_KEY or settings.S3_SECRET_KEY).strip()
     return endpoint, bucket, secure, access_key, secret_key
 
 
@@ -80,7 +80,7 @@ def _source_secure_fallback() -> bool:
         return True
     if raw in {"0", "false", "no", "off"}:
         return False
-    return settings.MINIO_SECURE
+    return settings.S3_SECURE
 
 
 def _minio_client(endpoint: str, access_key: str, secret_key: str, secure: bool, region: str = "") -> Minio:
@@ -99,7 +99,7 @@ def _minio_client(endpoint: str, access_key: str, secret_key: str, secure: bool,
 
 def _source_client(config: BackupConfig) -> tuple[Minio, str]:
     endpoint, bucket, secure, access_key, secret_key = _source_values(config)
-    return _minio_client(endpoint, access_key, secret_key, secure, settings.MINIO_REGION), bucket
+    return _minio_client(endpoint, access_key, secret_key, secure, settings.S3_REGION), bucket
 
 
 def _target_client(config: BackupConfig) -> tuple[Minio, str]:

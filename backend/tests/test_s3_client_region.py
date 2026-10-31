@@ -85,11 +85,11 @@ def _methods_and_regions(s3: _RecordingS3) -> list[tuple[str | None, str | None]
 
 
 def test_app_storage_signs_with_the_configured_region_without_probing_for_it(monkeypatch, s3):
-    monkeypatch.setattr(settings, "MINIO_ENDPOINT", s3.endpoint)
-    monkeypatch.setattr(settings, "MINIO_ACCESS_KEY", "GKtestaccess")
-    monkeypatch.setattr(settings, "MINIO_SECRET_KEY", "test-secret-value-1234567890")
-    monkeypatch.setattr(settings, "MINIO_SECURE", False)
-    monkeypatch.setattr(settings, "MINIO_REGION", "garage")
+    monkeypatch.setattr(settings, "S3_ENDPOINT", s3.endpoint)
+    monkeypatch.setattr(settings, "S3_ACCESS_KEY", "GKtestaccess")
+    monkeypatch.setattr(settings, "S3_SECRET_KEY", "test-secret-value-1234567890")
+    monkeypatch.setattr(settings, "S3_SECURE", False)
+    monkeypatch.setattr(settings, "S3_REGION", "garage")
 
     storage._client().bucket_exists("any-bucket")
 
@@ -97,12 +97,12 @@ def test_app_storage_signs_with_the_configured_region_without_probing_for_it(mon
 
 
 def test_app_storage_without_a_region_still_lets_the_sdk_discover_it(monkeypatch, s3):
-    """Không đặt MINIO_REGION thì giữ hành vi cũ (MinIO tự dò), để không làm hỏng các triển khai MinIO."""
-    monkeypatch.setattr(settings, "MINIO_ENDPOINT", s3.endpoint)
-    monkeypatch.setattr(settings, "MINIO_ACCESS_KEY", "GKtestaccess")
-    monkeypatch.setattr(settings, "MINIO_SECRET_KEY", "test-secret-value-1234567890")
-    monkeypatch.setattr(settings, "MINIO_SECURE", False)
-    monkeypatch.setattr(settings, "MINIO_REGION", "")
+    """Không đặt S3_REGION thì giữ hành vi cũ (MinIO tự dò), để không làm hỏng các triển khai MinIO."""
+    monkeypatch.setattr(settings, "S3_ENDPOINT", s3.endpoint)
+    monkeypatch.setattr(settings, "S3_ACCESS_KEY", "GKtestaccess")
+    monkeypatch.setattr(settings, "S3_SECRET_KEY", "test-secret-value-1234567890")
+    monkeypatch.setattr(settings, "S3_SECURE", False)
+    monkeypatch.setattr(settings, "S3_REGION", "")
 
     storage._client().bucket_exists("any-bucket")
 
@@ -149,11 +149,11 @@ def test_backup_runner_writes_to_the_target_with_the_backup_storage_region(monke
 def test_backup_runner_reads_the_source_with_the_app_storage_region(monkeypatch, s3):
     from app.services import backup_runner_service as runner
 
-    monkeypatch.setattr(settings, "MINIO_ACCESS_KEY", "GKtestaccess")
-    monkeypatch.setattr(settings, "MINIO_SECRET_KEY", "test-secret-value-1234567890")
+    monkeypatch.setattr(settings, "S3_ACCESS_KEY", "GKtestaccess")
+    monkeypatch.setattr(settings, "S3_SECRET_KEY", "test-secret-value-1234567890")
     monkeypatch.setattr(settings, "SOURCE_STORAGE_ACCESS_KEY", "")
     monkeypatch.setattr(settings, "SOURCE_STORAGE_SECRET_KEY", "")
-    monkeypatch.setattr(settings, "MINIO_REGION", "garage")
+    monkeypatch.setattr(settings, "S3_REGION", "garage")
 
     client, bucket = runner._source_client(_backup_config(s3.endpoint))
     client.bucket_exists(bucket)
@@ -182,10 +182,10 @@ def test_restore_runner_writes_the_files_back_with_the_app_storage_region(monkey
     monkeypatch.setattr(settings, "SOURCE_STORAGE_ACCESS_KEY", "")
     monkeypatch.setattr(settings, "SOURCE_STORAGE_SECRET_KEY", "")
     monkeypatch.setattr(settings, "SOURCE_STORAGE_SECURE", "false")
-    monkeypatch.setattr(settings, "MINIO_ENDPOINT", s3.endpoint)
-    monkeypatch.setattr(settings, "MINIO_ACCESS_KEY", "GKtestaccess")
-    monkeypatch.setattr(settings, "MINIO_SECRET_KEY", "test-secret-value-1234567890")
-    monkeypatch.setattr(settings, "MINIO_REGION", "garage")
+    monkeypatch.setattr(settings, "S3_ENDPOINT", s3.endpoint)
+    monkeypatch.setattr(settings, "S3_ACCESS_KEY", "GKtestaccess")
+    monkeypatch.setattr(settings, "S3_SECRET_KEY", "test-secret-value-1234567890")
+    monkeypatch.setattr(settings, "S3_REGION", "garage")
 
     restore._source_client().bucket_exists("hrms-attachments-dev")
 

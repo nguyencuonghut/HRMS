@@ -69,12 +69,12 @@ class _FakeS3:
 @pytest.fixture
 def s3(monkeypatch):
     server = _FakeS3()
-    monkeypatch.setattr(settings, "MINIO_ENDPOINT", server.endpoint)
-    monkeypatch.setattr(settings, "MINIO_ACCESS_KEY", "GKtestaccess")
-    monkeypatch.setattr(settings, "MINIO_SECRET_KEY", "test-secret-value-1234567890")
-    monkeypatch.setattr(settings, "MINIO_SECURE", False)
-    monkeypatch.setattr(settings, "MINIO_REGION", "garage")
-    monkeypatch.setattr(settings, "MINIO_BUCKET", _BUCKET)
+    monkeypatch.setattr(settings, "S3_ENDPOINT", server.endpoint)
+    monkeypatch.setattr(settings, "S3_ACCESS_KEY", "GKtestaccess")
+    monkeypatch.setattr(settings, "S3_SECRET_KEY", "test-secret-value-1234567890")
+    monkeypatch.setattr(settings, "S3_SECURE", False)
+    monkeypatch.setattr(settings, "S3_REGION", "garage")
+    monkeypatch.setattr(settings, "S3_BUCKET", _BUCKET)
     yield server
     server.close()
 

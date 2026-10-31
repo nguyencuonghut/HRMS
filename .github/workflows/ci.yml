@@ -60,8 +60,8 @@ jobs:
         run: |
           set -o pipefail
           GARAGE_CONTAINER=garage bash scripts/garage_bootstrap.sh > "$RUNNER_TEMP/garage_keys.env"
-          echo "::add-mask::$(sed -n 's/^MINIO_SECRET_KEY=//p' "$RUNNER_TEMP/garage_keys.env")"
-          grep '^MINIO_' "$RUNNER_TEMP/garage_keys.env" >> "$GITHUB_ENV"
+          echo "::add-mask::$(sed -n 's/^S3_SECRET_KEY=//p' "$RUNNER_TEMP/garage_keys.env")"
+          grep '^S3_' "$RUNNER_TEMP/garage_keys.env" >> "$GITHUB_ENV"
 
       - name: Set up Python 3.12
         uses: actions/setup-python@v5
@@ -82,9 +82,9 @@ jobs:
           SECRET_KEY:      ci-test-secret-key-not-for-production
           ENCRYPTION_KEY:  ""
           ENVIRONMENT:     development
-          MINIO_ENDPOINT:  localhost:3900
-          MINIO_REGION:    garage
-          MINIO_SECURE:    "false"
+          S3_ENDPOINT:     localhost:3900
+          S3_REGION:       garage
+          S3_SECURE:       "false"
         run: alembic upgrade head
 
       - name: Seed test baseline data
@@ -95,9 +95,9 @@ jobs:
           SECRET_KEY:      ci-test-secret-key-not-for-production
           ENCRYPTION_KEY:  ""
           ENVIRONMENT:     development
-          MINIO_ENDPOINT:  localhost:3900
-          MINIO_REGION:    garage
-          MINIO_SECURE:    "false"
+          S3_ENDPOINT:     localhost:3900
+          S3_REGION:       garage
+          S3_SECURE:       "false"
         run: python -m app.seeds --sample
 
       - name: Run tests
@@ -108,9 +108,9 @@ jobs:
           SECRET_KEY:      ci-test-secret-key-not-for-production
           ENCRYPTION_KEY:  ""
           ENVIRONMENT:     development
-          MINIO_ENDPOINT:  localhost:3900
-          MINIO_REGION:    garage
-          MINIO_SECURE:    "false"
+          S3_ENDPOINT:     localhost:3900
+          S3_REGION:       garage
+          S3_SECURE:       "false"
           DEBUG:           "false"
         run: pytest tests/ -q --tb=short --no-header
 

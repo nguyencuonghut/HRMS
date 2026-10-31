@@ -55,7 +55,7 @@ DC="docker compose -f docker-compose.lan.yml"   # production LAN. Dev: DC="docke
 LIVE=hrms                                        # tên DB đang chạy (POSTGRES_DB trong .env, mặc định hrms)
 ```
 
-Các lệnh về kho đi qua `scripts/backup_fetch.py` chạy **trong container backend** (đã có SDK `minio` và biến môi trường `BACKUP_STORAGE_*`, `MINIO_*`, kể cả `region`). Script không in bí mật.
+Các lệnh về kho đi qua `scripts/backup_fetch.py` chạy **trong container backend** (đã có SDK `minio` và biến môi trường `BACKUP_STORAGE_*`, `S3_*` (tên cũ `MINIO_*` vẫn được đọc), kể cả `region`). Script không in bí mật.
 
 ### 2.1 Tìm artifact cần khôi phục
 
@@ -186,12 +186,12 @@ Số tệp script báo phải bằng `object_count` trong `manifest.json` của 
 
 **Chuyển ứng dụng sang kho mới:**
 
-1. Sửa `MINIO_BUCKET=<NEWBUCKET>` trong `.env`.
-2. Ở Backup Console, mục "Cấu hình sao lưu", dòng kho tệp ứng dụng: nếu cột "Nguồn" hiện một tên kho cụ thể (trường "Kho lưu trữ nguồn" có giá trị), đổi sang kho mới hoặc để trống để dùng `MINIO_BUCKET`. Giá trị này **ghi đè** `MINIO_BUCKET` (xem mục 7); quên bước này thì lần sao lưu sau vẫn đọc kho cũ.
+1. Sửa `S3_BUCKET=<NEWBUCKET>` trong `.env`.
+2. Ở Backup Console, mục "Cấu hình sao lưu", dòng kho tệp ứng dụng: nếu cột "Nguồn" hiện một tên kho cụ thể (trường "Kho lưu trữ nguồn" có giá trị), đổi sang kho mới hoặc để trống để dùng `S3_BUCKET`. Giá trị này **ghi đè** `S3_BUCKET` (xem mục 7); quên bước này thì lần sao lưu sau vẫn đọc kho cũ.
 3. Tạo lại dịch vụ để nhận `.env` mới: `$DC up -d --no-deps backend celery_worker celery_beat`.
 4. Kiểm tra: tải một tệp đính kèm (hoặc `GET /api/v1/employees/<id>/attachments/<att>/download` có token) và so `sha256` với bản gốc nếu có.
 
-**Quay lui kho tệp:** đặt lại `MINIO_BUCKET` và "Kho lưu trữ nguồn" về giá trị cũ rồi `up -d` như bước 3. Kho cũ không bị đụng tới nên còn nguyên.
+**Quay lui kho tệp:** đặt lại `S3_BUCKET` và "Kho lưu trữ nguồn" về giá trị cũ rồi `up -d` như bước 3. Kho cũ không bị đụng tới nên còn nguyên.
 
 **Lấy lại một tệp lẻ** (ví dụ ai đó lỡ xóa): lấy tệp ra rồi tải lên lại qua ứng dụng, không ghi trực tiếp vào kho đang chạy:
 
@@ -199,7 +199,7 @@ Số tệp script báo phải bằng `object_count` trong `manifest.json` của 
 $DC exec -T backend python - get "files/files-20261031_022608/employees/1/<tên tệp>" < scripts/backup_fetch.py > ./tep_khoi_phuc
 ```
 
-**Dọn kho thử** (sau khi kiểm tra khôi phục trên staging/dev, hoặc kho cũ sau khi đã chạy ổn trên kho mới). Script từ chối xóa kho đang dùng (`MINIO_BUCKET`, `BACKUP_STORAGE_BUCKET`) và **không hoàn tác được**:
+**Dọn kho thử** (sau khi kiểm tra khôi phục trên staging/dev, hoặc kho cũ sau khi đã chạy ổn trên kho mới). Script từ chối xóa kho đang dùng (`S3_BUCKET`, `BACKUP_STORAGE_BUCKET`) và **không hoàn tác được**:
 
 ```bash
 $DC exec -T backend python - delete-bucket "$NEWBUCKET" < scripts/backup_fetch.py
@@ -279,8 +279,8 @@ Làm trên **staging** (hoặc dev), không làm trên production:
 
 ## 7. Những bẫy đã gặp (có bằng chứng ở dev)
 
-- **Cấu hình trong DB ghi đè `.env`.** Dòng cấu hình "Kho tệp ứng dụng" trong `backup_configs` (cột `source_endpoint`, `source_bucket`) được ưu tiên hơn `MINIO_ENDPOINT` và `MINIO_BUCKET` (`backup_runner_service.py`, hàm `_source_values`). Khi dev còn `source_endpoint = minio:9000` trong DB, job kho tệp thất bại với `AccessDenied` dù `.env` đã trỏ sang Garage. Sửa qua Backup Console (hoặc `PUT /api/v1/backups/config/object_storage`), không sửa `.env`.
-- **`region`.** Garage cần `region=garage`; thiếu thì lệnh đầu tiên báo `AuthorizationHeaderMalformed`. Script `backup_fetch.py` đọc `BACKUP_STORAGE_REGION` và `MINIO_REGION` từ môi trường nên không phải tự đặt.
+- **Cấu hình trong DB ghi đè `.env`.** Dòng cấu hình "Kho tệp ứng dụng" trong `backup_configs` (cột `source_endpoint`, `source_bucket`) được ưu tiên hơn `S3_ENDPOINT` và `S3_BUCKET` (`backup_runner_service.py`, hàm `_source_values`). Khi dev còn `source_endpoint = minio:9000` trong DB, job kho tệp thất bại với `AccessDenied` dù `.env` đã trỏ sang Garage. Sửa qua Backup Console (hoặc `PUT /api/v1/backups/config/object_storage`), không sửa `.env`.
+- **`region`.** Garage cần `region=garage`; thiếu thì lệnh đầu tiên báo `AuthorizationHeaderMalformed`. Script `backup_fetch.py` đọc `BACKUP_STORAGE_REGION` và `S3_REGION` từ môi trường nên không phải tự đặt.
 - **Kho tạo qua S3 chỉ có bí danh cục bộ.** Kho do script hoặc Console tạo (không qua `garage bucket create`) không có tên toàn cục, nên `garage bucket info <tên>` báo `NoSuchBucket`; tra bằng ID lấy từ `garage bucket list`. Với kho kiểu này, `garage bucket delete` cũng báo còn bí danh cục bộ; dùng `delete-bucket` ở mục 2.8.
 - **Tải tệp thiếu trong kho.** Image backend cũ (trước bản sửa LD-003 trong `docs/known_issues.md`) trả HTTP 200 với thân rỗng, và 3 lần tải tệp thiếu liên tiếp làm mọi thao tác kho trả 503 trong 30 giây. Bản sửa nay trả 404 và không làm mạch ngắt mở, nhưng chỉ có tác dụng sau khi **dựng lại image backend và tạo lại `backend`, `celery_worker`, `celery_beat`**. Khôi phục DB mà chưa khôi phục kho tệp tương ứng thì tệp thiếu; luôn kiểm tra tải một tệp thật sau khi khôi phục.
 - **Dòng `SET transaction_timeout`** (mục 2.3).

@@ -3,7 +3,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import field_validator, model_validator
+from pydantic import AliasChoices, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _log = logging.getLogger(__name__)
@@ -16,14 +16,14 @@ _UNSAFE_SECRET_KEYS = frozenset({
     "your-secret-key",
 })
 
-_UNSAFE_MINIO_CREDS = frozenset({
+_UNSAFE_S3_CREDS = frozenset({
     "minioadmin",
     "minio",
     "password",
     "admin",
 })
 
-_UNSAFE_MINIO_ENDPOINTS = frozenset({
+_UNSAFE_S3_ENDPOINTS = frozenset({
     "minio:9000",
 })
 
@@ -32,7 +32,7 @@ _BASE_DIR = Path(__file__).resolve().parents[2]
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore", validate_by_name=True, validate_by_alias=True)
 
     APP_NAME: str = "Hồng Hà HRMS"
     APP_VERSION: str = "1.0.0"
@@ -128,43 +128,44 @@ class Settings(BaseSettings):
     REDIS_URL:      str = "redis://localhost:6379/0"
     REDIS_PASSWORD: str = ""   # Nếu set → production mode có password
 
-    # MinIO object storage
-    MINIO_ENDPOINT:   str  = "minio:9000"
-    MINIO_ACCESS_KEY: str  = "minioadmin"
-    MINIO_SECRET_KEY: str  = "minioadmin"
-    MINIO_BUCKET:     str  = ""
-    MINIO_SECURE:     bool = False
+    # Kho tệp ứng dụng (S3 API; Garage). S3_* là tên chính. MINIO_* là tên cũ, vẫn được đọc khi không có tên mới
+    # (kế hoạch 15.7, Slice 10): `.env` production hiện chỉ có tên cũ. Có cả hai thì S3_* thắng.
+    S3_ENDPOINT:   str  = Field("minio:9000", validation_alias=AliasChoices("S3_ENDPOINT", "MINIO_ENDPOINT"))
+    S3_ACCESS_KEY: str  = Field("minioadmin", validation_alias=AliasChoices("S3_ACCESS_KEY", "MINIO_ACCESS_KEY"))
+    S3_SECRET_KEY: str  = Field("minioadmin", validation_alias=AliasChoices("S3_SECRET_KEY", "MINIO_SECRET_KEY"))
+    S3_BUCKET:     str  = Field("", validation_alias=AliasChoices("S3_BUCKET", "MINIO_BUCKET"))
+    S3_SECURE:     bool = Field(False, validation_alias=AliasChoices("S3_SECURE", "MINIO_SECURE"))
     # Region ký yêu cầu S3 của kho tệp ứng dụng và nguồn sao lưu. Để trống = SDK tự dò (MinIO).
     # Garage từ chối chữ ký sai region nên phải đặt "garage" (kế hoạch 15.7, Slice 1).
-    MINIO_REGION:     str  = ""
+    S3_REGION:     str  = Field("", validation_alias=AliasChoices("S3_REGION", "MINIO_REGION"))
 
     @model_validator(mode="after")
-    def validate_minio_configuration(self) -> "Settings":
-        endpoint = self.MINIO_ENDPOINT.strip().rstrip("/")
+    def validate_s3_configuration(self) -> "Settings":
+        endpoint = self.S3_ENDPOINT.strip().rstrip("/")
         if self.ENVIRONMENT.lower() == "production":
             if not endpoint:
-                raise ValueError("MINIO_ENDPOINT bắt buộc trong production.")
-            if endpoint.lower() in _UNSAFE_MINIO_ENDPOINTS:
+                raise ValueError("S3_ENDPOINT bắt buộc trong production.")
+            if endpoint.lower() in _UNSAFE_S3_ENDPOINTS:
                 raise ValueError(
-                    "MINIO_ENDPOINT đang dùng giá trị mặc định 'minio:9000' — "
+                    "S3_ENDPOINT đang dùng giá trị mặc định 'minio:9000' — "
                     "không hợp lệ cho production hiện tại. Đặt endpoint object storage thật trong .env."
                 )
-            if self.MINIO_ACCESS_KEY.lower() in _UNSAFE_MINIO_CREDS:
+            if self.S3_ACCESS_KEY.lower() in _UNSAFE_S3_CREDS:
                 raise ValueError(
-                    "MINIO_ACCESS_KEY đang dùng giá trị mặc định 'minioadmin' — "
+                    "S3_ACCESS_KEY đang dùng giá trị mặc định 'minioadmin' — "
                     "KHÔNG an toàn cho production. Đổi trong .env."
                 )
-            if self.MINIO_SECRET_KEY.lower() in _UNSAFE_MINIO_CREDS:
+            if self.S3_SECRET_KEY.lower() in _UNSAFE_S3_CREDS:
                 raise ValueError(
-                    "MINIO_SECRET_KEY đang dùng giá trị mặc định 'minioadmin' — "
+                    "S3_SECRET_KEY đang dùng giá trị mặc định 'minioadmin' — "
                     "KHÔNG an toàn cho production. Đổi trong .env."
                 )
-        elif self.MINIO_SECRET_KEY.lower() in _UNSAFE_MINIO_CREDS:
+        elif self.S3_SECRET_KEY.lower() in _UNSAFE_S3_CREDS:
             _log.warning(
-                "MINIO credentials đang dùng giá trị mặc định — "
+                "S3 credentials đang dùng giá trị mặc định — "
                 "KHÔNG an toàn cho production."
             )
-        self.MINIO_ENDPOINT = endpoint
+        self.S3_ENDPOINT = endpoint
         return self
 
     # CORS
@@ -227,11 +228,11 @@ class Settings(BaseSettings):
     BACKUP_STORAGE_SECRET_KEY: str = ""
     BACKUP_STORAGE_SECURE: bool = True
     BACKUP_STORAGE_BUCKET: str = "hrms-backup"
-    BACKUP_STORAGE_REGION: str = ""   # như MINIO_REGION nhưng cho đích sao lưu
+    BACKUP_STORAGE_REGION: str = ""   # như S3_REGION nhưng cho đích sao lưu
     BACKUP_TEMP_DIR: str = "/backups/tmp"
     BACKUP_RETENTION_DAYS: int = 90
     DB_BACKUP_CRON: str = "0 2 * * *"
-    MINIO_BACKUP_CRON: str = "0 3 * * *"
+    S3_BACKUP_CRON: str = Field("0 3 * * *", validation_alias=AliasChoices("S3_BACKUP_CRON", "MINIO_BACKUP_CRON"))
     SOURCE_ALIAS: str = "local"
     SOURCE_STORAGE_ENDPOINT: str = ""
     SOURCE_STORAGE_ACCESS_KEY: str = ""
@@ -279,9 +280,9 @@ class Settings(BaseSettings):
         return url
 
     @property
-    def minio_bucket_name(self) -> str:
-        if self.MINIO_BUCKET.strip():
-            return self.MINIO_BUCKET.strip()
+    def s3_bucket_name(self) -> str:
+        if self.S3_BUCKET.strip():
+            return self.S3_BUCKET.strip()
         env_suffix = {
             "development": "dev",
             "staging": "stg",

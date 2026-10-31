@@ -68,15 +68,15 @@ Dùng [Garage](https://garagehq.deuxfleurs.fr/) (v2.5.0, một nút, `sqlite` v�
 | Bucket | `hrms-attachments-dev` (tệp ứng dụng), `hrms-backup` (sao lưu); production: `hrms-attachments-prod`, `hrms-backup` |
 | Khóa truy cập | Hai khóa `hrms-app` và `hrms-backup`, sinh bằng `scripts/garage_bootstrap.sh`; không có mặc định |
 
-Biến môi trường cấu hình trong `docker-compose.yml` → service `backend` (tên biến vẫn là `MINIO_*`; đổi sang `S3_*` là Slice 10 tùy chọn):
+Biến môi trường cấu hình trong `docker-compose.yml` → service `backend` (tên biến là `S3_*`; tên cũ `MINIO_*` vẫn được đọc khi không có tên mới, kế hoạch 15.7 Slice 10):
 
 ```
-MINIO_ENDPOINT    = garage:3900       # đặt cứng trong docker-compose.yml
-MINIO_ACCESS_KEY  = (khóa hrms-app, do scripts/garage_bootstrap.sh sinh)
-MINIO_SECRET_KEY  = (như trên)
-MINIO_REGION      = garage
-MINIO_BUCKET      = hrms-attachments-dev   # production: hrms-attachments-prod
-MINIO_SECURE      = false                  # lưu lượng chỉ đi trong mạng compose
+S3_ENDPOINT    = garage:3900       # đặt cứng trong docker-compose.yml
+S3_ACCESS_KEY  = (khóa hrms-app, do scripts/garage_bootstrap.sh sinh)
+S3_SECRET_KEY  = (như trên)
+S3_REGION      = garage
+S3_BUCKET      = hrms-attachments-dev   # production: hrms-attachments-prod
+S3_SECURE      = false                  # lưu lượng chỉ đi trong mạng compose
 BACKUP_STORAGE_*  = khóa hrms-backup, bucket hrms-backup (cùng Garage)
 ```
 

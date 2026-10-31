@@ -10,8 +10,9 @@ Dùng, từ thư mục gốc repo trên máy chủ:
 
 Việc script làm:
   - sao lưu .env ra thư mục home (quyền 600) trước khi sửa;
-  - đặt MINIO_ENDPOINT, MINIO_BUCKET, MINIO_REGION, MINIO_SECURE, BACKUP_STORAGE_ENDPOINT, BACKUP_STORAGE_REGION,
-    BACKUP_STORAGE_SECURE (thay dòng có sẵn, thêm nếu chưa có, bỏ dòng trùng);
+  - đặt S3_ENDPOINT, S3_BUCKET, S3_REGION, S3_SECURE, BACKUP_STORAGE_ENDPOINT, BACKUP_STORAGE_REGION,
+    BACKUP_STORAGE_SECURE (thay dòng có sẵn, thêm nếu chưa có, bỏ dòng trùng). Dòng tên cũ MINIO_* (trước Slice 10) được đổi
+    thành tên S3_* tại chỗ, để `.env` không có hai bộ tên song song;
   - xóa 4 dòng khóa cũ rồi nối 4 khóa Garage ở cuối file;
   - đặt quyền .env là 600 và ghi nguyên tử (tệp tạm rồi đổi tên).
 
@@ -30,7 +31,11 @@ import tempfile
 import time
 from pathlib import Path
 
-KEY_NAMES = ("MINIO_ACCESS_KEY", "MINIO_SECRET_KEY", "BACKUP_STORAGE_ACCESS_KEY", "BACKUP_STORAGE_SECRET_KEY")
+KEY_NAMES = ("S3_ACCESS_KEY", "S3_SECRET_KEY", "BACKUP_STORAGE_ACCESS_KEY", "BACKUP_STORAGE_SECRET_KEY")
+# Tên cũ (trước Slice 10, kế hoạch 15.7): tệp khóa vẫn được chấp nhận theo tên cũ; trong .env chúng được đổi sang tên mới.
+LEGACY_KEY_NAMES = {"MINIO_ACCESS_KEY": "S3_ACCESS_KEY", "MINIO_SECRET_KEY": "S3_SECRET_KEY"}
+LEGACY_SCALAR_NAMES = {"MINIO_ENDPOINT": "S3_ENDPOINT", "MINIO_BUCKET": "S3_BUCKET", "MINIO_REGION": "S3_REGION", "MINIO_SECURE": "S3_SECURE"}
+LEGACY_OF = {new: old for old, new in LEGACY_SCALAR_NAMES.items()}
 REQUIRED_GARAGE_VARS = ("GARAGE_RPC_SECRET", "GARAGE_ADMIN_TOKEN")
 SOURCE_OVERRIDES = ("SOURCE_STORAGE_ENDPOINT", "SOURCE_STORAGE_ACCESS_KEY", "SOURCE_STORAGE_SECRET_KEY", "SOURCE_STORAGE_SECURE")
 LINE = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)=(.*)$")
@@ -50,15 +55,16 @@ def read_new_keys(path: Path) -> dict[str, str]:
         if not raw.strip():
             continue
         match = LINE.match(raw)
-        if not match or match.group(1) not in KEY_NAMES or match.group(1) in keys:
+        name = LEGACY_KEY_NAMES.get(match.group(1), match.group(1)) if match else None
+        if name not in KEY_NAMES or name in keys:
             fail(f"{path} phải có đúng 4 dòng {', '.join(KEY_NAMES)} (mỗi tên một lần)")
-        keys[match.group(1)] = match.group(2)
+        keys[name] = match.group(2)
     if set(keys) != set(KEY_NAMES):
         fail(f"{path} thiếu khóa: {', '.join(sorted(set(KEY_NAMES) - set(keys)))}")
-    for name in ("MINIO_ACCESS_KEY", "BACKUP_STORAGE_ACCESS_KEY"):
+    for name in ("S3_ACCESS_KEY", "BACKUP_STORAGE_ACCESS_KEY"):
         if not re.fullmatch(r"GK[0-9a-f]{24,}", keys[name]):
             fail(f"{name} không đúng dạng khóa Garage (GK + chuỗi hex)")
-    for name in ("MINIO_SECRET_KEY", "BACKUP_STORAGE_SECRET_KEY"):
+    for name in ("S3_SECRET_KEY", "BACKUP_STORAGE_SECRET_KEY"):
         if not re.fullmatch(r"[0-9a-f]{64}", keys[name]):
             fail(f"{name} không đúng dạng secret Garage (64 ký tự hex)")
     return keys
@@ -68,7 +74,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Chuyển .env sang Garage, không in bí mật.")
     parser.add_argument("keys_file", type=Path, help="đầu ra stdout của scripts/garage_bootstrap.sh (4 dòng khóa)")
     parser.add_argument("--env", type=Path, default=Path(".env"), help="tệp .env cần sửa (mặc định: ./.env)")
-    parser.add_argument("--bucket", default="hrms-attachments-prod", help="MINIO_BUCKET mới (mặc định: hrms-attachments-prod)")
+    parser.add_argument("--bucket", default="hrms-attachments-prod", help="S3_BUCKET mới (mặc định: hrms-attachments-prod)")
     parser.add_argument("--backup-dir", type=Path, default=Path.home(), help="nơi cất bản sao lưu .env (mặc định: thư mục home)")
     parser.add_argument("--dry-run", action="store_true", help="chỉ báo cáo, không ghi gì")
     args = parser.parse_args()
@@ -91,10 +97,10 @@ def main() -> int:
         fail(f"{args.env} chưa có {', '.join(missing)} (runbook 10.1 bước 1). Không sửa gì.")
 
     scalars = {
-        "MINIO_ENDPOINT": "garage:3900",
-        "MINIO_BUCKET": args.bucket,
-        "MINIO_REGION": "garage",
-        "MINIO_SECURE": "false",
+        "S3_ENDPOINT": "garage:3900",
+        "S3_BUCKET": args.bucket,
+        "S3_REGION": "garage",
+        "S3_SECURE": "false",
         "BACKUP_STORAGE_ENDPOINT": "garage:3900",
         "BACKUP_STORAGE_REGION": "garage",
         "BACKUP_STORAGE_SECURE": "false",
@@ -108,8 +114,16 @@ def main() -> int:
             continue                          # dấu của chính script ở lần chạy trước; ghi lại ở cuối
         match = LINE.match(raw)
         name = match.group(1) if match else None
-        if name in KEY_NAMES:
+        if name in KEY_NAMES or name in LEGACY_KEY_NAMES:
             removed_keys += 1
+            continue
+        if name in LEGACY_SCALAR_NAMES:
+            name = LEGACY_SCALAR_NAMES[name]      # tên cũ: đổi tại chỗ sang tên S3_*
+            raw = f"{name}={scalars[name]}"
+            if name in seen:
+                continue
+            seen.add(name)
+            result.append(raw)
             continue
         if name in scalars:
             if name in seen:
@@ -125,13 +139,13 @@ def main() -> int:
         result.append("# Garage: các biến thêm bởi scripts/garage_cutover_env.py")
         result += [f"{name}={scalars[name]}" for name in added]
         result.append("")
-    result.append(f"{KEY_BLOCK_MARKER} (hrms-app cho MINIO_*, hrms-backup cho BACKUP_STORAGE_*)")
+    result.append(f"{KEY_BLOCK_MARKER} (hrms-app cho S3_*, hrms-backup cho BACKUP_STORAGE_*)")
     result += [f"{name}={keys[name]}" for name in KEY_NAMES]
     new_text = "\n".join(result) + "\n"
 
     print(f"{'[dry-run] ' if args.dry_run else ''}Kết quả cho {args.env}:")
     for name, value in scalars.items():
-        old = current.get(name)
+        old = current.get(name, current.get(LEGACY_OF.get(name, "")))
         print(f"  {name}: {old if old is not None else '(chưa có)'} -> {value}")
     print(f"  khóa cũ đã bỏ: {removed_keys} dòng; khóa Garage mới nối: {len(KEY_NAMES)} dòng ({', '.join(KEY_NAMES)}); giá trị không được in")
     overrides = [name for name in SOURCE_OVERRIDES if current.get(name, "").strip()]

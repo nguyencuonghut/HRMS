@@ -245,11 +245,12 @@ CORS_ORIGINS=["https://hrms.company.vn"]
 GARAGE_RPC_SECRET=<openssl rand -hex 32>
 GARAGE_ADMIN_TOKEN=<openssl rand -hex 32>
 
-MINIO_ENDPOINT=garage:3900
-MINIO_REGION=garage
-MINIO_SECURE=false
-MINIO_BUCKET=hrms-attachments-prod
-# MINIO_ACCESS_KEY, MINIO_SECRET_KEY, BACKUP_STORAGE_ACCESS_KEY, BACKUP_STORAGE_SECRET_KEY: do script bootstrap sinh ở mục 7.5, không tự gõ
+# Kho tệp: tên biến là S3_*; tên cũ MINIO_* vẫn được đọc khi không có tên mới (kế hoạch 15.7, Slice 10)
+S3_ENDPOINT=garage:3900
+S3_REGION=garage
+S3_SECURE=false
+S3_BUCKET=hrms-attachments-prod
+# S3_ACCESS_KEY, S3_SECRET_KEY, BACKUP_STORAGE_ACCESS_KEY, BACKUP_STORAGE_SECRET_KEY: do script bootstrap sinh ở mục 7.5, không tự gõ
 
 BOOTSTRAP_ADMIN_EMAIL=admin@company.vn
 BOOTSTRAP_ADMIN_FULL_NAME=System Administrator
@@ -276,7 +277,7 @@ BACKUP_STORAGE_SECURE=false
 BACKUP_STORAGE_BUCKET=hrms-backup
 BACKUP_RETENTION_DAYS=90
 DB_BACKUP_CRON=0 2 * * *
-MINIO_BACKUP_CRON=0 3 * * *
+S3_BACKUP_CRON=0 3 * * *
 BACKUP_NOTIFY_EMAILS=it@company.vn,hr@company.vn
 ```
 
@@ -308,11 +309,11 @@ Làm sau khi `.env` đã có `GARAGE_RPC_SECRET`, `GARAGE_ADMIN_TOKEN` (mục 7.
 
 ```bash
 docker compose -f docker-compose.prod.yml up -d garage
-COMPOSE_FILE=docker-compose.prod.yml MINIO_BUCKET=hrms-attachments-prod bash scripts/garage_bootstrap.sh >> .env
+COMPOSE_FILE=docker-compose.prod.yml S3_BUCKET=hrms-attachments-prod bash scripts/garage_bootstrap.sh >> .env
 chmod 600 .env
 ```
 
-Script tạo hai bucket (`hrms-attachments-prod`, `hrms-backup`) và hai khóa (`hrms-app`, `hrms-backup`), rồi in đúng **một lần** bốn dòng `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `BACKUP_STORAGE_ACCESS_KEY`, `BACKUP_STORAGE_SECRET_KEY` ra stdout (bí mật: nối thẳng vào `.env`, không dán vào chat hay ticket). Chạy lại là an toàn. Nếu mất khóa: `docker compose -f docker-compose.prod.yml exec garage /garage key info hrms-app --show-secret`. Chi tiết: phần đầu `scripts/garage_bootstrap.sh`.
+Script tạo hai bucket (`hrms-attachments-prod`, `hrms-backup`) và hai khóa (`hrms-app`, `hrms-backup`), rồi in đúng **một lần** bốn dòng `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `BACKUP_STORAGE_ACCESS_KEY`, `BACKUP_STORAGE_SECRET_KEY` ra stdout (bí mật: nối thẳng vào `.env`, không dán vào chat hay ticket). Chạy lại là an toàn. Nếu mất khóa: `docker compose -f docker-compose.prod.yml exec garage /garage key info hrms-app --show-secret`. Chi tiết: phần đầu `scripts/garage_bootstrap.sh`.
 
 Lưu ý: file `docker-compose.prod.yml` mới chỉ được kiểm bằng `docker compose config` (kế hoạch 15.7, Slice 6), chưa dựng thật cùng nginx và certbot; script bootstrap đã chạy thật với `docker-compose.lan.yml` trên production LAN (khi đó đầu ra đi qua một tệp tạm rồi `scripts/garage_cutover_env.py`, chưa dùng dạng `>> .env` ở trên). Máy đang chạy MinIO cần chuyển sang Garage thì theo runbook trong `docs/plan_15.7_chuyen_minio_sang_garage.md` mục 10.
 
@@ -611,7 +612,7 @@ Sau khi yêu cầu `Khôi phục sang đích mới` có trạng thái `Đã khô
 
    ```env
    POSTGRES_DB=hrms_restore_20260714
-   MINIO_BUCKET=hrms-attachments-restore-20260714
+   S3_BUCKET=hrms-attachments-restore-20260714
    ```
 
    Nếu production dùng `DATABASE_URL` tự khai báo thay vì biến `POSTGRES_DB`, phải đổi `DATABASE_URL` sang database vừa khôi phục tương ứng.
@@ -622,7 +623,7 @@ Sau khi yêu cầu `Khôi phục sang đích mới` có trạng thái `Đã khô
    docker compose -f docker-compose.prod.yml up -d --no-deps --force-recreate backend celery_worker celery_beat
    ```
 
-   Đồng thời vào Backup Console, mục "Cấu hình sao lưu", dòng kho tệp ứng dụng: nếu trường "Kho lưu trữ nguồn" đang có một tên kho cụ thể thì đổi sang kho mới (hoặc để trống để dùng `MINIO_BUCKET`), vì giá trị cấu hình trong DB **ghi đè** `MINIO_BUCKET` trong `.env`.
+   Đồng thời vào Backup Console, mục "Cấu hình sao lưu", dòng kho tệp ứng dụng: nếu trường "Kho lưu trữ nguồn" đang có một tên kho cụ thể thì đổi sang kho mới (hoặc để trống để dùng `S3_BUCKET`), vì giá trị cấu hình trong DB **ghi đè** `S3_BUCKET` trong `.env`.
 
 5. Kiểm tra DB app đang trỏ tới:
 
@@ -630,7 +631,7 @@ Sau khi yêu cầu `Khôi phục sang đích mới` có trạng thái `Đã khô
    docker compose -f docker-compose.prod.yml exec -T backend python - <<'PY'
    from app.core.config import settings
    print(settings.DATABASE_URL)
-   print(settings.MINIO_BUCKET)
+   print(settings.S3_BUCKET)
    PY
    ```
 

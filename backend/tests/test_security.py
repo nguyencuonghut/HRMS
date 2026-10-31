@@ -244,9 +244,9 @@ def test_settings_rejects_loopback_cors_origins_in_production():
             ENVIRONMENT="production",
             SECRET_KEY="a" * 64,
             ENCRYPTION_KEY="prod-encryption-key",
-            MINIO_ENDPOINT="s3.example.com",
-            MINIO_ACCESS_KEY="prod-access-key",
-            MINIO_SECRET_KEY="prod-secret-key",
+            S3_ENDPOINT="s3.example.com",
+            S3_ACCESS_KEY="prod-access-key",
+            S3_SECRET_KEY="prod-secret-key",
             CORS_ORIGINS=["http://localhost:5173"],
             REFRESH_TOKEN_COOKIE_SECURE=True,
         )
@@ -257,41 +257,41 @@ def test_settings_normalizes_cors_origins():
         ENVIRONMENT="production",
         SECRET_KEY="b" * 64,
         ENCRYPTION_KEY="prod-encryption-key",
-        MINIO_ENDPOINT="s3.example.com",
-        MINIO_ACCESS_KEY="prod-access-key",
-        MINIO_SECRET_KEY="prod-secret-key",
+        S3_ENDPOINT="s3.example.com",
+        S3_ACCESS_KEY="prod-access-key",
+        S3_SECRET_KEY="prod-secret-key",
         CORS_ORIGINS=["https://hrms.example.com/"],
         REFRESH_TOKEN_COOKIE_SECURE=True,
     )
     assert cfg.CORS_ORIGINS == ["https://hrms.example.com"]
 
 
-def test_settings_rejects_default_minio_endpoint_in_production():
+def test_settings_rejects_default_s3_endpoint_in_production():
     with pytest.raises(ValidationError):
         Settings(
             ENVIRONMENT="production",
             SECRET_KEY="c" * 64,
             ENCRYPTION_KEY="prod-encryption-key",
-            MINIO_ENDPOINT="minio:9000",
-            MINIO_ACCESS_KEY="prod-access-key",
-            MINIO_SECRET_KEY="prod-secret-key",
+            S3_ENDPOINT="minio:9000",
+            S3_ACCESS_KEY="prod-access-key",
+            S3_SECRET_KEY="prod-secret-key",
             CORS_ORIGINS=["https://hrms.example.com"],
             REFRESH_TOKEN_COOKIE_SECURE=True,
         )
 
 
-def test_settings_normalizes_minio_endpoint_in_production():
+def test_settings_normalizes_s3_endpoint_in_production():
     cfg = Settings(
         ENVIRONMENT="production",
         SECRET_KEY="d" * 64,
         ENCRYPTION_KEY="prod-encryption-key",
-        MINIO_ENDPOINT="s3.example.com/",
-        MINIO_ACCESS_KEY="prod-access-key",
-        MINIO_SECRET_KEY="prod-secret-key",
+        S3_ENDPOINT="s3.example.com/",
+        S3_ACCESS_KEY="prod-access-key",
+        S3_SECRET_KEY="prod-secret-key",
         CORS_ORIGINS=["https://hrms.example.com"],
         REFRESH_TOKEN_COOKIE_SECURE=True,
     )
-    assert cfg.MINIO_ENDPOINT == "s3.example.com"
+    assert cfg.S3_ENDPOINT == "s3.example.com"
 
 
 def test_settings_allow_http_only_lan_configuration():
@@ -299,14 +299,14 @@ def test_settings_allow_http_only_lan_configuration():
         ENVIRONMENT="lan",
         SECRET_KEY="dev-secret-key-change-in-prod",
         ENCRYPTION_KEY="",
-        MINIO_ENDPOINT="minio:9000",
-        MINIO_ACCESS_KEY="CHANGE_ME",
-        MINIO_SECRET_KEY="CHANGE_ME",
+        S3_ENDPOINT="minio:9000",
+        S3_ACCESS_KEY="CHANGE_ME",
+        S3_SECRET_KEY="CHANGE_ME",
         CORS_ORIGINS=["http://hrms.honghafeed.com.vn", "http://172.16.2.100"],
         REFRESH_TOKEN_COOKIE_SECURE=False,
     )
     assert cfg.ENVIRONMENT == "lan"
-    assert cfg.MINIO_ENDPOINT == "minio:9000"
+    assert cfg.S3_ENDPOINT == "minio:9000"
     assert cfg.REFRESH_TOKEN_COOKIE_SECURE is False
 
 
@@ -317,16 +317,16 @@ def test_encryption_roundtrip():
     assert decrypt(ciphertext) == plaintext
 
 
-def test_minio_bucket_name_uses_environment_suffix(monkeypatch):
-    monkeypatch.setattr(settings, "MINIO_BUCKET", "")
+def test_s3_bucket_name_uses_environment_suffix(monkeypatch):
+    monkeypatch.setattr(settings, "S3_BUCKET", "")
     monkeypatch.setattr(settings, "ENVIRONMENT", "staging")
-    assert settings.minio_bucket_name == "hrms-attachments-stg"
+    assert settings.s3_bucket_name == "hrms-attachments-stg"
 
 
-def test_minio_bucket_name_prefers_explicit_override(monkeypatch):
-    monkeypatch.setattr(settings, "MINIO_BUCKET", "custom-bucket")
+def test_s3_bucket_name_prefers_explicit_override(monkeypatch):
+    monkeypatch.setattr(settings, "S3_BUCKET", "custom-bucket")
     monkeypatch.setattr(settings, "ENVIRONMENT", "production")
-    assert settings.minio_bucket_name == "custom-bucket"
+    assert settings.s3_bucket_name == "custom-bucket"
 
 
 def test_ensure_bucket_uses_resolved_bucket_name(monkeypatch):
@@ -340,7 +340,7 @@ def test_ensure_bucket_uses_resolved_bucket_name(monkeypatch):
         def make_bucket(self, name: str) -> None:
             calls.append(("make", name))
 
-    monkeypatch.setattr(settings, "MINIO_BUCKET", "")
+    monkeypatch.setattr(settings, "S3_BUCKET", "")
     monkeypatch.setattr(settings, "ENVIRONMENT", "development")
     monkeypatch.setattr(storage, "_client", lambda: FakeMinio())
 

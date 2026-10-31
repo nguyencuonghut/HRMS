@@ -15,9 +15,9 @@ Chạy trong container backend (đã có SDK `minio` và các biến môi trư�
   restore-files  chép mọi object của một snapshot kho tệp (trừ manifest.json) sang BUCKET mới. BUCKET phải CHƯA tồn tại
                  (giống Backup Console: không bao giờ ghi đè vào kho có sẵn); script tạo bucket bằng khóa ứng dụng.
   delete-bucket  xóa mọi object rồi xóa BUCKET, để dọn kho thử sau khi kiểm tra khôi phục. Từ chối nếu BUCKET trùng
-                 MINIO_BUCKET hoặc BACKUP_STORAGE_BUCKET (kho đang dùng). Không hoàn tác được.
+                 S3_BUCKET hoặc BACKUP_STORAGE_BUCKET (kho đang dùng). Không hoàn tác được.
 
-Khóa sao lưu (BACKUP_STORAGE_*) dùng để đọc kho sao lưu; khóa ứng dụng (MINIO_*) dùng để tạo và ghi bucket đích.
+Khóa sao lưu (BACKUP_STORAGE_*) dùng để đọc kho sao lưu; khóa ứng dụng (S3_*, tên cũ MINIO_* vẫn được đọc) dùng để tạo và ghi bucket đích.
 Không bao giờ in giá trị bí mật. Thông báo đi ra stderr để stdout của `get` chỉ có dữ liệu.
 """
 from __future__ import annotations
@@ -33,17 +33,24 @@ def env(name: str, default: str = "") -> str:
     return os.environ.get(name, default).strip()
 
 
+def app_env(suffix: str, default: str = "") -> str:
+    """Biến của kho tệp ứng dụng: S3_* là tên chính, MINIO_* là tên cũ vẫn được đọc (kế hoạch 15.7, Slice 10)."""
+    return env(f"S3_{suffix}", env(f"MINIO_{suffix}", default))
+
+
 def client(prefix: str) -> Minio:
-    endpoint = env(f"{prefix}_ENDPOINT")
+    """prefix "S3" là kho tệp ứng dụng (đọc cả tên cũ MINIO_*); "BACKUP_STORAGE" là kho sao lưu."""
+    get = app_env if prefix == "S3" else (lambda suffix, default="": env(f"{prefix}_{suffix}", default))
+    endpoint = get("ENDPOINT")
     if not endpoint:
         sys.exit(f"LỖI: thiếu {prefix}_ENDPOINT trong môi trường")
-    secure = env(f"{prefix}_SECURE", "false").lower() in ("1", "true", "yes", "on")
+    secure = get("SECURE", "false").lower() in ("1", "true", "yes", "on")
     return Minio(
         endpoint,
-        access_key=env(f"{prefix}_ACCESS_KEY"),
-        secret_key=env(f"{prefix}_SECRET_KEY"),
+        access_key=get("ACCESS_KEY"),
+        secret_key=get("SECRET_KEY"),
         secure=secure,
-        region=env(f"{prefix}_REGION") or None,
+        region=get("REGION") or None,
     )
 
 
@@ -85,7 +92,7 @@ def cmd_restore_files(args: list[str]) -> int:
         sys.exit("LỖI: restore-files cần SNAPSHOT_PREFIX và BUCKET")
     snapshot, target_bucket = args[0].rstrip("/"), args[1]
     source, bucket = backup_client()
-    target = client("MINIO")
+    target = client("S3")
     if target.bucket_exists(target_bucket):
         sys.exit(f"LỖI: kho đích {target_bucket} đã tồn tại; hãy chọn tên kho mới. Không ghi đè.")
     items = [i for i in source.list_objects(bucket, prefix=f"{snapshot}/", recursive=True)
@@ -113,10 +120,10 @@ def cmd_delete_bucket(args: list[str]) -> int:
     if len(args) != 1:
         sys.exit("LỖI: delete-bucket cần đúng một BUCKET")
     name = args[0]
-    in_use = {env("MINIO_BUCKET"), env("BACKUP_STORAGE_BUCKET", "hrms-backup")}
+    in_use = {app_env("BUCKET"), env("BACKUP_STORAGE_BUCKET", "hrms-backup")}
     if name in in_use:
-        sys.exit(f"LỖI: {name} đang được cấu hình dùng (MINIO_BUCKET hoặc BACKUP_STORAGE_BUCKET); không xóa.")
-    target = client("MINIO")
+        sys.exit(f"LỖI: {name} đang được cấu hình dùng (S3_BUCKET hoặc BACKUP_STORAGE_BUCKET); không xóa.")
+    target = client("S3")
     if not target.bucket_exists(name):
         sys.exit(f"LỖI: không thấy kho {name}")
     removed = 0
