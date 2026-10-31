@@ -32,10 +32,9 @@
       <Column header="Tên file" style="min-width: 200px">
         <template #body="{ data }">
           <a
-            :href="data.download_url"
-            target="_blank"
-            rel="noopener noreferrer"
+            href="#"
             class="flex align-items-center gap-2 text-primary no-underline hover:underline"
+            @click.prevent="download(data)"
           >
             <i :class="fileIcon(data.file_name)" />
             {{ data.file_name }}
@@ -88,7 +87,7 @@ interface Attachment {
   file_path:    string
   file_size:    number | null
   uploaded_at:  string
-  download_url: string   // đường dẫn API tải xuống (cần token xác thực)
+  download_url: string   // đường dẫn API tải xuống: cần token nên KHÔNG dùng làm href (LD-008), tải bằng download()
 }
 
 const props = defineProps<{ positionId: number | null }>()
@@ -134,6 +133,21 @@ async function handleUpload(event: FileUploadUploaderEvent) {
     toast.add({ severity: 'error', summary: 'Lỗi', detail, life: 4000 })
   } finally {
     uploading.value = false
+  }
+}
+
+async function download(att: Attachment) {
+  if (!props.positionId) return
+  try {
+    const res = await api.get<Blob>(`/job-positions/${props.positionId}/attachments/${att.id}/download`, { responseType: 'blob' })
+    const href = URL.createObjectURL(res.data)
+    const a = document.createElement('a')
+    a.href = href
+    a.download = att.file_name
+    a.click()
+    URL.revokeObjectURL(href)
+  } catch {
+    toast.add({ severity: 'error', summary: 'Lỗi', detail: 'Không tải được file', life: 3000 })
   }
 }
 

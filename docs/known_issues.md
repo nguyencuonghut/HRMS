@@ -11,7 +11,7 @@ Chỉ ghi lỗi **đã có bằng chứng** (quan sát thật hoặc đọc mã)
 | LD-005 | Trang hồ sơ nhân viên thỉnh thoảng sập ("Cannot read properties of null (reading 'scrollTop')") khi bấm tab lúc trang còn đang tải | Chưa sửa | 2026-10-31, dev (kế hoạch 15.7, Slice 9) |
 | LD-006 | Hai test e2e của Backup Center đỏ sẵn (locator "Sao lưu đầy đủ" khớp 2 nút) | Chưa sửa | 2026-10-31, dev (kế hoạch 15.7, Slice 9) |
 | LD-007 | Chạy toàn bộ `pytest` như job CI (DB sạch, `--sample`) cho 86 test đỏ và 1 lỗi, như nhau với cả MinIO lẫn Garage | **Đã sửa 2026-10-31** (chưa commit; chạy lại toàn bộ trên DB sạch: 0 đỏ; chưa chạy trên GitHub) | 2026-10-31, dev (kế hoạch 15.7, Slice 9) |
-| LD-008 | Bấm tên tệp đính kèm của vị trí công việc (hộp thoại "Chi tiết vị trí công việc") mở tab mới báo 401 `Not authenticated`, không tải được tệp | Chưa sửa | 2026-10-31, dev (phát hiện khi dọn chú thích MinIO; tái hiện bằng trình duyệt thật) |
+| LD-008 | Bấm tên tệp đính kèm của vị trí công việc (hộp thoại "Chi tiết vị trí công việc") mở tab mới báo 401 `Not authenticated`, không tải được tệp | **Đã sửa 2026-10-31** (chưa commit; có tác dụng trên production sau khi dựng lại image frontend) | 2026-10-31, dev (phát hiện khi dọn chú thích MinIO; tái hiện bằng trình duyệt thật) |
 
 LD-001, LD-002, LD-006 và LD-008 có từ trước và **không liên quan** việc chuyển kho tệp sang Garage (LD-008 cùng cơ chế với LD-002). LD-003 là cơ chế của mã tải tệp, không phụ thuộc loại kho (chưa kiểm trên MinIO). LD-004 lộ ra khi đổi lịch sao lưu ở production. LD-005 phát hiện khi chạy test e2e, chưa rõ có phụ thuộc thay đổi nào ở Slice 9 hay không (xem mục).
 
@@ -193,12 +193,18 @@ LD-001, LD-002, LD-006 và LD-008 có từ trước và **không liên quan** vi
 
 **Nguyên nhân (đọc mã, khớp với kết quả trên).** `frontend/src/components/FileAttachmentList.vue:35` dùng thẻ `<a :href="data.download_url" target="_blank">`. `download_url` do `backend/app/api/v1/endpoints/job_positions.py:162` trả là đường dẫn API tải xuống (không phải URL có chữ ký), và endpoint đó yêu cầu quyền `org:view`. Token truy cập nằm trong bộ nhớ của ứng dụng, không phải cookie, nên thẻ `<a>` điều hướng tới URL mà không gửi header `Authorization` và backend trả 401. Cùng cơ chế với LD-002.
 
-**Chú thích sai cùng chỗ (đã sửa 2026-10-31, chưa commit).** `FileAttachmentList.vue` và `backend/app/schemas/job_position.py` ghi `download_url` là "presigned URL, hết hạn sau 1 giờ"; không có URL presigned nào trong mã. Đã viết lại thành "đường dẫn API tải xuống (cần token xác thực)".
+**Chú thích sai cùng chỗ (đã sửa 2026-10-31, commit `504e834`).** `FileAttachmentList.vue` và `backend/app/schemas/job_position.py` ghi `download_url` là "presigned URL, hết hạn sau 1 giờ"; không có URL presigned nào trong mã. Đã viết lại thành "đường dẫn API tải xuống (cần token xác thực)".
 
 **Không liên quan kho tệp.** Lỗi xảy ra ở lớp xác thực, trước khi chạm kho tệp. Không kiểm trên MinIO.
 
 **Phạm vi (chưa rà hết).** Trong `frontend/src`, đây là nơi duy nhất dùng thẻ `<a :href>` trỏ tới `download_url` hay đường dẫn `/download` (tìm bằng `grep`). Các chỗ gán `a.href` bằng script ở các service tải xuống (`employeeService`, `contractService`, `trainingService`, ...) chưa rà từng nơi; nhiều khả năng dùng URL blob có token như cách sửa LD-002.
 
-**Chưa kiểm.** Trên production (chỉ kiểm ở stack cô lập); trình duyệt khác ngoài Chrome; các thao tác khác của cùng danh sách (tải lên, xóa); cách sửa chưa làm. Hướng sửa dự kiến theo LD-002: tải bằng `api.get(..., { responseType: 'blob' })` rồi tạo liên kết blob, thay cho thẻ `<a href>` thuần.
+**Cách đã sửa (2026-10-31).** `FileAttachmentList.vue`: tên tệp là `<a href="#" @click.prevent="download(data)">`; hàm `download(att)` gọi `api.get('/job-positions/{id}/attachments/{attId}/download', { responseType: 'blob' })` (có token, giống cách sửa LD-002), tạo liên kết blob với `download = att.file_name` rồi bấm; lỗi hiện toast "Không tải được file". Chú thích của `download_url` ghi rõ không dùng làm `href`. Hành vi mong muốn không đổi so với ý đồ ban đầu: endpoint trả `Content-Disposition: attachment` nên đó vốn là một lượt tải xuống; chỉ bỏ việc mở tab mới.
 
-**Kiểm hồi quy khi sửa.** Hai test Playwright dùng để tái hiện (một đối chứng gọi thẳng endpoint, một đi qua giao diện) hiện nằm trong thư mục tạm của phiên làm việc, chưa có trong repo. Khi sửa nên thêm chúng vào `frontend/tests/e2e/` cùng bản sửa; test giao diện đỏ trước khi sửa (nhận 401) và xanh sau khi sửa.
+**Đã kiểm (2026-10-31, stack cô lập, Chrome qua Playwright 1.60.0).**
+- Test mới `frontend/tests/e2e/position-attachments.spec.ts` (hai trường hợp: tên thường, và tên có khoảng trắng, `#`, `%`, `+`): **đỏ trước khi sửa** (bấm tên tệp không phát sinh lượt tải xuống: chờ sự kiện `download` quá hạn 15 giây) và **xanh sau khi sửa** (tải không lỗi, `suggestedFilename` đúng tên, `sha256` khớp tệp đã tải lên).
+- Đường lỗi (thăm dò bằng trình duyệt thật, không có test trong repo): xóa tệp ở backend sau khi danh sách đã hiện rồi bấm tên: hiện toast "Không tải được file", không tải gì, không mở tab mới, giữ nguyên trang.
+- `vue-tsc --noEmit` không lỗi; `vite build` thành công (đầu ra ghi vào thư mục tạm trong container, không đụng `frontend/dist`).
+- Spec có sẵn của màn này, `org-position-auth-refresh.spec.ts`, **đỏ ở dòng `getByText('Chuyên viên HR')` trên stack cô lập, giống hệt trên mã chưa sửa** (đối chứng bằng cách hoàn tác bản sửa), nên không do bản sửa này; chưa điều tra nguyên nhân (spec dùng nhiều phản hồi giả lập).
+
+**Chưa kiểm.** Trên production (cần dựng lại image frontend); trình duyệt khác ngoài Chrome; tệp rất lớn qua đường này (kiểm bằng tệp tới 90 KB); tải lên và xóa trong cùng danh sách (không đổi, không có test mới); các chỗ gán `a.href` bằng script ở các service khác (xem Phạm vi).
