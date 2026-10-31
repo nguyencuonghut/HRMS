@@ -27,14 +27,15 @@ Sau khi làm xong, quy trình sẽ là:
 
 1. push code lên branch `master`
 2. GitHub Actions chạy test backend + type check frontend
-3. nếu pass, workflow build và push 3 Docker image lên `ghcr.io`
+3. nếu pass, workflow build và push 2 Docker image lên `ghcr.io`
 4. server production hoặc LAN pull image từ GHCR để deploy
 
 Image đích hiện tại theo source:
 
 - `ghcr.io/nguyencuonghut/hrms/hrms-backend`
 - `ghcr.io/nguyencuonghut/hrms/hrms-frontend`
-- `ghcr.io/nguyencuonghut/hrms/hrms-backup`
+
+Không còn image `hrms-backup`: sao lưu chạy bằng Backup Console trong `celery_worker` và `celery_beat` (kế hoạch 15.7, Slice 6). Nếu trước đây CI đã đẩy package `hrms-backup` lên GHCR (chưa kiểm tra trên GitHub) thì nó không còn được cập nhật và có thể xóa tay. Production kéo image Garage trực tiếp từ Docker Hub theo digest; bản mirror trên GHCR (Slice 0) chỉ là dự phòng.
 
 ---
 
@@ -45,10 +46,9 @@ Trong [.github/workflows/ci.yml](/run/media/cuong/DATA/02_Project/166_HonghaHRM/
 - workflow chạy trên branch `master`
 - job build/push chỉ chạy khi `push` vào `master`
 - workflow dùng `docker/login-action`, `docker/setup-buildx-action`, `docker/build-push-action`
-- workflow push 3 image:
+- workflow push 2 image:
   - backend
   - frontend
-  - backup
 
 Đã xác nhận thêm bằng kiểm tra runtime cục bộ:
 
@@ -127,11 +127,10 @@ Sau khi image được push lần đầu, vào:
 
 `GitHub -> Your profile -> Packages`
 
-Kiểm tra 3 package:
+Kiểm tra 2 package:
 
 - `hrms-backend`
 - `hrms-frontend`
-- `hrms-backup`
 
 Với repo public, nếu muốn server nội bộ pull mà không cần auth thì đặt package ở trạng thái `public`.
 
@@ -204,8 +203,6 @@ Workflow push các tag:
 ```text
 ghcr.io/nguyencuonghut/hrms/hrms-backend:latest
 ghcr.io/nguyencuonghut/hrms/hrms-backend:<github.sha>
-ghcr.io/nguyencuonghut/hrms/hrms-backup:latest
-ghcr.io/nguyencuonghut/hrms/hrms-backup:<github.sha>
 ghcr.io/nguyencuonghut/hrms/hrms-frontend:latest
 ghcr.io/nguyencuonghut/hrms/hrms-frontend:<github.sha>
 ```
@@ -272,7 +269,6 @@ Kiểm tra có đủ:
 
 - `hrms-backend`
 - `hrms-frontend`
-- `hrms-backup`
 
 ### Cách 2 — pull thử trên máy có Docker
 
@@ -281,7 +277,6 @@ Ví dụ:
 ```bash
 docker pull ghcr.io/nguyencuonghut/hrms/hrms-backend:latest
 docker pull ghcr.io/nguyencuonghut/hrms/hrms-frontend:latest
-docker pull ghcr.io/nguyencuonghut/hrms/hrms-backup:latest
 ```
 
 Nếu package để public thì pull được mà không cần login.
@@ -353,7 +348,7 @@ Với hiện trạng repo của bạn, quy trình gọn nhất là:
 
 1. giữ branch release chính là `master`
 2. push code lên `master`
-3. để GitHub Actions build/push 3 image lên GHCR
+3. để GitHub Actions build/push 2 image lên GHCR
 4. package để `public` nếu server nội bộ chỉ cần pull, không muốn quản lý auth
 5. trên server production/LAN, deploy bằng `IMAGE_TAG=<commit-sha>`
 6. chỉ dùng `latest` cho môi trường thử nhanh, không dùng cho go-live chính thức
@@ -364,7 +359,7 @@ Với hiện trạng repo của bạn, quy trình gọn nhất là:
 
 1. Push workflow hiện tại lên GitHub.
 2. Vào `Actions` chạy pipeline đầu tiên trên branch `master`.
-3. Kiểm tra 3 package có xuất hiện trên GHCR hay chưa.
+3. Kiểm tra 2 package có xuất hiện trên GHCR hay chưa.
 4. Chốt package visibility là `public` hay `private`.
 5. Nếu bạn muốn, bước tiếp theo nên là tạo thêm:
    - workflow chỉ build khi tag release

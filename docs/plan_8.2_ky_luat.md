@@ -1,5 +1,7 @@
 # Kế hoạch triển khai — 8.2. Kỷ luật
 
+> **Ghi chú (2026-10-31):** kho tệp đã chuyển từ MinIO sang Garage (kế hoạch 15.7, `docs/plan_15.7_chuyen_minio_sang_garage.md`). Tài liệu này là bản lịch sử, giữ nguyên nội dung lúc viết: các lệnh MinIO/`mc` và các script, image sao lưu cũ (`backup_db.sh`, `backup_minio.sh`, `hrms-backup`) không còn dùng được. Hướng dẫn hiện hành: `scripts/restore_procedure.md` và `docs/deploy_noi_bo_lan_ubuntu_26_04.md`.
+
 **Phạm vi:** Tạo/sửa/xóa quyết định kỷ luật theo hình thức quy định bởi BLLĐ · Lưu biên bản/quyết định · Lịch sử kỷ luật trong hồ sơ nhân viên  
 **Phụ thuộc:** `8.1 Khen thưởng` ✅ (dùng chung view container RewardsView, CSS, router) · `3.1 Thông tin nhân viên` ✅ · MinIO ✅  
 **Căn cứ pháp lý:** Bộ luật Lao động 2019 (Luật 45/2019/QH14) — Điều 124 về hình thức xử lý kỷ luật

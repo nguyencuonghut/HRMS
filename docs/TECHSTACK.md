@@ -48,7 +48,7 @@
 | Container | **Docker** + **Docker Compose** | Môi trường dev, staging, production |
 | Reverse proxy | **Nginx** | Serve FE static, proxy API |
 | Cache / Broker | **Redis** | Session cache, Celery message broker |
-| Object Storage | **MinIO** | Lưu trữ file đính kèm (S3-compatible) |
+| Object Storage | **Garage** | Lưu trữ file đính kèm và bản sao lưu (S3-compatible) |
 | Secrets | **`.env` file** | Tách biệt per environment (dev/staging/prod) |
 | CI/CD | **GitHub Actions** | Build, test, deploy tự động |
 | Log / Monitor | **Sentry** | Error tracking backend + frontend |
@@ -57,49 +57,50 @@
 
 ## Lưu trữ File (Object Storage)
 
-### MinIO
+### Garage
 
-Dùng [MinIO](https://min.io/) — object storage S3-compatible, tự host.
+Dùng [Garage](https://garagehq.deuxfleurs.fr/) (v2.5.0, một nút, `sqlite` với `fsync` bật) — object storage S3-compatible, tự host. Thay MinIO từ kế hoạch 15.7 (`docs/plan_15.7_chuyen_minio_sang_garage.md`). Backend vẫn dùng SDK Python `minio` làm client S3, **phải truyền `region="garage"`** (Garage ký theo `s3_region` trong `docker/garage/garage.toml`).
 
-| Thành phần | Giá trị mặc định (dev) |
+| Thành phần | Giá trị (dev) |
 |---|---|
-| S3 API endpoint | `http://localhost:9000` |
-| Web Console | `http://localhost:9001` |
-| Bucket | `hrms-attachments` |
-| Access Key | `minioadmin` |
-| Secret Key | `minioadmin` |
+| S3 API endpoint | `garage:3900`, chỉ trong mạng compose (không publish cổng ra host) |
+| Web Console | Không có. Dùng CLI `docker compose exec garage /garage ...` |
+| Bucket | `hrms-attachments-dev` (tệp ứng dụng), `hrms-backup` (sao lưu); production: `hrms-attachments-prod`, `hrms-backup` |
+| Khóa truy cập | Hai khóa `hrms-app` và `hrms-backup`, sinh bằng `scripts/garage_bootstrap.sh`; không có mặc định |
 
-Biến môi trường cấu hình trong `docker-compose.yml` → service `backend`:
+Biến môi trường cấu hình trong `docker-compose.yml` → service `backend` (tên biến vẫn là `MINIO_*`; đổi sang `S3_*` là Slice 10 tùy chọn):
 
 ```
-MINIO_ENDPOINT    = minio:9000        # internal Docker hostname
-MINIO_ACCESS_KEY  = minioadmin
-MINIO_SECRET_KEY  = minioadmin
-MINIO_BUCKET      = hrms-attachments
-MINIO_SECURE      = false
+MINIO_ENDPOINT    = garage:3900       # đặt cứng trong docker-compose.yml
+MINIO_ACCESS_KEY  = (khóa hrms-app, do scripts/garage_bootstrap.sh sinh)
+MINIO_SECRET_KEY  = (như trên)
+MINIO_REGION      = garage
+MINIO_BUCKET      = hrms-attachments-dev   # production: hrms-attachments-prod
+MINIO_SECURE      = false                  # lưu lượng chỉ đi trong mạng compose
+BACKUP_STORAGE_*  = khóa hrms-backup, bucket hrms-backup (cùng Garage)
 ```
 
 ### Kiến trúc upload / download
 
 ```
-Browser ──upload──▶ FastAPI ──put_object──▶ MinIO
+Browser ──upload──▶ FastAPI ──put_object──▶ Garage
                                                │
 Browser ◀──stream── FastAPI ◀──get_object──────┘
 ```
 
-- **Upload**: `POST /api/v1/job-positions/{id}/attachments` — FastAPI nhận file, gọi `minio.put_object()`, lưu `object_name` vào DB.
-- **Download**: `GET /api/v1/job-positions/{id}/attachments/{att_id}/download` — FastAPI lấy stream từ MinIO, proxy về browser bằng `StreamingResponse`.
+- **Upload**: `POST /api/v1/job-positions/{id}/attachments` — FastAPI nhận file, gọi `put_object()` (SDK `minio`), lưu `object_name` vào DB.
+- **Download**: `GET /api/v1/job-positions/{id}/attachments/{att_id}/download` — FastAPI lấy stream từ Garage, proxy về browser bằng `StreamingResponse`.
 - Object name trong DB theo dạng: `attachments/{position_id}/{uuid}_{filename}`.
 
 > **Tại sao proxy qua FastAPI thay vì presigned URL?**  
-> Trong Docker Compose, hostname `minio` chỉ resolve được bên trong mạng Docker.  
-> Browser bên ngoài không truy cập được `http://minio:9000/...`.  
+> Trong Docker Compose, hostname `garage` chỉ resolve được bên trong mạng Docker (và cổng S3 không được publish).  
+> Browser bên ngoài không truy cập được `garage:3900`.  
 > Proxy qua FastAPI tránh được vấn đề này, đồng thời dễ thêm kiểm tra phân quyền sau này.
 
 ### Python package
 
 ```
-minio>=7.2.0   # thêm vào backend/requirements.txt
+minio>=7.2.0   # SDK client S3, khai báo trong backend/requirements.in (bản khóa ở requirements.txt: 7.2.20); dùng cho Garage
 ```
 
 ---
@@ -108,11 +109,11 @@ minio>=7.2.0   # thêm vào backend/requirements.txt
 
 ```
 ├── backend/        # FastAPI app
-│   └── app/core/storage.py   # MinIO helper (ensure_bucket, save, stream, delete)
+│   └── app/core/storage.py   # S3 helper (ensure_bucket, save, stream, delete)
 ├── frontend/       # Vue 3 app
 │   └── src/components/FileAttachmentList.vue
 ├── nginx/          # Nginx config
-├── docker-compose.yml          # Dev (bao gồm MinIO service)
+├── docker-compose.yml          # Dev (bao gồm Garage service)
 ├── docker-compose.prod.yml     # Production
 └── .env.example
 ```

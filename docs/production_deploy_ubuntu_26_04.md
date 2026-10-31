@@ -56,7 +56,7 @@ Theo [docker-compose.prod.yml](/run/media/cuong/DATA/02_Project/166_HonghaHRM/HR
 - `celery_worker`: dùng cùng image backend
 - `celery_beat`: dùng cùng image backend
 - `frontend`: image production của frontend
-- `backup_scheduler`: image riêng để chạy backup DB + object storage
+- `garage`: kho tệp S3 (Garage v2.5.0, một nút), không publish cổng; chứa tệp ứng dụng và bản sao lưu (bucket `hrms-backup`)
 - `nginx`: reverse proxy public 80/443
 - `certbot`: profile chạy lấy chứng chỉ
 
@@ -73,7 +73,6 @@ Lưu ý đã xác nhận từ source:
 - production compose **chỉ pull image** từ registry qua:
   - `BACKEND_IMAGE`
   - `FRONTEND_IMAGE`
-  - `BACKUP_IMAGE`
   - `IMAGE_TAG`
 
 Nghĩa là trước khi deploy, image phải được build/push sẵn.
@@ -237,17 +236,20 @@ REDIS_PASSWORD=<random-strong-password>
 
 BACKEND_IMAGE=ghcr.io/nguyencuonghut/hrms/hrms-backend
 FRONTEND_IMAGE=ghcr.io/nguyencuonghut/hrms/hrms-frontend
-BACKUP_IMAGE=ghcr.io/nguyencuonghut/hrms/hrms-backup
 IMAGE_TAG=<commit-sha-hoac-tag>
 
 REFRESH_TOKEN_COOKIE_SECURE=true
 CORS_ORIGINS=["https://hrms.company.vn"]
 
-MINIO_ENDPOINT=<object-storage-endpoint>
-MINIO_ACCESS_KEY=<access-key>
-MINIO_SECRET_KEY=<secret-key>
-MINIO_SECURE=true
+# Garage (kho tệp S3). Hai giá trị này KHÔNG có mặc định: thiếu thì mọi lệnh `docker compose` trên file prod dừng ngay.
+GARAGE_RPC_SECRET=<openssl rand -hex 32>
+GARAGE_ADMIN_TOKEN=<openssl rand -hex 32>
+
+MINIO_ENDPOINT=garage:3900
+MINIO_REGION=garage
+MINIO_SECURE=false
 MINIO_BUCKET=hrms-attachments-prod
+# MINIO_ACCESS_KEY, MINIO_SECRET_KEY, BACKUP_STORAGE_ACCESS_KEY, BACKUP_STORAGE_SECRET_KEY: do script bootstrap sinh ở mục 7.5, không tự gõ
 
 BOOTSTRAP_ADMIN_EMAIL=admin@company.vn
 BOOTSTRAP_ADMIN_FULL_NAME=System Administrator
@@ -268,10 +270,9 @@ SMTP_FROM_NAME=HRMS
 SENTRY_DSN=<dsn-neu-co>
 HEALTHCHECK_PING_URL=<url-neu-co>
 
-BACKUP_STORAGE_ENDPOINT=<backup-object-storage-endpoint>
-BACKUP_STORAGE_ACCESS_KEY=<backup-key>
-BACKUP_STORAGE_SECRET_KEY=<backup-secret>
-BACKUP_STORAGE_SECURE=true
+BACKUP_STORAGE_ENDPOINT=garage:3900
+BACKUP_STORAGE_REGION=garage
+BACKUP_STORAGE_SECURE=false
 BACKUP_STORAGE_BUCKET=hrms-backup
 BACKUP_RETENTION_DAYS=90
 DB_BACKUP_CRON=0 2 * * *
@@ -300,6 +301,20 @@ PY
 ```
 
 Nếu server chưa có Python package `cryptography`, có thể generate key ở máy khác rồi copy vào `.env`.
+
+### 7.5. Garage: bucket và khóa truy cập (lần đầu)
+
+Làm sau khi `.env` đã có `GARAGE_RPC_SECRET`, `GARAGE_ADMIN_TOKEN` (mục 7.2), **trước khi** khởi động cả stack:
+
+```bash
+docker compose -f docker-compose.prod.yml up -d garage
+COMPOSE_FILE=docker-compose.prod.yml MINIO_BUCKET=hrms-attachments-prod bash scripts/garage_bootstrap.sh >> .env
+chmod 600 .env
+```
+
+Script tạo hai bucket (`hrms-attachments-prod`, `hrms-backup`) và hai khóa (`hrms-app`, `hrms-backup`), rồi in đúng **một lần** bốn dòng `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `BACKUP_STORAGE_ACCESS_KEY`, `BACKUP_STORAGE_SECRET_KEY` ra stdout (bí mật: nối thẳng vào `.env`, không dán vào chat hay ticket). Chạy lại là an toàn. Nếu mất khóa: `docker compose -f docker-compose.prod.yml exec garage /garage key info hrms-app --show-secret`. Chi tiết: phần đầu `scripts/garage_bootstrap.sh`.
+
+Lưu ý: file `docker-compose.prod.yml` mới chỉ được kiểm bằng `docker compose config` (kế hoạch 15.7, Slice 6), chưa dựng thật cùng nginx và certbot; script bootstrap đã chạy thật với `docker-compose.lan.yml` trên production LAN (khi đó đầu ra đi qua một tệp tạm rồi `scripts/garage_cutover_env.py`, chưa dùng dạng `>> .env` ở trên). Máy đang chạy MinIO cần chuyển sang Garage thì theo runbook trong `docs/plan_15.7_chuyen_minio_sang_garage.md` mục 10.
 
 ---
 
@@ -379,8 +394,6 @@ Theo [.github/workflows/ci.yml](/run/media/cuong/DATA/02_Project/166_HonghaHRM/H
 - branch `master` khi push sẽ build/push:
 - `ghcr.io/nguyencuonghut/hrms/hrms-backend:latest`
 - `ghcr.io/nguyencuonghut/hrms/hrms-backend:<github.sha>`
-- `ghcr.io/nguyencuonghut/hrms/hrms-backup:latest`
-- `ghcr.io/nguyencuonghut/hrms/hrms-backup:<github.sha>`
 - `ghcr.io/nguyencuonghut/hrms/hrms-frontend:latest`
 - `ghcr.io/nguyencuonghut/hrms/hrms-frontend:<github.sha>`
 
@@ -397,10 +410,9 @@ echo '<ghcr-token>' | docker login ghcr.io -u <github-username> --password-stdin
 ```bash
 docker pull ${BACKEND_IMAGE}:${IMAGE_TAG}
 docker pull ${FRONTEND_IMAGE}:${IMAGE_TAG}
-docker pull ${BACKUP_IMAGE}:${IMAGE_TAG}
 ```
 
-Nếu 3 lệnh này fail thì chưa nên deploy.
+Nếu 2 lệnh này fail thì chưa nên deploy. Image Garage (`dxflrs/garage`, ghim theo digest trong compose) được kéo trực tiếp từ Docker Hub khi `up`; bản mirror trên GHCR chỉ là dự phòng.
 
 ---
 
@@ -473,17 +485,17 @@ docker compose -f docker-compose.prod.yml logs backend --tail=100
 docker compose -f docker-compose.prod.yml logs celery_worker --tail=100
 docker compose -f docker-compose.prod.yml logs celery_beat --tail=100
 docker compose -f docker-compose.prod.yml logs nginx --tail=100
-docker compose -f docker-compose.prod.yml logs backup_scheduler --tail=100
+docker compose -f docker-compose.prod.yml logs garage --tail=100
 ```
 
 Xác nhận:
 
 - `db` đang healthy
 - `redis` đang healthy
+- `garage` đang healthy (`docker compose ps`; lệnh kiểm tra sâu hơn ở mục 13.4)
 - `backend` khởi động không lỗi
 - `frontend` đang up
 - `nginx` không lỗi SSL/config
-- `backup_scheduler` không crash loop
 
 ### 11.2. Ứng dụng
 
@@ -561,15 +573,8 @@ Lịch backup production mặc định chạy qua Admin Backup Console + Celery:
 - `celery_beat` kiểm tra lịch mỗi phút.
 - Khi đến giờ cấu hình, hệ thống tạo một `backup_set` loại `scheduled_full`.
 - `celery_worker` queue `backups` chạy backup DB trước, sau đó backup kho tệp ứng dụng.
-
-Service `backup_scheduler` script cũ vẫn còn trong compose nhưng chỉ để dự phòng legacy, nằm dưới profile `legacy-backup` và không khởi động mặc định.
-
-Chỉ bật scheduler cũ khi đã chủ động quay về cơ chế script/env:
-
-```bash
-docker compose -f docker-compose.prod.yml --profile legacy-backup up -d backup_scheduler
-docker compose -f docker-compose.prod.yml --profile legacy-backup logs backup_scheduler --tail=200
-```
+- Bản sao lưu nằm trong bucket `hrms-backup` của chính Garage (cùng máy, cùng ổ đĩa với dữ liệu thật). **Chưa có bản sao lưu ngoài máy** (rủi ro R5 và việc D2 trong `docs/plan_15.7_chuyen_minio_sang_garage.md`).
+- Không còn service `backup_scheduler`, profile `legacy-backup`, script `backup_db.sh`/`backup_minio.sh` hay image `hrms-backup`.
 
 ### 13.2. Restore
 
@@ -586,8 +591,8 @@ Nguyên tắc đã ghi rõ trong source:
 
 Admin Backup Console hiện có 2 chế độ khôi phục:
 
-- `Chỉ kiểm tra`: hệ thống chỉ restore thử DB vào cơ sở dữ liệu tạm, kiểm tra snapshot MinIO, sau đó dọn tài nguyên tạm. Chế độ này **không** dùng để chạy production với dữ liệu khôi phục.
-- `Khôi phục sang đích mới`: hệ thống tạo DB đích mới và bucket MinIO đích mới, restore dữ liệu vào đó, nhưng **không tự động chuyển production sang đích mới**.
+- `Chỉ kiểm tra`: hệ thống chỉ restore thử DB vào cơ sở dữ liệu tạm, kiểm tra snapshot kho tệp, sau đó dọn tài nguyên tạm. Chế độ này **không** dùng để chạy production với dữ liệu khôi phục.
+- `Khôi phục sang đích mới`: hệ thống tạo DB đích mới và bucket đích mới trong Garage, restore dữ liệu vào đó, nhưng **không tự động chuyển production sang đích mới**.
 
 Sau khi yêu cầu `Khôi phục sang đích mới` có trạng thái `Đã khôi phục`, thực hiện chuyển production sang dữ liệu vừa khôi phục như sau.
 
@@ -611,17 +616,13 @@ Sau khi yêu cầu `Khôi phục sang đích mới` có trạng thái `Đã khô
 
    Nếu production dùng `DATABASE_URL` tự khai báo thay vì biến `POSTGRES_DB`, phải đổi `DATABASE_URL` sang database vừa khôi phục tương ứng.
 
-4. Restart **app layer**, không xóa volume và không recreate `db` / `minio`:
+4. Restart **app layer**, không xóa volume và không recreate `db` / `garage`:
 
    ```bash
    docker compose -f docker-compose.prod.yml up -d --no-deps --force-recreate backend celery_worker celery_beat
    ```
 
-   Nếu đang bật profile `legacy-backup` và `backup_scheduler` đang chạy, restart thêm service đó để nó nhận `POSTGRES_DB` / `MINIO_BUCKET` mới:
-
-   ```bash
-   docker compose -f docker-compose.prod.yml --profile legacy-backup up -d --no-deps --force-recreate backup_scheduler
-   ```
+   Đồng thời vào Backup Console, mục "Cấu hình sao lưu", dòng kho tệp ứng dụng: nếu trường "Kho lưu trữ nguồn" đang có một tên kho cụ thể thì đổi sang kho mới (hoặc để trống để dùng `MINIO_BUCKET`), vì giá trị cấu hình trong DB **ghi đè** `MINIO_BUCKET` trong `.env`.
 
 5. Kiểm tra DB app đang trỏ tới:
 
@@ -650,7 +651,7 @@ Sau khi yêu cầu `Khôi phục sang đích mới` có trạng thái `Đã khô
    - đăng nhập bằng tài khoản admin
    - mở danh sách nhân sự
    - mở một hồ sơ có file đính kèm
-   - tải thử file từ MinIO
+   - tải thử file đính kèm từ kho tệp (tệp thiếu trong kho: image backend cũ trả 200 với thân rỗng, bản sửa LD-003 trong `docs/known_issues.md` trả 404 sau khi dựng lại image)
    - kiểm tra log backend/worker:
 
    ```bash
@@ -666,6 +667,10 @@ docker volume rm ...
 ```
 
 Các lệnh đó có thể xóa volume dữ liệu hiện tại.
+
+### 13.4. Giám sát cơ bản Garage
+
+Các lệnh `garage health`, `garage status` (cột `DataAvail`), `garage bucket info` và dung lượng volume `garage_data`/`garage_meta` nằm ở mục 15.0 của `docs/deploy_noi_bo_lan_ubuntu_26_04.md`; thay `docker-compose.lan.yml` bằng `docker-compose.prod.yml`. Các lệnh đó đã chạy thật trên dev, chưa chạy với file prod.
 
 ---
 

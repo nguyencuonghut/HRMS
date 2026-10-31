@@ -26,7 +26,19 @@ cd HRMS
 cp .env.example .env
 ```
 
-File `.env` mặc định đã dùng được ngay cho dev. Không cần chỉnh gì thêm.
+File `.env` mặc định đã dùng được cho dev, **trừ khóa truy cập kho tệp**: các dòng `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `BACKUP_STORAGE_ACCESS_KEY`, `BACKUP_STORAGE_SECRET_KEY` để trống và phải sinh bằng script bootstrap (một lần, ở bước 1b).
+
+### Bước 1b — Tạo bucket và khóa cho kho tệp (Garage)
+
+```bash
+docker compose up -d garage
+# Xóa 4 dòng khóa rỗng trong .env trước khi nối khóa thật
+sed -i '/^\(MINIO_ACCESS_KEY\|MINIO_SECRET_KEY\|BACKUP_STORAGE_ACCESS_KEY\|BACKUP_STORAGE_SECRET_KEY\)=/d' .env
+bash scripts/garage_bootstrap.sh >> .env     # tạo bucket + 2 khóa; in khóa MỘT lần vào .env
+chmod 600 .env
+```
+
+Chạy lại script là an toàn (không tạo thêm, không in gì). Nếu mất khóa: `docker compose exec garage /garage key info hrms-app --show-secret`.
 
 ---
 
@@ -61,7 +73,6 @@ frontend  | VITE v6.x  ready in xxx ms  ➜  Local: http://localhost:5173/
 | **Backend API Docs (Swagger)** | http://localhost:8000/api/docs |
 | **Backend API Docs (ReDoc)** | http://localhost:8000/api/redoc |
 | **Health check** | http://localhost:8000/health |
-| **MinIO Web Console** | http://localhost:9001 |
 
 **Kết nối DB từ DBeaver / TablePlus (máy host):**
 
@@ -73,13 +84,14 @@ frontend  | VITE v6.x  ready in xxx ms  ➜  Local: http://localhost:5173/
 | Username | `postgres` |
 | Password | `postgres` (theo `.env`) |
 
-**MinIO** (Object Storage cho file đính kèm):
+**Garage** (kho tệp S3 cho file đính kèm và đích sao lưu):
 
 | Trường | Giá trị |
 |---|---|
-| S3 API | `localhost:9000` |
-| Web Console | http://localhost:9001 (user: `minioadmin` / pass: `minioadmin`) |
-| Bucket mặc định | `hrms-attachments` |
+| S3 API | `garage:3900`, **chỉ trong mạng compose** (không publish cổng ra máy host) |
+| Web Console | Không có. Dùng CLI: `docker compose exec garage /garage ...` (xem "Vào shell container") |
+| Bucket mặc định | `hrms-attachments-dev` (tệp ứng dụng), `hrms-backup` (sao lưu) |
+| Khóa truy cập | Sinh bằng `scripts/garage_bootstrap.sh` (bước 1b), không có mặc định |
 
 **Redis** expose tại `localhost:6380` (local Redis mặc định vẫn ở 6379).
 
@@ -218,10 +230,14 @@ docker compose exec db psql -U postgres -d hrms
 # Shell Redis
 docker compose exec redis redis-cli
 
-# MinIO — kiểm tra bucket và object
-docker compose exec minio mc alias set local http://localhost:9000 minioadmin minioadmin
-docker compose exec minio mc ls local/hrms-attachments
+# Garage — tình trạng cụm, bucket, dung lượng và số object
+docker compose exec garage /garage health
+docker compose exec garage /garage status
+docker compose exec garage /garage bucket list
+docker compose exec garage /garage bucket info hrms-attachments-dev
 ```
+
+Bucket do ứng dụng hoặc Backup Console tạo qua S3 chỉ có bí danh cục bộ nên `bucket info <tên>` báo `NoSuchBucket`; dùng ID lấy từ `bucket list`. Liệt kê, tải và xóa object của kho sao lưu: `scripts/backup_fetch.py` (xem `scripts/restore_procedure.md`).
 
 ### Chạy dev với dữ liệu vừa khôi phục
 
@@ -322,19 +338,22 @@ docker compose logs db
 docker compose ps db
 ```
 
-### MinIO lỗi kết nối / không upload được
+### Kho tệp (Garage) lỗi kết nối / không upload được
 
 ```bash
-# Kiểm tra MinIO đang chạy và healthy
-docker compose ps minio
-docker compose logs minio
+# Kiểm tra Garage đang chạy và healthy
+docker compose ps garage
+docker compose logs garage
+docker compose exec garage /garage health
 
-# Kiểm tra bucket đã được tạo chưa (backend tự tạo khi khởi động)
+# Kiểm tra backend mở được bucket cấu hình (MINIO_BUCKET) bằng khóa trong .env
 docker compose exec backend python -c "from app.core.storage import ensure_bucket; ensure_bucket(); print('OK')"
 
-# Nếu backend khởi động trước khi MinIO healthy, restart backend
+# Nếu backend khởi động trước khi Garage healthy, restart backend
 docker compose restart backend
 ```
+
+Hai lỗi đã gặp: `AuthorizationHeaderMalformed` khi thiếu `MINIO_REGION=garage` (hoặc `BACKUP_STORAGE_REGION=garage`); `AccessDenied` khi khóa không có quyền trên bucket, hoặc khi cấu hình trong Backup Console (`source_endpoint`, `source_bucket`) còn trỏ về nơi cũ vì cấu hình này **ghi đè** `.env` (xem `scripts/restore_procedure.md`, mục 7).
 
 ### Reset hoàn toàn để bắt đầu lại
 
@@ -353,7 +372,7 @@ HRMS/
 ├── frontend/           Vue 3 + PrimeVue v4 + TypeScript
 ├── nginx/              Cấu hình reverse proxy (production)
 ├── docs/               Tài liệu dự án
-├── docker-compose.yml          Dev (PostgreSQL · Redis · MinIO · Backend · Frontend)
+├── docker-compose.yml          Dev (PostgreSQL · Redis · Garage · Backend · Frontend)
 ├── docker-compose.prod.yml     Production
 └── .env.example
 ```

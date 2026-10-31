@@ -1,5 +1,7 @@
 # Kế hoạch triển khai — 9.3. Chứng chỉ
 
+> **Ghi chú (2026-10-31):** kho tệp đã chuyển từ MinIO sang Garage (kế hoạch 15.7, `docs/plan_15.7_chuyen_minio_sang_garage.md`). Tài liệu này là bản lịch sử, giữ nguyên nội dung lúc viết: các lệnh MinIO/`mc` và các script, image sao lưu cũ (`backup_db.sh`, `backup_minio.sh`, `hrms-backup`) không còn dùng được. Hướng dẫn hiện hành: `scripts/restore_procedure.md` và `docs/deploy_noi_bo_lan_ubuntu_26_04.md`.
+
 **Phạm vi:** Quản lý chứng chỉ nhân viên · Cảnh báo sắp hết hạn · Lưu file chứng chỉ  
 **Phụ thuộc:** `9.1 Khóa đào tạo` (training_courses cho related_course_id)  
 **Căn cứ nghiệp vụ:** FEATURES.md §9.3

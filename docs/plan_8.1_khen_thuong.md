@@ -1,5 +1,7 @@
 # Kế hoạch triển khai — 8.1. Khen thưởng
 
+> **Ghi chú (2026-10-31):** kho tệp đã chuyển từ MinIO sang Garage (kế hoạch 15.7, `docs/plan_15.7_chuyen_minio_sang_garage.md`). Tài liệu này là bản lịch sử, giữ nguyên nội dung lúc viết: các lệnh MinIO/`mc` và các script, image sao lưu cũ (`backup_db.sh`, `backup_minio.sh`, `hrms-backup`) không còn dùng được. Hướng dẫn hiện hành: `scripts/restore_procedure.md` và `docs/deploy_noi_bo_lan_ubuntu_26_04.md`.
+
 **Phạm vi:** Quản lý danh mục loại khen thưởng · Tạo/sửa/xóa quyết định khen thưởng · Lưu file quyết định · Lịch sử khen thưởng trong hồ sơ nhân viên  
 **Phụ thuộc:** `3.1 Thông tin nhân viên` ✅ · `1.1 Cơ cấu tổ chức` ✅ · MinIO file storage ✅  
 **Căn cứ nghiệp vụ:** FEATURES.md §8.1

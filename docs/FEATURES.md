@@ -400,7 +400,7 @@
 - Học vấn: trường, chuyên ngành, trình độ, năm tốt nghiệp
 - Kinh nghiệm làm việc: công ty, vị trí, thời gian, mô tả
 - Kỹ năng, chứng chỉ, ngoại ngữ
-- Upload và lưu trữ file đính kèm: **CV (PDF/Word), bằng cấp, CCCD scan, ảnh thẻ** — lưu trên MinIO theo cùng cơ chế file đính kèm hiện có
+- Upload và lưu trữ file đính kèm: **CV (PDF/Word), bằng cấp, CCCD scan, ảnh thẻ** — lưu trên kho tệp ứng dụng (Garage) theo cùng cơ chế file đính kèm hiện có
 - Ghi chú nội bộ (không hiển thị với ứng viên)
 - **Tái sử dụng hồ sơ**: ứng viên cũ có thể được gắn vào JR mới (talent pool)
 
@@ -492,7 +492,7 @@
   - Sổ BHXH (nếu đã tham gia trước)
   - Giấy phép lao động *(đối với người nước ngoài)*
 - Theo dõi trạng thái từng giấy tờ: **Chưa nộp / Đã nộp / Hết hạn**
-- File scan giấy tờ lưu trên MinIO theo cùng cơ chế `employee_attachments` hiện có
+- File scan giấy tờ lưu trên kho tệp ứng dụng (Garage) theo cùng cơ chế `employee_attachments` hiện có
 - Cảnh báo giấy tờ còn thiếu hoặc sắp hết hạn
 
 #### Đăng ký lao động với cơ quan Nhà nước
@@ -607,14 +607,14 @@
 
 ### 15.4. Lưu trữ file
 
-- Toàn bộ file đính kèm (hồ sơ nhân sự, hợp đồng, tài liệu vị trí...) lưu trên **MinIO** (S3-compatible object storage, tự host)
-- Download file proxy qua FastAPI — không expose trực tiếp URL MinIO ra ngoài
+- Toàn bộ file đính kèm (hồ sơ nhân sự, hợp đồng, tài liệu vị trí...) lưu trên **Garage** (S3-compatible object storage, tự host; trước kế hoạch 15.7 là MinIO)
+- Download file proxy qua FastAPI — không expose trực tiếp URL kho tệp ra ngoài
 - Bucket tách biệt theo môi trường (`hrms-attachments-dev`, `hrms-attachments-prod`)
-- Sao lưu bucket MinIO định kỳ (tương tự DB backup)
+- Sao lưu kho tệp định kỳ cùng bộ sao lưu với DB (Backup Console: snapshot kho tệp và dump DB)
 
 ### 15.5. Vận hành
 - Môi trường: DEV / STAGING / PRODUCTION
-- Sao lưu dữ liệu hàng ngày (PostgreSQL + MinIO), lưu trữ tối thiểu 90 ngày
+- Sao lưu dữ liệu hàng ngày (PostgreSQL + kho tệp), lưu trữ tối thiểu 90 ngày
 - CI/CD pipeline
 - Giám sát lỗi (Error monitoring)
 - SLA: khả dụng 99.5%

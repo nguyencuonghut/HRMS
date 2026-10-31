@@ -1,5 +1,7 @@
 # Kế hoạch triển khai — 13.6. Hồ sơ pháp lý & Tuân thủ
 
+> **Ghi chú (2026-10-31):** kho tệp đã chuyển từ MinIO sang Garage (kế hoạch 15.7, `docs/plan_15.7_chuyen_minio_sang_garage.md`). Tài liệu này là bản lịch sử, giữ nguyên nội dung lúc viết: các lệnh MinIO/`mc` và các script, image sao lưu cũ (`backup_db.sh`, `backup_minio.sh`, `hrms-backup`) không còn dùng được. Hướng dẫn hiện hành: `scripts/restore_procedure.md` và `docs/deploy_noi_bo_lan_ubuntu_26_04.md`.
+
 **Phạm vi:** Checklist hồ sơ nhân viên mới · Theo dõi trạng thái giấy tờ · Nhắc báo cáo biến động lao động  
 **Phụ thuộc:** `13.5 hiring_decisions` (employee_id sau convert) · `employees` ✅ · `reminder_service` ✅ · MinIO ✅  
 **Căn cứ nghiệp vụ:** FEATURES.md §13.6  

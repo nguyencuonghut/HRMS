@@ -59,11 +59,12 @@
 
 ## 4. Backup & Disaster Recovery
 
-| Item | Lịch | Retention | Script |
+| Item | Lịch | Retention | Công cụ |
 |---|---|---|---|
-| PostgreSQL backup | 02:00 hàng ngày | 90 ngày | `scripts/backup_db.sh` |
-| MinIO mirror | 03:00 hàng ngày | 90 ngày | `scripts/backup_minio.sh` |
-| Test restore | Mỗi tháng 1 lần (staging) | — | `scripts/restore_procedure.md` |
+| Bộ sao lưu đầy đủ (dump PostgreSQL + snapshot kho tệp) | Theo Backup Console, mặc định 02:00 hàng ngày | 90 ngày (cấu hình ở Backup Console) | Backup Console (`celery_beat` + `celery_worker`), lưu trong bucket `hrms-backup` của Garage |
+| Test restore | Mỗi tháng 1 lần (staging) | — | `scripts/restore_procedure.md` (mục 6) |
+
+Giới hạn hiện tại: bản sao lưu nằm trong cùng Garage, cùng máy và cùng ổ đĩa với dữ liệu thật; **chưa có bản sao lưu ngoài máy** (rủi ro R5 và việc D2 trong `docs/plan_15.7_chuyen_minio_sang_garage.md`).
 
 ---
 
@@ -98,7 +99,7 @@ Downtime có lịch **không tính** vào SLA nếu đã thông báo đúng hạ
 - [ ] Restore drill đã thực hiện trên staging
 - [ ] `DEBUG=false`, `ENVIRONMENT=production`
 - [ ] CORS origins chỉ cho phép domain production
-- [ ] MinIO `MINIO_SECURE=true` với TLS certificate
+- [ ] Garage: cổng S3 (3900) không publish ra máy chủ và `GARAGE_RPC_SECRET`, `GARAGE_ADMIN_TOKEN` là giá trị ngẫu nhiên riêng của production (`MINIO_SECURE=false` là đúng: lưu lượng chỉ trong mạng compose; TLS do nginx cho người dùng)
 - [ ] Load test k6 pass (p95 < 800ms / 200 users)
 - [ ] Production seed đã chạy đúng flow: `python -m app.seeds` → `python -m app.seeds --bootstrap` → `python -m app.seeds --bootstrap-admin`
 - [ ] Không chạy `--local-users` hoặc `--sample` trên production

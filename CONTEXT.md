@@ -37,4 +37,4 @@ _Avoid_: restore, khôi phục đè
 
 ## Flagged ambiguities
 
-- Nhãn cũ "Kho tệp ứng dụng trên MinIO" gắn tên công nghệ vào thuật ngữ. Đã quyết định (2026-10-30): chỉ dùng **Kho tệp ứng dụng**, để lần đổi công nghệ sau không phải sửa giao diện, test và dữ liệu hiển thị. Code và test e2e hiện vẫn dùng nhãn cũ; đổi ở Slice 3 của `docs/plan_15.7_chuyen_minio_sang_garage.md`.
+- Nhãn cũ "Kho tệp ứng dụng trên MinIO" gắn tên công nghệ vào thuật ngữ. Đã quyết định (2026-10-30): chỉ dùng **Kho tệp ứng dụng**, để lần đổi công nghệ sau không phải sửa giao diện, test và dữ liệu hiển thị. Đã đổi trong code và test e2e ở Slice 3 của `docs/plan_15.7_chuyen_minio_sang_garage.md` (2026-10-31: `grep` không còn nhãn cũ trong `backend` và `frontend`).
