@@ -245,7 +245,7 @@ CORS_ORIGINS=["https://hrms.company.vn"]
 GARAGE_RPC_SECRET=<openssl rand -hex 32>
 GARAGE_ADMIN_TOKEN=<openssl rand -hex 32>
 
-# Kho tệp: tên biến là S3_*; tên cũ MINIO_* vẫn được đọc khi không có tên mới (kế hoạch 15.7, Slice 10)
+# Kho tệp: tên biến là S3_* (tên cũ MINIO_* đã được gỡ, kế hoạch 15.7 Slice 10)
 S3_ENDPOINT=garage:3900
 S3_REGION=garage
 S3_SECURE=false

@@ -1,6 +1,8 @@
-"""Tên biến kho tệp ứng dụng: S3_* là tên chính, MINIO_* vẫn được đọc làm dự phòng (kế hoạch 15.7, Slice 10).
+"""Tên biến kho tệp ứng dụng là S3_*; tên cũ MINIO_* không còn được đọc (kế hoạch 15.7, Slice 10).
 
-`.env` production hiện chỉ có tên MINIO_*; cập nhật mã không được làm backend mất cấu hình kho tệp.
+Tên cũ đã được gỡ sau khi `.env` production đổi sang S3_*. Gỡ mà không báo lỗi thì một `.env` còn tên cũ sẽ chạy
+ngầm bằng giá trị mặc định; ở production, giá trị mặc định bị validator từ chối nên backend không khởi động và
+thông báo nêu đúng tên mới cần đặt.
 """
 
 import pytest
@@ -18,11 +20,6 @@ def clean_storage_env(monkeypatch):
         monkeypatch.delenv(f"MINIO_{suffix}", raising=False)
 
 
-def _set(monkeypatch, prefix: str, **values: str) -> None:
-    for suffix, value in values.items():
-        monkeypatch.setenv(f"{prefix}_{suffix}", value)
-
-
 _VALUES = dict(
     ENDPOINT="garage:3900",
     ACCESS_KEY="GKtestaccess",
@@ -33,8 +30,21 @@ _VALUES = dict(
     BACKUP_CRON="5 4 * * *",
 )
 
+_PRODUCTION = dict(
+    ENVIRONMENT="production",
+    SECRET_KEY="a" * 64,
+    ENCRYPTION_KEY="prod-encryption-key",
+    CORS_ORIGINS=["https://hrms.example.com"],
+    REFRESH_TOKEN_COOKIE_SECURE=True,
+)
 
-def _assert_values(cfg: Settings) -> None:
+
+def test_reads_the_s3_names(monkeypatch):
+    for suffix, value in _VALUES.items():
+        monkeypatch.setenv(f"S3_{suffix}", value)
+
+    cfg = Settings(_env_file=None)
+
     assert cfg.S3_ENDPOINT == "garage:3900"
     assert cfg.S3_ACCESS_KEY == "GKtestaccess"
     assert cfg.S3_SECRET_KEY == "test-secret-value-1234567890"
@@ -45,32 +55,29 @@ def _assert_values(cfg: Settings) -> None:
     assert cfg.s3_bucket_name == "hrms-attachments-test"
 
 
-def test_reads_the_new_s3_names(monkeypatch):
-    _set(monkeypatch, "S3", **_VALUES)
-    _assert_values(Settings(_env_file=None))
+def test_the_old_minio_names_are_no_longer_read(monkeypatch):
+    for suffix, value in _VALUES.items():
+        monkeypatch.setenv(f"MINIO_{suffix}", value)
+
+    cfg = Settings(_env_file=None)
+
+    assert cfg.S3_ENDPOINT == "minio:9000"          # mặc định, không phải garage:3900
+    assert cfg.S3_ACCESS_KEY == "minioadmin"
+    assert cfg.S3_BUCKET == ""
+    assert cfg.S3_REGION == ""
+    assert cfg.S3_BACKUP_CRON == "0 3 * * *"
 
 
-def test_still_reads_the_old_minio_names(monkeypatch):
-    """Trạng thái `.env` production hiện nay: chỉ có MINIO_*."""
-    _set(monkeypatch, "MINIO", **_VALUES)
-    _assert_values(Settings(_env_file=None))
+def test_production_with_only_the_old_names_refuses_to_start_and_names_the_new_variable(monkeypatch):
+    for suffix in ("ENDPOINT", "ACCESS_KEY", "SECRET_KEY"):
+        monkeypatch.setenv(f"MINIO_{suffix}", _VALUES[suffix])
+
+    with pytest.raises(ValidationError, match="S3_ENDPOINT"):
+        Settings(_env_file=None, **_PRODUCTION)
 
 
-def test_new_names_win_when_both_are_set(monkeypatch):
-    _set(monkeypatch, "MINIO", **{**_VALUES, "ENDPOINT": "old-host:9000", "BUCKET": "old-bucket"})
-    _set(monkeypatch, "S3", **_VALUES)
-    _assert_values(Settings(_env_file=None))
-
-
-def test_production_rejects_default_credentials_and_names_the_new_variable(monkeypatch):
-    base = dict(
-        ENVIRONMENT="production",
-        SECRET_KEY="a" * 64,
-        ENCRYPTION_KEY="prod-encryption-key",
-        CORS_ORIGINS=["https://hrms.example.com"],
-        REFRESH_TOKEN_COOKIE_SECURE=True,
-        S3_ENDPOINT="s3.example.com",
-    )
+def test_production_rejects_default_credentials_and_names_the_variable():
+    base = {**_PRODUCTION, "S3_ENDPOINT": "s3.example.com"}
     with pytest.raises(ValidationError, match="S3_ACCESS_KEY"):
         Settings(_env_file=None, S3_ACCESS_KEY="minioadmin", S3_SECRET_KEY="prod-secret-key", **base)
     with pytest.raises(ValidationError, match="S3_SECRET_KEY"):

@@ -325,17 +325,20 @@ BOOTSTRAP_ADMIN_FULL_NAME=System Administrator
 BOOTSTRAP_ADMIN_PASSWORD=<mat-khau-admin-dau-tien>
 ```
 
-Sinh hai giá trị Garage bằng `openssl rand -hex 32` (mỗi lần chạy một chuỗi 64 ký tự hex) và dán vào `.env`. Khóa truy cập S3 **không tự gõ**: script bootstrap sinh chúng (mục 8.1b). Tên biến kho tệp là `S3_*`; tên cũ `MINIO_*` vẫn được đọc khi không có tên mới (có cả hai thì `S3_*` thắng).
+Sinh hai giá trị Garage bằng `openssl rand -hex 32` (mỗi lần chạy một chuỗi 64 ký tự hex) và dán vào `.env`. Khóa truy cập S3 **không tự gõ**: script bootstrap sinh chúng (mục 8.1b). Tên biến kho tệp là `S3_*`. Tên cũ `MINIO_*` đã được gỡ khỏi mã (kế hoạch 15.7, Slice 10).
 
-**Đổi tên biến trong `.env` hiện có (tùy chọn).** Mã vẫn đọc tên cũ `MINIO_*` khi không có tên mới nên `.env` đang chạy không bắt buộc phải đổi. Nếu muốn đổi cho thống nhất, chỉ làm khi `.env` chưa có dòng `S3_*` nào, rồi tạo lại container để nhận tên mới:
+**Nâng cấp từ `.env` dùng tên cũ `MINIO_*` (bắt buộc, làm một lần).** Mã và compose mới **không còn đọc** tên cũ: nếu `.env` còn `MINIO_*` thì `S3_ENDPOINT`, khóa và bucket đều rỗng và backend ở production không khởi động (`S3_ENDPOINT bắt buộc` hoặc `đang dùng giá trị mặc định`). Vì vậy **đổi tên `.env` TRƯỚC khi `git pull` và dựng lại image bản mới**. Bản mã trước đó (`ce2d5e8`) đã đọc `S3_*` trước tên cũ nên đổi tên sớm không làm hỏng gì.
 
 ```bash
 cd /opt/hrms/HRMS
 grep -c '^S3_' .env                       # phải in 0; khác 0 nghĩa là đã có tên mới, đừng chạy lệnh dưới
 cp -p .env ~/hrms_env_before_s3rename_$(date +%Y%m%d-%H%M%S) && chmod 600 ~/hrms_env_before_s3rename_*
 sed -i 's/^MINIO_\(ENDPOINT\|ACCESS_KEY\|SECRET_KEY\|BUCKET\|SECURE\|REGION\|BACKUP_CRON\)=/S3_\1=/' .env
-grep -c '^MINIO_' .env                    # phải in 0
+grep -oE '^(S3_|MINIO_)[A-Z_]+' .env | sort | tr '\n' ' '   # chỉ còn tên S3_*, không còn MINIO_*
+docker compose -f docker-compose.lan.yml config | grep -E '^\s+S3_' | sed -E 's/(S3_(ACCESS|SECRET)_KEY: ).*/\1<ẩn>/' | sort -u
 ```
+
+Lệnh cuối phải cho đúng `S3_ENDPOINT`, `S3_BUCKET`, `S3_REGION` như trước khi đổi (hai khóa bị ẩn). Dòng chú thích bắt đầu bằng `#` không bị đụng tới, và chú thích cùng dòng (ví dụ sau `S3_SECURE=false`) được giữ nguyên.
 
 
 Giải thích:

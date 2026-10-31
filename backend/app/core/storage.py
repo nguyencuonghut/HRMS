@@ -12,6 +12,7 @@ from minio.error import S3Error
 
 from app.core.circuit_breaker import CircuitOpenError, minio_circuit
 from app.core.config import settings
+from app.core.s3_client import build_s3_client
 
 # ── File validation constants ─────────────────────────────────────────────────
 
@@ -89,12 +90,12 @@ async def validate_upload(upload: UploadFile, *, check_type: bool = True) -> byt
 
 
 def _client() -> Minio:
-    return Minio(
-        endpoint=settings.S3_ENDPOINT,
-        access_key=settings.S3_ACCESS_KEY,
-        secret_key=settings.S3_SECRET_KEY,
-        secure=settings.S3_SECURE,
-        region=settings.S3_REGION or None,
+    return build_s3_client(
+        settings.S3_ENDPOINT,
+        settings.S3_ACCESS_KEY,
+        settings.S3_SECRET_KEY,
+        settings.S3_SECURE,
+        settings.S3_REGION,
     )
 
 

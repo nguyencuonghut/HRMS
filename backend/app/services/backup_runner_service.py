@@ -16,9 +16,9 @@ from minio import Minio
 from sqlalchemy import text
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncSession
-from urllib3 import PoolManager, Timeout
 
 from app.core.config import settings
+from app.core.s3_client import build_s3_client
 from app.models.backup import BackupConfig
 
 BACKUP_STREAM_CHUNK_SIZE = 1024 * 1024
@@ -53,6 +53,10 @@ def _target_values(config: BackupConfig) -> tuple[str, str, bool]:
     return endpoint, bucket, secure
 
 
+# (chờ kết nối, chờ đọc) giây.
+_CLIENT_TIMEOUT = (5.0, 120.0)
+
+
 def _source_values(config: BackupConfig) -> tuple[str, str, bool, str, str]:
     endpoint = _normalize_endpoint(
         config.source_endpoint
@@ -83,33 +87,20 @@ def _source_secure_fallback() -> bool:
     return settings.S3_SECURE
 
 
-def _minio_client(endpoint: str, access_key: str, secret_key: str, secure: bool, region: str = "") -> Minio:
-    return Minio(
-        endpoint=endpoint,
-        access_key=access_key,
-        secret_key=secret_key,
-        secure=secure,
-        region=region or None,
-        http_client=PoolManager(
-            timeout=Timeout(connect=5.0, read=120.0),
-            retries=False,
-        ),
-    )
-
-
 def _source_client(config: BackupConfig) -> tuple[Minio, str]:
     endpoint, bucket, secure, access_key, secret_key = _source_values(config)
-    return _minio_client(endpoint, access_key, secret_key, secure, settings.S3_REGION), bucket
+    return build_s3_client(endpoint, access_key, secret_key, secure, settings.S3_REGION, timeout=_CLIENT_TIMEOUT), bucket
 
 
 def _target_client(config: BackupConfig) -> tuple[Minio, str]:
     endpoint, bucket, secure = _target_values(config)
-    client = _minio_client(
+    client = build_s3_client(
         endpoint,
         settings.BACKUP_STORAGE_ACCESS_KEY.strip(),
         settings.BACKUP_STORAGE_SECRET_KEY.strip(),
         secure,
         settings.BACKUP_STORAGE_REGION,
+        timeout=_CLIENT_TIMEOUT,
     )
     if not client.bucket_exists(bucket):
         client.make_bucket(bucket)

@@ -9,13 +9,12 @@ from typing import Awaitable, Callable
 from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo
 
-from minio import Minio
 from sqlalchemy import select
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncSession
-from urllib3 import PoolManager, Timeout
 
 from app.core.config import settings
+from app.core.s3_client import build_s3_client
 from app.models.backup import BackupConfig, BackupJob, BackupSet, RestoreRequest
 from app.schemas.backup import (
     BackupConfigResponse,
@@ -537,17 +536,13 @@ def job_response(row: BackupJob) -> BackupJobSummary:
 
 
 def _probe_target_bucket(endpoint: str, bucket: str, secure: bool) -> tuple[bool, str]:
-    http_client = PoolManager(
-        timeout=Timeout(connect=1.5, read=2.0),
-        retries=False,
-    )
-    client = Minio(
-        endpoint=endpoint,
-        access_key=settings.BACKUP_STORAGE_ACCESS_KEY.strip(),
-        secret_key=settings.BACKUP_STORAGE_SECRET_KEY.strip(),
-        secure=secure,
-        region=settings.BACKUP_STORAGE_REGION or None,
-        http_client=http_client,
+    client = build_s3_client(
+        endpoint,
+        settings.BACKUP_STORAGE_ACCESS_KEY.strip(),
+        settings.BACKUP_STORAGE_SECRET_KEY.strip(),
+        secure,
+        settings.BACKUP_STORAGE_REGION,
+        timeout=(1.5, 2.0),
     )
     if not client.bucket_exists(bucket):
         return False, "Không tìm thấy kho lưu trữ đích sao lưu."

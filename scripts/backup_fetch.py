@@ -17,7 +17,7 @@ Chạy trong container backend (đã có SDK `minio` và các biến môi trư�
   delete-bucket  xóa mọi object rồi xóa BUCKET, để dọn kho thử sau khi kiểm tra khôi phục. Từ chối nếu BUCKET trùng
                  S3_BUCKET hoặc BACKUP_STORAGE_BUCKET (kho đang dùng). Không hoàn tác được.
 
-Khóa sao lưu (BACKUP_STORAGE_*) dùng để đọc kho sao lưu; khóa ứng dụng (S3_*, tên cũ MINIO_* vẫn được đọc) dùng để tạo và ghi bucket đích.
+Khóa sao lưu (BACKUP_STORAGE_*) dùng để đọc kho sao lưu; khóa ứng dụng (S3_*) dùng để tạo và ghi bucket đích.
 Không bao giờ in giá trị bí mật. Thông báo đi ra stderr để stdout của `get` chỉ có dữ liệu.
 """
 from __future__ import annotations
@@ -33,24 +33,18 @@ def env(name: str, default: str = "") -> str:
     return os.environ.get(name, default).strip()
 
 
-def app_env(suffix: str, default: str = "") -> str:
-    """Biến của kho tệp ứng dụng: S3_* là tên chính, MINIO_* là tên cũ vẫn được đọc (kế hoạch 15.7, Slice 10)."""
-    return env(f"S3_{suffix}", env(f"MINIO_{suffix}", default))
-
-
 def client(prefix: str) -> Minio:
-    """prefix "S3" là kho tệp ứng dụng (đọc cả tên cũ MINIO_*); "BACKUP_STORAGE" là kho sao lưu."""
-    get = app_env if prefix == "S3" else (lambda suffix, default="": env(f"{prefix}_{suffix}", default))
-    endpoint = get("ENDPOINT")
+    """prefix "S3" là kho tệp ứng dụng; "BACKUP_STORAGE" là kho sao lưu."""
+    endpoint = env(f"{prefix}_ENDPOINT")
     if not endpoint:
         sys.exit(f"LỖI: thiếu {prefix}_ENDPOINT trong môi trường")
-    secure = get("SECURE", "false").lower() in ("1", "true", "yes", "on")
+    secure = env(f"{prefix}_SECURE", "false").lower() in ("1", "true", "yes", "on")
     return Minio(
         endpoint,
-        access_key=get("ACCESS_KEY"),
-        secret_key=get("SECRET_KEY"),
+        access_key=env(f"{prefix}_ACCESS_KEY"),
+        secret_key=env(f"{prefix}_SECRET_KEY"),
         secure=secure,
-        region=get("REGION") or None,
+        region=env(f"{prefix}_REGION") or None,
     )
 
 
@@ -120,7 +114,7 @@ def cmd_delete_bucket(args: list[str]) -> int:
     if len(args) != 1:
         sys.exit("LỖI: delete-bucket cần đúng một BUCKET")
     name = args[0]
-    in_use = {app_env("BUCKET"), env("BACKUP_STORAGE_BUCKET", "hrms-backup")}
+    in_use = {env("S3_BUCKET"), env("BACKUP_STORAGE_BUCKET", "hrms-backup")}
     if name in in_use:
         sys.exit(f"LỖI: {name} đang được cấu hình dùng (S3_BUCKET hoặc BACKUP_STORAGE_BUCKET); không xóa.")
     target = client("S3")

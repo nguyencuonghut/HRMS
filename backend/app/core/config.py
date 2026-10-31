@@ -3,7 +3,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import AliasChoices, Field, field_validator, model_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _log = logging.getLogger(__name__)
@@ -32,7 +32,7 @@ _BASE_DIR = Path(__file__).resolve().parents[2]
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore", validate_by_name=True, validate_by_alias=True)
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     APP_NAME: str = "Hồng Hà HRMS"
     APP_VERSION: str = "1.0.0"
@@ -128,16 +128,16 @@ class Settings(BaseSettings):
     REDIS_URL:      str = "redis://localhost:6379/0"
     REDIS_PASSWORD: str = ""   # Nếu set → production mode có password
 
-    # Kho tệp ứng dụng (S3 API; Garage). S3_* là tên chính. MINIO_* là tên cũ, vẫn được đọc khi không có tên mới
-    # (kế hoạch 15.7, Slice 10): `.env` production hiện chỉ có tên cũ. Có cả hai thì S3_* thắng.
-    S3_ENDPOINT:   str  = Field("minio:9000", validation_alias=AliasChoices("S3_ENDPOINT", "MINIO_ENDPOINT"))
-    S3_ACCESS_KEY: str  = Field("minioadmin", validation_alias=AliasChoices("S3_ACCESS_KEY", "MINIO_ACCESS_KEY"))
-    S3_SECRET_KEY: str  = Field("minioadmin", validation_alias=AliasChoices("S3_SECRET_KEY", "MINIO_SECRET_KEY"))
-    S3_BUCKET:     str  = Field("", validation_alias=AliasChoices("S3_BUCKET", "MINIO_BUCKET"))
-    S3_SECURE:     bool = Field(False, validation_alias=AliasChoices("S3_SECURE", "MINIO_SECURE"))
+    # Kho tệp ứng dụng (S3 API; Garage). Tên cũ MINIO_* đã được gỡ (kế hoạch 15.7, Slice 10): `.env` còn tên cũ thì các
+    # biến này nhận giá trị mặc định, và ở production validator bên dưới từ chối khởi động.
+    S3_ENDPOINT:   str  = "minio:9000"
+    S3_ACCESS_KEY: str  = "minioadmin"
+    S3_SECRET_KEY: str  = "minioadmin"
+    S3_BUCKET:     str  = ""
+    S3_SECURE:     bool = False
     # Region ký yêu cầu S3 của kho tệp ứng dụng và nguồn sao lưu. Để trống = SDK tự dò (MinIO).
     # Garage từ chối chữ ký sai region nên phải đặt "garage" (kế hoạch 15.7, Slice 1).
-    S3_REGION:     str  = Field("", validation_alias=AliasChoices("S3_REGION", "MINIO_REGION"))
+    S3_REGION:     str  = ""
 
     @model_validator(mode="after")
     def validate_s3_configuration(self) -> "Settings":
@@ -232,7 +232,7 @@ class Settings(BaseSettings):
     BACKUP_TEMP_DIR: str = "/backups/tmp"
     BACKUP_RETENTION_DAYS: int = 90
     DB_BACKUP_CRON: str = "0 2 * * *"
-    S3_BACKUP_CRON: str = Field("0 3 * * *", validation_alias=AliasChoices("S3_BACKUP_CRON", "MINIO_BACKUP_CRON"))
+    S3_BACKUP_CRON: str = "0 3 * * *"
     SOURCE_ALIAS: str = "local"
     SOURCE_STORAGE_ENDPOINT: str = ""
     SOURCE_STORAGE_ACCESS_KEY: str = ""

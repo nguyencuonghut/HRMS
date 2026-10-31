@@ -140,13 +140,13 @@ async def _run_dependency_checks() -> tuple[dict[str, str], bool]:
         checks["redis"] = f"error: {exc}"
         all_ok = False
 
-    # MinIO
+    # Kho tệp ứng dụng (S3)
     try:
         from app.core.storage import _client, bucket_name
         _client().bucket_exists(bucket_name())
-        checks["minio"] = "ok"
+        checks["storage"] = "ok"
     except Exception as exc:
-        checks["minio"] = f"error: {exc}"
+        checks["storage"] = f"error: {exc}"
         all_ok = False
 
     return checks, all_ok
@@ -162,7 +162,7 @@ async def liveness() -> dict:
 
 @app.get("/health/ready", tags=["System"], summary="Readiness probe")
 async def readiness():
-    """Kubernetes readiness probe — kiểm tra DB + Redis + MinIO.
+    """Kubernetes readiness probe — kiểm tra DB + Redis + kho tệp (S3).
     Trả về 503 nếu bất kỳ dependency nào fail → k8s ngừng route traffic vào.
     """
     from fastapi.responses import JSONResponse

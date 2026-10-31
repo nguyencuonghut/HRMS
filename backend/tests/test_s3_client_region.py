@@ -9,7 +9,9 @@ Không cần cơ sở dữ liệu.
 from __future__ import annotations
 
 import re
+import socket
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from types import SimpleNamespace
 from urllib.parse import urlsplit
@@ -190,3 +192,66 @@ def test_restore_runner_writes_the_files_back_with_the_app_storage_region(monkey
     restore._source_client().bucket_exists("hrms-attachments-dev")
 
     assert _methods_and_regions(s3) == [("HEAD", "garage")]
+
+
+# ── build_s3_client: nơi duy nhất tạo client S3 của ứng dụng ───────────────────────────────────────────────────
+
+
+class _SilentServer:
+    """Nhận kết nối TCP nhưng không bao giờ trả lời (đóng vai kho bị treo)."""
+
+    def __init__(self) -> None:
+        self._listener = socket.socket()
+        self._listener.bind(("127.0.0.1", 0))
+        self._listener.listen()
+        self.endpoint = f"127.0.0.1:{self._listener.getsockname()[1]}"
+        self._held: list[socket.socket] = []
+        threading.Thread(target=self._accept, daemon=True).start()
+
+    def _accept(self) -> None:
+        while True:
+            try:
+                connection, _ = self._listener.accept()
+            except OSError:
+                return
+            self._held.append(connection)
+
+    def close(self) -> None:
+        self._listener.close()
+        for connection in self._held:
+            connection.close()
+
+
+def test_build_s3_client_signs_with_the_given_region_without_probing_for_it(s3):
+    from app.core.s3_client import build_s3_client
+
+    build_s3_client(s3.endpoint, "GKtestaccess", "test-secret-value-1234567890", False, "garage").bucket_exists("any-bucket")
+
+    assert _methods_and_regions(s3) == [("HEAD", "garage")]
+
+
+@pytest.mark.parametrize("region", [None, ""])
+def test_build_s3_client_without_a_region_lets_the_sdk_discover_it(s3, region):
+    """`settings.S3_REGION` là chuỗi rỗng khi chưa đặt, nên "" phải được coi như không có."""
+    from app.core.s3_client import build_s3_client
+
+    build_s3_client(s3.endpoint, "GKtestaccess", "test-secret-value-1234567890", False, region).bucket_exists("any-bucket")
+
+    assert s3.requests[0]["method"] == "GET"
+    assert s3.requests[0]["query"] == "location="
+
+
+def test_build_s3_client_gives_up_when_the_store_does_not_answer_within_the_read_timeout():
+    from app.core.s3_client import build_s3_client
+
+    silent = _SilentServer()
+    try:
+        client = build_s3_client(
+            silent.endpoint, "GKtestaccess", "test-secret-value-1234567890", False, "garage", timeout=(1.0, 0.3)
+        )
+        started = time.monotonic()
+        with pytest.raises(Exception):
+            client.bucket_exists("any-bucket")
+        assert time.monotonic() - started < 2.0
+    finally:
+        silent.close()

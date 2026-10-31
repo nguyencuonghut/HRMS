@@ -12,9 +12,9 @@ from minio import Minio
 from sqlalchemy import select
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncSession
-from urllib3 import PoolManager, Timeout
 
 from app.core.config import settings
+from app.core.s3_client import build_s3_client
 from app.models.backup import BackupJob, RestoreRequest
 
 RESTORE_STREAM_CHUNK_SIZE = 1024 * 1024
@@ -26,6 +26,10 @@ RESTORE_MARKER_PREFIX = ".hrms-restore"
 class RestoreRunResult:
     status: str
     notes: str
+
+
+# (chờ kết nối, chờ đọc) giây; đọc lâu hơn vì khôi phục kho tệp chép các tệp lớn.
+_CLIENT_TIMEOUT = (5.0, 180.0)
 
 
 def _normalize_endpoint(raw: str | None) -> str:
@@ -41,37 +45,25 @@ def _source_secure_fallback() -> bool:
     return settings.S3_SECURE
 
 
-def _minio_client(endpoint: str, access_key: str, secret_key: str, secure: bool, region: str = "") -> Minio:
-    return Minio(
-        endpoint=endpoint,
-        access_key=access_key,
-        secret_key=secret_key,
-        secure=secure,
-        region=region or None,
-        http_client=PoolManager(
-            timeout=Timeout(connect=5.0, read=180.0),
-            retries=False,
-        ),
-    )
-
-
 def _backup_target_client() -> Minio:
-    return _minio_client(
+    return build_s3_client(
         _normalize_endpoint(settings.BACKUP_STORAGE_ENDPOINT),
         settings.BACKUP_STORAGE_ACCESS_KEY.strip(),
         settings.BACKUP_STORAGE_SECRET_KEY.strip(),
         settings.BACKUP_STORAGE_SECURE,
         settings.BACKUP_STORAGE_REGION,
+        timeout=_CLIENT_TIMEOUT,
     )
 
 
 def _source_client() -> Minio:
-    return _minio_client(
+    return build_s3_client(
         _normalize_endpoint(settings.SOURCE_STORAGE_ENDPOINT or settings.S3_ENDPOINT),
         (settings.SOURCE_STORAGE_ACCESS_KEY or settings.S3_ACCESS_KEY).strip(),
         (settings.SOURCE_STORAGE_SECRET_KEY or settings.S3_SECRET_KEY).strip(),
         _source_secure_fallback(),
         settings.S3_REGION,
+        timeout=_CLIENT_TIMEOUT,
     )
 
 

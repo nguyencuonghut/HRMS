@@ -26,14 +26,14 @@ cd HRMS
 cp .env.example .env
 ```
 
-File `.env` mặc định đã dùng được cho dev, **trừ khóa truy cập kho tệp**: các dòng `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `BACKUP_STORAGE_ACCESS_KEY`, `BACKUP_STORAGE_SECRET_KEY` để trống và phải sinh bằng script bootstrap (một lần, ở bước 1b). Tên biến kho tệp là `S3_*`; tên cũ `MINIO_*` vẫn được đọc khi không có tên mới (có cả hai thì `S3_*` thắng).
+File `.env` mặc định đã dùng được cho dev, **trừ khóa truy cập kho tệp**: các dòng `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `BACKUP_STORAGE_ACCESS_KEY`, `BACKUP_STORAGE_SECRET_KEY` để trống và phải sinh bằng script bootstrap (một lần, ở bước 1b). Tên biến kho tệp là `S3_*` (tên cũ `MINIO_*` đã được gỡ; xem mục nâng cấp trong `docs/deploy_noi_bo_lan_ubuntu_26_04.md` nếu `.env` còn tên cũ).
 
 ### Bước 1b — Tạo bucket và khóa cho kho tệp (Garage)
 
 ```bash
 docker compose up -d garage
 # Xóa 4 dòng khóa rỗng trong .env trước khi nối khóa thật
-sed -i '/^\(S3_ACCESS_KEY\|S3_SECRET_KEY\|MINIO_ACCESS_KEY\|MINIO_SECRET_KEY\|BACKUP_STORAGE_ACCESS_KEY\|BACKUP_STORAGE_SECRET_KEY\)=/d' .env
+sed -i '/^\(S3_ACCESS_KEY\|S3_SECRET_KEY\|BACKUP_STORAGE_ACCESS_KEY\|BACKUP_STORAGE_SECRET_KEY\)=/d' .env
 bash scripts/garage_bootstrap.sh >> .env     # tạo bucket + 2 khóa; in khóa MỘT lần vào .env
 chmod 600 .env
 ```

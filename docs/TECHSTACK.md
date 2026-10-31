@@ -68,7 +68,7 @@ Dùng [Garage](https://garagehq.deuxfleurs.fr/) (v2.5.0, một nút, `sqlite` v�
 | Bucket | `hrms-attachments-dev` (tệp ứng dụng), `hrms-backup` (sao lưu); production: `hrms-attachments-prod`, `hrms-backup` |
 | Khóa truy cập | Hai khóa `hrms-app` và `hrms-backup`, sinh bằng `scripts/garage_bootstrap.sh`; không có mặc định |
 
-Biến môi trường cấu hình trong `docker-compose.yml` → service `backend` (tên biến là `S3_*`; tên cũ `MINIO_*` vẫn được đọc khi không có tên mới, kế hoạch 15.7 Slice 10):
+Biến môi trường cấu hình trong `docker-compose.yml` → service `backend` (tên biến là `S3_*`; tên cũ `MINIO_*` đã được gỡ ở kế hoạch 15.7 Slice 10):
 
 ```
 S3_ENDPOINT    = garage:3900       # đặt cứng trong docker-compose.yml

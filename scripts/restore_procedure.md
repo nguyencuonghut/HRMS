@@ -55,7 +55,7 @@ DC="docker compose -f docker-compose.lan.yml"   # production LAN. Dev: DC="docke
 LIVE=hrms                                        # tên DB đang chạy (POSTGRES_DB trong .env, mặc định hrms)
 ```
 
-Các lệnh về kho đi qua `scripts/backup_fetch.py` chạy **trong container backend** (đã có SDK `minio` và biến môi trường `BACKUP_STORAGE_*`, `S3_*` (tên cũ `MINIO_*` vẫn được đọc), kể cả `region`). Script không in bí mật.
+Các lệnh về kho đi qua `scripts/backup_fetch.py` chạy **trong container backend** (đã có SDK `minio` và biến môi trường `BACKUP_STORAGE_*`, `S3_*`, kể cả `region`). Script không in bí mật.
 
 ### 2.1 Tìm artifact cần khôi phục
 

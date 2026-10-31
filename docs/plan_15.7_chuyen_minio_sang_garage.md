@@ -2,7 +2,7 @@
 
 Ngày lập: 2026-10-30
 
-Trạng thái (cập nhật 2026-10-31): **Đã triển khai trên production.** Slice 0, 1, 2, 3, 6, 8 và 9 đã xong (xem từng mục để biết cái gì đã và chưa được kiểm); Slice 4 và 7 bị bỏ; CI (Slice 5, làm ở Slice 9) đã chạy xanh trên GitHub; Slice 10 đã làm ở mã, **chưa triển khai production** (xem mục Slice 10 về thứ tự triển khai). Các phần của tài liệu viết trước khi triển khai (mục 1 đến 8) là kế hoạch ban đầu, chỉ được coi là đã kiểm chứng ở chỗ slice tương ứng ghi nhận bằng chứng.
+Trạng thái (cập nhật 2026-10-31): **Đã triển khai trên production.** Slice 0, 1, 2, 3, 6, 8 và 9 đã xong (xem từng mục để biết cái gì đã và chưa được kiểm); Slice 4 và 7 bị bỏ; CI (Slice 5, làm ở Slice 9) đã chạy xanh trên GitHub; Slice 10: pha 1 (đọc `S3_*`, tên cũ làm dự phòng) đã triển khai trên production ngày 2026-10-31; pha 2 (gỡ tên cũ, `build_s3_client`, `checks["storage"]`) đã làm ở mã, **chưa triển khai production**: cần đổi tên `.env` production trước (xem mục Slice 10). Các phần của tài liệu viết trước khi triển khai (mục 1 đến 8) là kế hoạch ban đầu, chỉ được coi là đã kiểm chứng ở chỗ slice tương ứng ghi nhận bằng chứng.
 
 ## 1. Mục tiêu
 
@@ -649,7 +649,7 @@ Không có bước chép dữ liệu để diễn tập; Garage, bootstrap, back
 - **CI (tùy chọn)**: thay service `minio` của `ci.yml` bằng Garage; không kiểm được ở máy dev (không có `gh`, không có Actions).
 - **Chưa kiểm**: các lệnh khôi phục trên file LAN/prod thật (mới kiểm trên dev; chỉ đọc file để xác nhận `db`/`backend` có đủ biến); luồng bootstrap lần đầu dạng `>> .env` từ một máy trống với file LAN/prod; mục 4 (seed flow) của `restore_procedure.md` giữ nguyên lệnh cũ, không chạy lại; nút "Thử lại" và "Hủy" của Console qua giao diện; `delete-bucket` trên kho tạo bằng `garage bucket create`; ngưỡng cảnh báo `DataAvail` chỉ là khuyến nghị.
 
-### Slice 10 - Đổi tên biến `MINIO_*` thành `S3_*` (đã làm ở mã 2026-10-31; chưa triển khai production)
+### Slice 10 - Đổi tên biến `MINIO_*` thành `S3_*` (pha 1 đã triển khai trên production 2026-10-31; pha 2 làm xong ở mã, chưa triển khai)
 
 **Phạm vi đã làm.** Tên biến kho tệp ứng dụng là `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_BUCKET`, `S3_SECURE`, `S3_REGION` và `S3_BACKUP_CRON`. **Tên cũ `MINIO_*` vẫn được đọc khi không có tên mới** (có cả hai thì `S3_*` thắng), nên `.env` production hiện chỉ có tên cũ vẫn chạy được mà không phải sửa.
 - `backend/app/core/config.py`: các trường đổi tên, đọc tên cũ bằng `validation_alias=AliasChoices("S3_X", "MINIO_X")`; `minio_bucket_name` thành `s3_bucket_name`; thông báo lỗi của validator nêu tên mới. Mọi chỗ dùng trong `storage.py`, `backup_service.py`, `backup_runner_service.py`, `restore_runner_service.py` và các test.
@@ -658,9 +658,9 @@ Không có bước chép dữ liệu để diễn tập; Garage, bootstrap, back
 - Script: `garage_bootstrap.sh` in khóa là `S3_ACCESS_KEY`/`S3_SECRET_KEY` (và nhận `S3_BUCKET`, hoặc `MINIO_BUCKET` cũ); `backup_fetch.py` và `s3_inventory.py` đọc `S3_*` rồi `MINIO_*`; `garage_cutover_env.py` nhận tệp khóa theo tên mới hoặc cũ và đổi các dòng `MINIO_*` trong `.env` thành `S3_*` tại chỗ (không để hai bộ tên song song).
 - Thêm hướng dẫn tùy chọn đổi tên biến trong `.env` hiện có (`docs/deploy_noi_bo_lan_ubuntu_26_04.md`): chỉ khi `.env` chưa có dòng `S3_*`; câu `sed` đã thử trên tệp giả.
 
-**KHÔNG làm (ghi rõ để khỏi hiểu nhầm là đã xong).** Không gỡ tên cũ (để một đợt sau). Không làm `build_s3_client` và `checks["storage"]` (tùy chọn, giữ nguyên cách tạo client ở 4 chỗ). Không sửa các tài liệu lịch sử (`plan_15.x`, biên bản Slice 0, `production_go_live_runbook.md`, `production_improvements.md`): chúng còn tên cũ vì mô tả đúng thời điểm viết. Tên bảng/cột trong DB không đụng tới (`backup_configs.source_*` vốn đã trung tính).
+**Pha 1 không làm (đã làm ở pha 2, bên dưới):** gỡ tên cũ, `build_s3_client`, `checks["storage"]. Không sửa các tài liệu lịch sử (`plan_15.x`, biên bản Slice 0, `production_go_live_runbook.md`, `production_improvements.md`): chúng còn tên cũ vì mô tả đúng thời điểm viết. Tên bảng/cột trong DB không đụng tới (`backup_configs.source_*` vốn đã trung tính).
 
-**Thứ tự triển khai production (bắt buộc).** Đã chứng minh bằng chạy thật: **image backend cũ chạy với compose mới** (container chỉ có `S3_*`) bị validator từ chối khi khởi động ở production (`MINIO_ENDPOINT đang dùng giá trị mặc định 'minio:9000'`). Vì vậy: `git pull`, **dựng lại image backend trước**, rồi mới `docker compose ... up -d` tạo lại `backend`, `celery_worker`, `celery_beat`. `git pull` một mình không đổi container đang chạy. Image mới với compose cũ, hoặc `.env` giữ tên cũ, đều an toàn (đã kiểm). Không cần sửa `.env`; quay lui = dựng lại image cũ và compose cũ, `.env` không đổi.
+**Thứ tự triển khai production của pha 1 (bắt buộc).** Đã chứng minh bằng chạy thật: **image backend cũ chạy với compose mới** (container chỉ có `S3_*`) bị validator từ chối khi khởi động ở production (`MINIO_ENDPOINT đang dùng giá trị mặc định 'minio:9000'`). Vì vậy: `git pull`, **dựng lại image backend trước**, rồi mới `docker compose ... up -d` tạo lại `backend`, `celery_worker`, `celery_beat`. `git pull` một mình không đổi container đang chạy. Image mới với compose cũ, hoặc `.env` giữ tên cũ, đều an toàn (đã kiểm). Không cần sửa `.env`; quay lui = dựng lại image cũ và compose cũ, `.env` không đổi.
 
 **Đã kiểm (2026-10-31, dev).**
 - Test cấu hình mới (`tests/test_settings_s3_names.py`): chỉ tên cũ, chỉ tên mới, cả hai (tên mới thắng), validator ở production nêu `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_ENDPOINT`; đỏ trước khi sửa (không có thuộc tính `S3_ENDPOINT`), xanh sau.
@@ -670,12 +670,35 @@ Không có bước chép dữ liệu để diễn tập; Garage, bootstrap, back
 - `garage_cutover_env.py` trên `.env` và tệp khóa giả: tệp khóa tên mới và tên cũ cho cùng một `.env`, chạy lại không đổi byte nào, `--dry-run` không ghi.
 - Toàn bộ `pytest` trên DB sạch, môi trường sát CI: 1634 xanh, 3 bỏ qua, 0 đỏ (4 test mới).
 
+**Triển khai production (2026-10-31, người vận hành chạy và dán kết quả).** Theo đúng thứ tự trên, từ commit `4b7c67a` lên `ce2d5e8` (fast-forward, 4 commit; frontend không đổi nên không dựng lại, không động tới `nginx`).
+- Dựng lại image `hrms-backend:local` (các lớp phụ thuộc lấy từ bộ nhớ đệm, chỉ chép mã mới); `grep -c S3_ENDPOINT` trong `config.py` của image in `7`. Image cũ được giữ dưới tag `hrms-backend:before-s3rename` để quay lui.
+- Trước khi tạo lại container, `docker compose -f docker-compose.lan.yml config` với `.env` production (chỉ có tên cũ `MINIO_*`) cho `S3_ENDPOINT=garage:3900`, `S3_BUCKET=hrms-attachments-prod`, `S3_REGION=garage`, `S3_SECURE="false"`, `S3_BACKUP_CRON=0 3 * * *` (hai khóa được ẩn) và 0 dòng `MINIO_`.
+- `up -d --force-recreate --no-deps backend celery_worker celery_beat`: cả ba `Started`; sau khoảng 16 giây cả ba `healthy`; `db`, `redis`, `garage`, `nginx`, `frontend` vẫn `healthy` (dòng `redis` từng bị cắt trong các lần dán trước, lần này đủ).
+- `GET /health` qua nginx: `{"status":"ok","version":"1.0.0","environment":"lan","checks":{"database":"ok","redis":"ok","minio":"ok"}}`. Trong container chỉ có `S3_*`, không có `MINIO_*`. `s3_inventory.py`: `endpoint=garage:3900 secure=False region=garage`, `buckets=1`, `hrms-attachments-prod` 0 object. 0 dòng `S3Error`/`Traceback` trong 80 dòng log gần nhất của `backend`, `celery_worker`, `celery_beat`.
+- Phát hiện ngoài phạm vi: `git status` trên máy chủ trước khi pull có một tệp chưa theo dõi `index.html` ở thư mục gốc repo (không do kế hoạch này tạo ra; chưa rõ nguồn gốc, chưa động tới).
+
 **Chưa kiểm.**
-- Production thật: chưa pull, chưa dựng lại image, chưa tạo lại container; chưa chạy bước đổi tên `.env` (tùy chọn).
+- Trình duyệt thật trên production sau khi tạo lại container (tải lên, Xem file, Tải xuống, xóa). Kho đang có 0 object nên `s3_inventory.py` không chạm vào đường đọc/ghi tệp; chỉ `/health` (kiểm `bucket_exists`) và liệt kê bucket đã qua.
+- Lần sao lưu theo lịch đầu tiên sau khi `celery_beat` được tạo lại, và Backup Console sau cập nhật.
+- Bước đổi tên `.env` (tùy chọn) chưa làm; `.env` production vẫn dùng tên cũ `MINIO_*`.
 - Workflow `ci.yml` với tên mới trên GitHub thật (chỉ kiểm hai bước từ YAML cục bộ và test).
 - Luồng upload/download qua giao diện web sau đổi tên (không có thay đổi frontend; chỉ kiểm qua test và mã ứng dụng, chưa kiểm bằng trình duyệt).
 - Đăng nhập API trên DB dev (bản sao production) để thử upload/download qua HTTP: không làm được vì DB dev chỉ có tài khoản thật; thay bằng test trên DB sạch.
 - Trường hợp trộn tên giữa tiến trình và tệp `.env` (vd `S3_ENDPOINT` trong `.env` còn `MINIO_ENDPOINT` trong biến môi trường): pydantic-settings ưu tiên nguồn biến môi trường nên có thể chọn tên cũ; chưa thử, nên đừng để hai bộ tên song song.
+
+#### Pha 2 - Gỡ tên cũ, `build_s3_client`, `checks["storage"]`, đổi tên `.env` production (làm xong ở mã 2026-10-31; chưa triển khai production)
+
+**Đã làm ở mã.**
+- **Gỡ tên cũ `MINIO_*`:** `config.py` không còn `AliasChoices`; ba file compose chỉ đọc `S3_*` (`${S3_X:-mặc định}`, `SOURCE_STORAGE_*` rơi về `S3_*`); `backup_fetch.py`, `s3_inventory.py`, `garage_bootstrap.sh`, `.env.example` và tài liệu vận hành chỉ nói `S3_*`. `.env` còn tên cũ thì các biến nhận giá trị mặc định/rỗng (compose không bao giờ truyền `MINIO_*` vào container), và ở production validator từ chối khởi động với thông báo nêu `S3_ENDPOINT`. `garage_cutover_env.py` còn đổi các dòng `MINIO_*` trong `.env` thành `S3_*` (đây là nơi duy nhất cố ý còn nhắc tên cũ, để chuyển một `.env` cũ).
+- **`build_s3_client`:** `backend/app/core/s3_client.py` là nơi duy nhất tạo client S3 của ứng dụng; thay cả 4 chỗ (`storage.py`, `backup_runner_service.py`, `restore_runner_service.py`, `backup_service.py`), giữ nguyên các timeout khác nhau (SDK mặc định; 5/120; 5/180; 1,5/2 giây). Không gom hai script độc lập (`s3_inventory.py`, `backup_fetch.py`: chạy qua stdin, không import mã ứng dụng) và `s3_conformance_probe.py` (cố ý dùng SDK thô).
+- **`checks["storage"]`:** `/health`, `/health/ready` báo kho tệp ở khóa `storage` thay vì `minio`. Trong repo không có nơi nào đọc khóa cũ; **một công cụ giám sát bên ngoài đang đọc `checks.minio` (nếu có) sẽ phải đổi** (chưa biết có hay không).
+- `.env` dev đã đổi tên (bản gốc `~/hrms_env_before_s3final_20261031-162017`).
+
+**Đã kiểm (2026-10-31, dev).** Test đỏ rồi xanh: `test_settings_s3_names.py` (tên cũ không còn được đọc; production chỉ có tên cũ thì từ chối và nêu `S3_ENDPOINT`), `test_s3_client_region.py` (4 test mới cho `build_s3_client`, gồm timeout đọc bằng máy chủ im lặng; các test region cũ ở cả 4 chỗ vẫn xanh), `test_health_storage_check.py` (khóa `storage`, 503 khi kho lỗi). Render compose 3 file × (chỉ `S3_*`, chỉ `MINIO_*`) = 6/6 đúng. Stack dev với `.env` đã đổi tên: `/health` `{"database":"ok","redis":"ok","storage":"ok"}`, container chỉ có `S3_*`, 0 `S3Error`/`Traceback`. Toàn bộ `pytest` trên DB sạch, môi trường sát CI: 1640 xanh, 3 bỏ qua, 0 đỏ.
+
+**Triển khai production: hai pha, đúng thứ tự.** Mã pha 1 đang chạy trên production (commit `ce2d5e8`) đọc `S3_*` trước `MINIO_*`, nên **đổi tên `.env` trước là an toàn** và không cần tạo lại container. Chỉ sau đó mới kéo, dựng lại image và tạo lại container với mã pha 2. Làm ngược lại (mã pha 2 khi `.env` còn tên cũ) thì backend không khởi động. Quay lui pha 2 phải về **mã pha 1 (`ce2d5e8`) và `.env` đã đổi tên**, không về mã trước Slice 10 (mã đó chỉ đọc `MINIO_*`).
+
+**Chưa kiểm.** Production thật (đổi `.env`, kéo, dựng lại, tạo lại container); giám sát bên ngoài đọc `checks.minio` (nếu có); luồng tải lên/tải xuống bằng trình duyệt sau pha 2.
 
 ## 10. Runbook cutover production (bản rút gọn)
 

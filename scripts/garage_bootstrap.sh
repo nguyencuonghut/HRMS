@@ -23,7 +23,7 @@
 #   COMPOSE_FILE          docker-compose.yml        (production LAN: docker-compose.lan.yml)
 #   GARAGE_SERVICE        garage
 #   GARAGE_CONTAINER      (trống)                    đặt tên container nếu Garage chạy bằng `docker run` (CI); khi đặt thì bỏ qua COMPOSE_FILE
-#   S3_BUCKET             hrms-attachments-dev      (production: hrms-attachments-prod; tên cũ MINIO_BUCKET vẫn được đọc)
+#   S3_BUCKET             hrms-attachments-dev      (production: hrms-attachments-prod)
 #   BACKUP_STORAGE_BUCKET hrms-backup
 #   APP_KEY_NAME          hrms-app
 #   BACKUP_KEY_NAME       hrms-backup
@@ -37,7 +37,7 @@ cd "$(dirname "$0")/.."
 
 COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.yml}"
 GARAGE_SERVICE="${GARAGE_SERVICE:-garage}"
-APP_BUCKET="${S3_BUCKET:-${MINIO_BUCKET:-hrms-attachments-dev}}"
+APP_BUCKET="${S3_BUCKET:-hrms-attachments-dev}"
 BACKUP_BUCKET="${BACKUP_STORAGE_BUCKET:-hrms-backup}"
 APP_KEY="${APP_KEY_NAME:-hrms-app}"
 BACKUP_KEY="${BACKUP_KEY_NAME:-hrms-backup}"
