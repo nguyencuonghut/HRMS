@@ -7,6 +7,7 @@ Chỉ ghi lỗi **đã có bằng chứng** (quan sát thật hoặc đọc mã)
 | LD-001 | Hộp thoại "Xác nhận xóa" vẫn còn sau khi xóa (tab tệp đính kèm, và có thể các màn hình khác) | Chưa sửa | 2026-10-31, production (kế hoạch 15.7) |
 | LD-002 | Nút "Tải xuống" ở tab "Tệp đính kèm hồ sơ" không tải được (401) | Chưa sửa | 2026-10-30, dev (kế hoạch 15.7, Slice 2) |
 | LD-003 | Tải tệp đính kèm mà tệp không còn trong kho trả về HTTP 200 với thân rỗng thay vì 404 (và 3 lần liền làm kho trả 503 cho mọi người) | **Đã sửa 2026-10-31** (chưa commit; có tác dụng sau khi dựng lại image backend) | 2026-10-31, dev (kế hoạch 15.7, Slice 9) |
+| LD-004 | Backup Console cho đặt "Giờ chạy hằng ngày" riêng cho kho tệp nhưng lịch tự động chỉ đọc giờ của dòng cơ sở dữ liệu | Chưa sửa | 2026-10-31, production (kế hoạch 15.7, Slice 9) |
 
 LD-001 và LD-002 (chưa sửa) có từ trước và **không liên quan** việc chuyển kho tệp sang Garage. LD-003 là cơ chế của mã tải tệp, không phụ thuộc loại kho (chưa kiểm trên MinIO).
 
@@ -89,3 +90,22 @@ LD-001 và LD-002 (chưa sửa) có từ trước và **không liên quan** vi�
 - Không có hồi quy trong các module có đường tải tệp: 15 tệp test chạy trên mã gốc và mã sửa cho **đúng cùng tập test thất bại** (20 test đỏ sẵn trên bản sao dữ liệu thật này, ví dụ các test tính lương hợp đồng và `test_viewer_can_list_and_download`; không liên quan thay đổi này, chưa điều tra nguyên nhân).
 
 **Chưa kiểm.** Giao diện thật hiển thị gì khi bấm tải một tệp thiếu (mới kiểm API: nay là 404 JSON; các view tải bằng `blob` có thể hiện thông báo lỗi chung); các nơi gọi khác ngoài tải hồ sơ nhân viên chỉ kiểm qua tập test hiện có, không gọi từng endpoint bằng tay; production vẫn chạy image cũ cho tới khi dựng lại image backend và tạo lại `backend`, `celery_worker`, `celery_beat`.
+
+---
+
+## LD-004. Giờ sao lưu của kho tệp trong Backup Console không có tác dụng
+
+**Triệu chứng.** Màn "Cấu hình sao lưu" có hai dòng (cơ sở dữ liệu và kho tệp ứng dụng), mỗi dòng cho sửa "Giờ chạy hằng ngày". Chủ hệ thống đặt DB 10:30 và kho tệp 10:35 trên production và chờ hai lần chạy riêng.
+
+**Bằng chứng (2026-10-31, production, số liệu do chủ hệ thống dán).**
+- Chỉ có **một** bộ mới: `backup_sets` #59, `scheduled_full`, `created_at` 03:30:00 UTC (10:30 giờ Việt Nam), gồm job 125 (`db`) và 126 (`object_storage`). Sau 10:35 không có bộ hay job nào thêm (`backup_sets` mới nhất vẫn là #59, `backup_jobs` mới nhất vẫn là 126).
+- Log `celery_worker`: tác vụ `dispatch_scheduled_backup_set_task` chạy mỗi phút; chỉ lúc 03:30:00 có `scheduled_backup_set_created backup_set_id=59`; lúc 03:35:00 chạy xong sau khoảng 0,05 giây mà không tạo gì.
+- Mã (`backend/app/services/backup_service.py`, `create_scheduled_backup_set_if_due`): chỉ gọi `_cron_matches(db_config.cron_expression, ...)`, rồi tạo một bộ gồm cả job `db` và `object_storage`; `object_config.cron_expression` chỉ được đọc để kiểm tra `enabled`, không dùng để chọn thời điểm.
+
+**Giao diện (đọc mã `frontend/src/views/admin/BackupCenterView.vue`, chưa mở bằng trình duyệt).** Trường "Giờ chạy hằng ngày" dùng chung cho cả hai dòng và chỉ hiện mô tả giờ chạy (`dailyScheduleDescription`); không tìm thấy chú thích nào nói giờ của kho tệp không quyết định lịch.
+
+**Chưa kiểm.** Giao diện thật hiển thị ra sao; `MINIO_BACKUP_CRON` trong `.env` chỉ là giá trị khởi tạo của dòng cấu hình (đọc mã, chưa thử).
+
+**Hướng sửa đề xuất.** Hoặc ẩn trường giờ ở dòng kho tệp và ghi rõ "chạy cùng bộ với cơ sở dữ liệu", hoặc làm cho lịch thực sự đọc giờ riêng của từng dòng. Chọn sau khi chủ hệ thống nói muốn hành vi nào.
+
+**Cách kiểm chứng khi sửa.** Test ở tầng dịch vụ cho `create_scheduled_backup_set_if_due` với hai cron khác nhau; kiểm bằng trình duyệt thật rằng trường giờ phản ánh đúng hành vi.

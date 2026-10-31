@@ -27,7 +27,7 @@ Một lần "Sao lưu đầy đủ" (hoặc lịch `scheduled_full`) tạo một
 | Cơ sở dữ liệu | `postgres/hrms_YYYYMMDD_HHMMSS.sql.gz` | `pg_dump` dạng SQL thuần, nén gzip. Thời gian trong tên là UTC |
 | Kho tệp ứng dụng | `files/files-YYYYMMDD_HHMMSS/<đường dẫn tệp>` và `files/files-YYYYMMDD_HHMMSS/manifest.json` | Bản chép nguyên cấu trúc bucket tệp đính kèm, kèm manifest (số tệp, tổng dung lượng) |
 
-Cả hai chạy cùng lúc theo lịch cấu hình ở Backup Console (mặc định 02:00 giờ Việt Nam; `created_at` trong bảng `backup_jobs` hiển thị UTC).
+Cả hai chạy **cùng lúc** trong một bộ, theo giờ đặt ở dòng **cơ sở dữ liệu** của Backup Console (mặc định 02:00 giờ Việt Nam; `created_at` trong bảng `backup_jobs` hiển thị UTC). Giờ đặt ở dòng kho tệp ứng dụng được lưu nhưng **lịch tự động không đọc** (đã kiểm: đặt DB 10:30 và kho tệp 10:35 trên production thì chỉ có một bộ lúc 10:30, không có lần chạy lúc 10:35).
 
 ---
 
@@ -258,7 +258,7 @@ Lý do đã được xác nhận trong code:
 
 ## 5. Lịch sao lưu và thông báo
 
-Không còn crontab hay script ngoài. Lịch, số ngày giữ và danh sách email nhận thông báo đặt ở Backup Console, mục "Cấu hình sao lưu" (các trường "Giờ chạy hằng ngày", "Số ngày giữ", "Thư điện tử nhận thông báo"). Lịch do `celery_beat` kích hoạt và `celery_worker` thực thi, nên cả hai phải đang chạy (`$DC ps`). Kiểm tra kết nối tới đích bằng biểu tượng "Kiểm tra đích sao lưu" ở cuối mỗi dòng cấu hình.
+Không còn crontab hay script ngoài. Muốn đổi giờ sao lưu, đổi "Giờ chạy hằng ngày" của dòng **cơ sở dữ liệu** (dòng kho tệp không quyết định lịch, xem mục 0). Lịch, số ngày giữ và danh sách email nhận thông báo đặt ở Backup Console, mục "Cấu hình sao lưu" (các trường "Giờ chạy hằng ngày", "Số ngày giữ", "Thư điện tử nhận thông báo"). Lịch do `celery_beat` kích hoạt và `celery_worker` thực thi, nên cả hai phải đang chạy (`$DC ps`). Kiểm tra kết nối tới đích bằng biểu tượng "Kiểm tra đích sao lưu" ở cuối mỗi dòng cấu hình.
 
 ---
 
