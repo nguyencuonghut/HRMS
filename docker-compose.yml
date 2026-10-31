@@ -45,25 +45,6 @@ services:
       retries: 5
       start_period: 10s
 
-  minio:
-    # Giữ lại để diễn tập chép dữ liệu sang Garage (Slice 4, 7): docker compose --profile legacy-minio up -d minio
-    profiles: ["legacy-minio"]
-    image: minio/minio:latest
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
-    volumes:
-      - minio_data:/data
-    ports:
-      - "9000:9000"   # S3 API
-      - "9001:9001"   # Web console
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   mailpit:
     image: axllent/mailpit:latest
     ports:
@@ -226,7 +207,6 @@ services:
 
 volumes:
   postgres_data:
-  minio_data:
   garage_meta:
   garage_data:
   backup_temp:

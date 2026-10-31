@@ -53,23 +53,6 @@ services:
       retries: 5
       start_period: 10s
 
-  minio:
-    # Chỉ còn dùng để quay lui khi cutover: docker compose -f docker-compose.lan.yml --profile legacy-minio up -d minio
-    profiles: ["legacy-minio"]
-    image: minio/minio:latest
-    restart: always
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
-      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
-    volumes:
-      - minio_data:/data
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   backend:
     image: ${BACKEND_IMAGE}:${IMAGE_TAG}
     restart: always
@@ -237,5 +220,4 @@ volumes:
   backup_temp:
   garage_meta:
   garage_data:
-  minio_data:
   postgres_data:

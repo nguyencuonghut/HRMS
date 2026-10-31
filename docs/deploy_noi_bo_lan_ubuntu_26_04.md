@@ -151,7 +151,7 @@ Theo [docker-compose.lan.yml](/run/media/cuong/DATA/02_Project/166_HonghaHRM/HRM
 - `frontend`
 - `nginx`
 
-Ngoài ra, file LAN còn giữ service `minio` dưới profile `legacy-minio` (không chạy mặc định) chỉ để quay lui sau cutover; sẽ gỡ khi sao lưu theo lịch trên Garage đã thành công (kế hoạch 15.7, Slice 9).
+File LAN không còn service `minio` (đã gỡ khỏi compose ở kế hoạch 15.7, Slice 9); kho tệp chỉ còn `garage`.
 
 User trong LAN sẽ truy cập qua:
 
