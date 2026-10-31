@@ -4,12 +4,15 @@ Chỉ ghi lỗi **đã có bằng chứng** (quan sát thật hoặc đọc mã)
 
 | Mã | Lỗi | Trạng thái | Phát hiện |
 |---|---|---|---|
-| LD-001 | Hộp thoại "Xác nhận xóa" vẫn còn sau khi xóa (tab tệp đính kèm, và có thể các màn hình khác) | Chưa sửa | 2026-10-31, production (kế hoạch 15.7) |
-| LD-002 | Nút "Tải xuống" ở tab "Tệp đính kèm hồ sơ" không tải được (401) | Chưa sửa | 2026-10-30, dev (kế hoạch 15.7, Slice 2) |
+| LD-001 | Hộp thoại "Xác nhận xóa" vẫn còn sau khi xóa (7 màn hình mount thêm `ConfirmDialog`; riêng `/rewards` hiện 3 hộp thoại) | **Đã sửa 2026-10-31** (đã dựng lại image frontend; chủ hệ thống xác nhận trên production cùng ngày) | 2026-10-31, production (kế hoạch 15.7) |
+| LD-002 | Nút "Tải xuống" ở tab "Tệp đính kèm hồ sơ" không tải được (401) | **Đã sửa 2026-10-31** (đã dựng lại image frontend; chủ hệ thống xác nhận trên production cùng ngày) | 2026-10-30, dev (kế hoạch 15.7, Slice 2) |
 | LD-003 | Tải tệp đính kèm mà tệp không còn trong kho trả về HTTP 200 với thân rỗng thay vì 404 (và 3 lần liền làm kho trả 503 cho mọi người) | **Đã sửa 2026-10-31** (chưa commit; có tác dụng sau khi dựng lại image backend) | 2026-10-31, dev (kế hoạch 15.7, Slice 9) |
-| LD-004 | Backup Console cho đặt "Giờ chạy hằng ngày" riêng cho kho tệp nhưng lịch tự động chỉ đọc giờ của dòng cơ sở dữ liệu | Chưa sửa | 2026-10-31, production (kế hoạch 15.7, Slice 9) |
+| LD-004 | Backup Console cho đặt "Giờ chạy hằng ngày" riêng cho kho tệp nhưng lịch tự động chỉ đọc giờ của dòng cơ sở dữ liệu | **Đã sửa 2026-10-31** (có tác dụng sau khi dựng lại image frontend) (chỉ giao diện: hành vi của bộ điều phối không đổi) | 2026-10-31, production (kế hoạch 15.7, Slice 9) |
+| LD-005 | Trang hồ sơ nhân viên thỉnh thoảng sập ("Cannot read properties of null (reading 'scrollTop')") khi bấm tab lúc trang còn đang tải | Chưa sửa | 2026-10-31, dev (kế hoạch 15.7, Slice 9) |
+| LD-006 | Hai test e2e của Backup Center đỏ sẵn (locator "Sao lưu đầy đủ" khớp 2 nút) | Chưa sửa | 2026-10-31, dev (kế hoạch 15.7, Slice 9) |
+| LD-007 | Chạy toàn bộ `pytest` như job CI (DB sạch, `--sample`) cho 86 test đỏ và 1 lỗi, như nhau với cả MinIO lẫn Garage | Chưa điều tra | 2026-10-31, dev (kế hoạch 15.7, Slice 9) |
 
-LD-001 và LD-002 (chưa sửa) có từ trước và **không liên quan** việc chuyển kho tệp sang Garage. LD-003 là cơ chế của mã tải tệp, không phụ thuộc loại kho (chưa kiểm trên MinIO).
+LD-001, LD-002 và LD-006 có từ trước và **không liên quan** việc chuyển kho tệp sang Garage. LD-003 là cơ chế của mã tải tệp, không phụ thuộc loại kho (chưa kiểm trên MinIO). LD-004 lộ ra khi đổi lịch sao lưu ở production. LD-005 phát hiện khi chạy test e2e, chưa rõ có phụ thuộc thay đổi nào ở Slice 9 hay không (xem mục).
 
 ---
 
@@ -27,14 +30,20 @@ LD-001 và LD-002 (chưa sửa) có từ trước và **không liên quan** vi�
 `frontend/src/components/FileAttachmentList.vue:73`, `views/catalog/BhytClinicView.vue:111`, `views/leaves/LeaveListView.vue:308`, `views/leaves/LeaveEntitlementView.vue:329`, `views/rewards/components/DisciplineListTab.vue:347`, `views/rewards/components/RewardListTab.vue:338`.
 `views/employees/ContractTab.vue:233` tránh được vì dùng `group="employee-contracts"`.
 
-**Chưa kiểm.**
-1. Tất cả các view trên có nằm trong `AppLayout` không (quyết định hướng sửa).
-2. Bấm "Xóa" ở hộp thoại còn lại có chạy `accept` lần thứ hai không (xóa lần hai, toast lỗi "Không xóa được tài liệu"?).
-3. Sáu màn hình còn lại có thật sự lỗi không (chỉ mới quan sát ở tab tệp đính kèm).
+**Cách đã sửa (2026-10-31).** Xóa `<ConfirmDialog />` và `import` thừa khỏi 7 nơi (`AttachmentsTab.vue`, `FileAttachmentList.vue`, `BhytClinicView.vue`, `LeaveListView.vue`, `LeaveEntitlementView.vue`, `DisciplineListTab.vue`, `RewardListTab.vue`); giữ `ConfirmDialog` chung ở `AppLayout.vue` và `ConfirmDialog group="employee-contracts"` của `ContractTab.vue` (duy nhất dùng `group`).
 
-**Hướng sửa đề xuất.** Bỏ `<ConfirmDialog />` thừa ở những view nằm trong `AppLayout` (giữ một cái chung), hoặc gán `group` riêng cho từng view như `ContractTab`. Chọn sau khi có kết quả câu 1.
+**Trả lời các điều trước đây "chưa kiểm".**
+1. Tất cả các view đó nằm trong `AppLayout` (mọi component liên quan đều được dùng bởi các route con của `/`; chỉ `/login` và `/forbidden` nằm ngoài và không dùng chúng), nên `ConfirmDialog` chung luôn có mặt.
+2. Hộp thoại còn lại chạy `accept` lần thứ hai hay không: **không kiểm** (không còn ý nghĩa sau khi bỏ bản trùng).
+3. Cả **sáu** màn hình còn lại đều bị: gọi `confirm.require` qua dịch vụ toàn cục của PrimeVue rồi đếm hộp thoại hiện ra, trên mã gốc là 2 ở `/leaves`, `/leave-entitlements`, `/catalog/bhyt-clinics` và tab chi tiết vị trí (`FileAttachmentList`), và **3** ở `/rewards` (cả hai tab Khen thưởng và Kỷ luật đều mount một cái, kể cả khi không hiển thị); sau khi sửa là **1** ở cả sáu.
 
-**Cách kiểm chứng khi sửa.** Trình duyệt thật, ở **từng** màn hình bị ảnh hưởng: bấm xóa, xác nhận, rồi khẳng định chỉ có một hộp thoại và nó đóng lại; đồng thời trả lời các câu 1-3 ở mục "Chưa kiểm". Thêm hoặc chỉnh test e2e (`frontend/tests/e2e`) để khẳng định số hộp thoại hiển thị sau khi xóa bằng 0.
+**Đã kiểm.**
+- Tái hiện trên mã gốc bằng trình duyệt thật (Playwright): bấm thùng rác hiện 2 hộp thoại; bấm "Xóa" ở hộp trên cùng thì tệp bị xóa (`DELETE ... -> 204`) nhưng còn 1 hộp thoại hiển thị.
+- Test e2e hồi quy mới `frontend/tests/e2e/employee-attachments.spec.ts` ("deleting an attachment closes the confirmation dialog"): **đỏ trên mã gốc** (`Expected: 1, Received: 2`) và **xanh sau khi sửa** (chạy 3 lần liên tiếp đều xanh), cộng thăm dò chung ở trên cho sáu màn hình.
+- `vue-tsc --noEmit` và `npm run build` đạt.
+- **Production (2026-10-31, chủ hệ thống báo sau khi dựng lại image `frontend`):** hộp thoại xóa ở tab tệp đính kèm đóng đúng sau khi xóa; container frontend đang chạy chứa bản mới (`grep` chuỗi mới trong `/usr/share/nginx/html` ra 1 tệp).
+
+**Chưa kiểm.** Chưa bấm thật luồng xóa ở sáu màn hình còn lại (chỉ đếm số hộp thoại cho một `confirm.require`); có thể còn `<Toast />` trùng tương tự ở các view đó (`LeaveListView`, `LeaveEntitlementView`, `DisciplineListTab`, `RewardListTab` có `<Toast />` riêng bên cạnh `<Toast />` của `AppLayout`), chưa quan sát triệu chứng.
 
 ---
 
@@ -52,11 +61,15 @@ LD-001 và LD-002 (chưa sửa) có từ trước và **không liên quan** vi�
 
 **Chỗ có thể tương tự (chưa rõ).** `frontend/src/services/recruitmentService.ts:434` có `getAttachmentDownloadUrl` trả URL thuần cùng kiểu. Tìm trong `frontend/src` không thấy nơi gọi nó, nên chưa biết có lỗi ở đó hay không.
 
-**Hướng sửa đề xuất.** Tải qua `api.get(url, { responseType: 'blob' })` (axios gắn token), rồi tạo URL tạm từ blob và `click()`, lấy tên tệp từ `Content-Disposition`. Mẫu đã dùng đúng ở nhiều nơi: `employeeService.ts` (tải tệp checklist hồ sơ, khoảng dòng 877), `rewardService.ts`, `disciplineService.ts`, `contractService.ts`, `trainingService.ts`.
+**Cách đã sửa (2026-10-31).** `employeeService.downloadAttachment(id, attId, fileName)` dùng hàm `downloadBlob` có sẵn (`api.get(..., { responseType: 'blob' })`, giống `downloadChecklistFile`), và `AttachmentsTab.vue` gọi nó thay cho thẻ `<a href>`; lỗi hiện toast "Không tải được file". `getAttachmentDownloadUrl` của `employeeService` bị xóa (không còn nơi dùng, tránh dùng lại đường sai). `recruitmentService.getAttachmentDownloadUrl` không có nơi gọi nên không đụng.
 
-**Cách kiểm chứng khi sửa.** Trình duyệt thật: bấm tải xuống rồi nhận được tệp, tên đúng (thử tên có tiếng Việt, khoảng trắng, `#`, `%`, `+`), `sha256` khớp tệp gốc, thử cả tệp lớn hơn 5 MiB. Thêm test e2e dùng sự kiện `download` của trình duyệt và đối chiếu `sha256` (đoạn thử đã viết ở Slice 2 dùng đúng cách này).
+**Đã kiểm.**
+- Tái hiện trên mã gốc bằng trình duyệt thật: tên tệp gợi ý đúng nhưng `download.failure()` trả `canceled`.
+- Test e2e hồi quy mới (cùng tệp spec ở LD-001, hai test): tên có khoảng trắng và `#`, `%`, `+` (`Bằng cấp #1 100% + A.pdf`) và tệp 6 MiB, đều khẳng định **tải thành công, đúng tên tệp và `sha256` khớp tệp gốc**. **Đỏ trên mã gốc** (`Received: "canceled"`), **xanh sau khi sửa** (3 lần liên tiếp).
+- `vue-tsc --noEmit` và `npm run build` đạt.
+- **Production (2026-10-31, chủ hệ thống báo):** tải xuống tệp đính kèm hoạt động bình thường.
 
----
+**Chưa kiểm.** Thông báo khi tệp không còn trong kho: theo mã thì lỗi blob không đọc được `detail` nên toast hiện thông báo chung "Không tải được file" (chưa chạy); các view tải tệp khác (hợp đồng, khen thưởng, kỷ luật, đào tạo) vốn đã dùng `blob` nên không đụng, không kiểm lại.
 
 ## LD-003. Tải tệp không còn trong kho trả về 200 và thân rỗng
 
@@ -106,6 +119,53 @@ LD-001 và LD-002 (chưa sửa) có từ trước và **không liên quan** vi�
 
 **Chưa kiểm.** Giao diện thật hiển thị ra sao; `MINIO_BACKUP_CRON` trong `.env` chỉ là giá trị khởi tạo của dòng cấu hình (đọc mã, chưa thử).
 
-**Hướng sửa đề xuất.** Hoặc ẩn trường giờ ở dòng kho tệp và ghi rõ "chạy cùng bộ với cơ sở dữ liệu", hoặc làm cho lịch thực sự đọc giờ riêng của từng dòng. Chọn sau khi chủ hệ thống nói muốn hành vi nào.
+**Cách đã sửa (2026-10-31, chỉ giao diện, chọn phương án "ghi rõ" thay vì đổi bộ điều phối).**
+- Bảng "Lịch chạy": dòng kho tệp hiện "Cùng bộ sao lưu với cơ sở dữ liệu" thay cho giờ và mô tả giờ.
+- Hộp thoại sửa cấu hình: dòng kho tệp không còn ô nhập giờ, thay bằng "Kho tệp chạy cùng bộ sao lưu với cơ sở dữ liệu, theo giờ của dòng cơ sở dữ liệu."; dòng cơ sở dữ liệu thêm "Áp dụng cho cả bộ sao lưu đầy đủ (cơ sở dữ liệu và kho tệp)."
+- Lưu cấu hình kho tệp giữ nguyên `cron_expression` đang lưu (không tính lại từ ô đã ẩn).
+- Không đổi `create_scheduled_backup_set_if_due`, API hay DB. Nếu chủ hệ thống muốn lịch riêng cho từng loại thì cần đổi bộ điều phối (chưa làm).
 
-**Cách kiểm chứng khi sửa.** Test ở tầng dịch vụ cho `create_scheduled_backup_set_if_due` với hai cron khác nhau; kiểm bằng trình duyệt thật rằng trường giờ phản ánh đúng hành vi.
+**Đã kiểm.** Ba test e2e mới trong `backup-center.spec.ts` (backend thật): dòng kho tệp không có giờ, hộp thoại kho tệp không có ô giờ và `PUT` giữ đúng `cron_expression` cũ, hộp thoại DB có ghi chú; test dòng kho tệp **đỏ trên giao diện cũ** (`Received: "...03:00Hằng ngày lúc 03:00..."`) và xanh sau khi sửa; đã xem ảnh chụp bảng và hộp thoại; `vue-tsc` và `npm run build` đạt. Một lỗi trong test của chính tôi được sửa trước khi tin kết quả (biểu thức `\b` không khớp vì văn bản các ô liền nhau).
+
+**Chưa kiểm.** `MINIO_BACKUP_CRON` trong `.env` chỉ là giá trị khởi tạo của dòng cấu hình (đọc mã, chưa thử); chưa xem trên production sau khi dựng lại image.
+
+---
+
+## LD-005. Trang hồ sơ nhân viên thỉnh thoảng sập khi bấm tab lúc trang còn đang tải
+
+**Triệu chứng.** Khung lỗi toàn trang "Đã xảy ra lỗi không mong muốn ... Cannot read properties of null (reading 'scrollTop')" thay cho trang `/employees/:id`.
+
+**Bằng chứng (2026-10-31, dev, Playwright 1280x720 "Desktop Chrome", bản sao DB).**
+- Gặp 2 lần khi chạy test e2e: nhật ký Playwright ghi tab "Tệp đính kèm hồ sơ" được tìm thấy, `done scrolling`, rồi `element is not visible` và `element was detached from the DOM`; ảnh chụp lúc lỗi là khung lỗi trên.
+- Thăm dò có kiểm soát (xóa bộ đếm giới hạn tốc độ trước, phiên hợp lệ): bấm tab **ngay sau** `page.goto` gây khung lỗi **1 trên 40** lần tải với mã đã sửa (ba đợt 8, 16, 16 lần: 1, 0, 0 lần sập) và **0 trên 40** với mã gốc (cùng ba đợt xen kẽ), chưa đủ mẫu để nói có hay không liên quan thay đổi; chờ trang yên 1,2 giây trước khi bấm thì 0 lỗi (6/6 cho cả mã sửa và mã gốc). Tải trang thường không gây lỗi.
+- Mã thư viện (đọc `node_modules/primevue/tablist/TabList.vue`): `updateButtonState()` lấy `content` từ `this.$refs` rồi đọc `content.scrollTop`; sẽ ném đúng lỗi này nếu `content` là `null` lúc được gọi (ví dụ từ `ResizeObserver`/`updated` khi danh sách tab vừa đổi). Chưa chứng minh được điểm kích hoạt chính xác.
+
+**Chưa kiểm.** Người dùng thật có gặp không (cần bấm tab trong vài chục mili giây đầu); có xảy ra ở mã gốc với cùng tần suất không; chưa thử sửa. Test e2e hồi quy ở LD-001/002 chờ `networkidle` trước khi bấm tab để tránh điều kiện này.
+
+**Hướng sửa đề xuất.** Chưa chọn; ứng viên là đặt `:key`/`v-if` ổn định cho các `Tab` điều kiện (`showEmployeeSubTabs`) hoặc bọc lỗi của `TabList` sau khi xác định được điểm kích hoạt.
+
+---
+
+## LD-006. Hai test e2e của Backup Center đỏ sẵn
+
+**Triệu chứng.** `frontend/tests/e2e/backup-center.spec.ts`: "full backup button updates latest task status immediately" và "admin can queue a full backup set and restore from that set" thất bại với `strict mode violation: getByRole('button', { name: 'Sao lưu đầy đủ' }) resolved to 2 elements`; do chế độ `serial`, mọi test sau chúng bị bỏ qua.
+
+**Bằng chứng (2026-10-31).** Cùng lỗi trên **mã giao diện gốc** và mã đã sửa, nên không do thay đổi ở Slice 9. Theo mã `BackupCenterView.vue`, tên "Sao lưu đầy đủ" (khớp chuỗi con, không phân biệt hoa thường) khớp cả nút "Sao lưu đầy đủ" lẫn nút làm mới có nhãn "Làm mới bộ sao lưu đầy đủ" (đọc mã, chưa liệt kê hai phần tử từ lần chạy).
+
+**Hướng sửa đề xuất.** Dùng `exact: true` trong locator ở hai test. Chưa sửa. Khi chạy spec này, loại hai test bằng `--grep-invert` để các test sau chạy được.
+
+---
+
+## LD-007. Bộ test backend đỏ nhiều khi chạy như job CI
+
+**Triệu chứng.** Dựng lại các bước của job `test-backend` trong `.github/workflows/ci.yml` trên máy dev (Postgres 16 và Redis tạm, DB `hrms_test` mới, `alembic upgrade head`, `python -m app.seeds --sample`, `pytest tests/`) cho **86 test thất bại và 1 lỗi**.
+
+**Bằng chứng (2026-10-31).**
+- Chạy hai lần, mỗi lần mất khoảng 10 phút, cùng DB sạch: một lần với Garage (cấu hình CI mới ở nhánh `ci/garage-service`), một lần với MinIO (cấu hình CI hiện tại). **Tập test đỏ giống hệt** ở cả hai (87 mã test, không test nào chỉ đỏ ở một bên), nên đây không phải hệ quả của việc đổi kho lưu trữ.
+- Phân bố theo tệp (lần chạy Garage): `test_leave_records` 17, `test_leave_entitlements` 15, `test_leave_analytics` 13, `test_recruitment_posting` 11, `test_leave_reports` 10, `test_recruitment_candidates` 6, `test_recruitment_pipeline` 3, `test_employee_document_preview_api` 3, `test_other_business_seed` 2, `test_backups` 2, và mỗi tệp 1 ở `test_yearly_reviews`, `test_recruitment_reports`, `test_employee_io`, `test_employee_attachments`, `test_department_scope_rbac`.
+- Chạy riêng năm test đại diện: lý do khác nhau (`assert 0 >= 1` trên danh sách rỗng; `KeyError: 'id'` khi tạo tin tuyển dụng; `assert 404 == 201`; `assert 0 == 1` ở seed; một test về che bí mật). Chưa tìm nguyên nhân gốc; các test này có vẻ phụ thuộc dữ liệu seed hoặc thứ tự chạy, nhưng đó là suy đoán chưa kiểm.
+- Lệnh pytest của CI (`pytest tests/ -q ...`) cộng với `-q` trong `pytest.ini` nên không in dòng tổng kết, chỉ mã thoát.
+
+**Chưa kiểm.** Job CI thật trên GitHub hiện đỏ hay xanh (không xem được từ máy dev; ngày, múi giờ và dữ liệu có thể khác); nguyên nhân từng nhóm test; khác biệt giữa bản mô phỏng này và runner `ubuntu-latest` (tôi chạy trong image backend, không phải `pip install` trên Python 3.12 của runner).
+
+**Hệ quả cho nhánh `ci/garage-service`.** Khi mở pull request, job `Backend Tests` có thể đỏ vì lý do này chứ không phải do Garage; so sánh danh sách test đỏ với một lần chạy trên `master` thay vì chỉ nhìn màu.
