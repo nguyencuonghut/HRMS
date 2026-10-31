@@ -574,7 +574,9 @@ Không có bước chép dữ liệu để diễn tập; Garage, bootstrap, back
 
 ### Slice 8 - Cutover production (rút gọn)
 
-**Điều kiện tiên quyết**: Slice 3 và 6 đạt cổng và đã `git pull` trên production; kiểm kê lại cho **0 object tệp**; bản sao lưu DB gần nhất `success` (khuyến nghị, vì rất rẻ).
+**Điều kiện tiên quyết**: Slice 3 và 6 đạt cổng, đã được **push** (10.0) và `git pull` trên production; image backend và frontend đã dựng lại từ mã mới (10.1 bước 3); kiểm kê lại cho **0 object tệp**; bản sao lưu DB gần nhất `success` (khuyến nghị, vì rất rẻ).
+
+**Công cụ đã chuẩn bị và thử (Slice 8)**: `scripts/s3_inventory.py` (chạy trên dev với Garage); `scripts/garage_cutover_env.py` (thử trên `.env` giả mô phỏng production: chạy thật, `--dry-run`, chạy lại cho file giống hệt, thiếu `GARAGE_*` thì dừng không sửa gì, ba kiểu tệp khóa sai, cảnh báo `SOURCE_STORAGE_*`, không in bí mật); SQL cập nhật cấu hình sao lưu (một giao dịch, thử trên clone DB: `UPDATE 1` rồi `UPDATE 0`, và dạng quote `exec`/heredoc đúng như sẽ gõ trên production); đường quay lui với `MINIO_REGION` mặc định `garage` (MinIO dev chấp nhận mọi region). **Chưa chạy trên production.**
 
 **Việc làm**: thực hiện runbook mục 10 (khoảng 15 phút, gián đoạn khoảng 1-2 phút).
 
@@ -601,54 +603,100 @@ Làm riêng sau khi hệ thống ổn định: thêm biến mới với dự ph�
 
 ## 10. Runbook cutover production (bản rút gọn)
 
-Chạy trong `/opt/hrms/HRMS` với `docker-compose.lan.yml`. Các lệnh về Garage, bootstrap, backend và Backup Console đã chạy thật ở dev (Slice 2); phần khác biệt production (tên file compose, tên bucket) được kiểm tĩnh bằng `docker compose config` ở Slice 6. Không có bước chép dữ liệu (production không có tệp nào, xem 9.0). Không cần cửa sổ bảo trì riêng: gián đoạn chỉ là lần khởi động lại `backend` và `celery_*` (khoảng 1-2 phút); nên làm ngoài giờ làm việc.
+Chạy trong `/opt/hrms/HRMS` với `docker-compose.lan.yml`. Các lệnh về Garage, bootstrap, backend và Backup Console đã chạy thật ở dev (Slice 2) và, với file LAN, trong một project cô lập (Slice 6); `.env`, SQL và kiểm kê có công cụ riêng đã thử trên dữ liệu giả hoặc clone (Slice 8). Không có bước chép dữ liệu (production không có tệp nào, xem 9.0). Không cần cửa sổ bảo trì riêng: gián đoạn chỉ là lần tạo lại `backend`, `celery_*` và `frontend` (khoảng 1-2 phút); nên làm ngoài giờ làm việc. nginx dùng `proxy_pass` qua biến với `resolver valid=30s` nên **không cần khởi động lại nginx**.
+
+Công cụ (đều trong repo, có sau `git pull`): `scripts/s3_inventory.py` (kiểm kê chỉ đọc), `scripts/garage_bootstrap.sh` (tạo bucket và khóa), `scripts/garage_cutover_env.py` (chuyển `.env`, không in bí mật, chạy lại an toàn).
+
+### 10.0. Trước khi động vào production (máy dev)
+
+`git push origin master` (nhánh là `master`). Production `git pull` chỉ lấy được những gì đã được push, gồm cả các công cụ ở trên.
 
 ### 10.1. Chuẩn bị (hệ thống còn chạy, chưa ảnh hưởng người dùng)
 
-1. **Sửa `.env` trước, rồi mới `git pull`.** Sao lưu `.env` hiện tại ra ngoài thư mục repo với quyền `600`. Thêm vào `.env`: `GARAGE_RPC_SECRET` và `GARAGE_ADMIN_TOKEN` (sinh bằng `openssl rand -hex 32`); `chmod 600 .env`. Thứ tự này bắt buộc: compose mới **không có giá trị mặc định** cho hai biến đó, nên thiếu chúng thì mọi lệnh `docker compose` trên file mới (kể cả `ps`, `pull`, `up`) dừng ngay với thông báo (đã kiểm ở Slice 6). Hai biến này vô hại với compose cũ.
-2. `git pull origin master` (nhớ: nhánh là `master`, không phải `main`).
-3. **Dựng lại image backend từ mã mới** (bắt buộc). File LAN chạy image dựng sẵn, không gắn mã nguồn như compose dev; một image dựng trước commit `8f427c5` không truyền `region`, và backend sẽ **lặp khởi động lại** với `S3Error` ngay ở `ensure_bucket()` khi trỏ vào Garage (đã gặp thật ở Slice 6). Với triển khai dựng tại chỗ: `docker build -t "$BACKEND_IMAGE:$IMAGE_TAG" ./backend` (giá trị lấy từ `.env`; production hiện dùng `hrms-backend:local`). Kiểm tra image có mã mới: `docker run --rm --entrypoint grep "$BACKEND_IMAGE:$IMAGE_TAG" -n region /app/app/core/storage.py` phải in ra một dòng `region=settings.MINIO_REGION or None`. Dựng image không ảnh hưởng container đang chạy; chúng chỉ dùng image mới khi được tạo lại ở 10.2.
-4. **Kiểm kê (Phụ lục D)** và ghi lại số object của bucket tệp. Phải là **0**. Nếu lớn hơn 0: dừng, quyết định (tải lại bằng giao diện hoặc import, hoặc chép tay); không tiếp tục theo runbook này.
+1. **Sửa `.env` trước, rồi mới `git pull`.** Compose mới **không có giá trị mặc định** cho `GARAGE_RPC_SECRET`, `GARAGE_ADMIN_TOKEN`, nên thiếu chúng thì mọi lệnh `docker compose` trên file mới (kể cả `ps`, `pull`, `up`) dừng ngay với thông báo (đã kiểm ở Slice 6). Hai biến này vô hại với compose cũ.
+   ```bash
+   cd /opt/hrms/HRMS
+   cp -p .env ~/hrms_env_before_garage_$(date +%Y%m%d-%H%M%S) && chmod 600 ~/hrms_env_before_garage_*
+   [ -n "$(tail -c1 .env)" ] && echo >> .env                      # bảo đảm .env kết thúc bằng xuống dòng
+   grep -q '^GARAGE_RPC_SECRET=' .env  || echo "GARAGE_RPC_SECRET=$(openssl rand -hex 32)"  >> .env
+   grep -q '^GARAGE_ADMIN_TOKEN=' .env || echo "GARAGE_ADMIN_TOKEN=$(openssl rand -hex 32)" >> .env
+   chmod 600 .env
+   grep -c '^GARAGE_' .env      # phải in 2
+   ```
+2. `git pull origin master`.
+3. **Dựng lại image backend và frontend từ mã mới** (bắt buộc). File LAN chạy image dựng sẵn, không gắn mã nguồn như compose dev. Image backend dựng trước commit `8f427c5` không truyền `region`, và backend sẽ **lặp khởi động lại** với `S3Error` ngay ở `ensure_bucket()` khi trỏ vào Garage (đã gặp thật ở Slice 6). Image frontend dựng trước Slice 3 còn nhãn cũ "Kho tệp ứng dụng trên MinIO". Dựng không ảnh hưởng container đang chạy; chúng chỉ dùng image mới khi được tạo lại ở 10.2. Tên và tag lấy từ `.env` (production hiện dùng dựng tại chỗ, tag `local`):
+   ```bash
+   BACKEND_IMAGE=$(sed -n 's/^BACKEND_IMAGE=//p' .env); FRONTEND_IMAGE=$(sed -n 's/^FRONTEND_IMAGE=//p' .env); IMAGE_TAG=$(sed -n 's/^IMAGE_TAG=//p' .env)
+   echo "$BACKEND_IMAGE:$IMAGE_TAG  $FRONTEND_IMAGE:$IMAGE_TAG"      # kiểm tra tên trước khi dựng
+   docker build -t "$BACKEND_IMAGE:$IMAGE_TAG"  ./backend
+   docker build -t "$FRONTEND_IMAGE:$IMAGE_TAG" ./frontend
+   # kiểm tra image có mã mới:
+   docker run --rm --entrypoint grep "$BACKEND_IMAGE:$IMAGE_TAG" -n region /app/app/core/storage.py     # phải in: region=settings.MINIO_REGION or None
+   docker run --rm --entrypoint sh "$FRONTEND_IMAGE:$IMAGE_TAG" -c 'echo "nhãn cũ: $(grep -rl "trên MinIO" /usr/share/nginx/html | wc -l) tệp (phải 0)"'
+   ```
+4. **Kiểm kê** và ghi lại số object của bucket tệp. Phải là **0**. Nếu lớn hơn 0: dừng, quyết định (tải lại bằng giao diện hoặc import, hoặc chép tay); không tiếp tục theo runbook này.
+   ```bash
+   docker compose -f docker-compose.lan.yml exec -T backend python - < scripts/s3_inventory.py
+   ```
+   (Lệnh này chạy bằng container backend **đang chạy** nên dùng image và biến môi trường cũ, đúng với MinIO hiện tại.)
 5. Backup Console: ▶ sao lưu PostgreSQL và xác nhận `success`. (Khuyến nghị, vì rất rẻ.)
-6. Bật Garage song song với MinIO: `docker compose -f docker-compose.lan.yml up -d garage`; chờ `healthy`. (Compose mới đưa `minio` vào profile `legacy-minio`, nhưng container MinIO đang chạy vẫn chạy tiếp và vẫn được `ps` liệt kê; `up -d --remove-orphans` không xóa nó. Đã kiểm bằng `--dry-run`.)
+6. Bật Garage song song với MinIO: `docker compose -f docker-compose.lan.yml up -d garage`; chờ `healthy` (`docker compose -f docker-compose.lan.yml ps garage`). Compose mới đưa `minio` vào profile `legacy-minio`, nhưng container MinIO đang chạy vẫn chạy tiếp và vẫn được `ps` liệt kê; `up -d --remove-orphans` không xóa nó (đã kiểm bằng `--dry-run`).
 7. Bootstrap, lấy khóa vào tệp tạm, **chưa động vào khóa cũ trong `.env`**:
    ```bash
    (umask 077; COMPOSE_FILE=docker-compose.lan.yml MINIO_BUCKET=hrms-attachments-prod bash scripts/garage_bootstrap.sh > /tmp/garage_keys.env)
-   wc -l /tmp/garage_keys.env      # phải là 4 dòng
+   wc -l /tmp/garage_keys.env      # phải in 4
    ```
 
 ### 10.2. Cắt chuyển (gián đoạn khoảng 1-2 phút)
 
-1. Sửa `.env` (không in giá trị bí mật ra màn hình): đặt `MINIO_ENDPOINT=garage:3900`, `MINIO_BUCKET=hrms-attachments-prod`, `MINIO_REGION=garage`, `MINIO_SECURE=false`, `BACKUP_STORAGE_ENDPOINT=garage:3900`, `BACKUP_STORAGE_REGION=garage`, `BACKUP_STORAGE_SECURE=false`; xóa 4 dòng khóa cũ (`MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `BACKUP_STORAGE_ACCESS_KEY`, `BACKUP_STORAGE_SECRET_KEY`) rồi nối nội dung `/tmp/garage_keys.env`; sau đó `shred -u /tmp/garage_keys.env`. Lưu ý: ở compose LAN, MinIO đọc tài khoản gốc từ chính `MINIO_ACCESS_KEY`/`MINIO_SECRET_KEY`, nên sau bước này `.env` không còn dùng được cho MinIO; quay lui (10.4) vì vậy phải trả `.env` bản cũ.
-2. Sửa cấu hình sao lưu **trong DB** (hoặc bằng form ở mục 7.2):
-   ```sql
+1. Chuyển `.env` sang Garage bằng script (không in giá trị bí mật; tự sao lưu `.env` ra thư mục home). Chạy `--dry-run` trước để xem sẽ đổi gì, đọc kỹ cột "cũ -> mới", rồi chạy thật và xóa tệp khóa tạm:
+   ```bash
+   python3 scripts/garage_cutover_env.py /tmp/garage_keys.env --dry-run
+   python3 scripts/garage_cutover_env.py /tmp/garage_keys.env
+   shred -u /tmp/garage_keys.env
+   ```
+   Nếu có dòng "CẢNH BÁO" về `SOURCE_STORAGE_*` thì dừng và xử lý trước. Lưu ý: ở compose LAN, MinIO đọc tài khoản gốc từ chính `MINIO_ACCESS_KEY`/`MINIO_SECRET_KEY`, nên sau bước này `.env` không còn dùng được cho MinIO; quay lui (10.4) vì vậy phải trả `.env` bản cũ.
+2. Sửa cấu hình sao lưu **trong DB** (một giao dịch, hiện bảng trước và sau; phải thấy `UPDATE 1`):
+   ```bash
+   docker compose -f docker-compose.lan.yml exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"' <<'SQL'
+   \set ON_ERROR_STOP on
+   begin;
+   select 'TRƯỚC' as buoc, kind, source_endpoint, source_bucket, target_endpoint, target_bucket from backup_configs order by kind;
    update backup_configs
       set source_endpoint = 'garage:3900',
           source_bucket   = 'hrms-attachments-prod'
     where kind = 'object_storage'
       and source_endpoint = 'minio:9000'
       and source_bucket   = 'hrms-attachments-dev';
-   select kind, source_endpoint, source_bucket, target_endpoint, target_bucket from backup_configs order by kind;
+   select 'SAU' as buoc, kind, source_endpoint, source_bucket, target_endpoint, target_bucket from backup_configs order by kind;
+   commit;
+   SQL
    ```
-3. Khởi động lại: `docker compose -f docker-compose.lan.yml up -d --force-recreate --no-deps backend celery_worker celery_beat`.
-4. Dừng MinIO và ngăn nó tự bật lại sau khởi động máy: `docker compose -f docker-compose.lan.yml stop minio` (lệnh này nhắm được service nằm sau profile `legacy-minio`; đã kiểm bằng `--dry-run` ở dev) rồi `docker update --restart=no <container_minio>`. **Chưa xóa** container và volume.
+   Nếu thấy `UPDATE 0`: cấu hình trong DB khác dự kiến; không tiếp tục, gửi kết quả bảng "TRƯỚC".
+3. Tạo lại các dịch vụ dùng image mới và biến mới:
+   ```bash
+   docker compose -f docker-compose.lan.yml up -d --force-recreate --no-deps backend celery_worker celery_beat frontend
+   ```
+4. Dừng MinIO và ngăn nó tự bật lại sau khởi động máy: `docker compose -f docker-compose.lan.yml stop minio` (lệnh này nhắm được service nằm sau profile `legacy-minio`; đã kiểm bằng `--dry-run`), rồi `docker update --restart=no $(docker compose -f docker-compose.lan.yml ps -aq minio)`. **Chưa xóa** container và volume.
 
 ### 10.3. Checklist sau cutover
 
-1. `docker compose -f docker-compose.lan.yml ps`: `garage`, `backend`, `celery_*` chạy và healthy.
-2. `GET /health`: `database`, `redis`, `minio` đều `ok` (kiểm cả bucket `hrms-attachments-prod`, nên `ok` là bằng chứng `MINIO_BUCKET` đã nạp đúng).
-3. Trình duyệt thật (luồng 8.1): tải lên một tệp, mở bằng nút **Xem file**, xóa. Nút "Tải xuống" chỉ kiểm sau khi lỗi `401` của nó đã được sửa (xem kết quả Slice 2, phát hiện 4).
-4. Backup Console: "Kiểm tra đích sao lưu" Thành công cho cả hai dòng; ▶ sao lưu DB và kho tệp đều `success`; `backup_jobs` có `artifact_bucket = hrms-backup`.
-5. `select` từ `backup_configs` đúng như 10.2 bước 2 (**cả `source_endpoint` lẫn `source_bucket`**).
-6. Log `backend` không có `S3Error`/`Traceback` bất thường trong 15 phút đầu.
+1. `docker compose -f docker-compose.lan.yml ps`: `garage`, `backend`, `celery_*`, `frontend`, `nginx` chạy và healthy; `minio` đã dừng.
+2. `curl -s http://127.0.0.1/health`: `database`, `redis`, `minio` đều `ok` (kiểm cả bucket `hrms-attachments-prod`, nên `ok` là bằng chứng `MINIO_BUCKET` đã nạp đúng).
+3. Kiểm kê lại bằng chính script đó, giờ với Garage: `docker compose -f docker-compose.lan.yml exec -T backend python - < scripts/s3_inventory.py` phải in `endpoint=garage:3900`, `region=garage`, bucket `hrms-attachments-prod`.
+4. Trình duyệt thật (luồng 8.1): tải lên một tệp, mở bằng nút **Xem file**, xóa. Nút "Tải xuống" chỉ kiểm sau khi lỗi `401` của nó đã được sửa (xem kết quả Slice 2, phát hiện 4).
+5. Backup Console: nhãn là "Kho tệp ứng dụng" (không còn "trên MinIO"); "Kiểm tra đích sao lưu" Thành công cho cả hai dòng; ▶ sao lưu DB và kho tệp đều `success`; `backup_jobs` có `artifact_bucket = hrms-backup`.
+6. `select kind, source_endpoint, source_bucket from backup_configs order by kind;` đúng như 10.2 bước 2 (**cả `source_endpoint` lẫn `source_bucket`**).
+7. `docker compose -f docker-compose.lan.yml logs --since 15m backend | grep -ciE 'S3Error|Traceback'` phải in `0`.
+8. **Sáng hôm sau**: sao lưu theo lịch đêm đầu (02:00 `db`, 03:00 `object_storage`) phải `success` trong `backup_jobs`; đó là điều kiện để bắt đầu Slice 9 (D4).
 
 ### 10.4. Quay lui
 
 Điều kiện kích hoạt: bất kỳ mục nào của 10.3 FAIL mà không sửa được nhanh.
 
 1. Dừng `backend`, `celery_worker`, `celery_beat`.
-2. Trả `.env` về bản đã sao lưu ở 10.1 bước 4; trả `backup_configs.source_endpoint` về `minio:9000` và `source_bucket` về `hrms-attachments-dev`.
-3. `docker compose -f docker-compose.lan.yml --profile legacy-minio up -d minio`; khởi động lại ba dịch vụ; chạy lại 10.3 mục 1-4 với MinIO.
+2. Trả `.env` về bản đã sao lưu (`~/hrms_env_before_garage_*`, chọn đúng bản trước lần chạy `garage_cutover_env.py`); trả `backup_configs.source_endpoint` về `minio:9000` và `source_bucket` về `hrms-attachments-dev` (SQL ở 10.2 bước 2, đổi chiều).
+3. `docker compose -f docker-compose.lan.yml --profile legacy-minio up -d minio`; tạo lại ba dịch vụ; chạy lại 10.3 mục 1-2 với MinIO. Không cần đặt `MINIO_REGION`: compose mặc định `garage`, và MinIO chấp nhận mọi region (đã kiểm với MinIO dev: không `region`, `us-east-1`, `garage` đều được).
 4. Tệp nào người dùng tải lên Garage sau cutover sẽ không có ở MinIO: theo tiền đề ở 9.0 thì tải lại hoặc chấp nhận mất (nếu cần giữ thì chép tay trước bước 1).
 
 Quay lui chỉ dùng được khi container và volume MinIO còn nguyên, nên không xóa chúng trước Slice 9.
@@ -843,60 +891,4 @@ G key info hrms-backup --show-secret
 
 ## Phụ lục D. Script kiểm kê object storage (chỉ đọc)
 
-Chạy được trên dev (đã kiểm chứng) và dự kiến trên production. Chỉ đọc cấu hình từ biến môi trường của container backend (`MINIO_ENDPOINT`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `MINIO_SECURE`), không import gì từ repo, không in khóa. Chỉ in ba tên object (cắt ngắn) cho mỗi bucket vì tên có thể chứa dữ liệu cá nhân.
-
-```python
-import os
-import sys
-from collections import Counter
-
-from minio import Minio
-
-MIB5 = 5 * 1024 * 1024
-
-
-def env(name, default=None):
-    v = os.environ.get(name, default)
-    if v is None or v == "":
-        sys.exit(f"missing env var {name}")
-    return v
-
-
-endpoint = env("MINIO_ENDPOINT")
-secure = os.environ.get("MINIO_SECURE", "false").strip().lower() in ("1", "true", "yes", "on")
-client = Minio(endpoint, access_key=env("MINIO_ACCESS_KEY"), secret_key=env("MINIO_SECRET_KEY"), secure=secure)
-
-print(f"endpoint={endpoint} secure={secure}")
-buckets = client.list_buckets()
-print(f"buckets={len(buckets)}")
-g_count = g_bytes = 0
-for b in sorted(buckets, key=lambda x: x.name):
-    count = total = big = non_ascii = 0
-    prefixes = Counter()
-    top = []
-    for o in client.list_objects(b.name, recursive=True):
-        if o.is_dir:
-            continue
-        size = o.size or 0
-        count += 1
-        total += size
-        if size > MIB5:
-            big += 1
-        if not o.object_name.isascii():
-            non_ascii += 1
-        prefixes[o.object_name.split("/", 1)[0] if "/" in o.object_name else "(root)"] += 1
-        top.append((size, o.object_name))
-    top.sort(reverse=True)
-    g_count += count
-    g_bytes += total
-    print(f"\n[bucket] {b.name}")
-    print(f"  objects={count} total_bytes={total} (~{total / 1048576:.2f} MiB)")
-    print(f"  objects_gt_5MiB={big} non_ascii_names={non_ascii}")
-    print("  top3_largest:")
-    for size, name in top[:3]:
-        print(f"    {size:>12}  {name[:60]!r}")
-    print("  top_level_prefixes:")
-    for p, c in prefixes.most_common():
-        print(f"    {p[:60]!r}: {c}")
-print(f"\nTOTAL objects={g_count} bytes={g_bytes} (~{g_bytes / 1048576:.2f} MiB)")
-```
+Nằm ở `scripts/s3_inventory.py` (tách từ phụ lục này ở Slice 8, thêm đọc `MINIO_REGION` để dùng được với Garage). Đã kiểm chứng trên dev với Garage. Chạy bằng container backend: `docker compose -f docker-compose.lan.yml exec -T backend python - < scripts/s3_inventory.py`. Chỉ đọc cấu hình từ biến môi trường của container (`MINIO_ENDPOINT`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `MINIO_SECURE`, `MINIO_REGION`), không import gì từ ứng dụng, không in khóa; chỉ in ba tên object (cắt ngắn) cho mỗi bucket vì tên có thể chứa dữ liệu cá nhân. Lưu ý: chỉ liệt kê các bucket mà khóa đang dùng nhìn thấy.
