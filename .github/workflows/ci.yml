@@ -41,22 +41,27 @@ jobs:
           --health-cmd "redis-cli ping"
           --health-interval 5s
           --health-retries 3
-      minio:
-        image: minio/minio:latest
-        env:
-          MINIO_ROOT_USER: minioadmin
-          MINIO_ROOT_PASSWORD: minioadmin
-        ports: ["9000:9000"]
-        options: >-
-          --health-cmd "curl -f http://localhost:9000/minio/health/live || exit 1"
-          --health-interval 5s
-          --health-retries 5
-        volumes:
-          - /tmp/minio-data:/data
-        command: server /data
 
     steps:
       - uses: actions/checkout@v4
+
+      # Garage (kho tệp S3) thay MinIO (kế hoạch 15.7). Chạy bằng `docker run` sau checkout vì service container khởi
+      # động trước checkout nên không gắn được docker/garage/garage.toml từ repo. Cùng image (ghim digest) với compose.
+      - name: Start Garage (S3 storage)
+        run: |
+          docker run -d --name garage -p 127.0.0.1:3900:3900 \
+            -e GARAGE_RPC_SECRET="$(openssl rand -hex 32)" \
+            -e GARAGE_ADMIN_TOKEN="$(openssl rand -hex 32)" \
+            -v "$GITHUB_WORKSPACE/docker/garage/garage.toml:/etc/garage.toml:ro" \
+            dxflrs/garage:v2.5.0@sha256:677e5b758e4425a325b811c425c026bf35a4bf42f7ddbaa773de3f4fd779a5a5 \
+            /garage server --single-node
+
+      - name: Create Garage buckets and access keys
+        run: |
+          set -o pipefail
+          GARAGE_CONTAINER=garage bash scripts/garage_bootstrap.sh > "$RUNNER_TEMP/garage_keys.env"
+          echo "::add-mask::$(sed -n 's/^MINIO_SECRET_KEY=//p' "$RUNNER_TEMP/garage_keys.env")"
+          grep '^MINIO_' "$RUNNER_TEMP/garage_keys.env" >> "$GITHUB_ENV"
 
       - name: Set up Python 3.12
         uses: actions/setup-python@v5
@@ -77,7 +82,8 @@ jobs:
           SECRET_KEY:      ci-test-secret-key-not-for-production
           ENCRYPTION_KEY:  ""
           ENVIRONMENT:     development
-          MINIO_ENDPOINT:  localhost:9000
+          MINIO_ENDPOINT:  localhost:3900
+          MINIO_REGION:    garage
           MINIO_SECURE:    "false"
         run: alembic upgrade head
 
@@ -89,7 +95,8 @@ jobs:
           SECRET_KEY:      ci-test-secret-key-not-for-production
           ENCRYPTION_KEY:  ""
           ENVIRONMENT:     development
-          MINIO_ENDPOINT:  localhost:9000
+          MINIO_ENDPOINT:  localhost:3900
+          MINIO_REGION:    garage
           MINIO_SECURE:    "false"
         run: python -m app.seeds --sample
 
@@ -101,7 +108,8 @@ jobs:
           SECRET_KEY:      ci-test-secret-key-not-for-production
           ENCRYPTION_KEY:  ""
           ENVIRONMENT:     development
-          MINIO_ENDPOINT:  localhost:9000
+          MINIO_ENDPOINT:  localhost:3900
+          MINIO_REGION:    garage
           MINIO_SECURE:    "false"
           DEBUG:           "false"
         run: pytest tests/ -q --tb=short --no-header

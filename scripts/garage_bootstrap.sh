@@ -22,6 +22,7 @@
 # Biến môi trường (mặc định dùng cho dev):
 #   COMPOSE_FILE          docker-compose.yml        (production LAN: docker-compose.lan.yml)
 #   GARAGE_SERVICE        garage
+#   GARAGE_CONTAINER      (trống)                    đặt tên container nếu Garage chạy bằng `docker run` (CI); khi đặt thì bỏ qua COMPOSE_FILE
 #   MINIO_BUCKET          hrms-attachments-dev      (production: hrms-attachments-prod)
 #   BACKUP_STORAGE_BUCKET hrms-backup
 #   APP_KEY_NAME          hrms-app
@@ -42,7 +43,13 @@ APP_KEY="${APP_KEY_NAME:-hrms-app}"
 BACKUP_KEY="${BACKUP_KEY_NAME:-hrms-backup}"
 WAIT_SECONDS="${WAIT_SECONDS:-60}"
 
-garage() { docker compose -f "$COMPOSE_FILE" exec -T "$GARAGE_SERVICE" /garage "$@"; }
+# Mặc định gọi qua docker compose. Đặt GARAGE_CONTAINER=<tên container> khi Garage được chạy bằng `docker run`
+# (CI: service container khởi động trước checkout nên không gắn được garage.toml từ repo), khi đó dùng `docker exec`.
+if [ -n "${GARAGE_CONTAINER:-}" ]; then
+  garage() { docker exec -i "$GARAGE_CONTAINER" /garage "$@"; }
+else
+  garage() { docker compose -f "$COMPOSE_FILE" exec -T "$GARAGE_SERVICE" /garage "$@"; }
+fi
 log() { echo "[garage_bootstrap] $*" >&2; }
 die() { log "LỖI: $*"; exit 1; }
 
