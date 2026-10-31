@@ -112,8 +112,17 @@ def _minio_put(object_name: str, data: BytesIO, length: int, content_type: str) 
 
 @minio_circuit.call
 def _minio_get(object_name: str):  # type: ignore[return]
-    """Circuit-protected MinIO get. Raises CircuitOpenError khi MinIO đang down."""
-    return _client().get_object(bucket_name(), object_name)
+    """Circuit-protected MinIO get. Raises CircuitOpenError khi MinIO đang down.
+
+    Trả None nếu object không tồn tại: kho vẫn trả lời bình thường nên đó không phải sự cố kho và không được tính
+    vào mạch ngắt (3 lần liền sẽ làm mọi thao tác tải/tải lên trả 503 trong 30 giây).
+    """
+    try:
+        return _client().get_object(bucket_name(), object_name)
+    except S3Error as exc:
+        if exc.code == "NoSuchKey":
+            return None
+        raise
 
 
 def bucket_name() -> str:
@@ -161,25 +170,39 @@ async def save_attachment(position_id: int, upload: UploadFile) -> tuple[str, in
     return object_name, len(content)
 
 
-def get_object_stream(object_name: str) -> Generator[bytes, None, None]:
-    """Stream object từ MinIO, dùng cho StreamingResponse."""
+def _open_object(object_name: str):
+    """Mở object trên kho. 404 nếu không có object, 503 nếu mạch ngắt của kho đang mở."""
     try:
         response = _minio_get(object_name)
     except CircuitOpenError as e:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e)) from e
-    try:
-        yield from response
-    finally:
-        response.close()
-        response.release_conn()
+    if response is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Không tìm thấy tệp trong kho lưu trữ")
+    return response
+
+
+def get_object_stream(object_name: str) -> Generator[bytes, None, None]:
+    """Stream object từ MinIO, dùng cho StreamingResponse.
+
+    Object được mở NGAY khi hàm này được gọi (không đợi tới lúc bắt đầu stream), để lỗi 404/503 được trả về trước khi
+    StreamingResponse gửi dòng trạng thái 200. Nếu mở bên trong generator, lỗi nổ sau khi đã gửi 200 và người dùng
+    nhận một tệp rỗng (LD-003).
+    """
+    response = _open_object(object_name)
+
+    def _iterate() -> Generator[bytes, None, None]:
+        try:
+            yield from response
+        finally:
+            response.close()
+            response.release_conn()
+
+    return _iterate()
 
 
 def get_object_bytes(object_name: str) -> bytes:
     """Tải toàn bộ object từ MinIO về bytes. Dùng cho xử lý in-memory (DOCX inspection)."""
-    try:
-        response = _minio_get(object_name)
-    except CircuitOpenError as e:
-        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e)) from e
+    response = _open_object(object_name)
     try:
         return response.read()
     finally:

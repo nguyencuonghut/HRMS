@@ -8,6 +8,7 @@ from sqlalchemy import delete, select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.core.config import settings
+from app.core.storage import delete_attachment
 from app.models.employee import Employee
 from app.schemas.employee_attachment import MAX_FILE_SIZE
 from app.seeds import employees as employees_seed
@@ -176,6 +177,19 @@ def test_download_wrong_employee_404(client: TestClient):
     emp2 = _create_employee(client, headers, suffix="0000003")
     att = _upload(client, emp1["id"], headers).json()
     resp = client.get(f"{BASE}/{emp2['id']}/attachments/{att['id']}/download", headers=headers)
+    assert resp.status_code == 404
+
+
+# ── Download khi object không còn trong kho (LD-003) ───────────────────────────
+
+def test_download_attachment_object_missing_returns_404(client: TestClient):
+    headers = _admin(client)
+    emp = _create_employee(client, headers, suffix="0000091")
+    att = _upload(client, emp["id"], headers).json()
+    delete_attachment(att["file_path"])  # object biến mất khỏi kho, bản ghi trong DB vẫn còn
+
+    resp = client.get(f"{BASE}/{emp['id']}/attachments/{att['id']}/download", headers=headers)
+
     assert resp.status_code == 404
 
 
