@@ -828,8 +828,9 @@ export default {
   deleteAttachment: (id: number, attId: number) =>
     api.delete(`${BASE}/${id}/attachments/${attId}`),
 
-  getAttachmentDownloadUrl: (id: number, attId: number) =>
-    `${BASE}/${id}/attachments/${attId}/download`,
+  // Tải qua axios (kèm Authorization): một thẻ <a href> trỏ thẳng vào URL này không gửi được token nên backend trả 401 (LD-002).
+  downloadAttachment: (id: number, attId: number, fileName: string) =>
+    downloadBlob(`${BASE}/${id}/attachments/${attId}/download`, fileName),
 
   previewAttachment: async (id: number, attId: number) => {
     const res = await api.get<PreviewLinkRead>(`${BASE}/${id}/attachments/${attId}/preview-url`)

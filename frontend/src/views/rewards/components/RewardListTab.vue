@@ -335,7 +335,6 @@
       </template>
     </Dialog>
 
-    <ConfirmDialog />
     <Toast />
   </div>
 </template>
@@ -344,7 +343,6 @@
 import { ref, computed, onMounted } from 'vue'
 import Button from 'primevue/button'
 import Column from 'primevue/column'
-import ConfirmDialog from 'primevue/confirmdialog'
 import DataTable from 'primevue/datatable'
 import DatePicker from 'primevue/datepicker'
 import Dialog from 'primevue/dialog'

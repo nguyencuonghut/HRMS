@@ -138,8 +138,6 @@
     </template>
   </Dialog>
 
-  <!-- Confirm delete -->
-  <ConfirmDialog />
 </template>
 
 <script setup lang="ts">
@@ -147,7 +145,6 @@ import { computed, ref } from 'vue'
 import { useConfirm } from 'primevue/useconfirm'
 import { useToast } from 'primevue/usetoast'
 import Button from 'primevue/button'
-import ConfirmDialog from 'primevue/confirmdialog'
 import Dialog from 'primevue/dialog'
 import InputText from 'primevue/inputtext'
 import Select from 'primevue/select'
@@ -285,12 +282,13 @@ async function submitUpload() {
 }
 
 // ── Download ──────────────────────────────────────────────────────
-function download(att: EmployeeAttachmentRead) {
-  const url = employeeService.getAttachmentDownloadUrl(props.employeeId, att.id)
-  const a = document.createElement('a')
-  a.href = `/api/v1${url}`
-  a.download = att.file_name
-  a.click()
+async function download(att: EmployeeAttachmentRead) {
+  try {
+    await employeeService.downloadAttachment(props.employeeId, att.id, att.file_name)
+  } catch (err: any) {
+    const detail = err?.response?.data?.detail
+    toast.add({ severity: 'error', summary: 'Lỗi', detail: detail ?? 'Không tải được file', life: 4000 })
+  }
 }
 
 // ── Delete ────────────────────────────────────────────────────────

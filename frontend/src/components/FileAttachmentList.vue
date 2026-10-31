@@ -70,14 +70,12 @@
     </DataTable>
   </div>
 
-  <ConfirmDialog />
 </template>
 
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import Button from 'primevue/button'
 import Column from 'primevue/column'
-import ConfirmDialog from 'primevue/confirmdialog'
 import DataTable from 'primevue/datatable'
 import FileUpload, { type FileUploadUploaderEvent } from 'primevue/fileupload'
 import { useConfirm } from 'primevue/useconfirm'

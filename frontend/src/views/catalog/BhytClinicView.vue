@@ -107,8 +107,6 @@
       </template>
     </Dialog>
 
-    <!-- Delete Confirm Dialog -->
-    <ConfirmDialog />
   </div>
 </template>
 
@@ -119,7 +117,6 @@ import { useConfirm } from 'primevue/useconfirm'
 import { useToast } from 'primevue/usetoast'
 import Button from 'primevue/button'
 import Column from 'primevue/column'
-import ConfirmDialog from 'primevue/confirmdialog'
 import DataTable from 'primevue/datatable'
 import Dialog from 'primevue/dialog'
 import IconField from 'primevue/iconfield'
