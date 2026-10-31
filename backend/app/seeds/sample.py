@@ -318,6 +318,13 @@ async def _backfill_all_employees_to_completion(session: AsyncSession) -> None:
     await session.flush()
 
 
+async def reset_id_sequence(session: AsyncSession, seq_name: str, table_name: str) -> None:
+    """Đặt sequence để id kế tiếp là MAX(id)+1 (hoặc 1 nếu bảng rỗng)."""
+    await session.execute(
+        text(f"SELECT setval('{seq_name}', COALESCE((SELECT MAX(id) FROM {table_name}), 0) + 1, false)")
+    )
+
+
 async def run(session: AsyncSession) -> None:
     # 0. Xóa cohort demo dashboard cũ để sample seed chỉ còn dữ liệu nhân sự mẫu tổng quát
     dashboard_demo_filter = "dashboard.demo.%@hrms.local"
@@ -548,9 +555,7 @@ async def run(session: AsyncSession) -> None:
         ("leave_records_id_seq", "leave_records"),
         ("leave_entitlements_id_seq", "leave_entitlements"),
     ]:
-        await session.execute(
-            text(f"SELECT setval('{seq_name}', COALESCE((SELECT MAX(id) FROM {table_name}), 1), true)")
-        )
+        await reset_id_sequence(session, seq_name, table_name)
     await session.flush()
 
     institutions_added, majors_added = await education_catalog.seed_sample_education_catalog(session)

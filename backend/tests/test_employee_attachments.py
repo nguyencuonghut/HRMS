@@ -64,8 +64,8 @@ async def cleanup():
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
-def _create_employee(client: TestClient, headers: dict, suffix: str = "0000001") -> dict:
-    resp = client.post(BASE, json={
+def _create_employee(client: TestClient, headers: dict, suffix: str = "0000001", department_id: int | None = None) -> dict:
+    payload = {
         "employee_code_sequence_id": 1,
         "full_name": "Test Attachment Viên",
         "last_name": "Test",
@@ -78,7 +78,11 @@ def _create_employee(client: TestClient, headers: dict, suffix: str = "0000001")
         "id_issued_by": "Cục Cảnh sát ĐKQLCƯ",
         "status": "probation",
         "start_date": "2026-01-01",
-    }, headers=headers)
+    }
+    if department_id is not None:
+        payload["initial_department_id"] = department_id
+        payload["initial_job_effective_from"] = "2026-01-01"
+    resp = client.post(BASE, json=payload, headers=headers)
     assert resp.status_code == 201, resp.text
     return resp.json()
 
@@ -284,7 +288,9 @@ def test_viewer_cannot_delete_403(client: TestClient):
 def test_viewer_can_list_and_download(client: TestClient):
     admin_headers = _admin(client)
     viewer_headers = _viewer(client)
-    emp = _create_employee(client, admin_headers)
+    # Line manager chỉ thấy nhân viên thuộc phòng ban trong phạm vi của mình; nhân viên ngoài phạm vi trả 404.
+    scoped_department_id = client.get("/api/v1/auth/me", headers=viewer_headers).json()["department_scopes"]["employees"][0]
+    emp = _create_employee(client, admin_headers, department_id=scoped_department_id)
     att = _upload(client, emp["id"], admin_headers, content=b"readonly").json()
 
     lst = client.get(f"{BASE}/{emp['id']}/attachments", headers=viewer_headers)

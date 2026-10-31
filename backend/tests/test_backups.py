@@ -841,7 +841,8 @@ async def test_restore_request_rejects_missing_snapshot_and_unsafe_targets(clien
 
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_restore_runner_marks_request_verified_and_failed_without_exposing_secrets():
+async def test_restore_runner_marks_request_verified_and_failed_without_exposing_secrets(monkeypatch):
+    monkeypatch.setattr(settings, "BACKUP_STORAGE_SECRET_KEY", "test-backup-secret-value-0123456789")
     artifact_key = f"postgres/pytest-runner-{uuid4().hex}.sql.gz"
     await _insert_successful_backup_job("db", artifact_key)
 
@@ -1139,7 +1140,9 @@ def test_backup_notification_timestamp_uses_configured_timezone():
 
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_backup_runner_marks_job_failed_without_exposing_secrets():
+async def test_backup_runner_marks_job_failed_without_exposing_secrets(monkeypatch):
+    monkeypatch.setattr(settings, "BACKUP_STORAGE_SECRET_KEY", "test-backup-secret-value-0123456789")
+
     async def create_job(session):
         job = await backup_service.create_manual_backup_job(session, kind="db", user_id=None)
         await session.commit()

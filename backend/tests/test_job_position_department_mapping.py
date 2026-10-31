@@ -67,13 +67,6 @@ def _create_department(client: TestClient, headers: dict, *, code: str, name: st
     return res.json()["id"]
 
 
-def _get_any_department(client: TestClient, headers: dict) -> dict:
-    payload = client.get(BASE_DEPT, headers=headers).json()
-    rows = payload["items"] if isinstance(payload, dict) else payload
-    assert rows, "Cần ít nhất 1 phòng ban seed"
-    return rows[0]
-
-
 def _get_any_job_title_id(client: TestClient, headers: dict) -> int | None:
     payload = client.get("/api/v1/job-titles", headers=headers).json()
     rows = payload if isinstance(payload, list) else payload.get("items", payload)
@@ -161,7 +154,15 @@ def _make_xlsx(rows: list[list[str]]) -> bytes:
 
 def _create_shared_position_setup(client: TestClient, headers: dict) -> tuple[dict, dict, dict]:
     suffix = uuid.uuid4().hex[:8].upper()
-    owner = _get_any_department(client, headers)
+    # Phòng ban chủ riêng của test: "phòng ban đầu tiên" có thể là phòng ban thử của fixture phạm vi phiên ở tệp khác,
+    # bị xóa cuối phiên trong khi vị trí tạo ở đây vẫn còn trỏ tới nó.
+    owner_id = _create_department(
+        client,
+        headers,
+        code=f"TSO{suffix}",
+        name=f"Phòng chủ dùng chung {suffix}",
+    )
+    owner = {"id": owner_id, "code": f"TSO{suffix}", "name": f"Phòng chủ dùng chung {suffix}"}
     target_id = _create_department(
         client,
         headers,

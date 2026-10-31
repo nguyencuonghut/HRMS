@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import date
+from datetime import date, timedelta
 import io
 import uuid
 
@@ -1140,14 +1140,14 @@ def test_scoped_contract_user_only_sees_contracts_within_assigned_departments(cl
         admin_headers,
         employee_id=visible_emp["id"],
         contract_number=f"{_PREFIX}-CON-VISIBLE",
-        effective_to="2026-07-15",
+        effective_to=(date.today() + timedelta(days=30)).isoformat(),
     )
     _create_contract(
         client,
         admin_headers,
         employee_id=hidden_emp["id"],
         contract_number=f"{_PREFIX}-CON-HIDDEN",
-        effective_to="2026-07-20",
+        effective_to=(date.today() + timedelta(days=35)).isoformat(),
     )
 
     scoped_headers = _create_scoped_role_user(

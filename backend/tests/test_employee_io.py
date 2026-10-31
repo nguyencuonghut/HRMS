@@ -542,6 +542,8 @@ async def test_export_profile_reads_bhxh_code_from_insurance_profile(client: Tes
 
     resp = client.get(f"{BASE}/{employee_id}/export", headers=headers)
     assert resp.status_code == 200, resp.text
+    wb = openpyxl.load_workbook(io.BytesIO(resp.content))
+    rows = {row[0]: row[1] for row in wb["Thông tin cá nhân"].iter_rows(values_only=True)}
     assert rows["Số BHXH"] == "BHXH-PROFILE-SOURCE"
 
 

@@ -23,9 +23,11 @@ def _admin(client: TestClient) -> dict:
 
 
 def _get_dept_id(client: TestClient, h: dict) -> int:
-    items = client.get("/api/v1/departments", headers=h, params={"page_size": 1}).json()
+    # Lấy phòng ban của chính vị trí đầu tiên: JR chỉ nhận vị trí đã gán cho phòng ban, còn "phòng ban đầu tiên" đổi
+    # khi test khác (vd test_job_positions) tạo phòng ban thử trong cùng phiên pytest.
+    items = client.get("/api/v1/job-positions", headers=h, params={"page_size": 1}).json()
     rows = items if isinstance(items, list) else items.get("items", items)
-    return rows[0]["id"]
+    return rows[0]["department_id"]
 
 
 def _get_pos_id(client: TestClient, h: dict) -> int:

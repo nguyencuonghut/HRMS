@@ -80,13 +80,27 @@ async def test_sample_other_business_catalog_seed_is_idempotent():
         await other_business_catalog.seed_required_other_business_catalog(session)
         await other_business_catalog.seed_sample_other_business_catalog(session)
         await session.commit()
+        placeholders_after_first_run = await _scalar("SELECT COUNT(*) FROM contract_template_placeholders")
         await other_business_catalog.seed_sample_other_business_catalog(session)
         await session.commit()
 
     assert await _scalar("SELECT COUNT(*) FROM skills") == 10
     assert await _scalar("SELECT COUNT(*) FROM certificates") == 5
     assert await _scalar("SELECT COUNT(*) FROM contract_templates") == 4
-    assert await _scalar("SELECT COUNT(*) FROM contract_template_placeholders") == 51
+    # Chạy seed lần hai không được thêm dòng. Không cố định tổng số: nó đổi mỗi khi thêm mẫu hợp đồng hay placeholder.
+    assert await _scalar("SELECT COUNT(*) FROM contract_template_placeholders") == placeholders_after_first_run
+    for template_code, placeholders in other_business_catalog.CONTRACT_TEMPLATE_PLACEHOLDERS.items():
+        for placeholder in placeholders:
+            assert await _scalar(
+                """
+                SELECT COUNT(*)
+                FROM contract_template_placeholders p
+                JOIN contract_templates t ON t.id = p.template_id
+                WHERE t.code = :template_code AND t.version_no = 1 AND p.placeholder_key = :placeholder_key
+                """,
+                template_code=template_code,
+                placeholder_key=placeholder[0],
+            ) == 1
 
 
 async def test_domain_relevant_other_business_seed_rows_exist():
@@ -132,7 +146,7 @@ async def test_domain_relevant_other_business_seed_rows_exist():
         JOIN contract_templates t ON t.id = p.template_id
         WHERE t.code = 'ld_indefinite'
           AND t.version_no = 1
-          AND p.placeholder_key = 'employee.full_name'
+          AND p.placeholder_key = 'employee_full_name'
         """
     )
 
