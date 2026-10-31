@@ -53,7 +53,9 @@ echo "[$(date -Iseconds)] Creating temporary database: $VERIFY_DB_NAME"
 PGPASSWORD="$DB_PASSWORD" "${CREATEDB_BASE[@]}" "$VERIFY_DB_NAME"
 
 echo "[$(date -Iseconds)] Restoring backup into temporary database"
-gunzip -c "$BACKUP_FILE" | PGPASSWORD="$DB_PASSWORD" "${PSQL_BASE[@]}" "$VERIFY_DB_NAME" >/dev/null
+# Giống Backup Console: bỏ dòng `SET transaction_timeout` (pg_dump 17 sinh ra, server 16 không nhận) và dừng ở lỗi đầu tiên.
+gunzip -c "$BACKUP_FILE" | LC_ALL=C sed '/^SET transaction_timeout /d' \
+  | PGPASSWORD="$DB_PASSWORD" "${PSQL_BASE[@]}" -q -o /dev/null -v ON_ERROR_STOP=1 "$VERIFY_DB_NAME"
 
 table_count="$(PGPASSWORD="$DB_PASSWORD" "${PSQL_BASE[@]}" "$VERIFY_DB_NAME" -Atqc "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public'")"
 echo "[$(date -Iseconds)] Restored public tables: $table_count"
