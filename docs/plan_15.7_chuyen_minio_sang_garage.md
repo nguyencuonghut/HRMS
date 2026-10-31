@@ -580,9 +580,29 @@ Không có bước chép dữ liệu để diễn tập; Garage, bootstrap, back
 
 **Việc làm**: thực hiện runbook mục 10 (khoảng 15 phút, gián đoạn khoảng 1-2 phút).
 
-**Kiểm chứng (cổng)**: checklist 10.3 PASS; đêm đầu: sao lưu theo lịch 02:00 (`db`) và 03:00 (`object_storage`) thành công.
+**Kiểm chứng (cổng)**: checklist 10.3 PASS; đêm đầu: một cặp job `scheduled_full` (`db` và `object_storage`, quan sát thực tế: cùng lúc 02:00 giờ Việt Nam = 19:00 UTC) thành công trên Garage.
 
 **Rollback**: 10.4.
+
+### Nhật ký Slice 8 (cutover production)
+
+**Đợt 0 (2026-10-31, chỉ đọc, kết quả production dán về)**: production ở `30d36da` (đúng bằng `origin/master` lúc đó), `master` ở máy dev ahead 14 commit. Bảy dịch vụ chạy; `frontend` và `nginx` `unhealthy` (lỗi healthcheck IPv6, đã sửa ở `02c81ae` nhưng production chưa pull). `.env` đúng giả định: `BACKEND_IMAGE=hrms-backend`, `FRONTEND_IMAGE=hrms-frontend`, `IMAGE_TAG=local`, `MINIO_ENDPOINT=minio:9000`, `MINIO_SECURE=false` (kèm chú thích cùng dòng), `BACKUP_STORAGE_ENDPOINT=minio:9000`, `BACKUP_STORAGE_BUCKET=hrms-backup`; **chưa có** `MINIO_BUCKET`, `MINIO_REGION`, `BACKUP_STORAGE_REGION`, `GARAGE_*` (script `.env` sẽ thêm). Có các biến `SOURCE_STORAGE_*` (chưa biết có rỗng không; dry-run của script sẽ cảnh báo nếu không). Image: `hrms-backend:local` dựng 21 giờ trước (**chưa** có mã `region`), `hrms-frontend:local` dựng 7 tuần trước (nhãn cũ và healthcheck lỗi), còn `hrms-backend:before-20261030` giữ từ trước. Volume: `hrms_minio_data`, `hrms_postgres_data`. Đĩa trống 400 GB. DB: `object_storage` ở `minio:9000` / `hrms-attachments-dev`, đúng với câu SQL. Có tệp `index.html` chưa theo dõi ở gốc repo (không có trong lịch sử git; không đụng tới). `git pull` mang về 14 commit, **không có migration**, `requirements.txt` không đổi.
+
+**Đợt A (2026-10-31, làm thay đổi nhẹ, chưa khởi động lại gì)**: `git pull` đưa production từ `30d36da` lên `06c4f87` (14 commit, fast-forward); `.env` được sao lưu (`~/hrms_env_before_garage_20261031-083732`, quyền 600) và thêm `GARAGE_RPC_SECRET`, `GARAGE_ADMIN_TOKEN` (2 biến). **Kiểm kê bằng `scripts/s3_inventory.py` trên MinIO hiện tại: `hrms-attachments-dev` có 0 object** (cổng của 10.1 bước 4 đạt); `hrms-backup` có 5 object, 1,76 MiB (3 bản `postgres/`, 2 bản `files/`; nhiều hơn 3 object của lần kiểm kê đầu vì đã chạy thêm sao lưu), đều là bản sao lưu thử, không chuyển.
+
+**Đợt B (2026-10-31, chuẩn bị, chưa khởi động lại dịch vụ nào)**: `docker compose -f docker-compose.lan.yml config --quiet` hợp lệ với `.env` thật. Đã gắn tag giữ image cũ (`hrms-backend:before-garage`, `hrms-frontend:before-garage`) rồi dựng `hrms-backend:local` (mã mới có `region`) và `hrms-frontend:local` (nhãn cũ còn 0 tệp; healthcheck dùng `127.0.0.1`). `garage` kéo từ Docker Hub theo digest, lên `healthy`; bootstrap tạo `hrms-attachments-prod`, `hrms-backup` và hai khóa; `/tmp/garage_keys.env` có 4 dòng, quyền 600. Các dịch vụ cũ không bị đụng. **Phát hiện**: compose báo có container mồ côi `hrms-backup_scheduler-1` trên production (kế hoạch giả định `backup_scheduler` không chạy); trạng thái của nó cần kiểm trước khi chuyển.
+
+**Đợt C-trước (2026-10-31, chỉ đọc cộng một bản sao lưu cục bộ)**: bản sao lưu DB `~/hrms_pre_garage_20261031-084231.sql.gz` (620K, 117 bảng, `gzip -t` đạt); kiểm kê lại: `hrms-attachments-dev` 0 object (lần thứ ba liên tiếp), `hrms-backup` 5 object; container `hrms-backup_scheduler-1` đã `Exited (1) 4 months ago` (chính sách restart `always` nhưng đã dừng, không ảnh hưởng; dọn ở Slice 9); dry-run của `garage_cutover_env.py` đúng bảy dòng cũ/mới và **không có cảnh báo `SOURCE_STORAGE_*`**.
+
+**Đợt C-chuyển (2026-10-31, cutover thật)**: `garage_cutover_env.py` chuyển `.env` (bảy dòng cũ/mới đúng dự kiến; bản gốc `~/hrms_env_before_garage_20261031-084551`, đây là bản dùng để quay lui); SQL `UPDATE 1` (`object_storage`: `minio:9000` / `hrms-attachments-dev` thành `garage:3900` / `hrms-attachments-prod`); tạo lại `backend`, `celery_worker`, `celery_beat`, `frontend`, `nginx` (backend `healthy` sau 10 giây). **Kết quả tự động**: cả 5 dịch vụ `healthy` (kể cả `frontend` và `nginx`, vốn `unhealthy` trước đó do healthcheck IPv6); `GET /health` qua nginx: `database`, `redis`, `minio` đều `ok`; kiểm kê bằng khóa ứng dụng: `endpoint=garage:3900 region=garage`, `hrms-attachments-prod` 0 object; 0 `S3Error`/`Traceback` trong log backend; `backup_configs` đúng. MinIO **còn chạy** (giữ để quay lui). Container mồ côi `hrms-backup_scheduler-1` vẫn được compose cảnh báo (dọn ở Slice 9). **Chưa có**: kiểm tra bằng trình duyệt thật (10.3 mục 4-5), dừng MinIO (10.3A), sao lưu theo lịch đêm đầu (10.3 mục 8).
+
+**Kiểm tra giao diện và dừng MinIO (2026-10-31)**: chủ hệ thống báo đã kiểm tra bằng trình duyệt thật năm mục của 10.3 (nhãn "Kho tệp ứng dụng", kiểm tra đích, ▶ sao lưu, tải lên/xem/xóa tệp) và đạt (chưa có số liệu kèm theo; bằng chứng từ DB xem truy vấn `backup_jobs`). **Một lỗi nhỏ có sẵn, không liên quan Garage**: sau khi xóa tệp ở tab "Tệp đính kèm hồ sơ", tệp bị xóa nhưng hộp thoại "Xác nhận xóa" vẫn còn. Nguyên nhân (đã đọc mã): `AppLayout.vue:22` mount một `<ConfirmDialog />` chung và `AttachmentsTab.vue:142` mount thêm một cái nữa, cả hai không có `group`, nên cả hai cùng hiện và cùng nghe `confirm.require`; bấm "Xóa" chỉ đóng hộp đã bấm. Lỗi cùng kiểu có ở `FileAttachmentList`, `BhytClinicView`, `LeaveListView`, `LeaveEntitlementView`, `DisciplineListTab`, `RewardListTab` (`ContractTab` tránh được nhờ `group="employee-contracts"`). Chưa sửa; đã ghi ở `docs/known_issues.md` (LD-001), cùng lỗi 401 của nút "Tải xuống" (LD-002), để sửa sau theo yêu cầu của chủ hệ thống. **MinIO đã dừng** (10.3A): `docker compose stop minio` và `docker update --restart=no`; 8 dịch vụ còn lại `healthy`; `/health` vẫn `ok` khi MinIO không chạy, chứng tỏ ứng dụng không còn phụ thuộc MinIO.
+
+**Bằng chứng từ `backup_jobs` sau cutover (2026-10-31)**: job 122 (`db`, thủ công, `success`, 616.720 byte) và 123 (`object_storage`, thủ công, `success`) tạo lúc 01:52 UTC, sau cutover, `artifact_bucket = hrms-backup`. **`object_count` của job 123 là 0**: lúc bấm ▶ kho tệp trống, nên **chưa chứng minh được việc chép một tệp thật từ Garage ở production** (chưa rõ bấm trước khi tải tệp lên hay có lỗi). Hai dòng DB cũng chưa cho biết job ghi vào Garage hay MinIO (tên bucket trùng nhau); phải đếm trực tiếp từ Garage (`garage bucket info`). Hai job `scheduled_full` (120, 121) lúc 19:00:00 UTC ngày 30/10 là lịch đêm **trước** cutover, chạy trên MinIO, và cho thấy lịch thực tế là một cặp `scheduled_full` lúc 02:00 giờ Việt Nam (không phải 02:00 và 03:00 riêng như đã ghi); đã sửa các điều kiện chờ cho khớp.
+
+**Đếm trực tiếp từ Garage (2026-10-31, `garage bucket info`)**: `hrms-backup` có **2 object, 616,9 kB**, đúng bằng bản DB của job 122 (616.720 byte) cộng manifest của job 123 (159 byte) = 616.879 byte. Bucket được tạo trống ở Đợt B, nên hai object đó chỉ đến từ hai job sau cutover: **sao lưu ghi vào Garage ở production đã được chứng minh**. `hrms-attachments-prod` có 0 object (tệp thử đã xóa). **Còn thiếu**: một lần tải tệp lên rồi ▶ sao lưu kho tệp cho `object_count ≥ 1` (chứng minh tải lên vào Garage và sao lưu chép được tệp thật), và cặp `scheduled_full` của đêm 31/10 sang 1/11.
+
+**Lần thử có thứ tự trên production (2026-10-31, đếm trực tiếp từ Garage)**: sau khi tải một tệp lên một hồ sơ nhân viên, `hrms-attachments-prod` có **1 object, 571,5 kB** (trước đó 0): **tải lên vào Garage đã được chứng minh**. Sau khi ▶ sao lưu kho tệp, job 124 (`object_storage`, thủ công) `success` với **`object_count = 1`**, `artifact_size_bytes = 571.652` (tệp 558,1 KiB, khoảng 571.494 byte, cộng manifest khoảng 158 byte), và `hrms-backup` tăng từ 2 lên 4 object, 1,2 MB (616.879 byte cũ cộng tệp và manifest mới): **sao lưu chép được tệp thật từ Garage đã được chứng minh**. Hệ quả cần biết: bản sao lưu giữ một bản sao của tệp thử theo thời hạn lưu giữ (`retention`) dù tệp gốc đã xóa. **Còn lại của Slice 8**: cặp `scheduled_full` của đêm 31/10 sang 1/11 (02:00 giờ Việt Nam), rồi Slice 9.
 
 ### Slice 9 - Dọn dẹp sau cutover
 
@@ -628,11 +648,15 @@ Công cụ (đều trong repo, có sau `git pull`): `scripts/s3_inventory.py` (k
    ```bash
    BACKEND_IMAGE=$(sed -n 's/^BACKEND_IMAGE=//p' .env); FRONTEND_IMAGE=$(sed -n 's/^FRONTEND_IMAGE=//p' .env); IMAGE_TAG=$(sed -n 's/^IMAGE_TAG=//p' .env)
    echo "$BACKEND_IMAGE:$IMAGE_TAG  $FRONTEND_IMAGE:$IMAGE_TAG"      # kiểm tra tên trước khi dựng
+   # dựng sẽ GHI ĐÈ tag hiện tại, nên gắn tag giữ bản đang chạy để quay lui được (10.4):
+   docker tag "$BACKEND_IMAGE:$IMAGE_TAG"  "$BACKEND_IMAGE:before-garage"
+   docker tag "$FRONTEND_IMAGE:$IMAGE_TAG" "$FRONTEND_IMAGE:before-garage"
    docker build -t "$BACKEND_IMAGE:$IMAGE_TAG"  ./backend
    docker build -t "$FRONTEND_IMAGE:$IMAGE_TAG" ./frontend
    # kiểm tra image có mã mới:
    docker run --rm --entrypoint grep "$BACKEND_IMAGE:$IMAGE_TAG" -n region /app/app/core/storage.py     # phải in: region=settings.MINIO_REGION or None
    docker run --rm --entrypoint sh "$FRONTEND_IMAGE:$IMAGE_TAG" -c 'echo "nhãn cũ: $(grep -rl "trên MinIO" /usr/share/nginx/html | wc -l) tệp (phải 0)"'
+   docker image inspect "$FRONTEND_IMAGE:$IMAGE_TAG" --format '{{json .Config.Healthcheck.Test}}'   # phải chứa 127.0.0.1 (sửa lỗi healthcheck IPv6, commit 02c81ae)
    ```
 4. **Kiểm kê** và ghi lại số object của bucket tệp. Phải là **0**. Nếu lớn hơn 0: dừng, quyết định (tải lại bằng giao diện hoặc import, hoặc chép tay); không tiếp tục theo runbook này.
    ```bash
@@ -675,28 +699,39 @@ Công cụ (đều trong repo, có sau `git pull`): `scripts/s3_inventory.py` (k
    Nếu thấy `UPDATE 0`: cấu hình trong DB khác dự kiến; không tiếp tục, gửi kết quả bảng "TRƯỚC".
 3. Tạo lại các dịch vụ dùng image mới và biến mới:
    ```bash
-   docker compose -f docker-compose.lan.yml up -d --force-recreate --no-deps backend celery_worker celery_beat frontend
+   docker compose -f docker-compose.lan.yml up -d --force-recreate --no-deps backend celery_worker celery_beat frontend nginx
    ```
-4. Dừng MinIO và ngăn nó tự bật lại sau khởi động máy: `docker compose -f docker-compose.lan.yml stop minio` (lệnh này nhắm được service nằm sau profile `legacy-minio`; đã kiểm bằng `--dry-run`), rồi `docker update --restart=no $(docker compose -f docker-compose.lan.yml ps -aq minio)`. **Chưa xóa** container và volume.
+   `nginx` được tạo lại để nhận healthcheck đã sửa (127.0.0.1) ở `docker-compose.lan.yml`; cấu hình nginx không đổi và dùng `resolver`, nên gián đoạn chỉ vài giây. Trước cutover, `frontend` và `nginx` trên production đang báo `unhealthy` vì lỗi healthcheck IPv6 đó (quan sát ở Đợt 0), không phải do Garage.
+4. **MinIO còn chạy** cho tới khi checklist 10.3 đạt (giữ để quay lui nhanh). Chỉ khi 10.3 mục 1-7 đạt mới dừng nó, ở bước 10.3A bên dưới.
 
 ### 10.3. Checklist sau cutover
 
-1. `docker compose -f docker-compose.lan.yml ps`: `garage`, `backend`, `celery_*`, `frontend`, `nginx` chạy và healthy; `minio` đã dừng.
+1. `docker compose -f docker-compose.lan.yml ps`: `garage`, `backend`, `celery_*`, `frontend`, `nginx` chạy và healthy (hai dịch vụ cuối chỉ hết `unhealthy` khi image frontend và container nginx đã được dựng lại/tạo lại như ở 10.1 bước 3 và 10.2 bước 3); `minio` đã dừng.
 2. `curl -s http://127.0.0.1/health`: `database`, `redis`, `minio` đều `ok` (kiểm cả bucket `hrms-attachments-prod`, nên `ok` là bằng chứng `MINIO_BUCKET` đã nạp đúng).
 3. Kiểm kê lại bằng chính script đó, giờ với Garage: `docker compose -f docker-compose.lan.yml exec -T backend python - < scripts/s3_inventory.py` phải in `endpoint=garage:3900`, `region=garage`, bucket `hrms-attachments-prod`.
 4. Trình duyệt thật (luồng 8.1): tải lên một tệp, mở bằng nút **Xem file**, xóa. Nút "Tải xuống" chỉ kiểm sau khi lỗi `401` của nó đã được sửa (xem kết quả Slice 2, phát hiện 4).
 5. Backup Console: nhãn là "Kho tệp ứng dụng" (không còn "trên MinIO"); "Kiểm tra đích sao lưu" Thành công cho cả hai dòng; ▶ sao lưu DB và kho tệp đều `success`; `backup_jobs` có `artifact_bucket = hrms-backup`.
 6. `select kind, source_endpoint, source_bucket from backup_configs order by kind;` đúng như 10.2 bước 2 (**cả `source_endpoint` lẫn `source_bucket`**).
 7. `docker compose -f docker-compose.lan.yml logs --since 15m backend | grep -ciE 'S3Error|Traceback'` phải in `0`.
-8. **Sáng hôm sau**: sao lưu theo lịch đêm đầu (02:00 `db`, 03:00 `object_storage`) phải `success` trong `backup_jobs`; đó là điều kiện để bắt đầu Slice 9 (D4).
+8. **Sáng hôm sau**: cặp job `scheduled_full` của đêm đầu (`db` và `object_storage`, cùng lúc 02:00 giờ Việt Nam = 19:00 UTC; `created_at` trong DB hiển thị UTC) phải `success` trong `backup_jobs` **và** bucket `hrms-backup` trong Garage phải có thêm object (`garage bucket info hrms-backup`); đó là điều kiện để bắt đầu Slice 9 (D4).
+
+### 10.3A. Dừng MinIO (chỉ sau khi 10.3 mục 1-7 đạt)
+
+Dừng MinIO và ngăn nó tự bật lại sau khởi động máy; lệnh `stop` nhắm được service nằm sau profile `legacy-minio` (đã kiểm bằng `--dry-run`). **Chưa xóa** container và volume.
+
+```bash
+docker compose -f docker-compose.lan.yml stop minio
+docker update --restart=no hrms-minio-1
+docker compose -f docker-compose.lan.yml ps --format 'table {{.Service}}\t{{.State}}\t{{.Health}}'
+```
 
 ### 10.4. Quay lui
 
 Điều kiện kích hoạt: bất kỳ mục nào của 10.3 FAIL mà không sửa được nhanh.
 
 1. Dừng `backend`, `celery_worker`, `celery_beat`.
-2. Trả `.env` về bản đã sao lưu (`~/hrms_env_before_garage_*`, chọn đúng bản trước lần chạy `garage_cutover_env.py`); trả `backup_configs.source_endpoint` về `minio:9000` và `source_bucket` về `hrms-attachments-dev` (SQL ở 10.2 bước 2, đổi chiều).
-3. `docker compose -f docker-compose.lan.yml --profile legacy-minio up -d minio`; tạo lại ba dịch vụ; chạy lại 10.3 mục 1-2 với MinIO. Không cần đặt `MINIO_REGION`: compose mặc định `garage`, và MinIO chấp nhận mọi region (đã kiểm với MinIO dev: không `region`, `us-east-1`, `garage` đều được).
+2. Trả `.env` về bản do **`garage_cutover_env.py` tạo ra ở 10.2 bước 1** (`~/hrms_env_before_garage_*`, bản mới nhất; bản này đã có `GARAGE_*` và cấu hình MinIO cũ). **Không** dùng bản tạo ở 10.1 bước 1: nó chưa có `GARAGE_*` mà compose mới bắt buộc phải có, nên mọi lệnh `docker compose` sẽ dừng; trả `backup_configs.source_endpoint` về `minio:9000` và `source_bucket` về `hrms-attachments-dev` (SQL ở 10.2 bước 2, đổi chiều).
+3. Nếu nghi ngờ chính image mới: `docker tag "$BACKEND_IMAGE:before-garage" "$BACKEND_IMAGE:$IMAGE_TAG"` (tương tự cho frontend) trước khi tạo lại dịch vụ; image cũ không có mã `region` nhưng chạy được với MinIO. Rồi `docker compose -f docker-compose.lan.yml --profile legacy-minio up -d minio`; tạo lại ba dịch vụ; chạy lại 10.3 mục 1-2 với MinIO. Không cần đặt `MINIO_REGION`: compose mặc định `garage`, và MinIO chấp nhận mọi region (đã kiểm với MinIO dev: không `region`, `us-east-1`, `garage` đều được).
 4. Tệp nào người dùng tải lên Garage sau cutover sẽ không có ở MinIO: theo tiền đề ở 9.0 thì tải lại hoặc chấp nhận mất (nếu cần giữ thì chép tay trước bước 1).
 
 Quay lui chỉ dùng được khi container và volume MinIO còn nguyên, nên không xóa chúng trước Slice 9.
@@ -790,7 +825,7 @@ Nguồn: agent nghiên cứu đọc tài liệu và mã nguồn (GitHub mirror, 
 | 2026-10-30 | **D6: thêm service `garage` vào `docker-compose.prod.yml`** theo cùng mẫu với file LAN (workflow deploy mặc định dùng file này; server thật chạy `docker-compose.lan.yml`) | Slice 2 và Slice 6 sửa cả ba file compose; hai file không được lệch nhau |
 | 2026-10-30 | **Cổng Slice 1: GO có điều kiện** (theo đề xuất; chủ hệ thống chấp thuận). Điều kiện: (1) SDK truyền `region="garage"`; (2) bucket do bootstrap tạo bằng CLI, khóa chỉ có quyền tạo bucket khi cần khôi phục vào bucket chưa có; (3) `metadata_auto_snapshot_interval` từ 10 phút trở lên (giữ `6h`) | Slice 2 làm theo ba điều kiện này; độ chín của Garage v2.5.0 (mới ra vài ngày) tiếp tục là rủi ro theo dõi ở Slice 2 và 7; U2, U10, U17 còn mở một phần, U12 và U16 để Slice 5 |
 | 2026-10-30 | **Rút gọn kế hoạch theo tiền đề của chủ hệ thống**: dữ liệu production nhỏ và khôi phục được bằng import (chỉ có Phòng/ban, Chức danh, Vị trí, 4 nhân viên thử). Bỏ Slice 4 và 7; dời CI (Slice 5) sang Slice 9 và để tùy chọn; bỏ snapshot MinIO, bước chép dữ liệu và cửa sổ bảo trì ở cutover; rút D4 | Chi tiết ở 9.0. Điều kiện: kiểm kê lại ngay trước cutover phải cho 0 tệp. Tìm thấy thêm: compose production chưa truyền `region` (Slice 6 phải làm); CI vẫn cần S3 sống nên không thể chỉ xóa service MinIO |
-| 2026-10-30 | **D4 chốt: giữ MinIO cũ ở trạng thái dừng cho đến khi sao lưu theo lịch đêm đầu tiên (02:00 `db`, 03:00 `object_storage`) thành công trên Garage, rồi gỡ** (thay cho 7 ngày đã chọn trước đó) | Slice 9 bắt đầu sau đêm đầu tiên thay vì ngày thứ 7; đường lui (10.4) vẫn còn nguyên cho tới lúc đó |
+| 2026-10-30 | **D4 chốt: giữ MinIO cũ ở trạng thái dừng cho đến khi sao lưu theo lịch đêm đầu tiên (cặp `scheduled_full` lúc 02:00 giờ Việt Nam) thành công trên Garage, rồi gỡ** (thay cho 7 ngày đã chọn trước đó) | Slice 9 bắt đầu sau đêm đầu tiên thay vì ngày thứ 7; đường lui (10.4) vẫn còn nguyên cho tới lúc đó |
 | 2026-10-30 | *(Điều chỉnh theo bằng chứng, không phải quyết định mới của chủ hệ thống)* Kéo tham số `region` từ Slice 3 sang Slice 2; cấp quyền tạo bucket cho **cả hai** khóa thay vì chỉ `hrms-backup` | Cả hai đều do bằng chứng chạy thật: backend không khởi động được với Garage nếu thiếu `region` (Slice 1, Slice 2); khôi phục kho tệp tạo bucket đích bằng khóa ứng dụng (`AccessDenied` khi thiếu quyền). Cần chủ hệ thống xem lại nếu muốn hạn chế quyền tạo bucket của khóa ứng dụng |
 
 ## 13. Tiêu chí hoàn thành
