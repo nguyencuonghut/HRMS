@@ -11,8 +11,9 @@ Chỉ ghi lỗi **đã có bằng chứng** (quan sát thật hoặc đọc mã)
 | LD-005 | Trang hồ sơ nhân viên thỉnh thoảng sập ("Cannot read properties of null (reading 'scrollTop')") khi bấm tab lúc trang còn đang tải | Chưa sửa | 2026-10-31, dev (kế hoạch 15.7, Slice 9) |
 | LD-006 | Hai test e2e của Backup Center đỏ sẵn (locator "Sao lưu đầy đủ" khớp 2 nút) | Chưa sửa | 2026-10-31, dev (kế hoạch 15.7, Slice 9) |
 | LD-007 | Chạy toàn bộ `pytest` như job CI (DB sạch, `--sample`) cho 86 test đỏ và 1 lỗi, như nhau với cả MinIO lẫn Garage | **Đã sửa 2026-10-31** (chưa commit; chạy lại toàn bộ trên DB sạch: 0 đỏ; chưa chạy trên GitHub) | 2026-10-31, dev (kế hoạch 15.7, Slice 9) |
+| LD-008 | Bấm tên tệp đính kèm của vị trí công việc (hộp thoại "Chi tiết vị trí công việc") mở tab mới báo 401 `Not authenticated`, không tải được tệp | Chưa sửa | 2026-10-31, dev (phát hiện khi dọn chú thích MinIO; tái hiện bằng trình duyệt thật) |
 
-LD-001, LD-002 và LD-006 có từ trước và **không liên quan** việc chuyển kho tệp sang Garage. LD-003 là cơ chế của mã tải tệp, không phụ thuộc loại kho (chưa kiểm trên MinIO). LD-004 lộ ra khi đổi lịch sao lưu ở production. LD-005 phát hiện khi chạy test e2e, chưa rõ có phụ thuộc thay đổi nào ở Slice 9 hay không (xem mục).
+LD-001, LD-002, LD-006 và LD-008 có từ trước và **không liên quan** việc chuyển kho tệp sang Garage (LD-008 cùng cơ chế với LD-002). LD-003 là cơ chế của mã tải tệp, không phụ thuộc loại kho (chưa kiểm trên MinIO). LD-004 lộ ra khi đổi lịch sao lưu ở production. LD-005 phát hiện khi chạy test e2e, chưa rõ có phụ thuộc thay đổi nào ở Slice 9 hay không (xem mục).
 
 ---
 
@@ -180,3 +181,24 @@ LD-001, LD-002 và LD-006 có từ trước và **không liên quan** việc chu
 - Chưa chạy trên DB dev (bản sao production): các sửa ở mục 1 không đổi hành vi với bảng đã có dữ liệu (đã đo trên bảng tạm), nhưng chưa chạy lại toàn bộ suite trên DB đó.
 - Các test khác vẫn có thể có cùng kiểu mong manh (lấy "phòng ban đầu tiên", ngày cố định, phụ thuộc id=1). Tôi chỉ sửa những test đã đỏ; chưa rà soát toàn bộ.
 - Nhánh `ci/garage-service` chưa push, nên chưa biết job `Backend Tests` trên GitHub xanh hay đỏ.
+
+
+## LD-008. Bấm tên tệp đính kèm của vị trí công việc không tải được (401)
+
+**Triệu chứng.** Ở màn "Vị trí công việc" (`/org/positions`), mở hộp thoại "Chi tiết vị trí công việc", tab "Tài liệu đính kèm", bấm tên một tệp: trình duyệt mở một tab mới chỉ hiện `{"detail":"Not authenticated"}` và không tải được tệp.
+
+**Bằng chứng (2026-10-31, trình duyệt thật).** Chrome điều khiển bằng Playwright 1.60.0, backend thật trong một stack cô lập (DB mới có seed `--sample`, backend, Vite dev server, Garage dev), tài khoản `admin@hrms.local`, vị trí `CT_HDQT`, tệp PDF 4 KiB tải lên bằng API:
+- **Đối chứng:** gọi thẳng `GET /api/v1/job-positions/{id}/attachments/{attId}/download`: không có token trả 401 `{"detail":"Not authenticated"}`; có `Authorization: Bearer <token>` trả 200 và `sha256` đúng bằng tệp đã tải lên. Endpoint không hỏng.
+- **Qua giao diện:** liên kết là `<a href="/api/v1/job-positions/1/attachments/N/download" target="_blank">`. Bấm vào: yêu cầu trong tab mới nhận **401**, **không có** header `Authorization`, và tab hiện đúng `{"detail":"Not authenticated"}`. Tái hiện **6/6 lần** (một lần đầu và năm lần lặp).
+
+**Nguyên nhân (đọc mã, khớp với kết quả trên).** `frontend/src/components/FileAttachmentList.vue:35` dùng thẻ `<a :href="data.download_url" target="_blank">`. `download_url` do `backend/app/api/v1/endpoints/job_positions.py:162` trả là đường dẫn API tải xuống (không phải URL có chữ ký), và endpoint đó yêu cầu quyền `org:view`. Token truy cập nằm trong bộ nhớ của ứng dụng, không phải cookie, nên thẻ `<a>` điều hướng tới URL mà không gửi header `Authorization` và backend trả 401. Cùng cơ chế với LD-002.
+
+**Chú thích sai cùng chỗ (đã sửa 2026-10-31, chưa commit).** `FileAttachmentList.vue` và `backend/app/schemas/job_position.py` ghi `download_url` là "presigned URL, hết hạn sau 1 giờ"; không có URL presigned nào trong mã. Đã viết lại thành "đường dẫn API tải xuống (cần token xác thực)".
+
+**Không liên quan kho tệp.** Lỗi xảy ra ở lớp xác thực, trước khi chạm kho tệp. Không kiểm trên MinIO.
+
+**Phạm vi (chưa rà hết).** Trong `frontend/src`, đây là nơi duy nhất dùng thẻ `<a :href>` trỏ tới `download_url` hay đường dẫn `/download` (tìm bằng `grep`). Các chỗ gán `a.href` bằng script ở các service tải xuống (`employeeService`, `contractService`, `trainingService`, ...) chưa rà từng nơi; nhiều khả năng dùng URL blob có token như cách sửa LD-002.
+
+**Chưa kiểm.** Trên production (chỉ kiểm ở stack cô lập); trình duyệt khác ngoài Chrome; các thao tác khác của cùng danh sách (tải lên, xóa); cách sửa chưa làm. Hướng sửa dự kiến theo LD-002: tải bằng `api.get(..., { responseType: 'blob' })` rồi tạo liên kết blob, thay cho thẻ `<a href>` thuần.
+
+**Kiểm hồi quy khi sửa.** Hai test Playwright dùng để tái hiện (một đối chứng gọi thẳng endpoint, một đi qua giao diện) hiện nằm trong thư mục tạm của phiên làm việc, chưa có trong repo. Khi sửa nên thêm chúng vào `frontend/tests/e2e/` cùng bản sửa; test giao diện đỏ trước khi sửa (nhận 401) và xanh sau khi sửa.
