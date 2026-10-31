@@ -99,7 +99,10 @@
 
             <Column header="Lịch chạy" style="min-width: 160px">
               <template #body="{ data }">
-                <div class="cron-cell">
+                <div v-if="data.kind === 'object_storage'" class="muted-text">
+                  Cùng bộ sao lưu với cơ sở dữ liệu
+                </div>
+                <div v-else class="cron-cell">
                   <span class="backup-code">{{ scheduleTimeLabel(data.cron_expression) }}</span>
                   <span class="muted-text">{{ cronDescription(data.cron_expression) }}</span>
                 </div>
@@ -539,10 +542,15 @@
             <ToggleSwitch input-id="backup-enabled" v-model="configForm.enabled" />
           </div>
 
-          <div class="backup-field">
+          <div v-if="editingConfig?.kind === 'object_storage'" class="backup-field">
+            <label>Giờ chạy hằng ngày</label>
+            <small>Kho tệp chạy cùng bộ sao lưu với cơ sở dữ liệu, theo giờ của dòng cơ sở dữ liệu.</small>
+          </div>
+          <div v-else class="backup-field">
             <label for="backup-schedule-time">Giờ chạy hằng ngày</label>
             <InputText id="backup-schedule-time" v-model="configForm.schedule_time" type="time" class="w-full" />
             <small>{{ dailyScheduleDescription(configForm.schedule_time) }}</small>
+            <small>Áp dụng cho cả bộ sao lưu đầy đủ (cơ sở dữ liệu và kho tệp).</small>
           </div>
 
           <div class="backup-field">
@@ -1144,7 +1152,10 @@ function openEditDialog(config: BackupConfigRead) {
 }
 
 function buildUpdatePayload(): BackupConfigUpdatePayload | null {
-  const cronExpression = scheduleTimeToCron(configForm.value.schedule_time)
+  // Lịch tự động chỉ đọc giờ của dòng cơ sở dữ liệu; dòng kho tệp không có ô giờ nên giữ nguyên giá trị đang lưu.
+  const cronExpression = editingConfig.value?.kind === 'object_storage'
+    ? editingConfig.value.cron_expression
+    : scheduleTimeToCron(configForm.value.schedule_time)
   if (!cronExpression) {
     configFormError.value = 'Giờ chạy hằng ngày không hợp lệ.'
     return null

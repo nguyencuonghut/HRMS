@@ -1070,6 +1070,61 @@ test("admin can save backup config and see the new value after reopening the pag
   }
 });
 
+// Lịch tự động chỉ đọc giờ của dòng cơ sở dữ liệu và tạo một bộ gồm cả hai loại; giờ lưu ở dòng kho tệp không có tác dụng (LD-004).
+test("the object-storage row says it runs with the database backup instead of showing its own time", async ({ page }) => {
+  await login(page, ADMIN_EMAIL, ADMIN_PASSWORD);
+  await openBackupCenter(page);
+
+  const table = page.getByTestId("backup-config-table");
+  const objectRow = table.locator("tbody tr").filter({ hasText: "Kho tệp ứng dụng" });
+  const dbRow = table.locator("tbody tr").filter({ hasText: "Cơ sở dữ liệu PostgreSQL" });
+
+  await expect(objectRow).toContainText("Cùng bộ sao lưu với cơ sở dữ liệu");
+  await expect(objectRow).not.toContainText(/\d{2}:\d{2}/);
+  await expect(dbRow).toContainText(/\d{2}:\d{2}/);
+});
+
+test("editing the object-storage config offers no schedule time and keeps the stored schedule", async ({ page, request }) => {
+  const token = await loginViaApi(request, ADMIN_EMAIL, ADMIN_PASSWORD);
+  const configs = await (await request.get("/api/v1/backups/config", { headers: { Authorization: `Bearer ${token}` } })).json() as BackupConfig[];
+  const original = configs.find((item) => item.kind === "object_storage")!;
+  const originalPayload = payloadFromConfig(original);
+
+  try {
+    await login(page, ADMIN_EMAIL, ADMIN_PASSWORD);
+    await openBackupCenter(page);
+
+    await page.getByRole("button", { name: "Sửa cấu hình sao lưu Kho tệp ứng dụng" }).click();
+    const dialog = page.getByRole("dialog", { name: "Sửa cấu hình sao lưu: Kho tệp ứng dụng" });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.locator("#backup-schedule-time")).toHaveCount(0);
+    await expect(dialog).toContainText("theo giờ của dòng cơ sở dữ liệu");
+
+    const saveRequest = page.waitForRequest((req) => (
+      req.url().includes("/api/v1/backups/config/object_storage") && req.method() === "PUT"
+    ));
+    await dialog.getByRole("button", { name: "Lưu", exact: true }).click();
+    expect((await saveRequest).postDataJSON().cron_expression).toBe(original.cron_expression);
+    await expect(page.getByRole("dialog", { name: "Sửa cấu hình sao lưu: Kho tệp ứng dụng" })).toHaveCount(0);
+  } finally {
+    const restore = await request.put("/api/v1/backups/config/object_storage", {
+      headers: { Authorization: `Bearer ${token}` },
+      data: originalPayload,
+    });
+    expect(restore.ok()).toBeTruthy();
+  }
+});
+
+test("the database row's time field says it applies to the whole backup set", async ({ page }) => {
+  await login(page, ADMIN_EMAIL, ADMIN_PASSWORD);
+  await openBackupCenter(page);
+
+  await page.getByRole("button", { name: "Sửa cấu hình sao lưu Cơ sở dữ liệu PostgreSQL" }).click();
+  const dialog = page.getByRole("dialog", { name: "Sửa cấu hình sao lưu: Cơ sở dữ liệu PostgreSQL" });
+  await expect(dialog.locator("#backup-schedule-time")).toBeVisible();
+  await expect(dialog).toContainText("Áp dụng cho cả bộ sao lưu đầy đủ");
+});
+
 test("admin can trigger backup target validation state from the table", async ({ page }) => {
   await login(page, ADMIN_EMAIL, ADMIN_PASSWORD);
 
