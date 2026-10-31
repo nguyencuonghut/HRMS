@@ -12,8 +12,9 @@ Chỉ ghi lỗi **đã có bằng chứng** (quan sát thật hoặc đọc mã)
 | LD-006 | Hai test e2e của Backup Center đỏ sẵn (locator "Sao lưu đầy đủ" khớp 2 nút) | Chưa sửa | 2026-10-31, dev (kế hoạch 15.7, Slice 9) |
 | LD-007 | Chạy toàn bộ `pytest` như job CI (DB sạch, `--sample`) cho 86 test đỏ và 1 lỗi, như nhau với cả MinIO lẫn Garage | **Đã sửa 2026-10-31** (chưa commit; chạy lại toàn bộ trên DB sạch: 0 đỏ; chưa chạy trên GitHub) | 2026-10-31, dev (kế hoạch 15.7, Slice 9) |
 | LD-008 | Bấm tên tệp đính kèm của vị trí công việc (hộp thoại "Chi tiết vị trí công việc") mở tab mới báo 401 `Not authenticated`, không tải được tệp | **Đã sửa 2026-10-31** (chưa commit; có tác dụng trên production sau khi dựng lại image frontend) | 2026-10-31, dev (phát hiện khi dọn chú thích MinIO; tái hiện bằng trình duyệt thật) |
+| LD-009 | Spec e2e `org-position-auth-refresh.spec.ts` đỏ (tìm "Chuyên viên HR" không thấy): dữ liệu giả lập của spec không theo kịp hai thay đổi của màn "Vị trí công việc" sau 02/06/2026 | **Đã sửa 2026-10-31** (chỉ sửa test, không đụng mã sản phẩm; chưa commit) | 2026-10-31, dev (phát hiện khi sửa LD-008) |
 
-LD-001, LD-002, LD-006 và LD-008 có từ trước và **không liên quan** việc chuyển kho tệp sang Garage (LD-008 cùng cơ chế với LD-002). LD-003 là cơ chế của mã tải tệp, không phụ thuộc loại kho (chưa kiểm trên MinIO). LD-004 lộ ra khi đổi lịch sao lưu ở production. LD-005 phát hiện khi chạy test e2e, chưa rõ có phụ thuộc thay đổi nào ở Slice 9 hay không (xem mục).
+LD-001, LD-002, LD-006, LD-008 và LD-009 có từ trước và **không liên quan** việc chuyển kho tệp sang Garage (LD-008 cùng cơ chế với LD-002; LD-009 là test lỗi thời, không phải lỗi của sản phẩm). LD-003 là cơ chế của mã tải tệp, không phụ thuộc loại kho (chưa kiểm trên MinIO). LD-004 lộ ra khi đổi lịch sao lưu ở production. LD-005 phát hiện khi chạy test e2e, chưa rõ có phụ thuộc thay đổi nào ở Slice 9 hay không (xem mục).
 
 ---
 
@@ -208,3 +209,25 @@ LD-001, LD-002, LD-006 và LD-008 có từ trước và **không liên quan** vi
 - Spec có sẵn của màn này, `org-position-auth-refresh.spec.ts`, **đỏ ở dòng `getByText('Chuyên viên HR')` trên stack cô lập, giống hệt trên mã chưa sửa** (đối chứng bằng cách hoàn tác bản sửa), nên không do bản sửa này; chưa điều tra nguyên nhân (spec dùng nhiều phản hồi giả lập).
 
 **Chưa kiểm.** Trên production (cần dựng lại image frontend); trình duyệt khác ngoài Chrome; tệp rất lớn qua đường này (kiểm bằng tệp tới 90 KB); tải lên và xóa trong cùng danh sách (không đổi, không có test mới); các chỗ gán `a.href` bằng script ở các service khác (xem Phạm vi).
+
+
+## LD-009. Spec e2e `org-position-auth-refresh.spec.ts` đỏ vì dữ liệu giả lập đã lỗi thời
+
+**Triệu chứng.** Chạy `frontend/tests/e2e/org-position-auth-refresh.spec.ts` trên stack cô lập (DB mới có seed `--sample`, backend, Vite dev server) thì đỏ ở `expect(page.getByText("Chuyên viên HR")).toBeVisible()`: `element(s) not found`. Đỏ **giống hệt** trước và sau bản sửa LD-008 (đối chứng bằng cách hoàn tác bản sửa), nên không do LD-008.
+
+**Nguyên nhân: hai nguyên nhân độc lập, cả hai do spec chưa theo kịp sản phẩm.** Spec được thêm ngày 2026-06-02 (commit `1c08542`) và chưa được sửa lần nào kể từ đó. Spec giả lập (mock) `auth/refresh`, `departments`, `job-titles`, `employee-code-rules/sequences` và `job-positions**`, và dựng trang dựa trên các phản hồi giả đó.
+1. **Có thêm một yêu cầu mà spec không biết.** `PositionListView.loadData()` hiện gọi song song ba yêu cầu: danh sách vị trí, phòng ban, và `getProbationLegalGroups()` tới `GET /job-positions/probation-legal-groups/options` (thêm ở commit `2c53e22`, 2026-06-15). Glob `**/api/v1/job-positions**` của spec khớp cả URL này. Lần đầu nó bị giả lập trả 401, lần thử lại rơi vào `route.continue()`, đi tới backend thật cùng token giả và nhận 401; `Promise.all` thất bại nên danh sách không hiển thị. Log yêu cầu ghi lại: sau `POST /auth/refresh -> 200`, `job-positions -> 200` và `departments -> 200` (đều giả lập) nhưng `probation-legal-groups/options -> 401`.
+2. **Bản ghi vị trí giả thiếu các trường nay là bắt buộc.** Kiểu `JobPositionListItem` hiện có `assigned_department_ids`, `assigned_departments`, `is_shared` và `probation_legal_group`, `probation_legal_group_label`, `probation_days_limit` (thêm ở `fa4bdab`, 2026-06-25, khi vị trí có phạm vi nhiều đơn vị), còn bản ghi giả của spec không có. Bảng đọc `data.assigned_departments.length` (`PositionListView.vue:114`), gây `TypeError: Cannot read properties of undefined (reading 'length')` và `[App ErrorBoundary]`.
+
+**Kiểm chứng bằng thí nghiệm (2026-10-31, bản sao của spec ở thư mục tạm, không sửa repo).**
+- Chỉ thêm giả lập cho `probation-legal-groups/options` (trả `[]`, và vẫn tính 401 ở lần đầu như các endpoint khác): yêu cầu đó thành công, spec **vẫn đỏ**, và log chuyển sang lỗi ErrorBoundary ở trên (nguyên nhân 2).
+- Thêm cả các trường còn thiếu vào bản ghi danh sách giả: spec **xanh**, và hai số đếm làm mới token của spec (`refreshCount` 1 rồi 3) vẫn đúng.
+- Bản chỉ có hai thay đổi đó (không thêm trường nào vào bản ghi chi tiết giả) cũng **xanh**, nên hai thay đổi này là cần và đủ cho spec hiện tại. Thêm trường vào bản ghi chi tiết (`department_name`, `assigned_*`, `is_shared`, `probation_*`) cho khớp kiểu `JobPositionRead` cũng xanh nhưng không cần để qua.
+
+**Không phải lỗi của sản phẩm.** Màn hình thật hiển thị đúng: spec e2e mới của LD-008 (`position-attachments.spec.ts`, backend thật) đi qua cùng màn, cùng hộp thoại chi tiết và tab tài liệu, và xanh.
+
+**Cách đã sửa (2026-10-31).** Chỉ sửa `frontend/tests/e2e/org-position-auth-refresh.spec.ts`: thêm giả lập cho `GET /job-positions/probation-legal-groups/options` (trả `[]`, đặt trong cùng bộ xử lý `job-positions**` nên cũng bị 401 ở lần đầu như các endpoint khác), và thêm các trường còn thiếu vào bản ghi vị trí giả: `assigned_department_ids`, `assigned_departments`, `is_shared`, `probation_*` ở cả bản ghi danh sách lẫn bản ghi chi tiết (kèm `department_name` ở bản ghi chi tiết), theo đúng kiểu `JobPositionListItem` và `JobPositionRead` hiện tại. Không đụng mã sản phẩm.
+
+**Đã kiểm (2026-10-31, stack cô lập, Chrome qua Playwright 1.60.0).** Spec nguyên bản đỏ (`getByText('Chuyên viên HR')` không thấy); sau khi sửa **xanh 3 lần trên 3**, và các khẳng định về làm mới token của chính spec vẫn đúng (`refreshCount` bằng 1 sau khi tải danh sách, bằng 3 sau khi mở tab tài liệu), nên spec vẫn kiểm đúng điều nó đặt ra (màn hình sống sót qua việc làm mới token). Spec LD-008 (`position-attachments.spec.ts`) cùng stack vẫn xanh; `vue-tsc --noEmit` không báo lỗi.
+
+**Chưa kiểm.** Chỉ chạy trên stack cô lập, không phải stack dev (DB dev chỉ có tài khoản thật). Ba spec e2e khác cũng nhắc API vị trí công việc (`insurance-foundation-config.spec.ts`, `line-manager-department-scope.spec.ts`, `recruitment-offer-position-scope.spec.ts`) chưa được rà xem có lỗi thời tương tự không. Điểm yếu thiết kế của spec vẫn còn: các URL `job-positions` không nằm trong danh sách được giả lập sẽ bị `route.continue()` sang backend thật cùng token giả và trả 401 gây nhầm lẫn, nên một endpoint mới của màn hình sẽ lại làm spec đỏ theo cách khó đoán. Chưa có cách nào phát hiện sớm kiểu lỗi này, vì CI không chạy e2e.

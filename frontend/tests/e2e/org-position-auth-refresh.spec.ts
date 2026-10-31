@@ -121,6 +121,12 @@ test("position screens and attachment tab survive token refresh through shared a
       return;
     }
 
+    // PositionListView.loadData() gọi thêm endpoint này; không giả lập thì lần thử lại đi tới backend thật cùng token giả (401).
+    if (url.pathname.endsWith("/job-positions/probation-legal-groups/options")) {
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([]) });
+      return;
+    }
+
     if (url.pathname.endsWith("/job-positions")) {
       await route.fulfill({
         status: 200,
@@ -136,6 +142,12 @@ test("position screens and attachment tab survive token refresh through shared a
             job_title_name: "Chuyên viên nhân sự",
             bhxh_allowance: 0,
             non_bhxh_allowance: 0,
+            probation_legal_group: null,
+            probation_legal_group_label: null,
+            probation_days_limit: null,
+            assigned_department_ids: [10],
+            assigned_departments: [{ id: 10, code: "HR", name: "Khối Nhân sự" }],
+            is_shared: false,
             is_active: true,
             created_at: "2026-01-01T00:00:00",
             updated_at: null,
@@ -158,6 +170,13 @@ test("position screens and attachment tab survive token refresh through shared a
           default_grade: 1,
           bhxh_allowance: 0,
           non_bhxh_allowance: 0,
+          department_name: "Khối Nhân sự",
+          probation_legal_group: null,
+          probation_legal_group_label: null,
+          probation_days_limit: null,
+          assigned_department_ids: [10],
+          assigned_departments: [{ id: 10, code: "HR", name: "Khối Nhân sự" }],
+          is_shared: false,
           description: "Theo dõi hồ sơ nhân sự",
           requirements: "Kinh nghiệm 2 năm",
           is_active: true,
