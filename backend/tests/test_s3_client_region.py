@@ -1,6 +1,6 @@
 """Các client S3 của ứng dụng phải ký yêu cầu bằng region được cấu hình (kế hoạch 15.7, Slice 1).
 
-Garage từ chối chữ ký có region khác `s3_region` và SDK `minio` không tự sửa được, nên mọi chỗ tạo client
+Garage từ chối chữ ký có region khác `s3_region` và SDK S3 của ứng dụng không tự sửa được, nên mọi chỗ tạo client
 phải truyền `region`. Máy chủ S3 giả ở đây là một máy chủ HTTP thật chỉ ghi lại yêu cầu nhận được (đóng vai
 hệ thống bên ngoài); kiểm tra dựa trên phạm vi chữ ký (`Credential=<khóa>/<ngày>/<region>/s3/aws4_request`),
 đúng thứ Garage so sánh, nên không giả lập SDK và không phụ thuộc cấu trúc nội bộ của nó.
@@ -99,7 +99,7 @@ def test_app_storage_signs_with_the_configured_region_without_probing_for_it(mon
 
 
 def test_app_storage_without_a_region_still_lets_the_sdk_discover_it(monkeypatch, s3):
-    """Không đặt S3_REGION thì giữ hành vi cũ (MinIO tự dò), để không làm hỏng các triển khai MinIO."""
+    """Không đặt S3_REGION thì giữ hành vi cũ (SDK tự dò region), để không làm hỏng các triển khai S3 khác."""
     monkeypatch.setattr(settings, "S3_ENDPOINT", s3.endpoint)
     monkeypatch.setattr(settings, "S3_ACCESS_KEY", "GKtestaccess")
     monkeypatch.setattr(settings, "S3_SECRET_KEY", "test-secret-value-1234567890")

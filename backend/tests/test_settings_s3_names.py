@@ -61,8 +61,9 @@ def test_the_old_minio_names_are_no_longer_read(monkeypatch):
 
     cfg = Settings(_env_file=None)
 
-    assert cfg.S3_ENDPOINT == "minio:9000"          # mặc định, không phải garage:3900
-    assert cfg.S3_ACCESS_KEY == "minioadmin"
+    assert cfg.S3_ENDPOINT == ""                    # mặc định, không phải garage:3900
+    assert cfg.S3_ACCESS_KEY == ""
+    assert cfg.S3_SECRET_KEY == ""
     assert cfg.S3_BUCKET == ""
     assert cfg.S3_REGION == ""
     assert cfg.S3_BACKUP_CRON == "0 3 * * *"
@@ -76,14 +77,20 @@ def test_production_with_only_the_old_names_refuses_to_start_and_names_the_new_v
         Settings(_env_file=None, **_PRODUCTION)
 
 
-def test_production_rejects_default_credentials_and_names_the_variable():
-    base = {**_PRODUCTION, "S3_ENDPOINT": "s3.example.com"}
-    with pytest.raises(ValidationError, match="S3_ACCESS_KEY"):
-        Settings(_env_file=None, S3_ACCESS_KEY="minioadmin", S3_SECRET_KEY="prod-secret-key", **base)
-    with pytest.raises(ValidationError, match="S3_SECRET_KEY"):
-        Settings(_env_file=None, S3_ACCESS_KEY="prod-access-key", S3_SECRET_KEY="minioadmin", **base)
-    with pytest.raises(ValidationError, match="S3_ENDPOINT"):
-        Settings(
-            _env_file=None, S3_ACCESS_KEY="prod-access-key", S3_SECRET_KEY="prod-secret-key",
-            **{**base, "S3_ENDPOINT": "minio:9000"},
-        )
+_PRODUCTION_STORAGE = {"S3_ENDPOINT": "s3.example.com", "S3_ACCESS_KEY": "prod-access-key", "S3_SECRET_KEY": "prod-secret-key"}
+
+
+def test_production_requires_the_storage_settings_and_names_the_variable():
+    base = {**_PRODUCTION, **_PRODUCTION_STORAGE}
+    Settings(_env_file=None, **base)    # đủ ba giá trị thì hợp lệ
+    for name in _PRODUCTION_STORAGE:
+        with pytest.raises(ValidationError, match=name):
+            Settings(_env_file=None, **{**base, name: ""})
+
+
+def test_production_rejects_weak_credentials_and_names_the_variable():
+    base = {**_PRODUCTION, **_PRODUCTION_STORAGE}
+    for weak in ("password", "admin"):
+        for name in ("S3_ACCESS_KEY", "S3_SECRET_KEY"):
+            with pytest.raises(ValidationError, match=name):
+                Settings(_env_file=None, **{**base, name: weak})

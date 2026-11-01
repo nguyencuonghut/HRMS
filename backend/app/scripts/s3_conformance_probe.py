@@ -1,9 +1,9 @@
 """Bộ kiểm tra tương thích S3 cho kho tệp ứng dụng (kế hoạch 15.7, Slice 1).
 
 Kiểm đúng các thao tác ứng dụng dùng (put/get/stat/list/remove/bucket_exists/make_bucket) cùng các
-trường hợp biên mà dữ liệu production chưa thể hiện, bằng chính SDK `minio` của ứng dụng.
+trường hợp biên mà dữ liệu production chưa thể hiện, bằng chính SDK S3 của ứng dụng.
 
-Giao diện chính là `run_checks(client, bucket)`: nhận một client có cùng giao diện với SDK `minio`
+Giao diện chính là `run_checks(client, bucket)`: nhận một client có cùng giao diện với SDK S3 của ứng dụng
 (có thể là máy chủ S3 giả khi test) và trả về danh sách kết quả, mỗi kiểm tra độc lập với nhau.
 Mọi object thử nằm dưới một tiền tố riêng của lần chạy và được dọn sau khi kiểm xong (trừ khi `keep`).
 """

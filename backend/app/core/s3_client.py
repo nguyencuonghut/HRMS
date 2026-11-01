@@ -16,7 +16,7 @@ def build_s3_client(
 ) -> Minio:
     """Tạo client S3.
 
-    `region` rỗng hoặc None nghĩa là để SDK tự dò (MinIO). Garage từ chối chữ ký có region khác `s3_region` và SDK không tự
+    `region` rỗng hoặc None nghĩa là để SDK tự dò bằng một yêu cầu GetBucketLocation. Garage từ chối chữ ký có region khác `s3_region` và SDK không tự
     sửa được, nên với Garage phải truyền `region="garage"`.
     `timeout` là (chờ kết nối, chờ đọc) tính bằng giây, không thử lại; None thì dùng client HTTP mặc định của SDK.
     """

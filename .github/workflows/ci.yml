@@ -45,7 +45,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Garage (kho tệp S3) thay MinIO (kế hoạch 15.7). Chạy bằng `docker run` sau checkout vì service container khởi
+      # Garage (kho tệp S3, kế hoạch 15.7). Chạy bằng `docker run` sau checkout vì service container khởi
       # động trước checkout nên không gắn được docker/garage/garage.toml từ repo. Cùng image (ghim digest) với compose.
       - name: Start Garage (S3 storage)
         run: |

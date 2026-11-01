@@ -25,7 +25,7 @@ def env(name, default=None):
 
 endpoint = env("S3_ENDPOINT")
 secure = os.environ.get("S3_SECURE", "false").strip().lower() in ("1", "true", "yes", "on")
-region = os.environ.get("S3_REGION", "").strip() or None   # Garage cần region; MinIO thì không
+region = os.environ.get("S3_REGION", "").strip() or None   # Garage cần region; để trống thì SDK tự dò
 client = Minio(endpoint, access_key=env("S3_ACCESS_KEY"), secret_key=env("S3_SECRET_KEY"), secure=secure, region=region)
 
 print(f"endpoint={endpoint} secure={secure} region={region}")

@@ -266,13 +266,13 @@ def test_settings_normalizes_cors_origins():
     assert cfg.CORS_ORIGINS == ["https://hrms.example.com"]
 
 
-def test_settings_rejects_default_s3_endpoint_in_production():
+def test_settings_rejects_empty_s3_endpoint_in_production():
     with pytest.raises(ValidationError):
         Settings(
             ENVIRONMENT="production",
             SECRET_KEY="c" * 64,
             ENCRYPTION_KEY="prod-encryption-key",
-            S3_ENDPOINT="minio:9000",
+            S3_ENDPOINT="",
             S3_ACCESS_KEY="prod-access-key",
             S3_SECRET_KEY="prod-secret-key",
             CORS_ORIGINS=["https://hrms.example.com"],
@@ -299,14 +299,14 @@ def test_settings_allow_http_only_lan_configuration():
         ENVIRONMENT="lan",
         SECRET_KEY="dev-secret-key-change-in-prod",
         ENCRYPTION_KEY="",
-        S3_ENDPOINT="minio:9000",
+        S3_ENDPOINT="garage:3900",
         S3_ACCESS_KEY="CHANGE_ME",
         S3_SECRET_KEY="CHANGE_ME",
         CORS_ORIGINS=["http://hrms.honghafeed.com.vn", "http://172.16.2.100"],
         REFRESH_TOKEN_COOKIE_SECURE=False,
     )
     assert cfg.ENVIRONMENT == "lan"
-    assert cfg.S3_ENDPOINT == "minio:9000"
+    assert cfg.S3_ENDPOINT == "garage:3900"
     assert cfg.REFRESH_TOKEN_COOKIE_SECURE is False
 
 
@@ -332,7 +332,7 @@ def test_s3_bucket_name_prefers_explicit_override(monkeypatch):
 def test_ensure_bucket_uses_resolved_bucket_name(monkeypatch):
     calls: list[tuple[str, str]] = []
 
-    class FakeMinio:
+    class FakeStore:
         def bucket_exists(self, name: str) -> bool:
             calls.append(("exists", name))
             return False
@@ -342,7 +342,7 @@ def test_ensure_bucket_uses_resolved_bucket_name(monkeypatch):
 
     monkeypatch.setattr(settings, "S3_BUCKET", "")
     monkeypatch.setattr(settings, "ENVIRONMENT", "development")
-    monkeypatch.setattr(storage, "_client", lambda: FakeMinio())
+    monkeypatch.setattr(storage, "_client", lambda: FakeStore())
 
     storage.ensure_bucket()
 

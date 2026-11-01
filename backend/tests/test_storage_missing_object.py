@@ -17,7 +17,7 @@ from fastapi import HTTPException
 from minio.error import S3Error
 
 from app.core import storage
-from app.core.circuit_breaker import minio_circuit
+from app.core.circuit_breaker import storage_circuit
 from app.core.config import settings
 
 _BUCKET = "test-bucket"
@@ -84,8 +84,8 @@ def fresh_storage_circuit():
     """Mạch ngắt của kho là singleton dùng chung cả tiến trình; mỗi test bắt đầu và kết thúc ở trạng thái đóng."""
 
     def reset() -> None:
-        minio_circuit._state = type(minio_circuit._state)("closed")
-        minio_circuit._failure_count = 0
+        storage_circuit._state = type(storage_circuit._state)("closed")
+        storage_circuit._failure_count = 0
 
     reset()
     yield
@@ -112,7 +112,7 @@ def test_get_object_bytes_of_a_missing_object_is_a_404(s3):
 
 
 def test_missing_objects_do_not_trip_the_storage_circuit(s3):
-    for _ in range(minio_circuit.failure_threshold + 1):
+    for _ in range(storage_circuit.failure_threshold + 1):
         with pytest.raises(HTTPException) as exc:
             storage.get_object_stream("employees/1/gone.pdf")
         assert exc.value.status_code == 404
@@ -122,7 +122,7 @@ def test_missing_objects_do_not_trip_the_storage_circuit(s3):
 
 def test_a_real_storage_failure_still_trips_the_circuit(s3):
     """Ngoại lệ miễn trừ chỉ dành cho NoSuchKey: lỗi kho thật (ở đây AccessDenied) vẫn phải mở mạch ngắt."""
-    for _ in range(minio_circuit.failure_threshold):
+    for _ in range(storage_circuit.failure_threshold):
         with pytest.raises(S3Error):
             storage.get_object_stream("denied/x.pdf")
 

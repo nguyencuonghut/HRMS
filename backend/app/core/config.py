@@ -16,15 +16,10 @@ _UNSAFE_SECRET_KEYS = frozenset({
     "your-secret-key",
 })
 
+# Giá trị yếu phổ biến; khóa truy cập kho tệp do Garage sinh ra là chuỗi ngẫu nhiên dài.
 _UNSAFE_S3_CREDS = frozenset({
-    "minioadmin",
-    "minio",
     "password",
     "admin",
-})
-
-_UNSAFE_S3_ENDPOINTS = frozenset({
-    "minio:9000",
 })
 
 
@@ -129,13 +124,13 @@ class Settings(BaseSettings):
     REDIS_PASSWORD: str = ""   # Nếu set → production mode có password
 
     # Kho tệp ứng dụng (S3 API; Garage). Tên cũ MINIO_* đã được gỡ (kế hoạch 15.7, Slice 10): `.env` còn tên cũ thì các
-    # biến này nhận giá trị mặc định, và ở production validator bên dưới từ chối khởi động.
-    S3_ENDPOINT:   str  = "minio:9000"
-    S3_ACCESS_KEY: str  = "minioadmin"
-    S3_SECRET_KEY: str  = "minioadmin"
+    # biến này để trống, và ở production validator bên dưới từ chối khởi động. Không có giá trị mặc định dùng được.
+    S3_ENDPOINT:   str  = ""
+    S3_ACCESS_KEY: str  = ""
+    S3_SECRET_KEY: str  = ""
     S3_BUCKET:     str  = ""
     S3_SECURE:     bool = False
-    # Region ký yêu cầu S3 của kho tệp ứng dụng và nguồn sao lưu. Để trống = SDK tự dò (MinIO).
+    # Region ký yêu cầu S3 của kho tệp ứng dụng và nguồn sao lưu. Để trống = SDK tự dò region.
     # Garage từ chối chữ ký sai region nên phải đặt "garage" (kế hoạch 15.7, Slice 1).
     S3_REGION:     str  = ""
 
@@ -145,24 +140,14 @@ class Settings(BaseSettings):
         if self.ENVIRONMENT.lower() == "production":
             if not endpoint:
                 raise ValueError("S3_ENDPOINT bắt buộc trong production.")
-            if endpoint.lower() in _UNSAFE_S3_ENDPOINTS:
-                raise ValueError(
-                    "S3_ENDPOINT đang dùng giá trị mặc định 'minio:9000' — "
-                    "không hợp lệ cho production hiện tại. Đặt endpoint object storage thật trong .env."
-                )
-            if self.S3_ACCESS_KEY.lower() in _UNSAFE_S3_CREDS:
-                raise ValueError(
-                    "S3_ACCESS_KEY đang dùng giá trị mặc định 'minioadmin' — "
-                    "KHÔNG an toàn cho production. Đổi trong .env."
-                )
-            if self.S3_SECRET_KEY.lower() in _UNSAFE_S3_CREDS:
-                raise ValueError(
-                    "S3_SECRET_KEY đang dùng giá trị mặc định 'minioadmin' — "
-                    "KHÔNG an toàn cho production. Đổi trong .env."
-                )
+            for name, value in (("S3_ACCESS_KEY", self.S3_ACCESS_KEY), ("S3_SECRET_KEY", self.S3_SECRET_KEY)):
+                if not value.strip():
+                    raise ValueError(f"{name} bắt buộc trong production.")
+                if value.lower() in _UNSAFE_S3_CREDS:
+                    raise ValueError(f"{name} đang dùng giá trị yếu — KHÔNG an toàn cho production. Đổi trong .env.")
         elif self.S3_SECRET_KEY.lower() in _UNSAFE_S3_CREDS:
             _log.warning(
-                "S3 credentials đang dùng giá trị mặc định — "
+                "S3 credentials đang dùng giá trị yếu — "
                 "KHÔNG an toàn cho production."
             )
         self.S3_ENDPOINT = endpoint

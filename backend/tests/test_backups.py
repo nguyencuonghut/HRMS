@@ -1102,11 +1102,11 @@ async def test_backup_runner_sends_status_email_to_configured_recipients(monkeyp
     async def runner(_session, config, _now):
         assert config.kind == "object_storage"
         return BackupRunResult(
-            artifact_key="files/test-minio.tar.gz",
+            artifact_key="files/test-store.tar.gz",
             artifact_bucket="hrms-backup",
             artifact_size_bytes=5678,
             object_count=3,
-            log_excerpt="Đã tạo bản sao MinIO kiểm thử.",
+            log_excerpt="Đã tạo bản sao kho tệp kiểm thử.",
         )
 
     async def run_job(session):
@@ -1130,7 +1130,7 @@ async def test_backup_runner_sends_status_email_to_configured_recipients(monkeyp
     assert sent_payloads[0]["started_at"].endswith("+07:00")
     assert sent_payloads[0]["finished_at"].endswith("+07:00")
     assert sent_payloads[0]["override_recipients"] == [notify_email]
-    assert "files/test-minio.tar.gz" in sent_payloads[0]["details"]
+    assert "files/test-store.tar.gz" in sent_payloads[0]["details"]
 
 
 def test_backup_notification_timestamp_uses_configured_timezone():

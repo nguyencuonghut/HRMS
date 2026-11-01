@@ -10,7 +10,7 @@
 #
 # Biến tùy chọn:
 #   GARAGE_IMAGE  image Garage cần thử   (mặc định: dxflrs/garage:v2.5.0)
-#   PROBE_IMAGE   image có SDK minio     (mặc định: hrms-backend:latest, build từ docker-compose.yml)
+#   PROBE_IMAGE   image có SDK S3        (mặc định: hrms-backend:latest, build từ docker-compose.yml)
 #   KEEP=1        không dọn container/volume khi kết thúc (để xem thủ công; tự dọn bằng lệnh in ở cuối)
 #
 # Healthcheck dùng `garage health -q` (thoát 1 khi cụm không sẵn sàng). Đọc mã nguồn v2.5.0 cho thấy

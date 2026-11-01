@@ -91,7 +91,7 @@ LD-001, LD-002, LD-006, LD-008 và LD-009 có từ trước và **không liên q
 2. Các nơi khác ngoài tải tệp đính kèm hồ sơ có cùng triệu chứng không.
 3. Có xảy ra y hệt trên MinIO cũ không (cơ chế nằm ở mã chứ không ở kho, nhưng chưa chạy thử).
 
-**Hệ quả thứ hai, phát hiện khi sửa (thăm dò trực tiếp trên mã gốc).** `minio_circuit` (`backend/app/core/circuit_breaker.py`) tính **mọi** exception là sự cố, ngưỡng 3 lần liên tiếp, mở 30 giây. `NoSuchKey` cũng bị tính: gọi `get_object_stream` với object thiếu 4 lần cho `S3Error`, `S3Error`, `S3Error` (mạch chuyển sang `open`), rồi `HTTPException 503`. Nghĩa là chỉ cần một bản ghi "mồ côi" (ví dụ sau khôi phục DB mà chưa khôi phục kho tệp) bị bấm tải 3 lần là **mọi** tải và tải lên tệp của **mọi người dùng** trả 503 trong 30 giây. `get_object_bytes` (dùng cho mẫu DOCX) có cùng đường đi.
+**Hệ quả thứ hai, phát hiện khi sửa (thăm dò trực tiếp trên mã gốc).** `minio_circuit` (nay đổi tên thành `storage_circuit`, `backend/app/core/circuit_breaker.py`) tính **mọi** exception là sự cố, ngưỡng 3 lần liên tiếp, mở 30 giây. `NoSuchKey` cũng bị tính: gọi `get_object_stream` với object thiếu 4 lần cho `S3Error`, `S3Error`, `S3Error` (mạch chuyển sang `open`), rồi `HTTPException 503`. Nghĩa là chỉ cần một bản ghi "mồ côi" (ví dụ sau khôi phục DB mà chưa khôi phục kho tệp) bị bấm tải 3 lần là **mọi** tải và tải lên tệp của **mọi người dùng** trả 503 trong 30 giây. `get_object_bytes` (dùng cho mẫu DOCX) có cùng đường đi.
 
 **Cách đã sửa (2026-10-31, `backend/app/core/storage.py`).**
 - `_minio_get` trả `None` khi `NoSuchKey` (kho vẫn trả lời bình thường nên không tính vào mạch ngắt); các lỗi kho khác (ví dụ `AccessDenied`) vẫn tính.

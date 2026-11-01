@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Lấy artifact sao lưu từ Garage bằng SDK Python (đường khôi phục thủ công, không cần Backup Console).
 
-Chạy trong container backend (đã có SDK `minio` và các biến môi trường), từ thư mục gốc repo:
+Chạy trong container backend (đã có SDK S3 và các biến môi trường), từ thư mục gốc repo:
 
     DC="docker compose -f docker-compose.lan.yml"
     $DC exec -T backend python - list [PREFIX]                         < scripts/backup_fetch.py

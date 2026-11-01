@@ -193,7 +193,7 @@ def _optional_bool(raw: str, fallback: bool) -> bool:
     return fallback
 
 
-def _normalize_minio_endpoint(raw: str | None) -> str:
+def _normalize_s3_endpoint(raw: str | None) -> str:
     endpoint = (raw or "").strip().rstrip("/")
     if "://" in endpoint:
         parsed = urlsplit(endpoint)
@@ -202,7 +202,7 @@ def _normalize_minio_endpoint(raw: str | None) -> str:
 
 
 def _target_values(row: BackupConfig | None = None) -> tuple[str, str, bool]:
-    endpoint = _normalize_minio_endpoint(
+    endpoint = _normalize_s3_endpoint(
         (row.target_endpoint if row and row.target_endpoint else None)
         or settings.BACKUP_STORAGE_ENDPOINT
     )

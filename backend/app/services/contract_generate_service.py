@@ -299,7 +299,7 @@ async def generate_contract_document(
     try:
         docx_source: Union[Path, bytes] = get_object_bytes(template.storage_path)
     except Exception as exc:
-        logger.warning("minio_template_fetch_fallback", path=template.storage_path, error=str(exc))
+        logger.warning("storage_template_fetch_fallback", path=template.storage_path, error=str(exc))
         from app.services.contract_template_docx import resolve_template_storage_path
         local_path = resolve_template_storage_path(template.storage_path)
         if not local_path.exists():

@@ -1,6 +1,6 @@
 """`/health/ready` báo trạng thái kho tệp ứng dụng ở khóa `storage` (kế hoạch 15.7, Slice 10).
 
-Khóa cũ `minio` nêu tên công nghệ đã gỡ; chỉ `main.py` ghi khóa này và không nơi nào trong repo đọc nó.
+Khóa của kho tệp là `storage`, không nêu tên công nghệ; chỉ `main.py` ghi các khóa này và không nơi nào trong repo đọc khóa cũ.
 """
 from types import SimpleNamespace
 
@@ -16,7 +16,7 @@ def test_ready_reports_the_app_storage_under_the_storage_key(client: TestClient,
 
     checks = response.json()["checks"]
     assert checks["storage"] == "ok"
-    assert "minio" not in checks
+    assert set(checks) == {"database", "redis", "storage"}
     assert response.status_code == 200
 
 

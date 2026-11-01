@@ -77,10 +77,10 @@ async def test_send_backup_status_email_skips_when_smtp_not_configured(monkeypat
     async with Session() as session:
         result = await backup_notification_service.send_backup_status_email(
             session,
-            job_name="MinIO backup",
+            job_name="File store backup",
             status="failed",
             summary="Mirror failed",
-            details="mc ls backup/ returned non-zero",
+            details="listing backup/ returned non-zero",
             started_at="2026-05-30T03:00:00+07:00",
             finished_at="2026-05-30T03:01:00+07:00",
         )

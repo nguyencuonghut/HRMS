@@ -138,8 +138,8 @@ class CircuitOpenError(RuntimeError):
 
 # ── Singletons cho từng external service ─────────────────────────────────────
 
-minio_circuit = CircuitBreaker(
-    name="minio",
+storage_circuit = CircuitBreaker(
+    name="storage",
     failure_threshold=3,
     recovery_timeout=30,   # 30s — chờ rồi thử lại (HALF-OPEN)
 )
